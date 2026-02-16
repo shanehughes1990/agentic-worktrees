@@ -21,6 +21,8 @@ This folder defines the full product and engineering scope for `agentic-worktree
 - [15 - Git Worktree Task Lifecycle](./15-git-worktree-task-lifecycle.md)
 - [16 - Kanban Ingestion and Board Seeding Pipeline](./16-kanban-ingestion-and-seeding.md)
 - [17 - Local Development Infrastructure](./17-local-development-infrastructure.md)
+- [18 - Runtime Diagnostics and Watchdogs](./18-runtime-diagnostics-and-watchdogs.md)
+- [19 - go-mcp Interface Integration](./19-go-mcp-interface-integration.md)
 
 ## Current Goal
 
@@ -29,6 +31,7 @@ Build a resilient Go-based orchestration system whose execution core is durable 
 ## Design Principles
 
 - Asynq-first durable execution and retries
+- Autonomous-first operation: generate board, start run, complete with minimal human intervention
 - Interface-agnostic orchestration services
 - Deterministic task/worktree lifecycle
 - Idempotent handlers and checkpointed side effects

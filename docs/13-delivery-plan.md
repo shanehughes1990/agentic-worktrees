@@ -34,6 +34,12 @@
 - event streaming and heartbeats
 - run cancellation and retry controls
 
+## Phase 4A - go-mcp Interface Layer
+
+- `go-mcp` server integration for agent-callable system operations
+- MCP tool surface mapped to ingestion/run/diagnostics/control contracts
+- authz/audit parity validation between CLI and MCP calls
+
 ## Phase 5 - Realtime Insights
 
 - CLI status views and tailing
@@ -61,3 +67,4 @@
 - end-to-end automation cycle proven on parallel task board
 - repeatable rebase/merge behavior on latest origin each iteration
 - clear operator recovery paths for all documented failure classes
+- autonomous walk-away run validated: board generated, run started, all successful tasks merged to captured origin start branch without routine human intervention

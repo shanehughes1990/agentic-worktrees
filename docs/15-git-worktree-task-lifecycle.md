@@ -71,6 +71,8 @@ flowchart TD
 - Worktree path format: `.worktrees/<task-id>-<slug>`.
 - Branch naming format: `task/<task-id>-<slug>`.
 - Base commit is always current HEAD of the main repository active branch at task start.
+- At worktree start, create/attach dedicated thread log file: `<worktree-name>.log`.
+- Per-worktree thread log must be separate from primary application log stream.
 
 ## Drift Minimization Rules
 
@@ -83,3 +85,11 @@ flowchart TD
 - Merge only when required checks pass.
 - After successful merge: delete branch, mark task done, and remove worktree folder.
 - On non-merge terminal path: keep diagnostic artifacts and mark status appropriately.
+- Worktree log file must remain available for audit/diagnostics per retention policy even after thread completion.
+
+## Failure and Resume Rules
+
+- If agent/workflow fails mid-task, preserve task branch + worktree by default.
+- Resume processing from last durable checkpoint in same worktree context where possible.
+- Do not clean up `.worktrees/<task-id>` for recoverable failures.
+- Cleanup/discard of partial worktree is allowed only for explicitly classified extreme/terminal failure cases.

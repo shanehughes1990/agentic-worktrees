@@ -36,6 +36,9 @@
 - immutable append-only run ledger
 - record who/what performed each critical action
 - include policy decision context for escalations and overrides
+- file-based audit trail enabled by default for all environments
+- include step, path, command/action, and output/result details per critical transition
+- enforce tamper-evident integrity controls for stored audit records
 
 ## Safety Defaults
 

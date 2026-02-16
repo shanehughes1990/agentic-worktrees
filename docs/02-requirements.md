@@ -5,8 +5,23 @@
 ### FR-1 Interface Layer
 
 - Provide CLI interface implemented with `urfave/cli/v3`
+- Provide `go-mcp` interface adapter for agent-callable operations
 - Keep orchestration logic independent of interface transport
 - Define stable application service layer for future interfaces (TUI/API/Web)
+
+### FR-1E go-mcp Interface Contract
+
+- Expose core runtime operations as MCP tools so compatible agents can call the system directly
+- Maintain behavioral parity between CLI and MCP for shared operations
+- Support MCP tools for board generation, run start/resume, runtime diagnostics, and control-plane actions
+- Enforce same authz/safety/audit rules for MCP calls as CLI calls
+- MCP interface failures must not compromise core orchestration state consistency
+
+### FR-1D Autonomous Walk-Away Mode
+
+- System default mode must support end-to-end autonomous execution with little to zero human intervention
+- Operator should be able to generate board, start run, and allow system to complete full board cycle automatically
+- Human intervention is reserved for exceptional/terminal policy escalations only
 
 ### FR-1A Durable Execution Core
 
@@ -103,6 +118,7 @@
 - Detect and classify merge conflicts
 - Apply policy-driven conflict handling (auto/manual/escalate)
 - Merge using configured strategy after all gates pass
+- Capture target origin branch at run start and use it as canonical merge target for the full board cycle
 
 ### FR-6 Reliability and Recovery
 
@@ -114,6 +130,9 @@
 - Store and expose dead-letter/archive reasons for operator triage
 - Treat preflight failures as admission-control failures (block enqueue), not worker retries
 - Treat unsupported schema versions as admission-control failures until migration/remediation is complete
+- Preserve half-completed work by default and resume from last durable checkpoint when possible
+- Discard/reset in-progress work only under explicitly classified extreme/terminal conditions
+- Resume logic must prefer same task branch/worktree context before considering rebuild paths
 
 ### FR-7 Observability
 
@@ -121,6 +140,28 @@
 - Structured logs and metrics for each state transition
 - Traceable run IDs across task, worktree, and PR lifecycle
 - Queue-level visibility: depth, latency, retries, in-flight workers, dead-letter volume
+
+### FR-7A Mandatory File Audit Trail
+
+- Application must write full end-to-end audit logs to file by default
+- Audit entries must include lifecycle step, command/action, relevant paths, and resulting outputs/status
+- Audit logging must be enabled before task acceptance and remain active for all runs
+- Audit records must be append-only and correlated by run/task/job IDs
+- If audit file sink is unavailable or unwritable, task intake/enqueueing must be blocked
+- Each worktree agent thread must write to its own dedicated log file named `<worktree-name>.log`
+- Primary application logs and per-worktree thread logs must remain separated by default
+
+### FR-7B Runtime Diagnostics Command Surface
+
+- Provide runtime commands for board status, queue status, worker/agent health, worktree state, git action state, and stream inspection
+- Support in-flight visibility while runs/jobs are actively executing
+- Return correlation metadata (`request_id`, `run_id`, `task_id`, `job_id`) where applicable
+
+### FR-7C Watchdogs and Healthchecks
+
+- Implement mandatory watchdog loops for heartbeat, queue progress, audit sink health, preflight gate health, worktree orphan detection, and stream lag
+- Expose watchdog status through runtime health command and service-level health endpoints
+- Trigger fail-closed task intake behavior for safety-critical watchdog failures
 
 ## Non-Functional Requirements
 

@@ -4,6 +4,8 @@
 
 Design for graceful degradation and deterministic recovery rather than assuming ideal conditions.
 
+For runtime command and watchdog surfaces used during incidents, see [18 - Runtime Diagnostics and Watchdogs](./18-runtime-diagnostics-and-watchdogs.md).
+
 ## Failure Handling Objectives
 
 - preserve correctness over throughput
@@ -11,6 +13,14 @@ Design for graceful degradation and deterministic recovery rather than assuming 
 - guarantee resumability from durable checkpoints
 - isolate blast radius to run/task/worktree scope
 - produce audit-quality evidence for every terminal failure
+- preserve partial progress by default; avoid unnecessary work loss
+
+## Work Preservation Policy
+
+- default: preserve and resume partial work from last valid checkpoint
+- recoverable failures must not trigger destructive reset of task branch/worktree
+- destructive cleanup/reset is last resort and only for extreme terminal conditions
+- every destructive reset must carry explicit policy reason and audit record
 
 ## Severity Levels
 
@@ -45,6 +55,7 @@ Failure points:
 - default model policy missing or invalid (must resolve to `gpt-5.3-codex`)
 - PRD model override references unsupported model identifier
 - persisted artifact schema version outside supported compatibility window
+- audit log file sink missing/unwritable
 
 Detection:
 
@@ -60,6 +71,7 @@ Recovery:
 - support explicit operator-triggered recheck after remediation
 - fallback unsupported PRD model override to `gpt-5.3-codex` and continue with warning
 - run schema migration/normalization before re-enabling task intake
+- block task intake until audit file sink health is restored
 
 Escalate to terminal when:
 
@@ -378,10 +390,11 @@ Escalate to terminal when:
 ## Recovery Strategy Ladder
 
 1. retry transiently (bounded)
-2. resync from authoritative snapshot/event stream
-3. restart component scope (worker/run)
-4. quarantine task/run to dead-letter with diagnostics
-5. escalate to operator with exact remediation steps
+2. resume from last durable checkpoint in same worktree/task context
+3. resync from authoritative snapshot/event stream
+4. restart component scope (worker/run)
+5. quarantine task/run to dead-letter with diagnostics
+6. escalate to operator with exact remediation steps
 
 ## Dead-Letter Requirements
 
@@ -399,6 +412,8 @@ Each dead-letter entry must include:
 - checkpoint before and after every external side-effect boundary
 - on restart, reconcile desired state vs observed state before resuming
 - orphaned resources are adopted or cleaned according to policy
+- prefer in-place resume over restart when branch/worktree state is valid
+- preserve partially completed commits/artifacts unless explicitly invalidated by policy
 
 ## Data Integrity and Consistency Guards
 

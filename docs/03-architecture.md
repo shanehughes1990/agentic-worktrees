@@ -7,7 +7,7 @@ Layered, hexagonal-inspired architecture:
 - `core`: domain models and state machine
 - `app`: orchestration services, enqueueing policies, and lifecycle use cases
 - `adapters`: asynq, git, agent runtime, storage, telemetry
-- `interfaces`: CLI first; additional interfaces later
+- `interfaces`: CLI + go-mcp; additional interfaces later
 
 ## Major Components
 
@@ -67,6 +67,13 @@ Layered, hexagonal-inspired architecture:
 - Metrics exporter
 - Log sinks and run timelines
 
+### 8A) Audit Log Writer (Mandatory)
+
+- Default file sink for append-only audit trail
+- Captures step-by-step lifecycle actions, paths, and outputs
+- Enforces correlation keys (`run_id`, `task_id`, `job_id`) on every record
+- Exposes health status to admission gate (unhealthy sink blocks intake)
+
 ### 9) State Store
 
 - Durable workflow state and checkpoints
@@ -92,6 +99,13 @@ Layered, hexagonal-inspired architecture:
 - `EventBroadcaster` fans events to all interested workers/threads
 - supports multiple subscribers with non-blocking backpressure policy
 
+### 13) MCP Interface Adapter (`go-mcp`)
+
+- exposes application service operations as MCP tools
+- provides agent-callable entrypoints for ingestion, execution, diagnostics, and control actions
+- enforces same policy/audit requirements as CLI interface
+- maps MCP requests/responses to canonical command/service contracts
+
 ## Data Model (Conceptual)
 
 - `Task`: id, title, deps, priority, status, attempts
@@ -116,6 +130,8 @@ The core services expose a stable contract to interface adapters:
 - `GetQueueHealth()`
 - `SeedTemplates(targetPath)`
 - `WatchBoard(scope)`
+- `ListMCPTools()`
+- `InvokeMCPTool(name, input)`
 
 CLI and future interfaces consume the same contract, ensuring behavior parity.
 
@@ -138,3 +154,5 @@ The following adapter groups are explicitly swappable without changing orchestra
 - `task.cleanup`
 
 Each task type must define timeout, retry policy, idempotency key strategy, and emitted checkpoint boundaries.
+
+See [18 - Runtime Diagnostics and Watchdogs](./18-runtime-diagnostics-and-watchdogs.md) for runtime command and watchdog contracts.

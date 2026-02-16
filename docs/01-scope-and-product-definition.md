@@ -17,11 +17,13 @@ Create a dependable orchestration platform where:
 5. Successful work is merged back safely into origin branch
 6. The entire cycle repeats continuously using latest origin state
 7. Failed work is retried or dead-lettered using explicit policies
+8. Operator can start the full board run and walk away until completion in normal conditions
 
 ## In Scope (v1)
 
 - Go orchestration core
 - First interface: CLI using `urfave/cli/v3`
+- Additional interface layer: `go-mcp` integration for agent-callable operations
 - Asynq as the authoritative durable task execution engine
 - Redis-backed durable queues for task processing
 - Dependency-aware mini-kanban task system
@@ -61,3 +63,5 @@ Create a dependable orchestration platform where:
 - Merge throughput increased vs manual branch workflow
 - Conflict handling that is safe and operator-auditable
 - Operational visibility sufficient for debugging every run
+- Full board can execute autonomously from task generation to merged PRs with little to zero human intervention
+- All successful task PRs merge into the branch captured at run start in origin

@@ -4,6 +4,8 @@
 
 Provide full realtime insight into Asynq queues, running workers, agent progression, and git/PR lifecycle so operators can trust and diagnose the system quickly.
 
+Runtime command contracts and watchdog expectations are defined in [18 - Runtime Diagnostics and Watchdogs](./18-runtime-diagnostics-and-watchdogs.md).
+
 ## Observability Pillars
 
 ### Logs
@@ -11,6 +13,9 @@ Provide full realtime insight into Asynq queues, running workers, agent progress
 - Structured JSON logs only
 - Mandatory fields: `timestamp`, `level`, `run_id`, `task_id`, `component`, `event_type`
 - Correlation IDs across planner/enqueuer, worker, git, and agent runtime
+- File audit trail is mandatory and enabled by default
+- Required audit fields: `step`, `action`, `paths`, `command`, `stdout_ref|stdout`, `stderr_ref|stderr`, `result`
+- Each critical lifecycle transition must emit at least one durable file audit entry
 
 ### Metrics
 
@@ -68,3 +73,12 @@ Minimum views:
 - hot logs/events for recent runs
 - archived artifacts for audit window
 - configurable retention with cost caps
+
+## Default File Log Locations
+
+- `/data/logs/audit/` for append-only audit trails
+- `/data/logs/runtime/` for component/runtime logs
+- `/data/logs/worktrees/<worktree-name>.log` for per-worktree agent thread logs
+- local dev equivalent should map to writable host paths
+
+Worktree thread log naming is mandatory and must follow `<worktree-name>.log`.

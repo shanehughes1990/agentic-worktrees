@@ -26,6 +26,8 @@ Before task acceptance/enqueueing, validate:
 - default agent model is configured as `gpt-5.3-codex`
 - PRD-specified per-task model overrides are validated against supported model allowlist
 - unsupported model overrides are rewritten to `gpt-5.3-codex` with warning event
+- audit log root path is configured and writable
+- append-only audit trail file creation succeeds in preflight self-test
 
 If any check fails, system must fail closed on task admission and keep queues in intake-blocked mode.
 

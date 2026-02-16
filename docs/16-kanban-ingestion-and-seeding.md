@@ -4,6 +4,8 @@
 
 Define the application path that ingests a scope/task/feature input file, inspects the current project state, derives dependency-safe task trees, and seeds the mini kanban board for parallel execution.
 
+Primary intended flow: generate board, start autonomous run, and allow system to complete the board cycle with minimal operator involvement.
+
 ## Objectives
 
 - provide internal domain objects used by planner/workflow logic
@@ -165,6 +167,10 @@ The CLI must expose a dedicated ingestion path (example shape):
 
 - `kanban ingest --scope <file> --repo <path> [--branch <name>] [--out tasks/]`
 
+Autonomous execution contract (example shape):
+
+- `kanban run --from-board tasks/board.json --autonomous`
+
 Expected behavior:
 
 1. validate scope and project readiness
@@ -172,6 +178,12 @@ Expected behavior:
 3. emit internal planning summary
 4. write seed artifacts
 5. print deterministic report with counts and warnings
+
+For autonomous run:
+
+- capture origin target branch at run start
+- execute full board until completion or terminal escalation
+- merge successful task PRs into captured origin target branch
 
 Model-specific behavior:
 

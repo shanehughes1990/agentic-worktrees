@@ -4,20 +4,27 @@
 
 For each eligible task:
 
-1. Run preflight admission checks (`git`/`gh` version + `gh` auth status)
-2. Validate persisted schema versions and backward-compatibility support for active artifacts
-3. If preflight fails, block intake and enqueueing until healthy
-4. Evaluate dependency graph and mark runnable tasks as `ready`
-5. Enqueue `task.prepare_worktree` in Asynq with deterministic payload
-6. Worker claims job and writes `worktree_preparing` checkpoint
-7. On success, enqueue `task.execute_agent`
-8. Worker runs agent execution and emits realtime progress events
-9. On success, enqueue `task.validate`
-10. On success, enqueue `task.open_or_update_pr`
-11. On success, enqueue `task.rebase_and_merge`
-12. On success, enqueue `task.cleanup`
-13. Mark task `done`; otherwise retry or archive/dead-letter by policy
-14. Repeat continuously with latest origin freshness guarantees
+1. Capture run-start context (origin target branch, repo revision, policy set)
+2. Run preflight admission checks (`git`/`gh` version + `gh` auth status)
+3. Validate persisted schema versions and backward-compatibility support for active artifacts
+4. If preflight fails, block intake and enqueueing until healthy
+5. Evaluate dependency graph and mark runnable tasks as `ready`
+6. Enqueue `task.prepare_worktree` in Asynq with deterministic payload
+7. Worker claims job and writes `worktree_preparing` checkpoint
+8. On success, enqueue `task.execute_agent`
+9. Worker runs agent execution and emits realtime progress events
+10. On success, enqueue `task.validate`
+11. On success, enqueue `task.open_or_update_pr`
+12. On success, enqueue `task.rebase_and_merge` (targeting captured run-start origin branch)
+13. On success, enqueue `task.cleanup`
+14. Mark task `done`; otherwise retry or archive/dead-letter by policy
+15. Repeat continuously until board completion or terminal escalation
+
+On failure during any stage:
+
+- preserve current worktree state and task branch by default
+- resume from last successful checkpoint in the same task context
+- only discard/recreate context when policy classifies failure as extreme/terminal
 
 ## Deterministic State Machine
 
@@ -44,6 +51,8 @@ For each eligible task:
 - `merging`
 - `cleanup`
 - `retry_scheduled`
+- `resume_pending`
+- `resuming`
 - `dead_lettered`
 - `completed`
 - `errored`
@@ -75,6 +84,8 @@ Persist state after:
 
 These boundaries allow crash-safe resume.
 
+Resume behavior must be checkpoint-directed and work-preserving; the system should continue from the furthest valid checkpoint rather than restarting entire task lifecycle unless required.
+
 ## Control Plane Operations
 
 - `pause queue`
@@ -85,3 +96,5 @@ These boundaries allow crash-safe resume.
 - `archive/dead-letter inspect`
 
 All control actions are audit logged.
+
+In autonomous walk-away mode, these operations are expected to be used only for exceptional escalations, not routine execution.
