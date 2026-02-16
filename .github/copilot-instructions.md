@@ -47,3 +47,24 @@
 - Every ADK task must emit audit/telemetry with correlation IDs (`run_id`, `task_id`, `job_id`).
 - Failure classes MUST be typed (`transient` vs `terminal`) and mapped to queue policy.
 - Any change introducing ADK usage without Asynq resilience guarantees is non-compliant and must be rejected.
+
+## NO CODE-DUMP UTILS OVERRIDE
+
+- Do NOT add or expand generic "catch-all" utility buckets (for example broad `shared/utils` code dumps) as a default behavior.
+- Every new package/module must be purposeful, scoped to a clear domain responsibility, and justified by concrete usage.
+- Prefer focused libraries/packages with explicit intent (config, queue policy, idempotency, checkpoints, typed errors) over miscellaneous helper collections.
+- If a helper is only used by one feature, keep it inside that feature; only promote to shared when multiple features have proven duplication.
+- Reject changes that introduce ambiguous, mixed-responsibility utility files without a clear bounded purpose.
+
+## MODERN GO STANDARDS OVERRIDE
+
+- Target modern Go patterns and APIs compatible with current project Go version and forward compatibility with Go 1.24+.
+- Prefer generics over interface{}-style abstractions when type safety and reuse are improved.
+- Prefer iterator-style APIs and range-friendly designs for collection traversal when clarity and allocation behavior improve.
+- Prefer standard library and modern language features over legacy helper patterns when equivalent behavior exists.
+- Design packages with explicit types, narrow interfaces, and compile-time guarantees.
+- Avoid reflection-heavy implementations when generics or typed adapters can express intent.
+- Prefer context-aware APIs (`context.Context`) for I/O, task boundaries, and cancellation-sensitive operations.
+- Favor error wrapping and typed error semantics over stringly-typed error handling.
+- Keep APIs minimal, composable, and testable; remove legacy compatibility shims when not required by scope.
+- New code should be written in idiomatic modern Go style consistent with current best practices.
