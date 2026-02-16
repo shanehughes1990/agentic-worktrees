@@ -1,0 +1,10 @@
+# Task (go-task)
+.task/
+
+# GoReleaser artifacts
+dist/
+artifacts/
+checksums.txt
+
+# Air hot-reload artifacts
+tmp/

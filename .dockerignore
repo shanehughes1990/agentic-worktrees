@@ -1,0 +1,15 @@
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+bin/
+dist/
+coverage/
+
+worktrees/
+.worktrees/
+
+**/*.tmp
+**/*.log

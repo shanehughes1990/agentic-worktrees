@@ -1,0 +1,48 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Start local app workflow (redis infra + air on host)
+    cmds:
+    - task: app
+
+  app:
+    desc: Start redis infra then run air locally
+    deps: [ infra ]
+    cmds:
+    - task: air
+
+  infra:
+    desc: Start required local infrastructure (redis)
+    preconditions:
+    - sh: command -v docker >/dev/null 2>&1
+      msg: docker is required
+    cmds:
+    - docker compose up -d redis
+
+  infra:down:
+    desc: Stop local infrastructure
+    preconditions:
+    - sh: command -v docker >/dev/null 2>&1
+      msg: docker is required
+    cmds:
+    - docker compose down
+
+  air:
+    desc: Run hot reload on host machine
+    preconditions:
+    - sh: command -v air >/dev/null 2>&1
+      msg: "air is required (install with: go install github.com/air-verse/air@latest)"
+    env:
+      APP_ENV: development
+      REDIS_ADDR: 127.0.0.1:6379
+    cmds:
+    - air -c .air.toml
+
+  release:snapshot:
+    desc: Build a local GoReleaser snapshot (no publish)
+    preconditions:
+    - sh: command -v goreleaser >/dev/null 2>&1
+      msg: goreleaser is required
+    cmds:
+    - goreleaser release --snapshot --clean

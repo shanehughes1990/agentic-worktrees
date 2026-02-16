@@ -1,0 +1,3 @@
+* We need to ensure that required external deps are present and fail fast long before the agent ever gets ahold of it, we can rely on gh cli/git being present since they're prerequisites for running the system at all, but we should verify versions and auth status before accepting any tasks.
+
+* ensure our default agent model is gpt-5.3-codex and allow runtime override PER task via PRD metadata (with validation in preflight and fallback to default if unsupported model specified)
