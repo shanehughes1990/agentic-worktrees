@@ -39,13 +39,6 @@ func NewCopilotClient(appLogger *logrus.Logger, cliPath string, cliURL string, g
 	return &CopilotClient{client: copilot.NewClient(options)}, nil
 }
 
-func (c *CopilotClient) Client() *copilot.Client {
-	if c == nil {
-		return nil
-	}
-	return c.client
-}
-
 func (c *CopilotClient) Start(ctx context.Context) error {
 	if c == nil || c.client == nil {
 		return fmt.Errorf("copilot client is not initialized")
@@ -60,56 +53,40 @@ func (c *CopilotClient) Stop() error {
 	return c.client.Stop()
 }
 
-func (c *CopilotClient) DoTaskFromTaskBoard(ctx context.Context, request domainservices.DoTaskFromTaskBoardRequest) (domainservices.DoTaskFromTaskBoardResult, error) {
-	if strings.TrimSpace(request.TaskID) == "" {
-		return domainservices.DoTaskFromTaskBoardResult{}, fmt.Errorf("task id cannot be empty")
-	}
-	if strings.TrimSpace(request.Prompt) == "" {
-		return domainservices.DoTaskFromTaskBoardResult{}, fmt.Errorf("prompt cannot be empty")
+func (c *CopilotClient) GenerateTaskBoard(ctx context.Context, request domainservices.GenerateTaskBoardRequest) (domainservices.GenerateTaskBoardResult, error) {
+	if err := request.Validate(); err != nil {
+		return domainservices.GenerateTaskBoardResult{}, err
 	}
 
-	output, err := c.runPrompt(ctx, request.Metadata.Model, request.Metadata.RepositoryPath, request.Prompt)
+	prompt := buildGenerateTaskBoardPrompt(request.Prompt, request.Documents)
+	output, err := c.runPrompt(ctx, request.Metadata.Model, prompt)
 	if err != nil {
-		return domainservices.DoTaskFromTaskBoardResult{}, err
+		return domainservices.GenerateTaskBoardResult{}, err
 	}
-	return domainservices.DoTaskFromTaskBoardResult{Summary: output}, nil
+	return domainservices.GenerateTaskBoardResult{BoardJSON: output}, nil
 }
 
-func (c *CopilotClient) CreateTaskBoardFromTextFiles(ctx context.Context, request domainservices.CreateTaskBoardFromTextFilesRequest) (domainservices.CreateTaskBoardFromTextFilesResult, error) {
-	if len(request.FilePaths) == 0 {
-		return domainservices.CreateTaskBoardFromTextFilesResult{}, fmt.Errorf("file paths cannot be empty")
-	}
-	if strings.TrimSpace(request.Prompt) == "" {
-		return domainservices.CreateTaskBoardFromTextFilesResult{}, fmt.Errorf("prompt cannot be empty")
+func buildGenerateTaskBoardPrompt(basePrompt string, documents []domainservices.DocumentationSourceFile) string {
+	var builder strings.Builder
+	builder.WriteString(strings.TrimSpace(basePrompt))
+	builder.WriteString("\n\nAuthoritative document payload follows:\n")
+
+	for _, document := range documents {
+		builder.WriteString("\n--- DOCUMENT START: ")
+		builder.WriteString(strings.TrimSpace(document.Path))
+		builder.WriteString(" ---\n")
+		builder.WriteString(document.Content)
+		if !strings.HasSuffix(document.Content, "\n") {
+			builder.WriteString("\n")
+		}
+		builder.WriteString("--- DOCUMENT END ---\n")
 	}
 
-	output, err := c.runPrompt(ctx, request.Metadata.Model, request.Metadata.RepositoryPath, request.Prompt)
-	if err != nil {
-		return domainservices.CreateTaskBoardFromTextFilesResult{}, err
-	}
-	return domainservices.CreateTaskBoardFromTextFilesResult{BoardJSON: output}, nil
+	builder.WriteString("\nUse only this provided payload to generate the task board output.")
+	return builder.String()
 }
 
-func (c *CopilotClient) ResolveGitConflicts(ctx context.Context, request domainservices.ResolveGitConflictsRequest) (domainservices.ResolveGitConflictsResult, error) {
-	if len(request.ConflictFiles) == 0 {
-		return domainservices.ResolveGitConflictsResult{}, fmt.Errorf("conflict files cannot be empty")
-	}
-	if strings.TrimSpace(request.Prompt) == "" {
-		return domainservices.ResolveGitConflictsResult{}, fmt.Errorf("prompt cannot be empty")
-	}
-
-	output, err := c.runPrompt(ctx, request.Metadata.Model, request.Metadata.RepositoryPath, request.Prompt)
-	if err != nil {
-		return domainservices.ResolveGitConflictsResult{}, err
-	}
-	return domainservices.ResolveGitConflictsResult{Summary: output, ResolvedFiles: request.ConflictFiles}, nil
-}
-
-func (c *CopilotClient) RunPrompt(ctx context.Context, model string, prompt string) (string, error) {
-	return c.runPrompt(ctx, model, "", prompt)
-}
-
-func (c *CopilotClient) runPrompt(ctx context.Context, model string, repositoryPath string, prompt string) (string, error) {
+func (c *CopilotClient) runPrompt(ctx context.Context, model string, prompt string) (string, error) {
 	if c == nil || c.client == nil {
 		return "", fmt.Errorf("copilot client is not initialized")
 	}
@@ -122,14 +99,7 @@ func (c *CopilotClient) runPrompt(ctx context.Context, model string, repositoryP
 		resolvedModel = DefaultCopilotModel
 	}
 
-	sessionConfig := &copilot.SessionConfig{
-		Model: resolvedModel,
-	}
-	if strings.TrimSpace(repositoryPath) != "" {
-		sessionConfig.WorkingDirectory = strings.TrimSpace(repositoryPath)
-	}
-
-	session, err := c.client.CreateSession(ctx, sessionConfig)
+	session, err := c.client.CreateSession(ctx, &copilot.SessionConfig{Model: resolvedModel})
 	if err != nil {
 		return "", fmt.Errorf("create copilot session: %w", err)
 	}

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	domainservices "github.com/shanehughes1990/agentic-worktrees/internal/domain/services"
@@ -11,49 +12,17 @@ import (
 func TestNewCopilotClientRejectsNilLogger(t *testing.T) {
 	client, err := NewCopilotClient(nil, "", "", "")
 	if err == nil {
-		t.Fatalf("expected error for nil logger")
+		t.Fatalf("expected nil logger error")
 	}
 	if client != nil {
-		t.Fatalf("expected nil client when constructor fails")
-	}
-}
-
-func TestNewCopilotClientCreatesClient(t *testing.T) {
-	appLogger, err := infralogger.New("trace", "text")
-	if err != nil {
-		t.Fatalf("new logger: %v", err)
-	}
-
-	client, err := NewCopilotClient(appLogger, "", "", "")
-	if err != nil {
-		t.Fatalf("new copilot client: %v", err)
-	}
-	if client == nil {
-		t.Fatalf("expected non-nil client")
-	}
-	if client.Client() == nil {
-		t.Fatalf("expected non-nil underlying sdk client")
-	}
-}
-
-func TestCopilotClientClientNilReceiver(t *testing.T) {
-	var client *CopilotClient
-	if client.Client() != nil {
-		t.Fatalf("expected nil sdk client for nil receiver")
+		t.Fatalf("expected nil client")
 	}
 }
 
 func TestCopilotClientStartRejectsUninitializedClient(t *testing.T) {
 	client := &CopilotClient{}
 	if err := client.Start(context.Background()); err == nil {
-		t.Fatalf("expected error for uninitialized client")
-	}
-}
-
-func TestCopilotClientStopAllowsNilReceiver(t *testing.T) {
-	var client *CopilotClient
-	if err := client.Stop(); err != nil {
-		t.Fatalf("expected nil error for nil receiver: %v", err)
+		t.Fatalf("expected uninitialized error")
 	}
 }
 
@@ -62,58 +31,35 @@ func TestCopilotClientRunPromptRejectsEmptyPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new logger: %v", err)
 	}
-
 	client, err := NewCopilotClient(appLogger, "", "", "")
 	if err != nil {
-		t.Fatalf("new copilot client: %v", err)
+		t.Fatalf("new client: %v", err)
 	}
-
-	if _, err := client.RunPrompt(context.Background(), "", ""); err == nil {
-		t.Fatalf("expected error for empty prompt")
+	if _, err := client.runPrompt(context.Background(), "", ""); err == nil {
+		t.Fatalf("expected empty prompt error")
 	}
 }
 
-func TestDoTaskFromTaskBoardRejectsMissingFields(t *testing.T) {
+func TestBuildGenerateTaskBoardPromptIncludesDocuments(t *testing.T) {
+	prompt := buildGenerateTaskBoardPrompt("build board", []domainservices.DocumentationSourceFile{{Path: "docs/a.md", Content: "A"}})
+	if !strings.Contains(prompt, "build board") {
+		t.Fatalf("expected base prompt")
+	}
+	if !strings.Contains(prompt, "DOCUMENT START: docs/a.md") {
+		t.Fatalf("expected document marker")
+	}
+}
+
+func TestGenerateTaskBoardValidation(t *testing.T) {
 	appLogger, err := infralogger.New("trace", "text")
 	if err != nil {
 		t.Fatalf("new logger: %v", err)
 	}
 	client, err := NewCopilotClient(appLogger, "", "", "")
 	if err != nil {
-		t.Fatalf("new copilot client: %v", err)
+		t.Fatalf("new client: %v", err)
 	}
-
-	if _, err := client.DoTaskFromTaskBoard(context.Background(), domainservices.DoTaskFromTaskBoardRequest{}); err == nil {
-		t.Fatalf("expected validation error")
-	}
-}
-
-func TestCreateTaskBoardFromTextFilesRejectsMissingFields(t *testing.T) {
-	appLogger, err := infralogger.New("trace", "text")
-	if err != nil {
-		t.Fatalf("new logger: %v", err)
-	}
-	client, err := NewCopilotClient(appLogger, "", "", "")
-	if err != nil {
-		t.Fatalf("new copilot client: %v", err)
-	}
-
-	if _, err := client.CreateTaskBoardFromTextFiles(context.Background(), domainservices.CreateTaskBoardFromTextFilesRequest{}); err == nil {
-		t.Fatalf("expected validation error")
-	}
-}
-
-func TestResolveGitConflictsRejectsMissingFields(t *testing.T) {
-	appLogger, err := infralogger.New("trace", "text")
-	if err != nil {
-		t.Fatalf("new logger: %v", err)
-	}
-	client, err := NewCopilotClient(appLogger, "", "", "")
-	if err != nil {
-		t.Fatalf("new copilot client: %v", err)
-	}
-
-	if _, err := client.ResolveGitConflicts(context.Background(), domainservices.ResolveGitConflictsRequest{}); err == nil {
-		t.Fatalf("expected validation error")
+	if _, err := client.GenerateTaskBoard(context.Background(), domainservices.GenerateTaskBoardRequest{}); err == nil {
+		t.Fatalf("expected request validation error")
 	}
 }

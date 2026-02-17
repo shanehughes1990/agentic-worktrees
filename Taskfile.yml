@@ -40,9 +40,9 @@ tasks:
     - air -c .air.toml
 
   build:
-    desc: Build CLI and worker binaries
+    desc: Build CLI binary
     cmds:
-    - go build ./cmd/cli ./cmd/worker
+    - go build ./cmd/cli
 
   test:
     desc: Run all unit tests
@@ -65,9 +65,9 @@ tasks:
     - go run ./cmd/cli ingest --scope docs
 
   worker:run:
-    desc: Run Asynq worker
+    desc: Run Asynq worker via CLI runtime
     cmds:
-    - go run ./cmd/worker
+    - go run ./cmd/cli run-worker
 
   release:snapshot:
     desc: Build a local GoReleaser snapshot (no publish)

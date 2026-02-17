@@ -4,8 +4,7 @@ Durable autonomous task orchestration with Asynq + Redis, ADK-backed board plann
 
 ## Binaries
 
-- `cmd/cli`: operational CLI (`preflight`, `status`, `ingest`, `version`)
-- `cmd/worker`: Asynq worker that executes ADK planning tasks
+- `cmd/cli`: operational CLI and worker runtime entrypoint
 
 ## Quick Start
 
@@ -21,7 +20,7 @@ Durable autonomous task orchestration with Asynq + Redis, ADK-backed board plann
 5. Enqueue board planning from docs:
    - `go run ./cmd/cli ingest --scope docs`
 6. Start worker:
-   - `go run ./cmd/worker`
+   - `go run ./cmd/cli run-worker`
 
 ## Runtime Artifacts
 
@@ -43,4 +42,4 @@ Use `Taskfile.yml` shortcuts:
 ## Notes
 
 - ADK execution is worker-only via Asynq tasks.
-- CLI only validates input and enqueues deterministic task payloads.
+- CLI validates input, enqueues deterministic task payloads, and can run worker mode with `run-worker`.

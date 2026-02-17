@@ -1,48 +1,52 @@
 package services
 
-import "context"
-
-type AgentRunner interface {
-	DoTaskFromTaskBoard(ctx context.Context, request DoTaskFromTaskBoardRequest) (DoTaskFromTaskBoardResult, error)
-	CreateTaskBoardFromTextFiles(ctx context.Context, request CreateTaskBoardFromTextFilesRequest) (CreateTaskBoardFromTextFilesResult, error)
-	ResolveGitConflicts(ctx context.Context, request ResolveGitConflictsRequest) (ResolveGitConflictsResult, error)
-}
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 type AgentRequestMetadata struct {
-	RunID          string
-	JobID          string
-	Model          string
-	RepositoryPath string
+	RunID string `json:"run_id"`
+	JobID string `json:"job_id"`
+	Model string `json:"model"`
 }
 
-type DoTaskFromTaskBoardRequest struct {
-	Metadata AgentRequestMetadata
-	TaskID   string
-	Prompt   string
+func (m AgentRequestMetadata) Validate() error {
+	if strings.TrimSpace(m.JobID) == "" {
+		return fmt.Errorf("job_id is required")
+	}
+	return nil
 }
 
-type DoTaskFromTaskBoardResult struct {
-	Summary      string
-	ChangedFiles []string
+type GenerateTaskBoardRequest struct {
+	Metadata  AgentRequestMetadata    `json:"metadata"`
+	Prompt    string                  `json:"prompt"`
+	Documents []DocumentationSourceFile `json:"documents"`
 }
 
-type CreateTaskBoardFromTextFilesRequest struct {
-	Metadata  AgentRequestMetadata
-	FilePaths []string
-	Prompt    string
+func (r GenerateTaskBoardRequest) Validate() error {
+	if err := r.Metadata.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.Prompt) == "" {
+		return fmt.Errorf("prompt is required")
+	}
+	if len(r.Documents) == 0 {
+		return fmt.Errorf("documents are required")
+	}
+	for _, document := range r.Documents {
+		if err := document.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-type CreateTaskBoardFromTextFilesResult struct {
-	BoardJSON string
+type GenerateTaskBoardResult struct {
+	BoardJSON string `json:"board_json"`
 }
 
-type ResolveGitConflictsRequest struct {
-	Metadata      AgentRequestMetadata
-	ConflictFiles []string
-	Prompt        string
-}
-
-type ResolveGitConflictsResult struct {
-	ResolvedFiles []string
-	Summary       string
+type AgentRunner interface {
+	GenerateTaskBoard(ctx context.Context, request GenerateTaskBoardRequest) (GenerateTaskBoardResult, error)
 }
