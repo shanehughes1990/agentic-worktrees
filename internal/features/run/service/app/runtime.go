@@ -18,9 +18,16 @@ const (
 )
 
 type Config struct {
-	Name      string `envconfig:"NAME" default:"agentic-worktrees" validate:"required"`
-	LogLevel  string `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=trace debug info warn warning error fatal panic"`
-	LogFormat string `envconfig:"LOG_FORMAT" default:"json" validate:"required,oneof=json text"`
+	Name           string `envconfig:"NAME" default:"agentic-worktrees" validate:"required"`
+	LogLevel       string `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=trace debug info warn warning error fatal panic"`
+	LogFormat      string `envconfig:"LOG_FORMAT" default:"json" validate:"required,oneof=json text"`
+	RedisAddr      string `envconfig:"REDIS_ADDR" default:"127.0.0.1:6379" validate:"required"`
+	QueueName      string `envconfig:"ASYNQ_QUEUE" default:"default" validate:"required"`
+	ADKBoardURL    string `envconfig:"COPILOT_ADK_BOARD_URL" default:""`
+	ADKAuthToken   string `envconfig:"COPILOT_ADK_AUTH_TOKEN" default:""`
+	BoardPath      string `envconfig:"BOARD_PATH" default:"state/board.json" validate:"required"`
+	CheckpointPath string `envconfig:"CHECKPOINT_PATH" default:"state/checkpoints.json" validate:"required"`
+	Concurrency    int    `envconfig:"WORKER_CONCURRENCY" default:"5" validate:"gte=1,lte=100"`
 }
 
 type Runtime struct {
