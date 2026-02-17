@@ -78,3 +78,30 @@
 - **Interface layer**: contains delivery/admission surfaces (CLI, MCP, HTTP, workers entry handlers) that validate input, invoke application services, and map outputs/errors.
 - Dependency direction must point inward: `interface -> application -> domain`, with `infrastructure` implementing interfaces/ports consumed by inner layers.
 - Keep each package single-purpose and placed in its correct layer; reject cross-layer leakage and mixed-responsibility modules.
+
+## STRICT YAGNI ENFORCEMENT
+
+- Treat YAGNI as mandatory: implement only what the user explicitly asks for, nothing more.
+- Do NOT add proactive features, abstractions, scaffolding, helpers, config knobs, or extension points unless explicitly requested.
+- Do NOT create “future-proofing” code or speculative architecture.
+- If a capability is not currently required by the user request, it must not be implemented.
+- Keep solutions minimal and directly tied to stated acceptance criteria.
+- If uncertain whether something is needed, default to not adding it and ask only when necessary to unblock correctness.
+
+## NO NO-OP PLACEHOLDERS ENFORCEMENT
+
+- Do NOT add placeholder or no-op handlers/callbacks (for example empty `Action`, empty hooks, stub command handlers) unless the user explicitly requests them.
+- If the user requests logic in a specific lifecycle hook (for example `Before`), implement it there only and do not leave fallback/no-op logic in other hooks.
+- Do NOT keep unrequested scaffolding in place “just in case.” Remove it.
+- When asked to remove behavior, remove it completely instead of replacing it with inert placeholders.
+
+## EXACT-REQUEST EXECUTION MANDATE
+
+- Execute only what the user explicitly requests, and nothing beyond that request.
+- Do not infer, assume, extend, or “improve” scope unless the user explicitly asks.
+- Do not add architecture, abstractions, placeholders, helpers, commands, flags, hooks, or files that were not requested.
+- Do not introduce optional extras, proactive refactors, or speculative future work.
+- If the request wording is precise, follow the wording exactly and preserve intent verbatim.
+- If ambiguity blocks correctness, ask a minimal clarification question instead of guessing.
+- Prefer the smallest valid change set that satisfies the exact ask.
+- Any unrequested complexity is non-compliant and must be removed.
