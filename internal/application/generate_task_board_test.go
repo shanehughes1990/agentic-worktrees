@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	domainservices "github.com/shanehughes1990/agentic-worktrees/internal/domain/services"
@@ -38,12 +39,18 @@ func TestGenerateTaskBoardPrepareCommandExecute(t *testing.T) {
 		t.Fatalf("new prepare command: %v", err)
 	}
 
-	payload, err := command.Execute(context.Background(), GenerateTaskBoardInput{JobID: "job-1", RootDirectory: "docs", MaxDepth: 1, Prompt: "build"})
+	payload, err := command.Execute(context.Background(), GenerateTaskBoardInput{RootDirectory: "docs", MaxDepth: 1, Prompt: "build"})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 	if payload.Metadata.Model != DefaultCreateBoardModel {
 		t.Fatalf("expected default model")
+	}
+	if payload.Metadata.JobID == "" || !strings.HasPrefix(payload.Metadata.JobID, "job-") {
+		t.Fatalf("expected generated job id")
+	}
+	if payload.Metadata.RunID == "" || !strings.HasPrefix(payload.Metadata.RunID, "run-") {
+		t.Fatalf("expected generated run id")
 	}
 	if len(payload.Documents) != 1 {
 		t.Fatalf("expected documents")
@@ -67,7 +74,7 @@ func TestGenerateTaskBoardPrepareCommandErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new prepare command: %v", err)
 	}
-	if _, err := errCommand.Execute(context.Background(), GenerateTaskBoardInput{JobID: "job-1", RootDirectory: "docs", MaxDepth: 1, Prompt: "x"}); err == nil {
+	if _, err := errCommand.Execute(context.Background(), GenerateTaskBoardInput{RootDirectory: "docs", MaxDepth: 1, Prompt: "x"}); err == nil {
 		t.Fatalf("expected load error")
 	}
 }

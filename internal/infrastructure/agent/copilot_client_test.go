@@ -40,6 +40,21 @@ func TestCopilotClientRunPromptRejectsEmptyPrompt(t *testing.T) {
 	}
 }
 
+func TestResolveCopilotModelDefaultsToGPT53Codex(t *testing.T) {
+	if got := resolveCopilotModel(""); got != DefaultCopilotModel {
+		t.Fatalf("expected default model, got %q", got)
+	}
+	if got := resolveCopilotModel("   "); got != DefaultCopilotModel {
+		t.Fatalf("expected default model for whitespace, got %q", got)
+	}
+}
+
+func TestResolveCopilotModelAllowsOverride(t *testing.T) {
+	if got := resolveCopilotModel("gpt-5.4"); got != "gpt-5.4" {
+		t.Fatalf("expected explicit override model, got %q", got)
+	}
+}
+
 func TestBuildGenerateTaskBoardPromptIncludesDocuments(t *testing.T) {
 	prompt := buildGenerateTaskBoardPrompt("build board", []domainservices.DocumentationSourceFile{{Path: "docs/a.md", Content: "A"}})
 	if !strings.Contains(prompt, "build board") {

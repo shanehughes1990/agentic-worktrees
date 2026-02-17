@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	domainservices "github.com/shanehughes1990/agentic-worktrees/internal/domain/services"
 )
@@ -15,8 +16,6 @@ const (
 )
 
 type GenerateTaskBoardInput struct {
-	JobID         string `json:"job_id"`
-	RunID         string `json:"run_id"`
 	RootDirectory string `json:"root_directory"`
 	MaxDepth      int    `json:"max_depth"`
 	Prompt        string `json:"prompt"`
@@ -24,9 +23,6 @@ type GenerateTaskBoardInput struct {
 }
 
 func (i GenerateTaskBoardInput) Validate() error {
-	if strings.TrimSpace(i.JobID) == "" {
-		return fmt.Errorf("job_id is required")
-	}
 	if strings.TrimSpace(i.RootDirectory) == "" {
 		return fmt.Errorf("root_directory is required")
 	}
@@ -110,11 +106,13 @@ func (c *PrepareGenerateTaskBoardCommand) Execute(ctx context.Context, input Gen
 	if model == "" {
 		model = DefaultCreateBoardModel
 	}
+	jobID := fmt.Sprintf("job-%d", time.Now().UnixNano())
+	runID := fmt.Sprintf("run-%d", time.Now().UnixNano())
 
 	payload := GenerateTaskBoardPayload{
 		Metadata: domainservices.AgentRequestMetadata{
-			RunID: input.RunID,
-			JobID: input.JobID,
+			RunID: runID,
+			JobID: jobID,
 			Model: model,
 		},
 		Prompt:        input.Prompt,

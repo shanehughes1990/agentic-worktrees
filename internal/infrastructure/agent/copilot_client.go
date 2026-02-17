@@ -86,6 +86,14 @@ func buildGenerateTaskBoardPrompt(basePrompt string, documents []domainservices.
 	return builder.String()
 }
 
+func resolveCopilotModel(model string) string {
+	resolvedModel := strings.TrimSpace(model)
+	if resolvedModel == "" {
+		return DefaultCopilotModel
+	}
+	return resolvedModel
+}
+
 func (c *CopilotClient) runPrompt(ctx context.Context, model string, prompt string) (string, error) {
 	if c == nil || c.client == nil {
 		return "", fmt.Errorf("copilot client is not initialized")
@@ -94,12 +102,7 @@ func (c *CopilotClient) runPrompt(ctx context.Context, model string, prompt stri
 		return "", fmt.Errorf("prompt cannot be empty")
 	}
 
-	resolvedModel := strings.TrimSpace(model)
-	if resolvedModel == "" {
-		resolvedModel = DefaultCopilotModel
-	}
-
-	session, err := c.client.CreateSession(ctx, &copilot.SessionConfig{Model: resolvedModel})
+	session, err := c.client.CreateSession(ctx, &copilot.SessionConfig{Model: resolveCopilotModel(model)})
 	if err != nil {
 		return "", fmt.Errorf("create copilot session: %w", err)
 	}
