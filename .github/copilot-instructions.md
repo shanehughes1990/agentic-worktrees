@@ -68,3 +68,13 @@
 - Favor error wrapping and typed error semantics over stringly-typed error handling.
 - Keep APIs minimal, composable, and testable; remove legacy compatibility shims when not required by scope.
 - New code should be written in idiomatic modern Go style consistent with current best practices.
+
+## DDD LAYERING MANDATE
+
+- This codebase follows Domain-Driven Design with four explicit layers: **application**, **domain**, **infrastructure**, and **interface**.
+- **Domain layer**: contains business entities, value objects, aggregates, domain services, and core invariants; it must not depend on interface or infrastructure details.
+- **Application layer**: contains use-cases/orchestration and transaction boundaries; it coordinates domain behavior and depends only on domain contracts/ports.
+- **Infrastructure layer**: contains concrete adapters (persistence, queues, external APIs, filesystem, observability implementations) that satisfy ports defined by inner layers.
+- **Interface layer**: contains delivery/admission surfaces (CLI, MCP, HTTP, workers entry handlers) that validate input, invoke application services, and map outputs/errors.
+- Dependency direction must point inward: `interface -> application -> domain`, with `infrastructure` implementing interfaces/ports consumed by inner layers.
+- Keep each package single-purpose and placed in its correct layer; reject cross-layer leakage and mixed-responsibility modules.

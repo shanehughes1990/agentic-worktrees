@@ -39,6 +39,36 @@ tasks:
     cmds:
     - air -c .air.toml
 
+  build:
+    desc: Build CLI and worker binaries
+    cmds:
+    - go build ./cmd/cli ./cmd/worker
+
+  test:
+    desc: Run all unit tests
+    cmds:
+    - go test ./...
+
+  cli:preflight:
+    desc: Run CLI preflight checks
+    cmds:
+    - go run ./cmd/cli preflight
+
+  cli:status:
+    desc: Show runtime status summary
+    cmds:
+    - go run ./cmd/cli status
+
+  cli:ingest:
+    desc: Enqueue board planning job
+    cmds:
+    - go run ./cmd/cli ingest --scope docs
+
+  worker:run:
+    desc: Run Asynq worker
+    cmds:
+    - go run ./cmd/worker
+
   release:snapshot:
     desc: Build a local GoReleaser snapshot (no publish)
     preconditions:

@@ -4,16 +4,16 @@ import (
 	"context"
 	"log"
 
-	"github.com/shanehughes1990/agentic-worktrees/internal/features/run/service/app"
+	bootstrapcli "github.com/shanehughes1990/agentic-worktrees/internal/bootstrap/cli"
 )
 
 func main() {
-	runtime, err := app.Init(app.KindCLI)
+	runtime, err := bootstrapcli.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := app.Run(context.Background(), runtime); err != nil {
+	if err := runtime.Run(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }

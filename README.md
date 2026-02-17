@@ -1,42 +1,46 @@
-# Agentic Git Worktrees ✨
+# Agentic Git Worktrees
 
-Build faster with many agents on one repo—without chaos.
+Durable autonomous task orchestration with Asynq + Redis, ADK-backed board planning, and file-based auditability.
 
-## What is this?
+## Binaries
 
-Agentic Git Worktrees is an experiment in parallel AI development.
-It uses Git worktrees so each agent gets its own isolated workspace while still connected to the same project history.
+- `cmd/cli`: operational CLI (`preflight`, `status`, `ingest`, `version`)
+- `cmd/worker`: Asynq worker that executes ADK planning tasks
 
-Think: one codebase, many focused agents, clean merges.
+## Quick Start
 
-## Why it matters
+1. Start Redis:
+   - `docker compose up -d redis`
+2. Set required environment variables:
+   - `APP_COPILOT_ADK_BOARD_URL` (required for worker)
+   - optional: `APP_REDIS_ADDR`, `APP_ASYNQ_QUEUE`, `APP_BOARD_PATH`, `APP_CHECKPOINT_PATH`, `APP_AUDIT_PATH`
+3. Run preflight:
+   - `go run ./cmd/cli preflight`
+4. Check runtime status:
+   - `go run ./cmd/cli status`
+5. Enqueue board planning from docs:
+   - `go run ./cmd/cli ingest --scope docs`
+6. Start worker:
+   - `go run ./cmd/worker`
 
-- 🚀 Run multiple tasks at the same time
-- 🧩 Keep each agent's work isolated and organized
-- 🛡️ Reduce conflicts from shared local state
-- ✅ Make reviews and merges cleaner
+## Runtime Artifacts
 
-## The vibe
+- board output: `state/board.json`
+- checkpoints: `state/checkpoints.json`
+- audit log: `logs/audit.log`
 
-One repo. Many worktrees. One agent per task.
-Fast, parallel, and way less messy.
+## Local Tasks
 
-## Project Setup
+Use `Taskfile.yml` shortcuts:
 
-Coming soon.
+- `task build`
+- `task test`
+- `task cli:preflight`
+- `task cli:status`
+- `task cli:ingest`
+- `task worker:run`
 
-## Usage
+## Notes
 
-Coming soon.
-
-## Roadmap
-
-Coming soon.
-
-## Contributing
-
-Coming soon.
-
-## License
-
-Coming soon.
+- ADK execution is worker-only via Asynq tasks.
+- CLI only validates input and enqueues deterministic task payloads.

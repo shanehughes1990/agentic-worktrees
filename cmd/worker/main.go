@@ -4,16 +4,16 @@ import (
 	"context"
 	"log"
 
-	"github.com/shanehughes1990/agentic-worktrees/internal/features/run/service/app"
+	bootstrapworker "github.com/shanehughes1990/agentic-worktrees/internal/bootstrap/worker"
 )
 
 func main() {
-	runtime, err := app.Init(app.KindWorker)
+	runtime, err := bootstrapworker.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := app.Run(context.Background(), runtime); err != nil {
+	if err := runtime.Run(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }
