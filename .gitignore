@@ -8,3 +8,7 @@ checksums.txt
 
 # Air hot-reload artifacts
 tmp/
+
+# SQLite / local database files
+*.db
+**/*.db
