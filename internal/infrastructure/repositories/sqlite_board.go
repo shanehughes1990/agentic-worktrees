@@ -18,6 +18,10 @@ type sqliteBoardRow struct {
 	UpdatedAt time.Time
 }
 
+func (sqliteBoardRow) TableName() string {
+	return "board_rows"
+}
+
 type sqliteEpicRow struct {
 	ID           string `gorm:"primaryKey"`
 	BoardID      string `gorm:"index;not null"`
@@ -28,6 +32,10 @@ type sqliteEpicRow struct {
 	Tasks        []sqliteTaskRow `gorm:"foreignKey:EpicID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
+func (sqliteEpicRow) TableName() string {
+	return "epic_rows"
+}
+
 type sqliteTaskRow struct {
 	ID           string `gorm:"primaryKey"`
 	EpicID       string `gorm:"index;not null"`
@@ -36,6 +44,10 @@ type sqliteTaskRow struct {
 	Status       string   `gorm:"not null"`
 	Dependencies []string `gorm:"serializer:json"`
 	SortOrder    int      `gorm:"not null"`
+}
+
+func (sqliteTaskRow) TableName() string {
+	return "task_rows"
 }
 
 type SQLiteBoardRepository struct {

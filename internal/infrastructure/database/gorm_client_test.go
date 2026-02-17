@@ -149,7 +149,7 @@ func TestHasDatabaseName(t *testing.T) {
 }
 
 func TestDialectorFromParsedURL(t *testing.T) {
-	if _, err := dialectorFromParsedURL(nil); err == nil {
+	if _, err := dialectorFromParsedURL(nil, nil); err == nil {
 		t.Fatalf("expected error for nil parsed url")
 	}
 
@@ -157,7 +157,7 @@ func TestDialectorFromParsedURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse mysql url: %v", err)
 	}
-	if _, err := dialectorFromParsedURL(mysqlURL); err != nil {
+	if _, err := dialectorFromParsedURL(mysqlURL, nil); err != nil {
 		t.Fatalf("expected mysql dialector: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestDialectorFromParsedURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse sqlite url: %v", err)
 	}
-	if _, err := dialectorFromParsedURL(sqliteURL); err != nil {
+	if _, err := dialectorFromParsedURL(sqliteURL, nil); err != nil {
 		t.Fatalf("expected sqlite dialector: %v", err)
 	}
 
@@ -173,7 +173,7 @@ func TestDialectorFromParsedURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse postgres url: %v", err)
 	}
-	if _, err := dialectorFromParsedURL(postgresURL); err == nil {
+	if _, err := dialectorFromParsedURL(postgresURL, nil); err == nil {
 		t.Fatalf("expected unsupported driver error")
 	}
 }

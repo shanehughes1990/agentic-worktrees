@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/shanehughes1990/agentic-worktrees/internal/application"
@@ -15,10 +16,18 @@ type AsynqClient struct {
 }
 
 func NewAsynqClient(redisAddress string) (*AsynqClient, error) {
-	if strings.TrimSpace(redisAddress) == "" {
-		return nil, fmt.Errorf("redis address is required")
+	redisClientOpt, err := ResolveRedisClientOpt(redisAddress)
+	if err != nil {
+		return nil, err
 	}
-	return &AsynqClient{client: asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddress})}, nil
+	return NewAsynqClientWithRedisOpt(redisClientOpt)
+}
+
+func NewAsynqClientWithRedisOpt(redisClientOpt asynq.RedisConnOpt) (*AsynqClient, error) {
+	if redisClientOpt == nil {
+		return nil, fmt.Errorf("redis connection options are required")
+	}
+	return &AsynqClient{client: asynq.NewClient(redisClientOpt)}, nil
 }
 
 func (c *AsynqClient) Close() error {
@@ -78,7 +87,14 @@ func (c *AsynqGenerateTaskBoardClient) EnqueueGenerateTaskBoardResult(ctx contex
 	}
 
 	task := asynq.NewTask(application.AsynqTaskTypeGenerateTaskBoardResult, payloadBytes)
-	info, err := c.asynqClient.client.EnqueueContext(ctx, task, asynq.Queue(c.queueName))
+	resultTaskID := result.Metadata.JobID + "-result"
+	info, err := c.asynqClient.client.EnqueueContext(
+		ctx,
+		task,
+		asynq.Queue(c.queueName),
+		asynq.TaskID(resultTaskID),
+		asynq.Retention(30*time.Second),
+	)
 	if err != nil {
 		return "", fmt.Errorf("enqueue result task: %w", err)
 	}

@@ -4,6 +4,7 @@ go 1.25.3
 
 require (
 	github.com/github/copilot-sdk/go v0.1.24
+	github.com/go-playground/validator/v10 v10.28.0
 	github.com/hibiken/asynq v0.26.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/testcontainers/testcontainers-go v0.40.0
