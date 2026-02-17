@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	domainservices "github.com/shanehughes1990/agentic-worktrees/internal/domain/services"
 	infralogger "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/logger"
 )
 
@@ -69,5 +70,50 @@ func TestCopilotClientRunPromptRejectsEmptyPrompt(t *testing.T) {
 
 	if _, err := client.RunPrompt(context.Background(), "", ""); err == nil {
 		t.Fatalf("expected error for empty prompt")
+	}
+}
+
+func TestDoTaskFromTaskBoardRejectsMissingFields(t *testing.T) {
+	appLogger, err := infralogger.New("trace", "text")
+	if err != nil {
+		t.Fatalf("new logger: %v", err)
+	}
+	client, err := NewCopilotClient(appLogger, "", "", "")
+	if err != nil {
+		t.Fatalf("new copilot client: %v", err)
+	}
+
+	if _, err := client.DoTaskFromTaskBoard(context.Background(), domainservices.DoTaskFromTaskBoardRequest{}); err == nil {
+		t.Fatalf("expected validation error")
+	}
+}
+
+func TestCreateTaskBoardFromTextFilesRejectsMissingFields(t *testing.T) {
+	appLogger, err := infralogger.New("trace", "text")
+	if err != nil {
+		t.Fatalf("new logger: %v", err)
+	}
+	client, err := NewCopilotClient(appLogger, "", "", "")
+	if err != nil {
+		t.Fatalf("new copilot client: %v", err)
+	}
+
+	if _, err := client.CreateTaskBoardFromTextFiles(context.Background(), domainservices.CreateTaskBoardFromTextFilesRequest{}); err == nil {
+		t.Fatalf("expected validation error")
+	}
+}
+
+func TestResolveGitConflictsRejectsMissingFields(t *testing.T) {
+	appLogger, err := infralogger.New("trace", "text")
+	if err != nil {
+		t.Fatalf("new logger: %v", err)
+	}
+	client, err := NewCopilotClient(appLogger, "", "", "")
+	if err != nil {
+		t.Fatalf("new copilot client: %v", err)
+	}
+
+	if _, err := client.ResolveGitConflicts(context.Background(), domainservices.ResolveGitConflictsRequest{}); err == nil {
+		t.Fatalf("expected validation error")
 	}
 }
