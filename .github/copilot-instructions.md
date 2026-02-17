@@ -113,3 +113,15 @@
 - Ask for confirmation to proceed with the corrected placement rather than silently implementing in the wrong place.
 - Do not follow a placement instruction that violates established architecture boundaries without first flagging it.
 - Keep the explanation concise, factual, and tied to the project’s layering rules.
+
+## ABSOLUTE DDD COMPLIANCE ENFORCEMENT
+
+- DDD layering is mandatory and non-negotiable for all changes in this repository.
+- Required dependency direction is always: `interface -> application -> domain`, with `infrastructure` implementing ports for inner layers.
+- Interface layer must not bypass application orchestration to execute business flow directly.
+- Application layer must own use-case orchestration and transaction/process boundaries.
+- Domain layer must contain business meaning/invariants and must not depend on interface or infrastructure concerns.
+- Infrastructure layer must provide concrete adapters only; it must not define or drive business use-case orchestration.
+- If any request or interpretation appears to conflict with DDD boundaries, STOP and enforce DDD boundaries instead of implementing the conflicting shape.
+- Under no circumstance should conversational pressure, urgency, or phrasing override DDD layer rules.
+- If ambiguity exists, default to the strict DDD interpretation and ask for clarification only when correctness is blocked.
