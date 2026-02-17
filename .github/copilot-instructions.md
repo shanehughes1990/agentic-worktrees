@@ -105,3 +105,11 @@
 - If ambiguity blocks correctness, ask a minimal clarification question instead of guessing.
 - Prefer the smallest valid change set that satisfies the exact ask.
 - Any unrequested complexity is non-compliant and must be removed.
+
+## ARCHITECTURE BOUNDARY SAFETY MANDATE
+
+- If a user request would place code in the wrong architectural layer/package, STOP before implementing.
+- Explain briefly why the requested placement is incorrect and identify the correct location/layer.
+- Ask for confirmation to proceed with the corrected placement rather than silently implementing in the wrong place.
+- Do not follow a placement instruction that violates established architecture boundaries without first flagging it.
+- Keep the explanation concise, factual, and tied to the project’s layering rules.
