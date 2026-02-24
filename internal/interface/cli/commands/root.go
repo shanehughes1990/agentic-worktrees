@@ -99,10 +99,10 @@ func NewGenerateTaskBoardCommand(runGenerateTaskBoard GenerateTaskBoardRunFunc, 
 		Name:  "generate-task-board",
 		Usage: "enqueue task-board generation from local docs payload",
 		Flags: []urcli.Flag{
-			&urcli.StringFlag{Name: "ROOT_DIRECTORY", Value: "docs", Required: true, Destination: options.RootDirectory, Sources: urcli.EnvVars("ROOT_DIRECTORY")},
-			&urcli.IntFlag{Name: "MAX_DEPTH", Value: 2, Required: true, Destination: options.TraversalDepth, Sources: urcli.EnvVars("MAX_DEPTH")},
-			&urcli.StringFlag{Name: "PROMPT", Value: DefaultBoardPrompt, Required: true, Destination: options.BoardPrompt, Sources: urcli.EnvVars("PROMPT")},
-			&urcli.StringFlag{Name: "MODEL", Value: "gpt-5.3-codex", Required: true, Destination: options.BoardModel, Sources: urcli.EnvVars("MODEL")},
+			&urcli.StringFlag{Name: "ROOT_DIRECTORY", Value: "docs", Destination: options.RootDirectory, Sources: urcli.EnvVars("ROOT_DIRECTORY")},
+			&urcli.IntFlag{Name: "MAX_DEPTH", Value: 2, Destination: options.TraversalDepth, Sources: urcli.EnvVars("MAX_DEPTH")},
+			&urcli.StringFlag{Name: "PROMPT", Value: DefaultBoardPrompt, Destination: options.BoardPrompt, Sources: urcli.EnvVars("PROMPT")},
+			&urcli.StringFlag{Name: "MODEL", Value: "gpt-5.3-codex", Destination: options.BoardModel, Sources: urcli.EnvVars("MODEL")},
 		},
 		Action: func(actionCtx context.Context, _ *urcli.Command) error {
 			if runGenerateTaskBoard == nil {
