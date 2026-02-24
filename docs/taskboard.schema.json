@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-worktrees.local/schemas/taskboard.schema.json",
+  "title": "Task Board",
+  "description": "Canonical schema for the dependency-graph task board generated from documentation ingestion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "board_id",
+    "run_id",
+    "status",
+    "epics",
+    "tasks",
+    "micro_tasks",
+    "dependencies",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "board_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "$ref": "#/$defs/status"
+    },
+    "epics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/epic"
+      },
+      "uniqueItems": true
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      },
+      "uniqueItems": true
+    },
+    "micro_tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/micro_task"
+      },
+      "uniqueItems": true
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      },
+      "uniqueItems": true
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "not-started",
+        "in-progress",
+        "completed",
+        "blocked"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "common_work_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "board_id",
+        "title",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "board_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "priority": {
+          "$ref": "#/$defs/priority"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "epic": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common_work_item"
+        },
+        {
+          "type": "object",
+          "required": [
+            "item_type"
+          ],
+          "properties": {
+            "item_type": {
+              "const": "epic"
+            }
+          }
+        }
+      ]
+    },
+    "task": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common_work_item"
+        },
+        {
+          "type": "object",
+          "required": [
+            "item_type",
+            "epic_id"
+          ],
+          "properties": {
+            "item_type": {
+              "const": "task"
+            },
+            "epic_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "micro_task": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common_work_item"
+        },
+        {
+          "type": "object",
+          "required": [
+            "item_type",
+            "task_id"
+          ],
+          "properties": {
+            "item_type": {
+              "const": "micro_task"
+            },
+            "task_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_id",
+        "board_id",
+        "from_id",
+        "to_id"
+      ],
+      "properties": {
+        "edge_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "board_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependency_type": {
+          "type": "string",
+          "default": "blocks"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@ package asynq
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hibiken/asynq"
 )
@@ -25,16 +26,11 @@ func (server *Server) Run(ctx context.Context, registrations []HandlerRegistrati
 		mux.Handle(registration.TaskType, registration.Handler)
 	}
 
-	runErr := make(chan error, 1)
-	go func() {
-		runErr <- server.inner.Run(mux)
-	}()
-
-	select {
-	case <-ctx.Done():
-		server.inner.Shutdown()
-		return <-runErr
-	case err := <-runErr:
-		return err
+	if err := server.inner.Start(mux); err != nil {
+		return fmt.Errorf("start asynq server: %w", err)
 	}
+
+	<-ctx.Done()
+	server.inner.Shutdown()
+	return nil
 }
