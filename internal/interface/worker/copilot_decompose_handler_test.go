@@ -39,6 +39,13 @@ func (repo *captureRepo) GetByBoardID(context.Context, string) (*domaintaskboard
 	return nil, nil
 }
 
+func (repo *captureRepo) ListBoardIDs(context.Context) ([]string, error) {
+	if repo.saved == nil {
+		return []string{}, nil
+	}
+	return []string{repo.saved.BoardID}, nil
+}
+
 func (repo *captureRepo) Save(context.Context, *domaintaskboard.Board) error {
 	repo.saved = &domaintaskboard.Board{BoardID: "saved"}
 	return nil

@@ -33,12 +33,24 @@ func (repository *RuntimeWorkflowRepository) Close() error {
 func (repository *RuntimeWorkflowRepository) ListRuntimeWorkflows(ctx context.Context) ([]apptaskboard.IngestionWorkflow, error) {
 	_ = ctx
 	stateLoaders := []func() ([]*asynq.TaskInfo, error){
-		func() ([]*asynq.TaskInfo, error) { return repository.inspector.ListPendingTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0)) },
-		func() ([]*asynq.TaskInfo, error) { return repository.inspector.ListActiveTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0)) },
-		func() ([]*asynq.TaskInfo, error) { return repository.inspector.ListScheduledTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0)) },
-		func() ([]*asynq.TaskInfo, error) { return repository.inspector.ListRetryTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0)) },
-		func() ([]*asynq.TaskInfo, error) { return repository.inspector.ListCompletedTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0)) },
-		func() ([]*asynq.TaskInfo, error) { return repository.inspector.ListArchivedTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0)) },
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListPendingTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListActiveTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListScheduledTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListRetryTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListCompletedTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListArchivedTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
 	}
 
 	workflowsByRunID := map[string]apptaskboard.IngestionWorkflow{}
@@ -51,7 +63,7 @@ func (repository *RuntimeWorkflowRepository) ListRuntimeWorkflows(ctx context.Co
 			return nil, fmt.Errorf("list runtime workflows from asynq: %w", err)
 		}
 		for _, info := range tasksInState {
-			if info == nil || info.Type != tasks.TaskTypeCopilotDecompose {
+			if info == nil || !isRuntimeWorkflowTaskType(info.Type) {
 				continue
 			}
 			workflow := mapTaskToWorkflow(info)
@@ -93,12 +105,18 @@ func (repository *RuntimeWorkflowRepository) GetRuntimeWorkflow(ctx context.Cont
 	return nil, nil
 }
 
-func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
-	payload := tasks.CopilotDecomposePayload{}
-	if len(info.Payload) > 0 {
-		_ = json.Unmarshal(info.Payload, &payload)
+func isRuntimeWorkflowTaskType(taskType string) bool {
+	cleanTaskType := strings.TrimSpace(taskType)
+	switch cleanTaskType {
+	case tasks.TaskTypeCopilotDecompose, tasks.TaskTypeGitWorktreeFlow, tasks.TaskTypeGitConflictResolve, tasks.TaskTypeTaskboardExecute:
+		return true
+	default:
+		return false
 	}
-	runID := strings.TrimSpace(payload.RunID)
+}
+
+func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
+	runID := extractRunID(info)
 	if runID == "" {
 		runID = strings.TrimSpace(info.ID)
 	}
@@ -114,6 +132,40 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 		Stream:    stream,
 		UpdatedAt: mapTaskUpdatedAt(info),
 		CreatedAt: time.Time{},
+	}
+}
+
+func extractRunID(info *asynq.TaskInfo) string {
+	if info == nil {
+		return ""
+	}
+	switch strings.TrimSpace(info.Type) {
+	case tasks.TaskTypeCopilotDecompose:
+		payload := tasks.CopilotDecomposePayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		return strings.TrimSpace(payload.RunID)
+	case tasks.TaskTypeGitWorktreeFlow:
+		payload := tasks.GitWorktreeFlowPayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		return strings.TrimSpace(payload.RunID)
+	case tasks.TaskTypeGitConflictResolve:
+		payload := tasks.GitConflictResolvePayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		return strings.TrimSpace(payload.RunID)
+	case tasks.TaskTypeTaskboardExecute:
+		payload := tasks.TaskboardExecutePayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		return strings.TrimSpace(payload.BoardID)
+	default:
+		return ""
 	}
 }
 

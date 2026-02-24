@@ -36,13 +36,72 @@ func (service *Service) GetReadyTasks(ctx context.Context, boardID string) ([]*d
 	return service.navigator.GetReadyTasks(board)
 }
 
+func (service *Service) ListBoardIDs(ctx context.Context) ([]string, error) {
+	boardIDs, err := service.repository.ListBoardIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list boards: %w", err)
+	}
+	return boardIDs, nil
+}
+
 func (service *Service) MarkTaskCompleted(ctx context.Context, boardID string, taskID string) error {
+	return service.markTaskStatus(ctx, boardID, taskID, domaintaskboard.StatusCompleted)
+}
+
+func (service *Service) MarkTaskInProgress(ctx context.Context, boardID string, taskID string) error {
+	return service.markTaskStatus(ctx, boardID, taskID, domaintaskboard.StatusInProgress)
+}
+
+func (service *Service) MarkTaskBlocked(ctx context.Context, boardID string, taskID string) error {
+	return service.markTaskStatus(ctx, boardID, taskID, domaintaskboard.StatusBlocked)
+}
+
+func (service *Service) IsBoardCompleted(ctx context.Context, boardID string) (bool, error) {
+	board, err := service.loadBoard(ctx, boardID)
+	if err != nil {
+		return false, err
+	}
+
+	for _, epic := range board.Epics {
+		for _, task := range epic.Tasks {
+			if task.Status != domaintaskboard.StatusCompleted {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func (service *Service) GetTaskByID(ctx context.Context, boardID string, taskID string) (*domaintaskboard.Task, error) {
+	board, err := service.loadBoard(ctx, boardID)
+	if err != nil {
+		return nil, err
+	}
+	cleanTaskID := strings.TrimSpace(taskID)
+	if cleanTaskID == "" {
+		return nil, fmt.Errorf("task_id is required")
+	}
+
+	for epicIndex := range board.Epics {
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			task := &board.Epics[epicIndex].Tasks[taskIndex]
+			if task.ID == cleanTaskID {
+				copiedTask := *task
+				return &copiedTask, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("task not found: %s", cleanTaskID)
+}
+
+func (service *Service) markTaskStatus(ctx context.Context, boardID string, taskID string, status domaintaskboard.Status) error {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {
 		return err
 	}
 
-	if err := board.SetTaskStatus(taskID, domaintaskboard.StatusCompleted); err != nil {
+	if err := board.SetTaskStatus(taskID, status); err != nil {
 		return err
 	}
 

@@ -43,6 +43,46 @@ func TestRepositorySaveAndLoadBoard(t *testing.T) {
 	}
 }
 
+func TestRepositoryListBoardIDs(t *testing.T) {
+	repository, err := NewRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected repository creation error: %v", err)
+	}
+
+	now := time.Now().UTC()
+	board := &domaintaskboard.Board{
+		BoardID: "board-list-1",
+		RunID:   "run-list-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "e1", BoardID: "board-list-1", Title: "Epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "t1", BoardID: "board-list-1", Title: "Task", Status: domaintaskboard.StatusNotStarted},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := repository.Save(context.Background(), board); err != nil {
+		t.Fatalf("unexpected save error: %v", err)
+	}
+
+	workflow := &apptaskboard.IngestionWorkflow{RunID: "run-list-1", Status: apptaskboard.WorkflowStatusQueued}
+	workflow.Normalize("run-list-1")
+	if err := repository.SaveWorkflow(context.Background(), workflow); err != nil {
+		t.Fatalf("unexpected save workflow error: %v", err)
+	}
+
+	boardIDs, err := repository.ListBoardIDs(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected list board ids error: %v", err)
+	}
+	if len(boardIDs) != 1 || boardIDs[0] != "board-list-1" {
+		t.Fatalf("expected board-list-1, got %#v", boardIDs)
+	}
+}
+
 func TestRepositoryWorkflowList(t *testing.T) {
 	repository, err := NewRepository(t.TempDir())
 	if err != nil {

@@ -35,6 +35,14 @@ func (repository *pollingRepository) GetByBoardID(_ context.Context, boardID str
 	return repository.boards[boardID], nil
 }
 
+func (repository *pollingRepository) ListBoardIDs(_ context.Context) ([]string, error) {
+	boardIDs := make([]string, 0, len(repository.boards))
+	for boardID := range repository.boards {
+		boardIDs = append(boardIDs, boardID)
+	}
+	return boardIDs, nil
+}
+
 func (repository *pollingRepository) Save(_ context.Context, board *domaintaskboard.Board) error {
 	repository.boards[board.BoardID] = board
 	return nil

@@ -28,7 +28,8 @@ type RedisConfig struct {
 }
 
 type TaskboardConfig struct {
-	JSONDirectory string `envconfig:"TASKBOARD_JSON_DIR" default:"data/taskboards" validate:"required"`
+	JSONDirectory       string `envconfig:"TASKBOARD_JSON_DIR" default:"data/taskboards" validate:"required"`
+	MaxConcurrentAgents int    `envconfig:"TASKBOARD_MAX_CONCURRENT_AGENTS" default:"3" validate:"gt=0"`
 }
 
 type CopilotConfig struct {

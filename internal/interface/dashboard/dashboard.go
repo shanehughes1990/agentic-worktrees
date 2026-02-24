@@ -12,6 +12,10 @@ import (
 )
 
 type IngestFunc func(ctx context.Context, directory string) (apptaskboard.IngestionResult, error)
+type StartTaskTreeFunc func(ctx context.Context, boardID string, sourceBranch string) (string, error)
+type CancelTaskTreeFunc func(ctx context.Context, boardID string) (string, error)
+type ListTaskboardsFunc func(ctx context.Context) ([]string, error)
+type ListReadyTaskIDsFunc func(ctx context.Context, boardID string) ([]string, error)
 type ListWorkflowsFunc func(ctx context.Context) ([]apptaskboard.IngestionWorkflow, error)
 type WorkflowStatusFunc func(ctx context.Context, runID string) (*apptaskboard.IngestionWorkflow, error)
 type CopilotAuthStatusFunc func(ctx context.Context) (string, error)
@@ -34,11 +38,16 @@ type UI struct {
 	ingestionCommandList *tview.List
 	runIngestionInput    *tview.InputField
 	runIngestionCommands *tview.List
+	runGitBoardList      *tview.List
+	runGitSourceInput    *tview.InputField
+	runGitCommands       *tview.List
+	runGitReadyTasks     *tview.TextView
+	selectedBoardID      string
 	workflowList         *tview.List
 	workflowDetails      *tview.TextView
 }
 
-func New(ingest IngestFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
@@ -55,11 +64,13 @@ func New(ingest IngestFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus W
 	mainScreen := ui.buildMainScreen()
 	ingestionScreen := ui.buildIngestionCommandsScreen(copilotAuthStatus, copilotAuthenticate)
 	runIngestionScreen := ui.buildRunIngestionScreen(ingest)
+	runGitflowScreen := ui.buildRunGitflowScreen(startTaskTree, cancelTaskTree, listTaskboards, listReadyTaskIDs, repositoryRoot)
 	workflowStatusScreen := ui.buildWorkflowStatusScreen(listWorkflows, getWorkflowStatus)
 
 	ui.pages.AddPage("main", mainScreen, true, true)
 	ui.pages.AddPage("ingestion_commands", ingestionScreen, true, false)
 	ui.pages.AddPage("ingestion_run", runIngestionScreen, true, false)
+	ui.pages.AddPage("gitflow_run", runGitflowScreen, true, false)
 	ui.pages.AddPage("ingestion_workflows", workflowStatusScreen, true, false)
 
 	application.SetRoot(ui.pages, true)
@@ -129,6 +140,7 @@ func (ui *UI) buildIngestionCommandsScreen(copilotAuthStatus CopilotAuthStatusFu
 
 	ui.ingestionCommandList = ui.newCommandList([]Command{
 		{Title: "Run Ingestion", Description: "Run new ingestion workflow", Shortcut: 'r', Action: func() { ui.navigateTo("ingestion_run") }},
+		{Title: "Start Task Tree", Description: "Start pipeline for a persisted taskboard", Shortcut: 'g', Action: func() { ui.navigateTo("gitflow_run") }},
 		{Title: "Workflow Status", Description: "List live Asynq workflows and inspect details", Shortcut: 'w', Action: func() { ui.navigateTo("ingestion_workflows") }},
 		{Title: "Copilot Auth Status", Description: "Check current Copilot CLI authentication status", Shortcut: 's', Action: func() {
 			go func() {
@@ -175,6 +187,195 @@ func (ui *UI) buildIngestionCommandsScreen(copilotAuthStatus CopilotAuthStatusFu
 		AddItem(header, 3, 0, false).
 		AddItem(body, 3, 0, false).
 		AddItem(ui.ingestionCommandList, 0, 1, true).
+		AddItem(ui.status, 3, 0, false)
+}
+
+func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, repositoryRoot string) tview.Primitive {
+	header := tview.NewTextView().SetText("Start Task Tree Pipeline").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+	header.SetBorder(true)
+
+	repositoryRootLabel := tview.NewTextView().SetDynamicColors(true)
+	repositoryRootLabel.SetBorder(true)
+	repositoryRootLabel.SetTitle("Repository Root")
+	repositoryRootLabel.SetText(repositoryRoot)
+
+	boardList := tview.NewList().ShowSecondaryText(true)
+	boardList.SetBorder(true)
+	boardList.SetTitle("Taskboards")
+	ui.runGitBoardList = boardList
+
+	readyTasks := tview.NewTextView().SetDynamicColors(true)
+	readyTasks.SetBorder(true)
+	readyTasks.SetTitle("Ready Tasks")
+	readyTasks.SetText("Select a taskboard and refresh to load ready tasks.")
+	ui.runGitReadyTasks = readyTasks
+
+	sourceBranchInput := tview.NewInputField().SetLabel("Source Branch: ")
+	sourceBranchInput.SetBorder(true)
+	sourceBranchInput.SetTitle("Source Branch")
+	ui.runGitSourceInput = sourceBranchInput
+
+	loadReadyTasks := func(boardID string) {
+		cleanBoardID := strings.TrimSpace(boardID)
+		if cleanBoardID == "" {
+			return
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if listReadyTaskIDs == nil {
+				ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ready task query unavailable") })
+				return
+			}
+			readyTaskIDs, err := listReadyTaskIDs(ctx, cleanBoardID)
+			ui.application.QueueUpdateDraw(func() {
+				if err != nil {
+					ui.status.SetText(fmt.Sprintf("Load ready tasks failed: %s", formatUserError(err)))
+					return
+				}
+				if len(readyTaskIDs) == 0 {
+					readyTasks.SetText("No ready tasks for selected board.")
+					return
+				}
+				readyTasks.SetText(strings.Join(readyTaskIDs, "\n"))
+			})
+		}()
+	}
+
+	refreshBoards := func() {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if listTaskboards == nil {
+				ui.application.QueueUpdateDraw(func() { ui.status.SetText("Taskboard list unavailable") })
+				return
+			}
+			boardIDs, err := listTaskboards(ctx)
+			ui.application.QueueUpdateDraw(func() {
+				if err != nil {
+					ui.status.SetText(fmt.Sprintf("Load taskboards failed: %s", formatUserError(err)))
+					return
+				}
+				boardList.Clear()
+				if len(boardIDs) == 0 {
+					ui.selectedBoardID = ""
+					boardList.AddItem("(none)", "No taskboards found", 0, nil)
+					readyTasks.SetText("No taskboards available.")
+					ui.status.SetText("No taskboards found")
+					return
+				}
+				for _, boardID := range boardIDs {
+					currentBoardID := boardID
+					boardList.AddItem(currentBoardID, "Select board", 0, func() {
+						ui.selectedBoardID = currentBoardID
+						ui.status.SetText(fmt.Sprintf("Selected board %s", currentBoardID))
+						loadReadyTasks(currentBoardID)
+					})
+				}
+				if ui.selectedBoardID == "" {
+					ui.selectedBoardID = boardIDs[0]
+					loadReadyTasks(ui.selectedBoardID)
+				}
+				ui.status.SetText(fmt.Sprintf("Loaded %d taskboards", len(boardIDs)))
+			})
+		}()
+	}
+
+	ui.runGitCommands = ui.newCommandList([]Command{
+		{
+			Title:       "Refresh Taskboards",
+			Description: "Reload all taskboards from local JSON storage",
+			Shortcut:    'f',
+			Action:      refreshBoards,
+		}, {
+			Title:       "Cancel Runner",
+			Description: "Cancel and cleanup running taskboard runner for selected board",
+			Shortcut:    'x',
+			Action: func() {
+				boardID := strings.TrimSpace(ui.selectedBoardID)
+				if boardID == "" {
+					ui.status.SetText("Select a taskboard first")
+					return
+				}
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+					defer cancel()
+					if cancelTaskTree == nil {
+						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree cancel command unavailable") })
+						return
+					}
+					result, err := cancelTaskTree(ctx, boardID)
+					ui.application.QueueUpdateDraw(func() {
+						if err != nil {
+							ui.status.SetText(fmt.Sprintf("Task tree cancel failed: %s", formatUserError(err)))
+							return
+						}
+						ui.status.SetText(result)
+					})
+				}()
+			},
+		}, {
+			Title:       "Execute",
+			Description: "Start task tree pipeline for selected taskboard",
+			Shortcut:    'e',
+			Action: func() {
+				boardID := strings.TrimSpace(ui.selectedBoardID)
+				if boardID == "" {
+					ui.status.SetText("Select a taskboard first")
+					return
+				}
+				sourceBranch := strings.TrimSpace(sourceBranchInput.GetText())
+				if sourceBranch == "" {
+					ui.status.SetText("Source branch is required")
+					return
+				}
+				ui.status.SetText(fmt.Sprintf("Loading ready tasks for board %s ...", boardID))
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+					defer cancel()
+					if listReadyTaskIDs == nil {
+						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ready task query unavailable") })
+						return
+					}
+					readyTaskIDs, err := listReadyTaskIDs(ctx, boardID)
+					if err != nil {
+						ui.application.QueueUpdateDraw(func() {
+							ui.status.SetText(fmt.Sprintf("Load ready tasks failed: %s", formatUserError(err)))
+						})
+						return
+					}
+					if len(readyTaskIDs) == 0 {
+						ui.application.QueueUpdateDraw(func() { ui.status.SetText("No ready tasks in selected taskboard") })
+						return
+					}
+					if startTaskTree == nil {
+						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree start command unavailable") })
+						return
+					}
+					queueTaskID, err := startTaskTree(ctx, boardID, sourceBranch)
+					ui.application.QueueUpdateDraw(func() {
+						if err != nil {
+							ui.status.SetText(fmt.Sprintf("Task tree start failed: %s", formatUserError(err)))
+							return
+						}
+						ui.status.SetText(fmt.Sprintf("Started task tree for board %s (queue task %s)", boardID, queueTaskID))
+					})
+				}()
+			},
+		}}, true)
+
+	content := tview.NewFlex().
+		AddItem(boardList, 0, 1, true).
+		AddItem(readyTasks, 0, 1, false)
+
+	refreshBoards()
+
+	return tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(header, 3, 0, false).
+		AddItem(repositoryRootLabel, 3, 0, false).
+		AddItem(content, 0, 1, true).
+		AddItem(sourceBranchInput, 3, 0, false).
+		AddItem(ui.runGitCommands, 0, 1, false).
 		AddItem(ui.status, 3, 0, false)
 }
 
@@ -382,6 +583,10 @@ func (ui *UI) focusCurrentScreenDefault() {
 		if ui.workflowList != nil {
 			ui.application.SetFocus(ui.workflowList)
 		}
+	case "gitflow_run":
+		if ui.runGitBoardList != nil {
+			ui.application.SetFocus(ui.runGitBoardList)
+		}
 	default:
 		if ui.mainCommandList != nil {
 			ui.application.SetFocus(ui.mainCommandList)
@@ -409,6 +614,19 @@ func (ui *UI) toggleFocusForCurrentScreen() {
 			return
 		}
 		ui.application.SetFocus(ui.workflowList)
+	case "gitflow_run":
+		if ui.runGitBoardList == nil || ui.runGitSourceInput == nil || ui.runGitCommands == nil {
+			return
+		}
+		if ui.application.GetFocus() == ui.runGitBoardList {
+			ui.application.SetFocus(ui.runGitSourceInput)
+			return
+		}
+		if ui.application.GetFocus() == ui.runGitSourceInput {
+			ui.application.SetFocus(ui.runGitCommands)
+			return
+		}
+		ui.application.SetFocus(ui.runGitBoardList)
 	}
 }
 

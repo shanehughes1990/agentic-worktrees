@@ -65,6 +65,41 @@ func (repository *Repository) GetByBoardID(ctx context.Context, boardID string) 
 	return board, nil
 }
 
+func (repository *Repository) ListBoardIDs(ctx context.Context) ([]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	entries, err := os.ReadDir(repository.rootDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("read taskboard directory: %w", err)
+	}
+
+	boardIDs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := strings.TrimSpace(entry.Name())
+		if name == "" || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		if strings.HasPrefix(name, "workflow-") {
+			continue
+		}
+		boardID := strings.TrimSuffix(name, ".json")
+		if strings.TrimSpace(boardID) == "" {
+			continue
+		}
+		boardIDs = append(boardIDs, boardID)
+	}
+
+	sort.Strings(boardIDs)
+	return boardIDs, nil
+}
+
 func (repository *Repository) Save(ctx context.Context, board *domaintaskboard.Board) error {
 	select {
 	case <-ctx.Done():

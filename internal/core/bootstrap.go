@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/hibiken/asynq"
 	appcopilot "github.com/shanehughes1990/agentic-worktrees/internal/application/copilot"
+	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	infracopilot "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/copilot"
+	infragit "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/git"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/logging/logruslogger"
 	queueasynq "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
@@ -28,8 +31,30 @@ type Runtime struct {
 	ui                     *dashboard.UI
 	taskboardService       *apptaskboard.Service
 	ingestionCommand       *apptaskboard.IngestionService
+	executionCommand       *apptaskboard.ExecutionCommandService
+	executionControl       *apptaskboard.ExecutionControlService
 	authService            *appcopilot.AuthService
 	runtimeWorkflowService *apptaskboard.RuntimeWorkflowService
+	repositoryRoot         string
+}
+
+type taskPipelineExecutorAdapter struct {
+	inner *appgitflow.TaskExecutor
+}
+
+func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, request apptaskboard.TaskExecutionRequest) error {
+	if adapter == nil || adapter.inner == nil {
+		return fmt.Errorf("task executor adapter is not configured")
+	}
+	return adapter.inner.ExecuteTask(ctx, appgitflow.TaskExecutionRequest{
+		BoardID:        request.BoardID,
+		RunID:          request.RunID,
+		TaskID:         request.TaskID,
+		TaskTitle:      request.TaskTitle,
+		TaskDetail:     request.TaskDetail,
+		SourceBranch:   request.SourceBranch,
+		RepositoryRoot: request.RepositoryRoot,
+	})
 }
 
 func Init() (*Runtime, error) {
@@ -70,31 +95,90 @@ func Init() (*Runtime, error) {
 	authenticator := infracopilot.NewAuthenticator(copilotConfig, logger)
 	authService := appcopilot.NewAuthService(authenticator)
 	decomposer := infracopilot.NewDecomposer(copilotConfig, logger)
+	gitAdapter := infragit.NewAdapter(logger)
+	gitWorktreeDispatcher := queueasynq.NewGitWorktreeDispatcher(queueClient, logger)
+	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository)
+	taskExecutor := appgitflow.NewTaskExecutor(gitAdapter, decomposer)
+	executionRegistry := apptaskboard.NewExecutionRegistry()
+	taskboardService := apptaskboard.NewService(taskboardRepository)
+	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{inner: taskExecutor}, cfg.Taskboard.MaxConcurrentAgents)
+	taskboardExecutionHandler := workeriface.NewTaskboardExecuteHandler(executionPipeline, executionRegistry, logger)
+	taskboardExecutionDispatcher := queueasynq.NewTaskboardExecutionDispatcher(queueClient, logger)
+	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher)
+	executionControl := apptaskboard.NewExecutionControlService(executionRegistry, taskExecutor)
 	copilotHandler := workeriface.NewCopilotDecomposeHandler(decomposer, taskboardRepository, taskboardRepository, logger)
+	gitWorktreeFlowHandler := workeriface.NewGitWorktreeFlowHandler(gitflowRunner, logger)
+	gitConflictResolveHandler := workeriface.NewGitConflictResolveHandler(gitflowRunner, decomposer, logger)
 	workerRegistrations := []queueasynq.HandlerRegistration{
 		{TaskType: tasks.TaskTypeCopilotDecompose, Handler: copilotHandler},
+		{TaskType: tasks.TaskTypeGitWorktreeFlow, Handler: gitWorktreeFlowHandler},
+		{TaskType: tasks.TaskTypeGitConflictResolve, Handler: gitConflictResolveHandler},
+		{TaskType: tasks.TaskTypeTaskboardExecute, Handler: taskboardExecutionHandler},
 	}
 
 	ingestionDispatcher := queueasynq.NewTaskboardIngestionDispatcher(queueClient, copilotConfig, logger)
 	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, cfg.Copilot.Model)
 	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo)
 
+	repositoryRoot, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("determine repository root from working directory: %w", err)
+	}
+
 	runtime := &Runtime{
 		worker:                 queueasynq.NewServer(queueCfg),
 		workerRegistrations:    workerRegistrations,
 		queueClient:            queueClient,
 		runtimeWorkflowRepo:    runtimeWorkflowRepo,
-		taskboardService:       apptaskboard.NewService(taskboardRepository),
+		taskboardService:       taskboardService,
 		ingestionCommand:       ingestionCommand,
+		executionCommand:       executionCommand,
+		executionControl:       executionControl,
 		authService:            authService,
 		runtimeWorkflowService: runtimeWorkflowService,
+		repositoryRoot:         repositoryRoot,
 	}
 	runtime.ui = dashboard.New(
 		runtime.ingestionCommand.IngestDirectory,
+		func(ctx context.Context, boardID string, sourceBranch string) (string, error) {
+			return runtime.executionCommand.Start(ctx, apptaskboard.StartExecutionRequest{
+				BoardID:        boardID,
+				RepositoryRoot: runtime.repositoryRoot,
+				SourceBranch:   sourceBranch,
+			})
+		},
+		func(ctx context.Context, boardID string) (string, error) {
+			canceled, err := runtime.executionControl.CancelAndCleanup(ctx, boardID, runtime.repositoryRoot)
+			if err != nil {
+				return "", err
+			}
+			if canceled {
+				return fmt.Sprintf("Canceled runner for board %s and cleaned artifacts", boardID), nil
+			}
+			return fmt.Sprintf("No active runner for board %s; cleanup completed", boardID), nil
+		},
+		func(ctx context.Context) ([]string, error) {
+			return runtime.taskboardService.ListBoardIDs(ctx)
+		},
+		func(ctx context.Context, boardID string) ([]string, error) {
+			readyTasks, err := runtime.taskboardService.GetReadyTasks(ctx, boardID)
+			if err != nil {
+				return nil, err
+			}
+			readyTaskIDs := make([]string, 0, len(readyTasks))
+			for _, readyTask := range readyTasks {
+				if readyTask == nil {
+					continue
+				}
+				readyTaskIDs = append(readyTaskIDs, readyTask.ID)
+			}
+			return readyTaskIDs, nil
+		},
 		runtime.runtimeWorkflowService.ListWorkflows,
 		runtime.runtimeWorkflowService.GetWorkflowStatus,
 		runtime.authService.Status,
 		runtime.authService.Authenticate,
+		runtime.repositoryRoot,
 	)
 
 	return runtime, nil

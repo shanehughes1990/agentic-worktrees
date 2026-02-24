@@ -15,6 +15,16 @@ type stubRepository struct {
 	saved bool
 }
 
+func (repository *stubRepository) ListBoardIDs(context.Context) ([]string, error) {
+	if repository.err != nil {
+		return nil, repository.err
+	}
+	if repository.board == nil {
+		return []string{}, nil
+	}
+	return []string{repository.board.BoardID}, nil
+}
+
 func (repository *stubRepository) GetByBoardID(context.Context, string) (*domaintaskboard.Board, error) {
 	if repository.err != nil {
 		return nil, repository.err
