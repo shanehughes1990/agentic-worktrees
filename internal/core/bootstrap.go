@@ -9,17 +9,27 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	appcopilot "github.com/shanehughes1990/agentic-worktrees/internal/application/copilot"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
+	infracopilot "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/copilot"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/logging/logruslogger"
 	queueasynq "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq"
+	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
 	jsontaskboard "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/jsonrepo"
 	"github.com/shanehughes1990/agentic-worktrees/internal/interface/dashboard"
+	workeriface "github.com/shanehughes1990/agentic-worktrees/internal/interface/worker"
 )
 
 type Runtime struct {
-	worker           *queueasynq.Server
-	ui               *dashboard.UI
-	taskboardService *apptaskboard.Service
+	worker                 *queueasynq.Server
+	workerRegistrations    []queueasynq.HandlerRegistration
+	queueClient            *queueasynq.Client
+	runtimeWorkflowRepo    *queueasynq.RuntimeWorkflowRepository
+	ui                     *dashboard.UI
+	taskboardService       *apptaskboard.Service
+	ingestionCommand       *apptaskboard.IngestionService
+	authService            *appcopilot.AuthService
+	runtimeWorkflowService *apptaskboard.RuntimeWorkflowService
 }
 
 func Init() (*Runtime, error) {
@@ -44,20 +54,66 @@ func Init() (*Runtime, error) {
 		return nil, err
 	}
 
-	return &Runtime{
-		worker:           queueasynq.NewServer(queueCfg),
-		ui:               dashboard.New(),
-		taskboardService: apptaskboard.NewService(taskboardRepository),
-	}, nil
+	copilotConfig := infracopilot.ClientConfig{
+		GitHubToken:       cfg.Copilot.GitHubToken,
+		CLIPath:           cfg.Copilot.CLIPath,
+		CLIURL:            cfg.Copilot.CLIURL,
+		AuthStatusCommand: cfg.Copilot.AuthStatusCommand,
+		AuthLoginCommand:  cfg.Copilot.AuthLoginCommand,
+		LogLevel:          "error",
+		DefaultModel:      cfg.Copilot.Model,
+		SkillDirectories:  cfg.Copilot.SkillDirectories,
+	}.Normalized()
+
+	queueClient := queueasynq.NewClient(queueCfg)
+	runtimeWorkflowRepo := queueasynq.NewRuntimeWorkflowRepository(queueCfg)
+	authenticator := infracopilot.NewAuthenticator(copilotConfig, logger)
+	authService := appcopilot.NewAuthService(authenticator)
+	decomposer := infracopilot.NewDecomposer(copilotConfig, logger)
+	copilotHandler := workeriface.NewCopilotDecomposeHandler(decomposer, taskboardRepository, taskboardRepository, logger)
+	workerRegistrations := []queueasynq.HandlerRegistration{
+		{TaskType: tasks.TaskTypeCopilotDecompose, Handler: copilotHandler},
+	}
+
+	ingestionDispatcher := queueasynq.NewTaskboardIngestionDispatcher(queueClient, copilotConfig, logger)
+	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, cfg.Copilot.Model)
+	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo)
+
+	runtime := &Runtime{
+		worker:                 queueasynq.NewServer(queueCfg),
+		workerRegistrations:    workerRegistrations,
+		queueClient:            queueClient,
+		runtimeWorkflowRepo:    runtimeWorkflowRepo,
+		taskboardService:       apptaskboard.NewService(taskboardRepository),
+		ingestionCommand:       ingestionCommand,
+		authService:            authService,
+		runtimeWorkflowService: runtimeWorkflowService,
+	}
+	runtime.ui = dashboard.New(
+		runtime.ingestionCommand.IngestDirectory,
+		runtime.runtimeWorkflowService.ListWorkflows,
+		runtime.runtimeWorkflowService.GetWorkflowStatus,
+		runtime.authService.Status,
+		runtime.authService.Authenticate,
+	)
+
+	return runtime, nil
 }
 
 func (runtime *Runtime) Run() error {
+	defer runtime.queueClient.Close()
+	defer func() {
+		if runtime.runtimeWorkflowRepo != nil {
+			_ = runtime.runtimeWorkflowRepo.Close()
+		}
+	}()
+
 	workerCtx, cancelWorker := context.WithCancel(context.Background())
 	defer cancelWorker()
 
 	workerErr := make(chan error, 1)
 	go func() {
-		workerErr <- runtime.worker.Run(workerCtx, nil)
+		workerErr <- runtime.worker.Run(workerCtx, runtime.workerRegistrations)
 	}()
 
 	uiErr := make(chan error, 1)

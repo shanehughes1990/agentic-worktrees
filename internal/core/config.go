@@ -14,6 +14,7 @@ type AppConfig struct {
 	Logging   LoggingConfig
 	Redis     RedisConfig
 	Taskboard TaskboardConfig
+	Copilot   CopilotConfig
 }
 
 type LoggingConfig struct {
@@ -28,6 +29,16 @@ type RedisConfig struct {
 
 type TaskboardConfig struct {
 	JSONDirectory string `envconfig:"TASKBOARD_JSON_DIR" default:"data/taskboards" validate:"required"`
+}
+
+type CopilotConfig struct {
+	Model             string   `envconfig:"COPILOT_MODEL"`
+	GitHubToken       string   `envconfig:"GITHUB_TOKEN"`
+	CLIPath           string   `envconfig:"COPILOT_CLI_PATH"`
+	CLIURL            string   `envconfig:"COPILOT_CLI_URL"`
+	AuthStatusCommand string   `envconfig:"COPILOT_AUTH_STATUS_COMMAND" default:"copilot auth status"`
+	AuthLoginCommand  string   `envconfig:"COPILOT_AUTH_LOGIN_COMMAND" default:"copilot auth login"`
+	SkillDirectories  []string `envconfig:"COPILOT_SKILL_DIRECTORIES"`
 }
 
 func LoadAppConfigFromEnv() (*AppConfig, error) {

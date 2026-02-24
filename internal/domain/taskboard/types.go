@@ -27,42 +27,27 @@ type WorkItem struct {
 	UpdatedAt   time.Time      `json:"updated_at,omitempty"`
 }
 
-type Epic struct {
-	WorkItem
-	ItemType string `json:"item_type"`
-}
-
 type Task struct {
 	WorkItem
-	ItemType string `json:"item_type"`
-	EpicID   string `json:"epic_id"`
+	DependsOn []string `json:"depends_on,omitempty"`
 }
 
-type MicroTask struct {
+type Epic struct {
 	WorkItem
-	ItemType string `json:"item_type"`
-	TaskID   string `json:"task_id"`
-}
-
-type Dependency struct {
-	EdgeID         string `json:"edge_id"`
-	BoardID        string `json:"board_id"`
-	FromID         string `json:"from_id"`
-	ToID           string `json:"to_id"`
-	DependencyType string `json:"dependency_type,omitempty"`
+	DependsOn []string `json:"depends_on,omitempty"`
+	Tasks     []Task   `json:"tasks"`
 }
 
 type Board struct {
-	BoardID      string         `json:"board_id"`
-	RunID        string         `json:"run_id"`
-	Status       Status         `json:"status"`
-	Epics        []Epic         `json:"epics"`
-	Tasks        []Task         `json:"tasks"`
-	MicroTasks   []MicroTask    `json:"micro_tasks"`
-	Dependencies []Dependency   `json:"dependencies"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
+	BoardID   string         `json:"board_id"`
+	RunID     string         `json:"run_id"`
+	Title     string         `json:"title,omitempty"`
+	Goal      string         `json:"goal,omitempty"`
+	Status    Status         `json:"status"`
+	Epics     []Epic         `json:"epics"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 func (board *Board) ValidateBasics() error {
@@ -73,43 +58,73 @@ func (board *Board) ValidateBasics() error {
 		return fmt.Errorf("run_id is required")
 	}
 
-	seen := make(map[string]struct{})
+	epicByID := make(map[string]struct{}, len(board.Epics))
+	taskByID := map[string]struct{}{}
 	for _, epic := range board.Epics {
-		if strings.TrimSpace(epic.ID) == "" {
+		epicID := strings.TrimSpace(epic.ID)
+		if epicID == "" {
 			return fmt.Errorf("epic id is required")
 		}
-		if _, exists := seen[epic.ID]; exists {
-			return fmt.Errorf("duplicate work item id: %s", epic.ID)
+		if _, exists := epicByID[epicID]; exists {
+			return fmt.Errorf("duplicate epic id: %s", epicID)
 		}
-		seen[epic.ID] = struct{}{}
+		epicByID[epicID] = struct{}{}
+
+		for _, task := range epic.Tasks {
+			taskID := strings.TrimSpace(task.ID)
+			if taskID == "" {
+				return fmt.Errorf("task id is required")
+			}
+			if _, exists := taskByID[taskID]; exists {
+				return fmt.Errorf("duplicate task id: %s", taskID)
+			}
+			taskByID[taskID] = struct{}{}
+		}
 	}
-	for _, task := range board.Tasks {
-		if strings.TrimSpace(task.ID) == "" {
-			return fmt.Errorf("task id is required")
+
+	for _, epic := range board.Epics {
+		for _, dependencyEpicID := range epic.DependsOn {
+			cleanDependencyEpicID := strings.TrimSpace(dependencyEpicID)
+			if cleanDependencyEpicID == "" {
+				continue
+			}
+			if _, exists := epicByID[cleanDependencyEpicID]; !exists {
+				return fmt.Errorf("epic %s depends_on missing epic %s", epic.ID, cleanDependencyEpicID)
+			}
 		}
-		if _, exists := seen[task.ID]; exists {
-			return fmt.Errorf("duplicate work item id: %s", task.ID)
+
+		for _, task := range epic.Tasks {
+			for _, dependencyTaskID := range task.DependsOn {
+				cleanDependencyTaskID := strings.TrimSpace(dependencyTaskID)
+				if cleanDependencyTaskID == "" {
+					continue
+				}
+				if _, exists := taskByID[cleanDependencyTaskID]; !exists {
+					return fmt.Errorf("task %s depends_on missing task %s", task.ID, cleanDependencyTaskID)
+				}
+			}
 		}
-		seen[task.ID] = struct{}{}
 	}
-	for _, microTask := range board.MicroTasks {
-		if strings.TrimSpace(microTask.ID) == "" {
-			return fmt.Errorf("micro_task id is required")
-		}
-		if _, exists := seen[microTask.ID]; exists {
-			return fmt.Errorf("duplicate work item id: %s", microTask.ID)
-		}
-		seen[microTask.ID] = struct{}{}
+
+	return nil
+}
+
+func (board *Board) ValidateComplete() error {
+	if len(board.Epics) == 0 {
+		return fmt.Errorf("taskboard must include epics")
 	}
-	for _, dependency := range board.Dependencies {
-		if strings.TrimSpace(dependency.FromID) == "" || strings.TrimSpace(dependency.ToID) == "" {
-			return fmt.Errorf("dependency from_id and to_id are required")
+
+	for _, epic := range board.Epics {
+		if strings.TrimSpace(epic.Title) == "" {
+			return fmt.Errorf("epic %s must have title", epic.ID)
 		}
-		if _, exists := seen[dependency.FromID]; !exists {
-			return fmt.Errorf("dependency references unknown from_id: %s", dependency.FromID)
+		if len(epic.Tasks) == 0 {
+			return fmt.Errorf("epic %s must include at least one task", epic.ID)
 		}
-		if _, exists := seen[dependency.ToID]; !exists {
-			return fmt.Errorf("dependency references unknown to_id: %s", dependency.ToID)
+		for _, task := range epic.Tasks {
+			if strings.TrimSpace(task.Title) == "" {
+				return fmt.Errorf("task %s must have title", task.ID)
+			}
 		}
 	}
 
@@ -121,29 +136,26 @@ func (board *Board) IsCompleted(workItemID string) bool {
 		if epic.ID == workItemID {
 			return epic.Status == StatusCompleted
 		}
-	}
-	for _, task := range board.Tasks {
-		if task.ID == workItemID {
-			return task.Status == StatusCompleted
-		}
-	}
-	for _, microTask := range board.MicroTasks {
-		if microTask.ID == workItemID {
-			return microTask.Status == StatusCompleted
+		for _, task := range epic.Tasks {
+			if task.ID == workItemID {
+				return task.Status == StatusCompleted
+			}
 		}
 	}
 	return false
 }
 
-func (board *Board) SetMicroTaskStatus(microTaskID string, status Status) error {
-	for index := range board.MicroTasks {
-		if board.MicroTasks[index].ID == microTaskID {
-			board.MicroTasks[index].Status = status
-			now := time.Now().UTC()
-			board.MicroTasks[index].UpdatedAt = now
-			board.UpdatedAt = now
-			return nil
+func (board *Board) SetTaskStatus(taskID string, status Status) error {
+	for epicIndex := range board.Epics {
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			if board.Epics[epicIndex].Tasks[taskIndex].ID == taskID {
+				board.Epics[epicIndex].Tasks[taskIndex].Status = status
+				now := time.Now().UTC()
+				board.Epics[epicIndex].Tasks[taskIndex].UpdatedAt = now
+				board.UpdatedAt = now
+				return nil
+			}
 		}
 	}
-	return fmt.Errorf("micro_task not found: %s", microTaskID)
+	return fmt.Errorf("task not found: %s", taskID)
 }

@@ -3,6 +3,7 @@ package taskboard
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"gonum.org/v1/gonum/graph/simple"
 	"gonum.org/v1/gonum/graph/topo"
@@ -14,7 +15,7 @@ func NewNavigator() *Navigator {
 	return &Navigator{}
 }
 
-func (navigator *Navigator) GetNextTask(board *Board) (*MicroTask, error) {
+func (navigator *Navigator) GetNextTask(board *Board) (*Task, error) {
 	readyTasks, err := navigator.GetReadyTasks(board)
 	if err != nil {
 		return nil, err
@@ -25,98 +26,151 @@ func (navigator *Navigator) GetNextTask(board *Board) (*MicroTask, error) {
 	return readyTasks[0], nil
 }
 
-func (navigator *Navigator) GetReadyTasks(board *Board) ([]*MicroTask, error) {
-	orderedNodeIDs, incomingEdges, err := navigator.buildDAG(board)
+func (navigator *Navigator) GetReadyTasks(board *Board) ([]*Task, error) {
+	epicOrder, err := navigator.buildEpicOrder(board)
 	if err != nil {
 		return nil, err
 	}
 
-	microTaskByID := make(map[string]*MicroTask, len(board.MicroTasks))
-	for index := range board.MicroTasks {
-		microTask := &board.MicroTasks[index]
-		microTaskByID[microTask.ID] = microTask
+	taskOrder, incomingTaskEdges, err := navigator.buildTaskOrder(board)
+	if err != nil {
+		return nil, err
 	}
 
-	readyTasks := make([]*MicroTask, 0)
-	orderIndex := make(map[string]int, len(orderedNodeIDs))
-	for index, nodeID := range orderedNodeIDs {
-		orderIndex[nodeID] = index
+	epicRank := map[string]int{}
+	for index, epicID := range epicOrder {
+		epicRank[epicID] = index
+	}
+	taskRank := map[string]int{}
+	for index, taskID := range taskOrder {
+		taskRank[taskID] = index
 	}
 
-	for _, microTask := range board.MicroTasks {
-		if microTask.Status == StatusCompleted || microTask.Status == StatusInProgress {
-			continue
-		}
-
-		prerequisites := incomingEdges[microTask.ID]
-		allPrerequisitesCompleted := true
-		for _, prerequisiteID := range prerequisites {
-			if !board.IsCompleted(prerequisiteID) {
-				allPrerequisitesCompleted = false
-				break
+	taskToEpic := map[string]string{}
+	readyTasks := make([]*Task, 0)
+	for epicIndex := range board.Epics {
+		epic := &board.Epics[epicIndex]
+		for taskIndex := range epic.Tasks {
+			task := &epic.Tasks[taskIndex]
+			taskToEpic[task.ID] = epic.ID
+			if task.Status == StatusCompleted || task.Status == StatusInProgress {
+				continue
 			}
-		}
-		if allPrerequisitesCompleted {
-			readyTasks = append(readyTasks, microTaskByID[microTask.ID])
+
+			allPrerequisitesCompleted := true
+			for _, prerequisiteTaskID := range incomingTaskEdges[task.ID] {
+				if !board.IsCompleted(prerequisiteTaskID) {
+					allPrerequisitesCompleted = false
+					break
+				}
+			}
+			if allPrerequisitesCompleted {
+				readyTasks = append(readyTasks, task)
+			}
 		}
 	}
 
 	sort.SliceStable(readyTasks, func(left, right int) bool {
-		leftIndex := orderIndex[readyTasks[left].ID]
-		rightIndex := orderIndex[readyTasks[right].ID]
-		if leftIndex == rightIndex {
-			return readyTasks[left].ID < readyTasks[right].ID
+		leftTask := readyTasks[left]
+		rightTask := readyTasks[right]
+		leftEpicRank := epicRank[taskToEpic[leftTask.ID]]
+		rightEpicRank := epicRank[taskToEpic[rightTask.ID]]
+		if leftEpicRank != rightEpicRank {
+			return leftEpicRank < rightEpicRank
 		}
-		return leftIndex < rightIndex
+		leftTaskRank := taskRank[leftTask.ID]
+		rightTaskRank := taskRank[rightTask.ID]
+		if leftTaskRank != rightTaskRank {
+			return leftTaskRank < rightTaskRank
+		}
+		return leftTask.ID < rightTask.ID
 	})
 
 	return readyTasks, nil
 }
 
-func (navigator *Navigator) buildDAG(board *Board) ([]string, map[string][]string, error) {
+func (navigator *Navigator) buildEpicOrder(board *Board) ([]string, error) {
+	epicGraph := simple.NewDirectedGraph()
+	epicToNumericID := map[string]int64{}
+	numericToEpicID := map[int64]string{}
+	nextID := int64(1)
+
+	for _, epic := range board.Epics {
+		epicID := strings.TrimSpace(epic.ID)
+		epicToNumericID[epicID] = nextID
+		numericToEpicID[nextID] = epicID
+		epicGraph.AddNode(simple.Node(nextID))
+		nextID++
+	}
+
+	for _, epic := range board.Epics {
+		for _, dependencyEpicID := range epic.DependsOn {
+			cleanDependencyEpicID := strings.TrimSpace(dependencyEpicID)
+			if cleanDependencyEpicID == "" {
+				continue
+			}
+			fromID := epicToNumericID[cleanDependencyEpicID]
+			toID := epicToNumericID[epic.ID]
+			epicGraph.SetEdge(epicGraph.NewEdge(simple.Node(fromID), simple.Node(toID)))
+		}
+	}
+
+	nodes, err := topo.Sort(epicGraph)
+	if err != nil {
+		return nil, fmt.Errorf("invalid epic dependency graph: %w", err)
+	}
+
+	orderedEpicIDs := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		orderedEpicIDs = append(orderedEpicIDs, numericToEpicID[node.ID()])
+	}
+	return orderedEpicIDs, nil
+}
+
+func (navigator *Navigator) buildTaskOrder(board *Board) ([]string, map[string][]string, error) {
 	if err := board.ValidateBasics(); err != nil {
 		return nil, nil, err
 	}
 
 	taskGraph := simple.NewDirectedGraph()
-	nodeToNumericID := make(map[string]int64)
-	numericToNodeID := make(map[int64]string)
+	taskToNumericID := map[string]int64{}
+	numericToTaskID := map[int64]string{}
 	nextID := int64(1)
 
-	addNode := func(workItemID string) {
-		nodeToNumericID[workItemID] = nextID
-		numericToNodeID[nextID] = workItemID
-		taskGraph.AddNode(simple.Node(nextID))
-		nextID++
-	}
-
 	for _, epic := range board.Epics {
-		addNode(epic.ID)
-	}
-	for _, task := range board.Tasks {
-		addNode(task.ID)
-	}
-	for _, microTask := range board.MicroTasks {
-		addNode(microTask.ID)
+		for _, task := range epic.Tasks {
+			taskToNumericID[task.ID] = nextID
+			numericToTaskID[nextID] = task.ID
+			taskGraph.AddNode(simple.Node(nextID))
+			nextID++
+		}
 	}
 
-	incomingEdges := make(map[string][]string)
-	for _, dependency := range board.Dependencies {
-		fromNumericID := nodeToNumericID[dependency.FromID]
-		toNumericID := nodeToNumericID[dependency.ToID]
-		taskGraph.SetEdge(taskGraph.NewEdge(simple.Node(fromNumericID), simple.Node(toNumericID)))
-		incomingEdges[dependency.ToID] = append(incomingEdges[dependency.ToID], dependency.FromID)
+	incomingEdges := map[string][]string{}
+	for _, epic := range board.Epics {
+		for _, task := range epic.Tasks {
+			for _, dependencyTaskID := range task.DependsOn {
+				cleanDependencyTaskID := strings.TrimSpace(dependencyTaskID)
+				if cleanDependencyTaskID == "" {
+					continue
+				}
+				fromID := taskToNumericID[cleanDependencyTaskID]
+				toID := taskToNumericID[task.ID]
+				taskGraph.SetEdge(taskGraph.NewEdge(simple.Node(fromID), simple.Node(toID)))
+				incomingEdges[task.ID] = append(incomingEdges[task.ID], cleanDependencyTaskID)
+			}
+		}
 	}
 
 	nodes, err := topo.Sort(taskGraph)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid dependency graph: %w", err)
+		return nil, nil, fmt.Errorf("invalid task dependency graph: %w", err)
 	}
 
-	orderedNodeIDs := make([]string, 0, len(nodes))
+	orderedTaskIDs := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		orderedNodeIDs = append(orderedNodeIDs, numericToNodeID[node.ID()])
+		orderedTaskIDs = append(orderedTaskIDs, numericToTaskID[node.ID()])
 	}
 
-	return orderedNodeIDs, incomingEdges, nil
+	return orderedTaskIDs, incomingEdges, nil
 }

@@ -20,7 +20,7 @@ func NewService(repository Repository) *Service {
 	}
 }
 
-func (service *Service) GetNextTask(ctx context.Context, boardID string) (*domaintaskboard.MicroTask, error) {
+func (service *Service) GetNextTask(ctx context.Context, boardID string) (*domaintaskboard.Task, error) {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func (service *Service) GetNextTask(ctx context.Context, boardID string) (*domai
 	return service.navigator.GetNextTask(board)
 }
 
-func (service *Service) GetReadyTasks(ctx context.Context, boardID string) ([]*domaintaskboard.MicroTask, error) {
+func (service *Service) GetReadyTasks(ctx context.Context, boardID string) ([]*domaintaskboard.Task, error) {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {
 		return nil, err
@@ -36,13 +36,13 @@ func (service *Service) GetReadyTasks(ctx context.Context, boardID string) ([]*d
 	return service.navigator.GetReadyTasks(board)
 }
 
-func (service *Service) MarkTaskCompleted(ctx context.Context, boardID string, microTaskID string) error {
+func (service *Service) MarkTaskCompleted(ctx context.Context, boardID string, taskID string) error {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {
 		return err
 	}
 
-	if err := board.SetMicroTaskStatus(microTaskID, domaintaskboard.StatusCompleted); err != nil {
+	if err := board.SetTaskStatus(taskID, domaintaskboard.StatusCompleted); err != nil {
 		return err
 	}
 

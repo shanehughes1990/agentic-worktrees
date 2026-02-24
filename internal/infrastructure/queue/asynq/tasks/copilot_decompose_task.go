@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -38,7 +39,7 @@ func NewCopilotDecomposeTask(payload CopilotDecomposePayload, options ...asynq.O
 	}
 
 	task := asynq.NewTask(TaskTypeCopilotDecompose, body)
-	opts := []asynq.Option{asynq.Queue(queueIngestion)}
+	opts := []asynq.Option{asynq.Queue(queueIngestion), asynq.Retention(24 * time.Hour)}
 	opts = append(opts, options...)
 	return task, opts, nil
 }
