@@ -11,5 +11,16 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
+  asynqmon:
+    image: hibiken/asynqmon:latest
+    platform: linux/amd64
+    container_name: agentic-worktrees-asynqmon
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+    command: ["--redis-addr=redis:6379"]
+    restart: unless-stopped
+
 volumes:
   redis-data:
