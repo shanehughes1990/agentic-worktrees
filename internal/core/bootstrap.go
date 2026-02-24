@@ -9,14 +9,17 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/logging/logruslogger"
 	queueasynq "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq"
+	jsontaskboard "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/jsonrepo"
 	"github.com/shanehughes1990/agentic-worktrees/internal/interface/dashboard"
 )
 
 type Runtime struct {
-	worker *queueasynq.Server
-	ui     *dashboard.UI
+	worker           *queueasynq.Server
+	ui               *dashboard.UI
+	taskboardService *apptaskboard.Service
 }
 
 func Init() (*Runtime, error) {
@@ -25,7 +28,7 @@ func Init() (*Runtime, error) {
 		return nil, err
 	}
 
-	logger, err := logruslogger.New(cfg.Logging.Format, cfg.Logging.Level)
+	logger, err := logruslogger.New(cfg.Logging.Format, cfg.Logging.Level, cfg.Logging.FilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -36,9 +39,15 @@ func Init() (*Runtime, error) {
 	}
 	queueCfg = queueCfg.WithLogger(logruslogger.NewAsynqAdapter(logger))
 
+	taskboardRepository, err := jsontaskboard.NewRepository(cfg.Taskboard.JSONDirectory)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Runtime{
-		worker: queueasynq.NewServer(queueCfg),
-		ui:     dashboard.New(),
+		worker:           queueasynq.NewServer(queueCfg),
+		ui:               dashboard.New(),
+		taskboardService: apptaskboard.NewService(taskboardRepository),
 	}, nil
 }
 

@@ -11,17 +11,23 @@ import (
 )
 
 type AppConfig struct {
-	Logging LoggingConfig
-	Redis   RedisConfig
+	Logging   LoggingConfig
+	Redis     RedisConfig
+	Taskboard TaskboardConfig
 }
 
 type LoggingConfig struct {
-	Format string `envconfig:"LOG_FORMAT" default:"text" validate:"required,oneof=text json"`
-	Level  string `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error fatal panic"`
+	Format   string `envconfig:"LOG_FORMAT" default:"text" validate:"required,oneof=text json"`
+	Level    string `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error fatal panic"`
+	FilePath string `envconfig:"LOG_FILE_PATH" default:"logs/app.log" validate:"required"`
 }
 
 type RedisConfig struct {
 	URI string `envconfig:"REDIS_URI" validate:"required"`
+}
+
+type TaskboardConfig struct {
+	JSONDirectory string `envconfig:"TASKBOARD_JSON_DIR" default:"data/taskboards" validate:"required"`
 }
 
 func LoadAppConfigFromEnv() (*AppConfig, error) {

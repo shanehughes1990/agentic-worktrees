@@ -12,3 +12,10 @@ tmp/
 # SQLite / local database files
 *.db
 **/*.db
+
+# Runtime application artifacts
+logs/
+data/taskboards/
+
+# Keep environment sample tracked
+!.env
