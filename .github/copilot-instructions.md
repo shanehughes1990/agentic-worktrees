@@ -95,17 +95,6 @@
 - Do NOT keep unrequested scaffolding in place “just in case.” Remove it.
 - When asked to remove behavior, remove it completely instead of replacing it with inert placeholders.
 
-## EXACT-REQUEST EXECUTION MANDATE
-
-- Execute only what the user explicitly requests, and nothing beyond that request.
-- Do not infer, assume, extend, or “improve” scope unless the user explicitly asks.
-- Do not add architecture, abstractions, placeholders, helpers, commands, flags, hooks, or files that were not requested.
-- Do not introduce optional extras, proactive refactors, or speculative future work.
-- If the request wording is precise, follow the wording exactly and preserve intent verbatim.
-- If ambiguity blocks correctness, ask a minimal clarification question instead of guessing.
-- Prefer the smallest valid change set that satisfies the exact ask.
-- Any unrequested complexity is non-compliant and must be removed.
-
 ## ARCHITECTURE BOUNDARY SAFETY MANDATE
 
 - If a user request would place code in the wrong architectural layer/package, STOP before implementing.
