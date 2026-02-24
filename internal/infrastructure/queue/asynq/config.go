@@ -37,9 +37,9 @@ func NewConfig(redisURI string) (Config, error) {
 		redisConnOpt: redisConnOpt,
 		Concurrency:  concurrency,
 		Queues: map[string]int{
-			"ingestion": 6,
-			"agent":     3,
-			"default":   1,
+			QueueIngestion: 6,
+			QueueAgent:     3,
+			QueueDefault:   1,
 		},
 	}, nil
 }
