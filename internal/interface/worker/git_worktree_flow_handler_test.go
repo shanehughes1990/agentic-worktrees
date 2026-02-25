@@ -26,6 +26,9 @@ func (port *fakeGitPortForWorker) ResolveConflicts(context.Context, string, []st
 func (port *fakeGitPortForWorker) Commit(context.Context, string, string) error {
 	return nil
 }
+func (port *fakeGitPortForWorker) StageAll(context.Context, string) error {
+	return nil
+}
 func (port *fakeGitPortForWorker) CleanupTaskWorktree(context.Context, string, string, string) error {
 	return nil
 }
@@ -51,6 +54,9 @@ func (port *failingGitPortForWorker) ResolveConflicts(context.Context, string, [
 	return nil
 }
 func (port *failingGitPortForWorker) Commit(context.Context, string, string) error {
+	return nil
+}
+func (port *failingGitPortForWorker) StageAll(context.Context, string) error {
 	return nil
 }
 func (port *failingGitPortForWorker) CleanupTaskWorktree(context.Context, string, string, string) error {

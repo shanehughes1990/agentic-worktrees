@@ -2,6 +2,7 @@ package gitflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,20 +11,22 @@ import (
 )
 
 type TaskExecutionRequest struct {
-	BoardID        string
-	RunID          string
-	TaskID         string
-	TaskTitle      string
-	TaskDetail     string
-	SourceBranch   string
-	RepositoryRoot string
+	BoardID         string
+	RunID           string
+	TaskID          string
+	TaskTitle       string
+	TaskDetail      string
+	ResumeSessionID string
+	SourceBranch    string
+	RepositoryRoot  string
 }
 
 type TaskExecutionResult struct {
-	Status     string
-	Reason     string
-	TaskBranch string
-	Worktree   string
+	Status          string
+	Reason          string
+	TaskBranch      string
+	Worktree        string
+	ResumeSessionID string
 }
 
 type TaskExecutor struct {
@@ -83,13 +86,36 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 
 	absoluteWorktreePath := filepath.Join(cleanRepositoryRoot, filepath.FromSlash(worktreePath))
 	if executor.decomposer != nil {
-		_, err := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
+		decomposeResult, err := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 			RunID:            cleanRunID,
+			ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
 			WorkingDirectory: absoluteWorktreePath,
 			Prompt:           buildTaskImplementationPrompt(request),
 		})
 		if err != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("implement task with agent: %w", err), FailureClassTerminal)
+			classifiedErr := EnsureClassified(fmt.Errorf("implement task with agent: %w", err), FailureClassTerminal)
+			result := TaskExecutionResult{
+				Status:          "failed",
+				Reason:          err.Error(),
+				TaskBranch:      taskBranch,
+				Worktree:        worktreePath,
+				ResumeSessionID: strings.TrimSpace(decomposeResult.SessionID),
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				result.Status = "canceled"
+				result.Reason = "task execution canceled"
+				classifiedErr = EnsureClassified(fmt.Errorf("implement task with agent: %w", err), FailureClassTransient)
+			}
+			return result, classifiedErr
+		}
+		if strings.TrimSpace(decomposeResult.SessionID) != "" {
+			request.ResumeSessionID = strings.TrimSpace(decomposeResult.SessionID)
+		}
+		if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("stage task worktree changes: %w", stageErr), FailureClassTerminal)
+		}
+		if commitErr := executor.git.Commit(ctx, absoluteWorktreePath, fmt.Sprintf("Implement task %s", cleanTaskID)); commitErr != nil {
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("commit task worktree changes: %w", commitErr), FailureClassTerminal)
 		}
 	}
 
@@ -119,10 +145,11 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 
 	result = TaskExecutionResult{
-		TaskBranch: taskBranch,
-		Worktree:   worktreePath,
-		Status:     "merged",
-		Reason:     "task merged into source branch and cleaned up",
+		TaskBranch:      taskBranch,
+		Worktree:        worktreePath,
+		Status:          "merged",
+		Reason:          "task merged into source branch and cleaned up",
+		ResumeSessionID: strings.TrimSpace(request.ResumeSessionID),
 	}
 	if mergeAttempt.NoChanges {
 		result.Status = "no_changes"

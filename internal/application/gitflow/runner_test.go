@@ -38,6 +38,10 @@ func (port *fakeGitPort) Commit(context.Context, string, string) error {
 	return nil
 }
 
+func (port *fakeGitPort) StageAll(context.Context, string) error {
+	return nil
+}
+
 func (port *fakeGitPort) CleanupTaskWorktree(context.Context, string, string, string) error {
 	return port.cleanupErr
 }

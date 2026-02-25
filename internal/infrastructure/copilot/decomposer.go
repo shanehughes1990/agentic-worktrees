@@ -33,10 +33,10 @@ func (decomposer *Decomposer) Decompose(ctx context.Context, request appcopilot.
 	})
 	entry.Info("copilot decomposition request received")
 
-	sessionID, response, usedModel, err := decomposer.client.RunPrompt(ctx, request.Model, request.WorkingDirectory, request.SkillDirectories, prompt)
+	sessionID, response, usedModel, err := decomposer.client.RunPrompt(ctx, request.Model, request.ResumeSessionID, request.WorkingDirectory, request.SkillDirectories, prompt)
 	if err != nil {
 		entry.WithError(err).Error("copilot decomposition failed")
-		return appcopilot.DecomposeResult{}, err
+		return appcopilot.DecomposeResult{RunID: request.RunID, SessionID: sessionID, Model: usedModel}, err
 	}
 
 	hash := sha256.Sum256([]byte(prompt))

@@ -15,15 +15,41 @@ const (
 	WorkflowStatusFailed    WorkflowStatus = "failed"
 )
 
+const (
+	WorkflowTaskTypeCopilotDecompose = "copilot.decompose"
+	WorkflowTaskTypeGitWorktreeFlow  = "git.worktree_flow"
+	WorkflowTaskTypeGitConflict      = "git.conflict_resolve"
+	WorkflowTaskTypeTaskboardExecute = "taskboard.execute"
+)
+
 type IngestionWorkflow struct {
 	RunID     string         `json:"run_id"`
 	TaskID    string         `json:"task_id,omitempty"`
+	TaskType  string         `json:"task_type,omitempty"`
 	Status    WorkflowStatus `json:"status"`
 	Message   string         `json:"message,omitempty"`
 	Stream    string         `json:"stream,omitempty"`
 	BoardID   string         `json:"board_id,omitempty"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	CreatedAt time.Time      `json:"created_at"`
+}
+
+func IsIngestionWorkflowTaskType(taskType string) bool {
+	switch strings.TrimSpace(taskType) {
+	case WorkflowTaskTypeCopilotDecompose:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsWorktreeWorkflowTaskType(taskType string) bool {
+	switch strings.TrimSpace(taskType) {
+	case WorkflowTaskTypeTaskboardExecute, WorkflowTaskTypeGitWorktreeFlow, WorkflowTaskTypeGitConflict:
+		return true
+	default:
+		return false
+	}
 }
 
 func (workflow *IngestionWorkflow) Normalize(runID string) {

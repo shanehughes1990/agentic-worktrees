@@ -4,6 +4,7 @@ import "context"
 
 type DecomposeRequest struct {
 	RunID            string
+	ResumeSessionID  string
 	Prompt           string
 	Model            string
 	WorkingDirectory string

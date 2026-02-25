@@ -57,6 +57,26 @@ func TestBoardSetTaskStatus(t *testing.T) {
 	}
 }
 
+func TestBoardSetTaskOutcomePersistsResumeSessionID(t *testing.T) {
+	board := validBoard()
+
+	err := board.SetTaskOutcome("t1", TaskOutcome{
+		Status:          "canceled",
+		Reason:          "runner canceled",
+		ResumeSessionID: "session-123",
+	})
+	if err != nil {
+		t.Fatalf("expected outcome update, got error: %v", err)
+	}
+	outcome := board.Epics[0].Tasks[0].Outcome
+	if outcome == nil {
+		t.Fatalf("expected task outcome to be set")
+	}
+	if outcome.ResumeSessionID != "session-123" {
+		t.Fatalf("expected resume session id to persist, got %q", outcome.ResumeSessionID)
+	}
+}
+
 func validBoard() *Board {
 	now := time.Now().UTC()
 	return &Board{

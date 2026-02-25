@@ -43,3 +43,27 @@ func TestNewRejectsInvalidLevel(t *testing.T) {
 		t.Fatalf("expected invalid level error")
 	}
 }
+
+func TestNewKeepsSingleRotatedBackup(t *testing.T) {
+	logsDir := t.TempDir()
+	logFilePath := filepath.Join(logsDir, "app.log")
+
+	for i := 0; i < 3; i++ {
+		if err := os.WriteFile(logFilePath, []byte("seed"), 0o644); err != nil {
+			t.Fatalf("seed log file: %v", err)
+		}
+		logger, err := New("text", "info", logFilePath)
+		if err != nil {
+			t.Fatalf("unexpected logger creation error: %v", err)
+		}
+		logger.Infof("boot %d", i)
+	}
+
+	rotated, err := filepath.Glob(filepath.Join(logsDir, "app-*.log*"))
+	if err != nil {
+		t.Fatalf("glob rotated logs: %v", err)
+	}
+	if len(rotated) > 1 {
+		t.Fatalf("expected at most one rotated file, got %d (%v)", len(rotated), rotated)
+	}
+}

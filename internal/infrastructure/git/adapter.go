@@ -96,6 +96,11 @@ func (adapter *Adapter) Commit(ctx context.Context, repositoryRoot string, messa
 	return err
 }
 
+func (adapter *Adapter) StageAll(ctx context.Context, repositoryRoot string) error {
+	_, err := adapter.runGit(ctx, repositoryRoot, "add", "-A")
+	return err
+}
+
 func (adapter *Adapter) CleanupTaskWorktree(ctx context.Context, repositoryRoot string, worktreePath string, taskBranch string) error {
 	absoluteWorktreePath := filepath.Join(repositoryRoot, filepath.FromSlash(worktreePath))
 	if _, err := adapter.runGit(ctx, repositoryRoot, "worktree", "remove", "--force", absoluteWorktreePath); err != nil {

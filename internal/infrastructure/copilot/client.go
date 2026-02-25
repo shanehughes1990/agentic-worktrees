@@ -23,11 +23,12 @@ func NewClient(config ClientConfig, logger *logrus.Logger) *Client {
 	return &Client{config: config.Normalized(), logger: logger}
 }
 
-func (client *Client) RunPrompt(ctx context.Context, requestedModel string, workingDirectory string, skillDirectories []string, prompt string) (string, string, string, error) {
+func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resumeSessionID string, workingDirectory string, skillDirectories []string, prompt string) (string, string, string, error) {
 	model := strings.TrimSpace(requestedModel)
 	if model == "" {
 		model = client.config.DefaultModel
 	}
+	cleanResumeSessionID := strings.TrimSpace(resumeSessionID)
 
 	entry := client.entry().WithFields(logrus.Fields{
 		"event":             "copilot.run_prompt",
@@ -100,17 +101,31 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, work
 		combinedSkills = client.config.SkillDirectories
 	}
 
-	session, err := sdkClient.CreateSession(ctx, &sdk.SessionConfig{
-		Model:            model,
-		WorkingDirectory: workingDirectory,
-		SkillDirectories: combinedSkills,
-		OnPermissionRequest: func(sdk.PermissionRequest, sdk.PermissionInvocation) (sdk.PermissionRequestResult, error) {
-			return sdk.PermissionRequestResult{Kind: "approved"}, nil
-		},
-	})
-	if err != nil {
-		entry.WithError(err).Error("failed to create copilot session")
-		return "", "", "", fmt.Errorf("create copilot session: %w", err)
+	var (
+		session *sdk.Session
+		err     error
+	)
+	if cleanResumeSessionID != "" {
+		session, err = sdkClient.ResumeSession(ctx, cleanResumeSessionID)
+		if err != nil {
+			entry.WithError(err).WithField("resume_session_id", cleanResumeSessionID).Warn("failed to resume copilot session; creating a fresh session")
+		}
+	}
+	if session == nil {
+		session, err = sdkClient.CreateSession(ctx, &sdk.SessionConfig{
+			Model:            model,
+			WorkingDirectory: workingDirectory,
+			SkillDirectories: combinedSkills,
+			OnPermissionRequest: func(sdk.PermissionRequest, sdk.PermissionInvocation) (sdk.PermissionRequestResult, error) {
+				return sdk.PermissionRequestResult{Kind: "approved"}, nil
+			},
+		})
+		if err != nil {
+			entry.WithError(err).Error("failed to create copilot session")
+			return "", "", "", fmt.Errorf("create copilot session: %w", err)
+		}
+	} else {
+		entry.WithField("resumed_session_id", cleanResumeSessionID).Info("copilot session resumed")
 	}
 	entry = entry.WithField("session_id", session.SessionID)
 	entry.Info("copilot session created")
@@ -119,7 +134,7 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, work
 	responseEvent, err := session.SendAndWait(ctx, sdk.MessageOptions{Prompt: prompt})
 	if err != nil {
 		entry.WithError(err).Error("failed to send prompt to copilot session")
-		return "", "", "", fmt.Errorf("send decomposition prompt: %w", err)
+		return session.SessionID, "", model, fmt.Errorf("send decomposition prompt: %w", err)
 	}
 
 	response := ""

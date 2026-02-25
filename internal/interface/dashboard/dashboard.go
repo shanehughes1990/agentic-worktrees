@@ -35,7 +35,9 @@ type UI struct {
 	screenStack          []string
 	currentScreen        string
 	mainCommandList      *tview.List
+	authCommandList      *tview.List
 	ingestionCommandList *tview.List
+	worktreeCommandList  *tview.List
 	runIngestionInput    *tview.InputField
 	runIngestionCommands *tview.List
 	runGitBoardList      *tview.List
@@ -62,16 +64,40 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 	}
 
 	mainScreen := ui.buildMainScreen()
-	ingestionScreen := ui.buildIngestionCommandsScreen(copilotAuthStatus, copilotAuthenticate)
+	authenticationScreen := ui.buildAuthenticationCommandsScreen(copilotAuthStatus, copilotAuthenticate)
+	ingestionScreen := ui.buildIngestionCommandsScreen()
+	worktreeScreen := ui.buildWorktreeCommandsScreen()
 	runIngestionScreen := ui.buildRunIngestionScreen(ingest)
 	runGitflowScreen := ui.buildRunGitflowScreen(startTaskTree, cancelTaskTree, listTaskboards, listReadyTaskIDs, repositoryRoot)
-	workflowStatusScreen := ui.buildWorkflowStatusScreen(listWorkflows, getWorkflowStatus)
+	ingestionWorkflowStatusScreen := ui.buildWorkflowStatusScreen(
+		"ingestion_workflows",
+		"Ingestion Workflow Status",
+		"No ingestion workflows available.",
+		listWorkflows,
+		getWorkflowStatus,
+		func(workflow apptaskboard.IngestionWorkflow) bool {
+			return apptaskboard.IsIngestionWorkflowTaskType(workflow.TaskType)
+		},
+	)
+	worktreeWorkflowStatusScreen := ui.buildWorkflowStatusScreen(
+		"worktree_workflows",
+		"Worktree Workflow Status",
+		"No worktree workflows available.",
+		listWorkflows,
+		getWorkflowStatus,
+		func(workflow apptaskboard.IngestionWorkflow) bool {
+			return apptaskboard.IsWorktreeWorkflowTaskType(workflow.TaskType)
+		},
+	)
 
 	ui.pages.AddPage("main", mainScreen, true, true)
+	ui.pages.AddPage("authentication_commands", authenticationScreen, true, false)
 	ui.pages.AddPage("ingestion_commands", ingestionScreen, true, false)
+	ui.pages.AddPage("worktree_commands", worktreeScreen, true, false)
 	ui.pages.AddPage("ingestion_run", runIngestionScreen, true, false)
 	ui.pages.AddPage("gitflow_run", runGitflowScreen, true, false)
-	ui.pages.AddPage("ingestion_workflows", workflowStatusScreen, true, false)
+	ui.pages.AddPage("ingestion_workflows", ingestionWorkflowStatusScreen, true, false)
+	ui.pages.AddPage("worktree_workflows", worktreeWorkflowStatusScreen, true, false)
 
 	application.SetRoot(ui.pages, true)
 	if ui.mainCommandList != nil {
@@ -112,16 +138,36 @@ func (ui *UI) buildMainScreen() tview.Primitive {
 	header := tview.NewTextView().SetText("Agentic Worktrees Dashboard").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
-	body := tview.NewTextView().SetText("Choose a command area.")
+	body := tview.NewTextView().SetText("Choose a command area: Authentication, Ingestion, or Worktrees.")
 	body.SetBorder(true)
 	body.SetTitle("Main")
 
-	ui.mainCommandList = ui.newCommandList([]Command{{
-		Title:       "Ingestion",
-		Description: "Open ingestion command area",
-		Shortcut:    'i',
-		Action:      func() { ui.navigateTo("ingestion_commands") },
-	}}, false)
+	ui.mainCommandList = ui.newCommandList([]Command{
+		{
+			Title:       "Authentication",
+			Description: "Open Copilot authentication commands",
+			Shortcut:    'a',
+			Action:      func() { ui.navigateTo("authentication_commands") },
+		},
+		{
+			Title:       "Ingestion",
+			Description: "Open ingestion workflow commands",
+			Shortcut:    'i',
+			Action:      func() { ui.navigateTo("ingestion_commands") },
+		},
+		{
+			Title:       "Worktrees",
+			Description: "Open taskboard worktree execution commands",
+			Shortcut:    'w',
+			Action:      func() { ui.navigateTo("worktree_commands") },
+		},
+		{
+			Title:       "Exit",
+			Description: "Close dashboard",
+			Shortcut:    'x',
+			Action:      func() { ui.application.Stop() },
+		},
+	}, false)
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(header, 3, 0, false).
@@ -130,18 +176,15 @@ func (ui *UI) buildMainScreen() tview.Primitive {
 		AddItem(ui.status, 3, 0, false)
 }
 
-func (ui *UI) buildIngestionCommandsScreen(copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc) tview.Primitive {
-	header := tview.NewTextView().SetText("Ingestion Commands").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc) tview.Primitive {
+	header := tview.NewTextView().SetText("Authentication Commands").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
-	body := tview.NewTextView().SetText("Select ingestion sub-command.")
+	body := tview.NewTextView().SetText("Select authentication sub-command.")
 	body.SetBorder(true)
-	body.SetTitle("Ingestion")
+	body.SetTitle("Authentication")
 
-	ui.ingestionCommandList = ui.newCommandList([]Command{
-		{Title: "Run Ingestion", Description: "Run new ingestion workflow", Shortcut: 'r', Action: func() { ui.navigateTo("ingestion_run") }},
-		{Title: "Start Task Tree", Description: "Start pipeline for a persisted taskboard", Shortcut: 'g', Action: func() { ui.navigateTo("gitflow_run") }},
-		{Title: "Workflow Status", Description: "List live Asynq workflows and inspect details", Shortcut: 'w', Action: func() { ui.navigateTo("ingestion_workflows") }},
+	ui.authCommandList = ui.newCommandList([]Command{
 		{Title: "Copilot Auth Status", Description: "Check current Copilot CLI authentication status", Shortcut: 's', Action: func() {
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -186,7 +229,47 @@ func (ui *UI) buildIngestionCommandsScreen(copilotAuthStatus CopilotAuthStatusFu
 	return tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(header, 3, 0, false).
 		AddItem(body, 3, 0, false).
+		AddItem(ui.authCommandList, 0, 1, true).
+		AddItem(ui.status, 3, 0, false)
+}
+
+func (ui *UI) buildIngestionCommandsScreen() tview.Primitive {
+	header := tview.NewTextView().SetText("Ingestion Commands").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+	header.SetBorder(true)
+
+	body := tview.NewTextView().SetText("Select ingestion sub-command.")
+	body.SetBorder(true)
+	body.SetTitle("Ingestion")
+
+	ui.ingestionCommandList = ui.newCommandList([]Command{
+		{Title: "Run Ingestion", Description: "Run new ingestion workflow", Shortcut: 'r', Action: func() { ui.navigateTo("ingestion_run") }},
+		{Title: "Workflow Status", Description: "List ingestion workflows and inspect recovery details", Shortcut: 'w', Action: func() { ui.navigateTo("ingestion_workflows") }},
+	}, true)
+
+	return tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(header, 3, 0, false).
+		AddItem(body, 3, 0, false).
 		AddItem(ui.ingestionCommandList, 0, 1, true).
+		AddItem(ui.status, 3, 0, false)
+}
+
+func (ui *UI) buildWorktreeCommandsScreen() tview.Primitive {
+	header := tview.NewTextView().SetText("Worktree Commands").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+	header.SetBorder(true)
+
+	body := tview.NewTextView().SetText("Select worktree sub-command.")
+	body.SetBorder(true)
+	body.SetTitle("Worktrees")
+
+	ui.worktreeCommandList = ui.newCommandList([]Command{
+		{Title: "Run Worktree Pipeline", Description: "Open taskboard execution screen", Shortcut: 'r', Action: func() { ui.navigateTo("gitflow_run") }},
+		{Title: "Workflow Status", Description: "List worktree workflows and inspect recovery details", Shortcut: 'w', Action: func() { ui.navigateTo("worktree_workflows") }},
+	}, true)
+
+	return tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(header, 3, 0, false).
+		AddItem(body, 3, 0, false).
+		AddItem(ui.worktreeCommandList, 0, 1, true).
 		AddItem(ui.status, 3, 0, false)
 }
 
@@ -425,8 +508,8 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 		AddItem(ui.status, 3, 0, false)
 }
 
-func (ui *UI) buildWorkflowStatusScreen(listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc) tview.Primitive {
-	header := tview.NewTextView().SetText("Live Asynq Ingestion Workflow Status").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emptyMessage string, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, includeWorkflow func(workflow apptaskboard.IngestionWorkflow) bool) tview.Primitive {
+	header := tview.NewTextView().SetText(strings.TrimSpace(headerTitle)).SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
 	workflowList := tview.NewList().ShowSecondaryText(true)
@@ -459,7 +542,7 @@ func (ui *UI) buildWorkflowStatusScreen(listWorkflows ListWorkflowsFunc, getWork
 				if strings.TrimSpace(stream) == "" {
 					stream = "(no stream details recorded yet)"
 				}
-				details.SetText(fmt.Sprintf("RunID: %s\nStatus: %s\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\n\nStream:\n%s", workflow.RunID, workflow.Status, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), stream))
+				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), stream))
 				ui.status.SetText(fmt.Sprintf("Loaded workflow %s", workflow.RunID))
 			})
 		}()
@@ -480,30 +563,48 @@ func (ui *UI) buildWorkflowStatusScreen(listWorkflows ListWorkflowsFunc, getWork
 					return
 				}
 				workflowList.Clear()
-				if len(workflows) == 0 {
-					workflowList.AddItem("(none)", "No live Asynq ingestion workflows found", 0, nil)
-					details.SetText("No live Asynq workflows available.")
-					ui.status.SetText("No live Asynq workflows found")
+				filteredWorkflows := make([]apptaskboard.IngestionWorkflow, 0, len(workflows))
+				for _, workflow := range workflows {
+					if includeWorkflow != nil && !includeWorkflow(workflow) {
+						continue
+					}
+					filteredWorkflows = append(filteredWorkflows, workflow)
+				}
+				if len(filteredWorkflows) == 0 {
+					workflowList.AddItem("(none)", strings.TrimSpace(emptyMessage), 0, nil)
+					details.SetText(strings.TrimSpace(emptyMessage))
+					ui.status.SetText(strings.TrimSpace(emptyMessage))
 					return
 				}
-				for _, workflow := range workflows {
+				for _, workflow := range filteredWorkflows {
 					runID := workflow.RunID
 					statusText := string(workflow.Status)
+					if strings.TrimSpace(workflow.TaskType) != "" {
+						statusText = fmt.Sprintf("%s | %s", statusText, strings.TrimSpace(workflow.TaskType))
+					}
 					workflowList.AddItem(runID, statusText, 0, func() {
 						loadWorkflowDetails(runID)
 					})
 				}
-				ui.status.SetText(fmt.Sprintf("Loaded %d live Asynq workflows", len(workflows)))
+				ui.status.SetText(fmt.Sprintf("Loaded %d workflows", len(filteredWorkflows)))
 			})
 		}()
 	}
 
-	commands := ui.newCommandList([]Command{{
-		Title:       "Refresh Workflows",
-		Description: "Reload all live ingestion workflow statuses from Asynq",
-		Shortcut:    'f',
-		Action:      refreshWorkflows,
-	}}, true)
+	commands := ui.newCommandList([]Command{
+		{
+			Title:       "Back",
+			Description: "Return to previous screen",
+			Shortcut:    'b',
+			Action:      func() { ui.goBack() },
+		},
+		{
+			Title:       "Refresh Workflows",
+			Description: "Reload workflow statuses from Asynq",
+			Shortcut:    'f',
+			Action:      refreshWorkflows,
+		},
+	}, false)
 
 	content := tview.NewFlex().
 		AddItem(workflowList, 0, 1, true).
@@ -511,7 +612,7 @@ func (ui *UI) buildWorkflowStatusScreen(listWorkflows ListWorkflowsFunc, getWork
 
 	screen := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(header, 3, 0, false).
-		AddItem(commands, 4, 0, false).
+		AddItem(commands, 6, 0, false).
 		AddItem(content, 0, 1, true).
 		AddItem(ui.status, 3, 0, false)
 
@@ -520,7 +621,7 @@ func (ui *UI) buildWorkflowStatusScreen(listWorkflows ListWorkflowsFunc, getWork
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			if ui.currentScreen == "ingestion_workflows" {
+			if ui.currentScreen == strings.TrimSpace(screenID) {
 				refreshWorkflows()
 			}
 		}
@@ -571,9 +672,17 @@ func (ui *UI) goBack() {
 
 func (ui *UI) focusCurrentScreenDefault() {
 	switch ui.currentScreen {
+	case "authentication_commands":
+		if ui.authCommandList != nil {
+			ui.application.SetFocus(ui.authCommandList)
+		}
 	case "ingestion_commands":
 		if ui.ingestionCommandList != nil {
 			ui.application.SetFocus(ui.ingestionCommandList)
+		}
+	case "worktree_commands":
+		if ui.worktreeCommandList != nil {
+			ui.application.SetFocus(ui.worktreeCommandList)
 		}
 	case "ingestion_run":
 		if ui.runIngestionInput != nil {

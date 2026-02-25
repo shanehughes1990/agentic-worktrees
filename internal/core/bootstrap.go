@@ -47,22 +47,24 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 		return apptaskboard.TaskExecutionOutcome{}, fmt.Errorf("task executor adapter is not configured")
 	}
 	result, err := adapter.inner.ExecuteTask(ctx, appgitflow.TaskExecutionRequest{
-		BoardID:        request.BoardID,
-		RunID:          request.RunID,
-		TaskID:         request.TaskID,
-		TaskTitle:      request.TaskTitle,
-		TaskDetail:     request.TaskDetail,
-		SourceBranch:   request.SourceBranch,
-		RepositoryRoot: request.RepositoryRoot,
+		BoardID:         request.BoardID,
+		RunID:           request.RunID,
+		TaskID:          request.TaskID,
+		TaskTitle:       request.TaskTitle,
+		TaskDetail:      request.TaskDetail,
+		ResumeSessionID: request.ResumeSessionID,
+		SourceBranch:    request.SourceBranch,
+		RepositoryRoot:  request.RepositoryRoot,
 	})
 	if err != nil {
 		return apptaskboard.TaskExecutionOutcome{}, err
 	}
 	return apptaskboard.TaskExecutionOutcome{
-		Status:     result.Status,
-		Reason:     result.Reason,
-		TaskBranch: result.TaskBranch,
-		Worktree:   result.Worktree,
+		Status:          result.Status,
+		Reason:          result.Reason,
+		TaskBranch:      result.TaskBranch,
+		Worktree:        result.Worktree,
+		ResumeSessionID: result.ResumeSessionID,
 	}, nil
 }
 

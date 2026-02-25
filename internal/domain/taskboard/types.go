@@ -34,11 +34,12 @@ type Task struct {
 }
 
 type TaskOutcome struct {
-	Status     string    `json:"status"`
-	Reason     string    `json:"reason,omitempty"`
-	TaskBranch string    `json:"task_branch,omitempty"`
-	Worktree   string    `json:"worktree,omitempty"`
-	UpdatedAt  time.Time `json:"updated_at,omitempty"`
+	Status          string    `json:"status"`
+	Reason          string    `json:"reason,omitempty"`
+	TaskBranch      string    `json:"task_branch,omitempty"`
+	Worktree        string    `json:"worktree,omitempty"`
+	ResumeSessionID string    `json:"resume_session_id,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at,omitempty"`
 }
 
 type Epic struct {

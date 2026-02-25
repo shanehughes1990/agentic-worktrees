@@ -18,6 +18,7 @@ type GitPort interface {
 	CreateTaskWorktree(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) error
 	MergeTaskBranch(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string) (MergeAttempt, error)
 	ResolveConflicts(ctx context.Context, repositoryRoot string, conflictFiles []string, copilotAdvice string) error
+	StageAll(ctx context.Context, repositoryRoot string) error
 	Commit(ctx context.Context, repositoryRoot string, message string) error
 	CleanupTaskWorktree(ctx context.Context, repositoryRoot string, worktreePath string, taskBranch string) error
 	CleanupRunArtifacts(ctx context.Context, repositoryRoot string, runPrefix string) error

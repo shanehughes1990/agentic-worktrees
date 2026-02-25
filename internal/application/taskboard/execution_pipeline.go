@@ -3,6 +3,7 @@ package taskboard
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -17,20 +18,22 @@ type TaskPipelineExecutor interface {
 }
 
 type TaskExecutionRequest struct {
-	BoardID        string
-	RunID          string
-	TaskID         string
-	TaskTitle      string
-	TaskDetail     string
-	SourceBranch   string
-	RepositoryRoot string
+	BoardID         string
+	RunID           string
+	TaskID          string
+	TaskTitle       string
+	TaskDetail      string
+	ResumeSessionID string
+	SourceBranch    string
+	RepositoryRoot  string
 }
 
 type TaskExecutionOutcome struct {
-	Status     string
-	Reason     string
-	TaskBranch string
-	Worktree   string
+	Status          string
+	Reason          string
+	TaskBranch      string
+	Worktree        string
+	ResumeSessionID string
 }
 
 type ExecutionPipelineService struct {
@@ -176,11 +179,17 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 			startedTaskIDs = append(startedTaskIDs, task.ID)
 
 			request := TaskExecutionRequest{
-				BoardID:        cleanBoardID,
-				RunID:          cleanBoardID,
-				TaskID:         task.ID,
-				TaskTitle:      task.Title,
-				TaskDetail:     task.Description,
+				BoardID:    cleanBoardID,
+				RunID:      cleanBoardID,
+				TaskID:     task.ID,
+				TaskTitle:  task.Title,
+				TaskDetail: task.Description,
+				ResumeSessionID: func() string {
+					if task.Outcome == nil {
+						return ""
+					}
+					return strings.TrimSpace(task.Outcome.ResumeSessionID)
+				}(),
 				SourceBranch:   cleanSourceBranch,
 				RepositoryRoot: cleanRepositoryRoot,
 			}
@@ -206,9 +215,14 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 
 		failedTaskErrors := map[string]error{}
 		outcomesByTaskID := map[string]TaskExecutionOutcome{}
+		canceledTaskIDs := make([]string, 0)
 		for result := range results {
 			outcomesByTaskID[result.taskID] = result.outcome
 			if result.err == nil {
+				continue
+			}
+			if errors.Is(result.err, context.Canceled) || errors.Is(result.err, context.DeadlineExceeded) {
+				canceledTaskIDs = append(canceledTaskIDs, result.taskID)
 				continue
 			}
 			failedTaskErrors[result.taskID] = result.err
@@ -218,6 +232,37 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		for _, taskID := range startedTaskIDs {
 			executionErr := failedTaskErrors[taskID]
 			outcome := outcomesByTaskID[taskID]
+			isCanceled := false
+			for _, canceledTaskID := range canceledTaskIDs {
+				if canceledTaskID == taskID {
+					isCanceled = true
+					break
+				}
+			}
+			if isCanceled {
+				if strings.TrimSpace(outcome.Status) == "" {
+					outcome.Status = "canceled"
+				}
+				if strings.TrimSpace(outcome.Reason) == "" {
+					outcome.Reason = "task execution canceled"
+				}
+				if markErr := service.taskboardService.MarkTaskCanceledWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
+					Status:          outcome.Status,
+					Reason:          outcome.Reason,
+					TaskBranch:      outcome.TaskBranch,
+					Worktree:        outcome.Worktree,
+					ResumeSessionID: outcome.ResumeSessionID,
+				}); markErr != nil {
+					return fmt.Errorf("mark task canceled for resume: %w", markErr)
+				}
+				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "task canceled", map[string]any{
+					"event":             "task_canceled",
+					"task_id":           taskID,
+					"reason":            outcome.Reason,
+					"resume_session_id": outcome.ResumeSessionID,
+				})
+				continue
+			}
 			if executionErr != nil {
 				if strings.TrimSpace(outcome.Status) == "" {
 					outcome.Status = "failed"
@@ -226,10 +271,11 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 					outcome.Reason = executionErr.Error()
 				}
 				if markErr := service.taskboardService.MarkTaskBlockedWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
-					Status:     outcome.Status,
-					Reason:     outcome.Reason,
-					TaskBranch: outcome.TaskBranch,
-					Worktree:   outcome.Worktree,
+					Status:          outcome.Status,
+					Reason:          outcome.Reason,
+					TaskBranch:      outcome.TaskBranch,
+					Worktree:        outcome.Worktree,
+					ResumeSessionID: outcome.ResumeSessionID,
 				}); markErr != nil {
 					return fmt.Errorf("mark task blocked after failure: %w", markErr)
 				}
@@ -249,10 +295,11 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 				outcome.Reason = "task execution completed"
 			}
 			if err := service.taskboardService.MarkTaskCompletedWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
-				Status:     outcome.Status,
-				Reason:     outcome.Reason,
-				TaskBranch: outcome.TaskBranch,
-				Worktree:   outcome.Worktree,
+				Status:          outcome.Status,
+				Reason:          outcome.Reason,
+				TaskBranch:      outcome.TaskBranch,
+				Worktree:        outcome.Worktree,
+				ResumeSessionID: outcome.ResumeSessionID,
 			}); err != nil {
 				return fmt.Errorf("mark task completed: %w", err)
 			}
@@ -264,6 +311,16 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 				"task_branch": outcome.TaskBranch,
 				"worktree":    outcome.Worktree,
 			})
+		}
+
+		if len(canceledTaskIDs) > 0 {
+			sort.Strings(canceledTaskIDs)
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "taskboard execution canceled", map[string]any{
+				"event":             "pipeline_canceled",
+				"round":             round,
+				"canceled_task_ids": canceledTaskIDs,
+			})
+			return context.Canceled
 		}
 
 		if len(failedTaskErrors) > 0 {

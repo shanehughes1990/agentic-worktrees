@@ -64,6 +64,10 @@ func (service *Service) MarkTaskBlockedWithOutcome(ctx context.Context, boardID 
 	return service.markTaskStatusAndOutcome(ctx, boardID, taskID, domaintaskboard.StatusBlocked, &outcome)
 }
 
+func (service *Service) MarkTaskCanceledWithOutcome(ctx context.Context, boardID string, taskID string, outcome domaintaskboard.TaskOutcome) error {
+	return service.markTaskStatusAndOutcome(ctx, boardID, taskID, domaintaskboard.StatusNotStarted, &outcome)
+}
+
 func (service *Service) IsBoardCompleted(ctx context.Context, boardID string) (bool, error) {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {
@@ -159,10 +163,14 @@ func (service *Service) RequeueInProgressTasks(ctx context.Context, boardID stri
 			if task.Status != domaintaskboard.StatusInProgress {
 				continue
 			}
+			resumeSessionID := ""
+			if task.Outcome != nil {
+				resumeSessionID = strings.TrimSpace(task.Outcome.ResumeSessionID)
+			}
 			if err := board.SetTaskStatus(task.ID, domaintaskboard.StatusNotStarted); err != nil {
 				return 0, err
 			}
-			if err := board.SetTaskOutcome(task.ID, domaintaskboard.TaskOutcome{Status: "interrupted", Reason: cleanReason}); err != nil {
+			if err := board.SetTaskOutcome(task.ID, domaintaskboard.TaskOutcome{Status: "interrupted", Reason: cleanReason, ResumeSessionID: resumeSessionID}); err != nil {
 				return 0, err
 			}
 			requeuedCount++

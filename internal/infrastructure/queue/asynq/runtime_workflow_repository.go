@@ -108,7 +108,7 @@ func (repository *RuntimeWorkflowRepository) GetRuntimeWorkflow(ctx context.Cont
 func isRuntimeWorkflowTaskType(taskType string) bool {
 	cleanTaskType := strings.TrimSpace(taskType)
 	switch cleanTaskType {
-	case tasks.TaskTypeCopilotDecompose, tasks.TaskTypeGitWorktreeFlow, tasks.TaskTypeGitConflictResolve, tasks.TaskTypeTaskboardExecute:
+	case apptaskboard.WorkflowTaskTypeCopilotDecompose, apptaskboard.WorkflowTaskTypeGitWorktreeFlow, apptaskboard.WorkflowTaskTypeGitConflict, apptaskboard.WorkflowTaskTypeTaskboardExecute:
 		return true
 	default:
 		return false
@@ -127,6 +127,7 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 	return apptaskboard.IngestionWorkflow{
 		RunID:     runID,
 		TaskID:    info.ID,
+		TaskType:  strings.TrimSpace(info.Type),
 		Status:    mapTaskState(info.State),
 		Message:   mapTaskMessage(info),
 		Stream:    stream,
