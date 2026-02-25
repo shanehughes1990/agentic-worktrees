@@ -10,6 +10,7 @@ type StartExecutionRequest struct {
 	BoardID        string
 	SourceBranch   string
 	RepositoryRoot string
+	MaxTasks       int
 }
 
 type ExecutionDispatcher interface {
@@ -40,6 +41,9 @@ func (service *ExecutionCommandService) Start(ctx context.Context, request Start
 	}
 	if request.RepositoryRoot == "" {
 		return "", fmt.Errorf("repository_root is required")
+	}
+	if request.MaxTasks < 0 {
+		return "", fmt.Errorf("max_tasks cannot be negative")
 	}
 
 	taskID, err := service.dispatcher.EnqueueTaskboardExecution(ctx, request)

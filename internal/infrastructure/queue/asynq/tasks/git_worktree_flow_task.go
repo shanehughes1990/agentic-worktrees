@@ -13,7 +13,11 @@ const TaskTypeGitWorktreeFlow = "git.worktree.flow"
 
 type GitWorktreeFlowPayload struct {
 	RunID          string `json:"run_id"`
+	BoardID        string `json:"board_id,omitempty"`
 	TaskID         string `json:"task_id"`
+	TaskTitle      string `json:"task_title,omitempty"`
+	TaskDetail     string `json:"task_detail,omitempty"`
+	ResumeSessionID string `json:"resume_session_id,omitempty"`
 	RepositoryRoot string `json:"repository_root"`
 	SourceBranch   string `json:"source_branch"`
 	TaskBranch     string `json:"task_branch"`
@@ -50,7 +54,7 @@ func NewGitWorktreeFlowTask(payload GitWorktreeFlowPayload, options ...asynq.Opt
 	}
 
 	task := asynq.NewTask(TaskTypeGitWorktreeFlow, body)
-	opts := []asynq.Option{asynq.Queue(queueIngestion), asynq.Retention(24 * time.Hour)}
+	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour)}
 	opts = append(opts, options...)
 	return task, opts, nil
 }

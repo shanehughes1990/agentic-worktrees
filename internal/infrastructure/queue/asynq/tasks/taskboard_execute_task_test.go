@@ -13,6 +13,7 @@ func TestNewTaskboardExecuteTaskBuildsTask(t *testing.T) {
 		BoardID:        "board-1",
 		SourceBranch:   "revamp",
 		RepositoryRoot: ".",
+		MaxTasks:       3,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -22,5 +23,17 @@ func TestNewTaskboardExecuteTaskBuildsTask(t *testing.T) {
 	}
 	if len(options) == 0 {
 		t.Fatalf("expected default queue option")
+	}
+}
+
+func TestNewTaskboardExecuteTaskRejectsNegativeMaxTasks(t *testing.T) {
+	_, _, err := NewTaskboardExecuteTask(TaskboardExecutePayload{
+		BoardID:        "board-1",
+		SourceBranch:   "revamp",
+		RepositoryRoot: ".",
+		MaxTasks:       -1,
+	})
+	if err == nil {
+		t.Fatalf("expected max_tasks validation error")
 	}
 }

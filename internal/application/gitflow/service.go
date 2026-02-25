@@ -10,7 +10,11 @@ import (
 
 type StartRequest struct {
 	RunID          string
+	BoardID        string
 	TaskID         string
+	TaskTitle      string
+	TaskDetail     string
+	ResumeSessionID string
 	RepositoryRoot string
 	SourceBranch   string
 }
@@ -23,7 +27,11 @@ type StartResult struct {
 
 type WorktreeFlowJob struct {
 	RunID          string
+	BoardID        string
 	TaskID         string
+	TaskTitle      string
+	TaskDetail     string
+	ResumeSessionID string
 	RepositoryRoot string
 	SourceBranch   string
 	TaskBranch     string
@@ -70,7 +78,11 @@ func (service *Service) Start(ctx context.Context, request StartRequest) (StartR
 
 	queueTaskID, err := service.dispatcher.EnqueueWorktreeFlow(ctx, WorktreeFlowJob{
 		RunID:          runID,
+		BoardID:        strings.TrimSpace(request.BoardID),
 		TaskID:         taskID,
+		TaskTitle:      strings.TrimSpace(request.TaskTitle),
+		TaskDetail:     strings.TrimSpace(request.TaskDetail),
+		ResumeSessionID: strings.TrimSpace(request.ResumeSessionID),
 		RepositoryRoot: repositoryRoot,
 		SourceBranch:   sourceBranch,
 		TaskBranch:     taskBranch,

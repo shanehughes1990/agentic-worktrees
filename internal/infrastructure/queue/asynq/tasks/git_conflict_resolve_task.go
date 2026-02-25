@@ -54,7 +54,7 @@ func NewGitConflictResolveTask(payload GitConflictResolvePayload, options ...asy
 	}
 
 	task := asynq.NewTask(TaskTypeGitConflictResolve, body)
-	opts := []asynq.Option{asynq.Queue(queueIngestion), asynq.Retention(24 * time.Hour)}
+	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour)}
 	opts = append(opts, options...)
 	return task, opts, nil
 }

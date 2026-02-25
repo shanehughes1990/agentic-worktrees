@@ -4,13 +4,52 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/hibiken/asynq"
 	appcopilot "github.com/shanehughes1990/agentic-worktrees/internal/application/copilot"
 	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
+	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
 )
+
+type memoryBoardRepoForWorker struct {
+	board *domaintaskboard.Board
+}
+
+func (repository *memoryBoardRepoForWorker) ListBoardIDs(context.Context) ([]string, error) {
+	if repository.board == nil {
+		return []string{}, nil
+	}
+	return []string{repository.board.BoardID}, nil
+}
+
+func (repository *memoryBoardRepoForWorker) GetByBoardID(context.Context, string) (*domaintaskboard.Board, error) {
+	if repository.board == nil {
+		return nil, nil
+	}
+	copied := *repository.board
+	return &copied, nil
+}
+
+func (repository *memoryBoardRepoForWorker) Save(_ context.Context, board *domaintaskboard.Board) error {
+	if board == nil {
+		return nil
+	}
+	copied := *board
+	repository.board = &copied
+	return nil
+}
+
+type fakeTaskExecutorForWorker struct {
+	result appgitflow.TaskExecutionResult
+	err    error
+}
+
+func (executor *fakeTaskExecutorForWorker) ExecuteTask(context.Context, appgitflow.TaskExecutionRequest) (appgitflow.TaskExecutionResult, error) {
+	return executor.result, executor.err
+}
 
 type fakeGitPortForWorker struct{}
 
@@ -85,11 +124,26 @@ func (decomposer *fakeCopilotDecomposerForWorker) Decompose(context.Context, app
 }
 
 func TestGitWorktreeFlowHandlerProcessTask(t *testing.T) {
-	runner := appgitflow.NewRunner(&fakeGitPortForWorker{}, &fakeConflictDispatcherForWorker{}, &fakeWorkflowRepoForWorker{})
-	handler := NewGitWorktreeFlowHandler(runner, nil)
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	handler := NewGitWorktreeFlowHandler(&fakeTaskExecutorForWorker{result: appgitflow.TaskExecutionResult{Status: "merged", Reason: "ok", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/run-1-task-1"}}, taskboardService, nil)
 
 	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
 		RunID:          "run-1",
+		BoardID:        "board-1",
 		TaskID:         "task-1",
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
@@ -103,14 +157,36 @@ func TestGitWorktreeFlowHandlerProcessTask(t *testing.T) {
 	if err := handler.ProcessTask(context.Background(), task); err != nil {
 		t.Fatalf("unexpected handler error: %v", err)
 	}
+	updatedTask, getErr := taskboardService.GetTaskByID(context.Background(), "board-1", "task-1")
+	if getErr != nil {
+		t.Fatalf("unexpected get task error: %v", getErr)
+	}
+	if updatedTask == nil || updatedTask.Status != domaintaskboard.StatusCompleted {
+		t.Fatalf("expected completed task, got %#v", updatedTask)
+	}
 }
 
 func TestGitWorktreeFlowHandlerSkipsRetryOnTerminalFailure(t *testing.T) {
-	runner := appgitflow.NewRunner(&failingGitPortForWorker{}, &fakeConflictDispatcherForWorker{}, &fakeWorkflowRepoForWorker{})
-	handler := NewGitWorktreeFlowHandler(runner, nil)
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	handler := NewGitWorktreeFlowHandler(&fakeTaskExecutorForWorker{err: appgitflow.WrapTerminal(errors.New("fatal git error"))}, taskboardService, nil)
 
 	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
 		RunID:          "run-1",
+		BoardID:        "board-1",
 		TaskID:         "task-1",
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
@@ -127,6 +203,13 @@ func TestGitWorktreeFlowHandlerSkipsRetryOnTerminalFailure(t *testing.T) {
 	}
 	if !errors.Is(err, asynq.SkipRetry) {
 		t.Fatalf("expected skip retry error, got: %v", err)
+	}
+	updatedTask, getErr := taskboardService.GetTaskByID(context.Background(), "board-1", "task-1")
+	if getErr != nil {
+		t.Fatalf("unexpected get task error: %v", getErr)
+	}
+	if updatedTask == nil || updatedTask.Status != domaintaskboard.StatusBlocked {
+		t.Fatalf("expected blocked task, got %#v", updatedTask)
 	}
 }
 

@@ -145,12 +145,26 @@ func TestExecutionCommandServiceStart(t *testing.T) {
 		BoardID:        "board-1",
 		SourceBranch:   "revamp",
 		RepositoryRoot: ".",
+		MaxTasks:       2,
 	})
 	if err != nil {
 		t.Fatalf("unexpected start error: %v", err)
 	}
 	if taskID != "pipeline-1" {
 		t.Fatalf("unexpected task id: %s", taskID)
+	}
+}
+
+func TestExecutionCommandServiceStartRejectsNegativeMaxTasks(t *testing.T) {
+	service := NewExecutionCommandService(&fakeExecutionDispatcher{taskID: "pipeline-1"})
+	_, err := service.Start(context.Background(), StartExecutionRequest{
+		BoardID:        "board-1",
+		SourceBranch:   "revamp",
+		RepositoryRoot: ".",
+		MaxTasks:       -1,
+	})
+	if err == nil {
+		t.Fatalf("expected validation error for negative max tasks")
 	}
 }
 
@@ -175,7 +189,7 @@ func TestExecutionPipelineServiceExecuteBoard(t *testing.T) {
 	workflowRepo := &memoryWorkflowRepo{}
 	pipeline := NewExecutionPipelineService(taskboardService, executor, workflowRepo, 2)
 
-	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
 	if err != nil {
 		t.Fatalf("unexpected execute board error: %v", err)
 	}
@@ -210,7 +224,7 @@ func TestExecutionPipelineServiceExecuteBoardMarksBlockedOnFailure(t *testing.T)
 	workflowRepo := &memoryWorkflowRepo{}
 	pipeline := NewExecutionPipelineService(taskboardService, &fakeTaskExecutor{err: errors.New("fatal")}, workflowRepo, 2)
 
-	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
 	if err == nil {
 		t.Fatalf("expected pipeline error")
 	}
@@ -250,7 +264,7 @@ func TestExecutionPipelineServiceExecuteBoardUsesConcurrencyLimit(t *testing.T) 
 	workflowRepo := &memoryWorkflowRepo{}
 	pipeline := NewExecutionPipelineService(taskboardService, executor, workflowRepo, 2)
 
-	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
 	if err != nil {
 		t.Fatalf("unexpected execute board error: %v", err)
 	}
@@ -286,7 +300,7 @@ func TestExecutionPipelineServiceExecuteBoardAppendsResumeStreamEvents(t *testin
 	workflowRepo := &memoryWorkflowRepo{workflow: &IngestionWorkflow{RunID: "board-1", Stream: "{\"event\":\"prior\"}"}}
 	pipeline := NewExecutionPipelineService(taskboardService, executor, workflowRepo, 2)
 
-	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
 	if err != nil {
 		t.Fatalf("unexpected execute board error: %v", err)
 	}
@@ -328,7 +342,7 @@ func TestExecutionPipelineServiceExecuteBoardPropagatesResumeSessionToExecutor(t
 	executor := &fakeTaskExecutor{}
 	pipeline := NewExecutionPipelineService(taskboardService, executor, &memoryWorkflowRepo{}, 1)
 
-	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
 	if err != nil {
 		t.Fatalf("unexpected execute board error: %v", err)
 	}
@@ -360,7 +374,7 @@ func TestExecutionPipelineServiceExecuteBoardCancelsTasksAsResumable(t *testing.
 	}
 	pipeline := NewExecutionPipelineService(taskboardService, executor, &memoryWorkflowRepo{}, 1)
 
-	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context canceled error, got %v", err)
 	}
@@ -383,5 +397,112 @@ func TestExecutionPipelineServiceExecuteBoardCancelsTasksAsResumable(t *testing.
 	}
 	if task.Outcome.ResumeSessionID != "session-987" {
 		t.Fatalf("expected resume session id session-987, got %q", task.Outcome.ResumeSessionID)
+	}
+}
+
+func TestExecutionPipelineServiceExecuteBoardStopsAtMaxTasks(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryRepo{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Title: "Epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Title: "Task 1", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-2", BoardID: "board-1", Title: "Task 2", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-3", BoardID: "board-1", Title: "Task 3", Status: domaintaskboard.StatusNotStarted}},
+			},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	taskboardService := NewService(repository)
+	executor := &fakeTaskExecutor{}
+	pipeline := NewExecutionPipelineService(taskboardService, executor, &memoryWorkflowRepo{}, 2)
+
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 2)
+	if err != nil {
+		t.Fatalf("unexpected execute board error: %v", err)
+	}
+	if executor.calls != 2 {
+		t.Fatalf("expected exactly 2 task executions, got %d", executor.calls)
+	}
+
+	completedCount := 0
+	notStartedCount := 0
+	for _, taskID := range []string{"task-1", "task-2", "task-3"} {
+		task, taskErr := taskboardService.GetTaskByID(context.Background(), "board-1", taskID)
+		if taskErr != nil {
+			t.Fatalf("unexpected get %s error: %v", taskID, taskErr)
+		}
+		switch task.Status {
+		case domaintaskboard.StatusCompleted:
+			completedCount++
+		case domaintaskboard.StatusNotStarted:
+			notStartedCount++
+		}
+	}
+	if completedCount != 2 {
+		t.Fatalf("expected exactly 2 completed tasks, got %d", completedCount)
+	}
+	if notStartedCount != 1 {
+		t.Fatalf("expected exactly 1 task left not-started, got %d", notStartedCount)
+	}
+}
+
+func TestExecutionPipelineServiceExecuteBoardStopsAtMaxTasksAcrossMultipleRounds(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryRepo{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Title: "Epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Title: "Task 1", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-2", BoardID: "board-1", Title: "Task 2", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-3", BoardID: "board-1", Title: "Task 3", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-4", BoardID: "board-1", Title: "Task 4", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-5", BoardID: "board-1", Title: "Task 5", Status: domaintaskboard.StatusNotStarted}},
+				{WorkItem: domaintaskboard.WorkItem{ID: "task-6", BoardID: "board-1", Title: "Task 6", Status: domaintaskboard.StatusNotStarted}},
+			},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	taskboardService := NewService(repository)
+	executor := &fakeTaskExecutor{}
+	pipeline := NewExecutionPipelineService(taskboardService, executor, &memoryWorkflowRepo{}, 2)
+
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 5)
+	if err != nil {
+		t.Fatalf("unexpected execute board error: %v", err)
+	}
+	if executor.calls != 5 {
+		t.Fatalf("expected exactly 5 task executions, got %d", executor.calls)
+	}
+
+	completedCount := 0
+	notStartedCount := 0
+	for _, taskID := range []string{"task-1", "task-2", "task-3", "task-4", "task-5", "task-6"} {
+		task, taskErr := taskboardService.GetTaskByID(context.Background(), "board-1", taskID)
+		if taskErr != nil {
+			t.Fatalf("unexpected get %s error: %v", taskID, taskErr)
+		}
+		switch task.Status {
+		case domaintaskboard.StatusCompleted:
+			completedCount++
+		case domaintaskboard.StatusNotStarted:
+			notStartedCount++
+		}
+	}
+	if completedCount != 5 {
+		t.Fatalf("expected exactly 5 completed tasks, got %d", completedCount)
+	}
+	if notStartedCount != 1 {
+		t.Fatalf("expected exactly 1 task left not-started, got %d", notStartedCount)
 	}
 }

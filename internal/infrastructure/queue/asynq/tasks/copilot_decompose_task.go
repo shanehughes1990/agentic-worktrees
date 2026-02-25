@@ -12,6 +12,7 @@ import (
 const (
 	TaskTypeCopilotDecompose = "copilot.decompose"
 	queueIngestion           = "ingestion"
+	queueAgent               = "agent"
 )
 
 type CopilotDecomposePayload struct {

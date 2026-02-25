@@ -13,7 +13,10 @@ import (
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
 )
 
-const ingestionQueueName = "ingestion"
+const (
+	ingestionQueueName = "ingestion"
+	agentQueueName     = "agent"
+)
 
 type RuntimeWorkflowRepository struct {
 	inspector *asynq.Inspector
@@ -37,19 +40,37 @@ func (repository *RuntimeWorkflowRepository) ListRuntimeWorkflows(ctx context.Co
 			return repository.inspector.ListPendingTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
 		},
 		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListPendingTasks(agentQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
 			return repository.inspector.ListActiveTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListActiveTasks(agentQueueName, asynq.PageSize(200), asynq.Page(0))
 		},
 		func() ([]*asynq.TaskInfo, error) {
 			return repository.inspector.ListScheduledTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
 		},
 		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListScheduledTasks(agentQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
 			return repository.inspector.ListRetryTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListRetryTasks(agentQueueName, asynq.PageSize(200), asynq.Page(0))
 		},
 		func() ([]*asynq.TaskInfo, error) {
 			return repository.inspector.ListCompletedTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
 		},
 		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListCompletedTasks(agentQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
 			return repository.inspector.ListArchivedTasks(ingestionQueueName, asynq.PageSize(200), asynq.Page(0))
+		},
+		func() ([]*asynq.TaskInfo, error) {
+			return repository.inspector.ListArchivedTasks(agentQueueName, asynq.PageSize(200), asynq.Page(0))
 		},
 	}
 

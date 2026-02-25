@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 )
 
 type IngestFunc func(ctx context.Context, directory string) (apptaskboard.IngestionResult, error)
-type StartTaskTreeFunc func(ctx context.Context, boardID string, sourceBranch string) (string, error)
+type StartTaskTreeFunc func(ctx context.Context, boardID string, sourceBranch string, maxTasks int) (string, error)
 type CancelTaskTreeFunc func(ctx context.Context, boardID string) (string, error)
 type ListTaskboardsFunc func(ctx context.Context) ([]string, error)
 type ListReadyTaskIDsFunc func(ctx context.Context, boardID string) ([]string, error)
@@ -32,6 +33,7 @@ type UI struct {
 	application          *tview.Application
 	pages                *tview.Pages
 	status               *tview.TextView
+	maxTaskLimit         int
 	screenStack          []string
 	currentScreen        string
 	mainCommandList      *tview.List
@@ -42,6 +44,8 @@ type UI struct {
 	runIngestionCommands *tview.List
 	runGitBoardList      *tview.List
 	runGitSourceInput    *tview.InputField
+	runGitConcurrency    *tview.TextView
+	runGitMaxTasksInput  *tview.InputField
 	runGitCommands       *tview.List
 	runGitReadyTasks     *tview.TextView
 	selectedBoardID      string
@@ -49,16 +53,20 @@ type UI struct {
 	workflowDetails      *tview.TextView
 }
 
-func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, maxTaskLimit int) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
 	status.SetTitle("Status")
+	if maxTaskLimit < 1 {
+		maxTaskLimit = 1
+	}
 
 	ui := &UI{
 		application:   application,
 		pages:         tview.NewPages(),
 		status:        status,
+		maxTaskLimit:  maxTaskLimit,
 		screenStack:   []string{"main"},
 		currentScreen: "main",
 	}
@@ -298,6 +306,17 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 	sourceBranchInput.SetTitle("Source Branch")
 	ui.runGitSourceInput = sourceBranchInput
 
+	concurrencyView := tview.NewTextView().SetDynamicColors(true)
+	concurrencyView.SetBorder(true)
+	concurrencyView.SetTitle("Concurrent Agents")
+	concurrencyView.SetText(fmt.Sprintf("%d (derived from worker concurrency)", ui.maxTaskLimit))
+	ui.runGitConcurrency = concurrencyView
+
+	maxTasksInput := tview.NewInputField().SetLabel("Max Tasks (optional): ")
+	maxTasksInput.SetBorder(true)
+	maxTasksInput.SetTitle("Task Limit (total tasks to execute)")
+	ui.runGitMaxTasksInput = maxTasksInput
+
 	loadReadyTasks := func(boardID string) {
 		cleanBoardID := strings.TrimSpace(boardID)
 		if cleanBoardID == "" {
@@ -370,7 +389,8 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 			Description: "Reload all taskboards from local JSON storage",
 			Shortcut:    'f',
 			Action:      refreshBoards,
-		}, {
+		},
+		{
 			Title:       "Cancel Runner",
 			Description: "Cancel and cleanup running taskboard runner for selected board",
 			Shortcut:    'x',
@@ -397,7 +417,8 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 					})
 				}()
 			},
-		}, {
+		},
+		{
 			Title:       "Execute",
 			Description: "Start task tree pipeline for selected taskboard",
 			Shortcut:    'e',
@@ -411,6 +432,16 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 				if sourceBranch == "" {
 					ui.status.SetText("Source branch is required")
 					return
+				}
+				maxTasks := 0
+				maxTasksText := strings.TrimSpace(maxTasksInput.GetText())
+				if maxTasksText != "" {
+					parsedMaxTasks, parseErr := strconv.Atoi(maxTasksText)
+					if parseErr != nil || parsedMaxTasks <= 0 {
+						ui.status.SetText("Max Tasks must be a positive integer (or leave blank)")
+						return
+					}
+					maxTasks = parsedMaxTasks
 				}
 				ui.status.SetText(fmt.Sprintf("Loading ready tasks for board %s ...", boardID))
 				go func() {
@@ -435,17 +466,22 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree start command unavailable") })
 						return
 					}
-					queueTaskID, err := startTaskTree(ctx, boardID, sourceBranch)
+					queueTaskID, err := startTaskTree(ctx, boardID, sourceBranch, maxTasks)
 					ui.application.QueueUpdateDraw(func() {
 						if err != nil {
 							ui.status.SetText(fmt.Sprintf("Task tree start failed: %s", formatUserError(err)))
+							return
+						}
+						if maxTasks > 0 {
+							ui.status.SetText(fmt.Sprintf("Started task tree for board %s (queue task %s, max tasks %d)", boardID, queueTaskID, maxTasks))
 							return
 						}
 						ui.status.SetText(fmt.Sprintf("Started task tree for board %s (queue task %s)", boardID, queueTaskID))
 					})
 				}()
 			},
-		}}, true)
+		},
+	}, true)
 
 	content := tview.NewFlex().
 		AddItem(boardList, 0, 1, true).
@@ -458,6 +494,8 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 		AddItem(repositoryRootLabel, 3, 0, false).
 		AddItem(content, 0, 1, true).
 		AddItem(sourceBranchInput, 3, 0, false).
+		AddItem(concurrencyView, 3, 0, false).
+		AddItem(maxTasksInput, 3, 0, false).
 		AddItem(ui.runGitCommands, 0, 1, false).
 		AddItem(ui.status, 3, 0, false)
 }
@@ -471,35 +509,37 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 	input.SetTitle("Ingest Source")
 	ui.runIngestionInput = input
 
-	ui.runIngestionCommands = ui.newCommandList([]Command{{
-		Title:       "Execute",
-		Description: "Start ingestion for provided directory",
-		Shortcut:    'e',
-		Action: func() {
-			directory := strings.TrimSpace(input.GetText())
-			if directory == "" {
-				ui.status.SetText("Directory is required")
-				return
-			}
-			ui.status.SetText(fmt.Sprintf("Ingesting %s ...", directory))
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-				defer cancel()
-				if ingest == nil {
-					ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ingest command unavailable") })
+	ui.runIngestionCommands = ui.newCommandList([]Command{
+		{
+			Title:       "Execute",
+			Description: "Start ingestion for provided directory",
+			Shortcut:    'e',
+			Action: func() {
+				directory := strings.TrimSpace(input.GetText())
+				if directory == "" {
+					ui.status.SetText("Directory is required")
 					return
 				}
-				result, err := ingest(ctx, directory)
-				ui.application.QueueUpdateDraw(func() {
-					if err != nil {
-						ui.status.SetText(fmt.Sprintf("Ingest failed: %s", formatUserError(err)))
+				ui.status.SetText(fmt.Sprintf("Ingesting %s ...", directory))
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+					defer cancel()
+					if ingest == nil {
+						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ingest command unavailable") })
 						return
 					}
-					ui.status.SetText(fmt.Sprintf("Created board %s (run %s)", result.BoardID, result.RunID))
-				})
-			}()
+					result, err := ingest(ctx, directory)
+					ui.application.QueueUpdateDraw(func() {
+						if err != nil {
+							ui.status.SetText(fmt.Sprintf("Ingest failed: %s", formatUserError(err)))
+							return
+						}
+						ui.status.SetText(fmt.Sprintf("Created board %s (run %s)", result.BoardID, result.RunID))
+					})
+				}()
+			},
 		},
-	}}, true)
+	}, true)
 
 	return tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(header, 3, 0, false).
@@ -724,7 +764,7 @@ func (ui *UI) toggleFocusForCurrentScreen() {
 		}
 		ui.application.SetFocus(ui.workflowList)
 	case "gitflow_run":
-		if ui.runGitBoardList == nil || ui.runGitSourceInput == nil || ui.runGitCommands == nil {
+		if ui.runGitBoardList == nil || ui.runGitSourceInput == nil || ui.runGitConcurrency == nil || ui.runGitMaxTasksInput == nil || ui.runGitCommands == nil {
 			return
 		}
 		if ui.application.GetFocus() == ui.runGitBoardList {
@@ -732,6 +772,10 @@ func (ui *UI) toggleFocusForCurrentScreen() {
 			return
 		}
 		if ui.application.GetFocus() == ui.runGitSourceInput {
+			ui.application.SetFocus(ui.runGitMaxTasksInput)
+			return
+		}
+		if ui.application.GetFocus() == ui.runGitMaxTasksInput {
 			ui.application.SetFocus(ui.runGitCommands)
 			return
 		}

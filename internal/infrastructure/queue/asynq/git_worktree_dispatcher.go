@@ -31,7 +31,11 @@ func (dispatcher *GitWorktreeDispatcher) EnqueueWorktreeFlow(ctx context.Context
 
 	taskInfo, err := dispatcher.client.EnqueueGitWorktreeFlow(ctx, tasks.GitWorktreeFlowPayload{
 		RunID:          job.RunID,
+		BoardID:        job.BoardID,
 		TaskID:         job.TaskID,
+		TaskTitle:      job.TaskTitle,
+		TaskDetail:     job.TaskDetail,
+		ResumeSessionID: job.ResumeSessionID,
 		RepositoryRoot: job.RepositoryRoot,
 		SourceBranch:   job.SourceBranch,
 		TaskBranch:     job.TaskBranch,

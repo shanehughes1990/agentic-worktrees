@@ -50,10 +50,11 @@ func NewExecutionPipelineService(taskboardService *Service, executor TaskPipelin
 	return &ExecutionPipelineService{taskboardService: taskboardService, executor: executor, workflowRepo: workflowRepo, maxAgents: maxAgents}
 }
 
-func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, boardID string, sourceBranch string, repositoryRoot string) error {
+func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, boardID string, sourceBranch string, repositoryRoot string, maxTasks int) error {
 	cleanBoardID := strings.TrimSpace(boardID)
 	cleanSourceBranch := strings.TrimSpace(sourceBranch)
 	cleanRepositoryRoot := strings.TrimSpace(repositoryRoot)
+	cleanMaxTasks := maxTasks
 
 	if service.taskboardService == nil {
 		return fmt.Errorf("taskboard service is required")
@@ -70,10 +71,14 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 	if cleanRepositoryRoot == "" {
 		return fmt.Errorf("repository_root is required")
 	}
+	if cleanMaxTasks < 0 {
+		return fmt.Errorf("max_tasks cannot be negative")
+	}
 
 	_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "taskboard execution starting", map[string]any{
 		"event":           "pipeline_start",
 		"max_agents":      service.maxAgents,
+		"max_tasks":       cleanMaxTasks,
 		"source_branch":   cleanSourceBranch,
 		"repository_root": cleanRepositoryRoot,
 		"resumed_at":      time.Now().UTC().Format(time.RFC3339),
@@ -95,6 +100,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 	}
 
 	round := 0
+	tasksExecuted := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -144,6 +150,20 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		batchSize := service.maxAgents
 		if batchSize > len(readyTasks) {
 			batchSize = len(readyTasks)
+		}
+		if cleanMaxTasks > 0 {
+			remaining := cleanMaxTasks - tasksExecuted
+			if remaining <= 0 {
+				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusCompleted, "taskboard execution stopped at task limit", map[string]any{
+					"event":          "pipeline_limit_reached",
+					"max_tasks":      cleanMaxTasks,
+					"executed_tasks": tasksExecuted,
+				})
+				return nil
+			}
+			if batchSize > remaining {
+				batchSize = remaining
+			}
 		}
 		batch := readyTasks[:batchSize]
 		batchTaskIDs := make([]string, 0, len(batch))
@@ -342,6 +362,16 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 			"round":         round,
 			"completed_ids": startedTaskIDs,
 		})
+
+		tasksExecuted += len(startedTaskIDs)
+		if cleanMaxTasks > 0 && tasksExecuted >= cleanMaxTasks {
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusCompleted, "taskboard execution stopped at task limit", map[string]any{
+				"event":          "pipeline_limit_reached",
+				"max_tasks":      cleanMaxTasks,
+				"executed_tasks": tasksExecuted,
+			})
+			return nil
+		}
 	}
 }
 

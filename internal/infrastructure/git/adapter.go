@@ -68,18 +68,15 @@ func (adapter *Adapter) MergeTaskBranch(ctx context.Context, repositoryRoot stri
 
 func (adapter *Adapter) ResolveConflicts(ctx context.Context, repositoryRoot string, conflictFiles []string, copilotAdvice string) error {
 	_ = strings.TrimSpace(copilotAdvice)
-
-	for _, conflictFile := range conflictFiles {
-		cleanConflictFile := strings.TrimSpace(conflictFile)
-		if cleanConflictFile == "" {
-			continue
-		}
-		if _, err := adapter.runGit(ctx, repositoryRoot, "checkout", "--ours", "--", cleanConflictFile); err != nil {
-			return err
-		}
-		if _, err := adapter.runGit(ctx, repositoryRoot, "add", "--", cleanConflictFile); err != nil {
-			return err
-		}
+	if len(conflictFiles) == 0 {
+		return appgitflow.WrapTerminal(fmt.Errorf("conflict_files is required"))
+	}
+	remainingConflictFiles, err := adapter.conflictFiles(ctx, repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if len(remainingConflictFiles) > 0 {
+		return appgitflow.WrapTerminal(fmt.Errorf("merge conflicts remain unresolved: %s", strings.Join(remainingConflictFiles, ", ")))
 	}
 	return nil
 }

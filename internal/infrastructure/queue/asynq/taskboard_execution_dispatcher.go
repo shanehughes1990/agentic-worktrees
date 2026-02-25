@@ -2,6 +2,7 @@ package asynq
 
 import (
 	"context"
+	"fmt"
 
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
@@ -30,7 +31,8 @@ func (dispatcher *TaskboardExecutionDispatcher) EnqueueTaskboardExecution(ctx co
 		BoardID:        request.BoardID,
 		SourceBranch:   request.SourceBranch,
 		RepositoryRoot: request.RepositoryRoot,
-		IdempotencyKey: request.BoardID + ":" + request.SourceBranch,
+		MaxTasks:       request.MaxTasks,
+		IdempotencyKey: fmt.Sprintf("%s:%s:%d", request.BoardID, request.SourceBranch, request.MaxTasks),
 	})
 	if err != nil {
 		entry.WithError(err).Error("failed to enqueue taskboard execution pipeline")

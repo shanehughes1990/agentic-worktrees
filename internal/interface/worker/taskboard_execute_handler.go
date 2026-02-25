@@ -52,7 +52,7 @@ func (handler *TaskboardExecuteHandler) ProcessTask(ctx context.Context, task *a
 		defer handler.registry.Unregister(cleanBoardID)
 	}
 
-	err := handler.pipeline.ExecuteBoard(executionCtx, payload.BoardID, payload.SourceBranch, payload.RepositoryRoot)
+	err := handler.pipeline.ExecuteBoard(executionCtx, payload.BoardID, payload.SourceBranch, payload.RepositoryRoot, payload.MaxTasks)
 	if err == nil {
 		entry.Info("taskboard execution pipeline completed")
 		return nil

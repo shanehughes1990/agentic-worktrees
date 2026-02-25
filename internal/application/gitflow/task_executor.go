@@ -125,19 +125,26 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 
 	if len(mergeAttempt.ConflictFiles) > 0 {
-		advice := ""
-		if executor.decomposer != nil {
-			result, adviceErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
-				RunID:            cleanRunID,
-				WorkingDirectory: cleanRepositoryRoot,
-				Prompt:           buildConflictResolutionPrompt(cleanTaskID, mergeAttempt.ConflictFiles),
-			})
-			if adviceErr == nil {
-				advice = result.Response
-			}
+		if executor.decomposer == nil {
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts: copilot decomposer is required"), FailureClassTerminal)
 		}
-		if resolveErr := executor.git.ResolveConflicts(ctx, cleanRepositoryRoot, mergeAttempt.ConflictFiles, advice); resolveErr != nil {
+		resolutionResult, resolutionErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
+			RunID:            cleanRunID,
+			ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
+			WorkingDirectory: cleanRepositoryRoot,
+			Prompt:           buildConflictResolutionPrompt(cleanTaskID, mergeAttempt.ConflictFiles),
+		})
+		if resolutionErr != nil {
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
+		}
+		if strings.TrimSpace(resolutionResult.SessionID) != "" {
+			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+		}
+		if resolveErr := executor.git.ResolveConflicts(ctx, cleanRepositoryRoot, mergeAttempt.ConflictFiles, resolutionResult.Response); resolveErr != nil {
 			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts: %w", resolveErr), FailureClassTerminal)
+		}
+		if stageErr := executor.git.StageAll(ctx, cleanRepositoryRoot); stageErr != nil {
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("stage conflict resolution changes: %w", stageErr), FailureClassTerminal)
 		}
 		if commitErr := executor.git.Commit(ctx, cleanRepositoryRoot, fmt.Sprintf("Resolve merge conflicts for task %s", cleanTaskID)); commitErr != nil {
 			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("commit conflict resolution: %w", commitErr), FailureClassTerminal)
@@ -188,5 +195,5 @@ func buildTaskImplementationPrompt(request TaskExecutionRequest) string {
 }
 
 func buildConflictResolutionPrompt(taskID string, files []string) string {
-	return fmt.Sprintf("Resolve merge conflicts for task %s in files: %s. Keep only task-scoped changes and preserve correctness.", strings.TrimSpace(taskID), strings.Join(files, ", "))
+	return fmt.Sprintf("Resolve merge conflicts for task %s in files: %s. You must fully resolve all conflict markers, preserve intended task changes, ensure the repository builds/tests still pass for impacted scope, and leave the repository in a merge-ready clean state for commit.", strings.TrimSpace(taskID), strings.Join(files, ", "))
 }

@@ -57,6 +57,11 @@ func TestAdapterMergeConflictFlow(t *testing.T) {
 		t.Fatalf("expected conflict files")
 	}
 
+	if err := os.WriteFile(filePath, []byte("line1\nresolved-by-agent\n"), 0o644); err != nil {
+		t.Fatalf("write resolved file: %v", err)
+	}
+	runGitCommand(t, ctx, tempDirectory, "add", "main.txt")
+
 	if err := adapter.ResolveConflicts(ctx, tempDirectory, mergeAttempt.ConflictFiles, ""); err != nil {
 		t.Fatalf("resolve conflicts: %v", err)
 	}
