@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: agentic-worktrees-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  asynqmon:
+    image: hibiken/asynqmon:latest
+    platform: linux/amd64
+    container_name: agentic-worktrees-asynqmon
+    depends_on:
+      - redis
+    ports:
+      - "8085:8080"
+    command: ["--redis-addr=redis:6379"]
+    restart: unless-stopped
+
+volumes:
+  redis-data:
