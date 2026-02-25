@@ -53,7 +53,7 @@ type UI struct {
 	workflowDetails      *tview.TextView
 }
 
-func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, maxTaskLimit int) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, maxTaskLimit int) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
@@ -76,7 +76,7 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 	ingestionScreen := ui.buildIngestionCommandsScreen()
 	worktreeScreen := ui.buildWorktreeCommandsScreen()
 	runIngestionScreen := ui.buildRunIngestionScreen(ingest)
-	runGitflowScreen := ui.buildRunGitflowScreen(startTaskTree, cancelTaskTree, listTaskboards, listReadyTaskIDs, repositoryRoot)
+	runGitflowScreen := ui.buildRunGitflowScreen(startTaskTree, cancelTaskTree, listTaskboards, listReadyTaskIDs, repositoryRoot, defaultSourceBranch)
 	ingestionWorkflowStatusScreen := ui.buildWorkflowStatusScreen(
 		"ingestion_workflows",
 		"Ingestion Workflow Status",
@@ -281,7 +281,7 @@ func (ui *UI) buildWorktreeCommandsScreen() tview.Primitive {
 		AddItem(ui.status, 3, 0, false)
 }
 
-func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, repositoryRoot string) tview.Primitive {
+func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, repositoryRoot string, defaultSourceBranch string) tview.Primitive {
 	header := tview.NewTextView().SetText("Start Task Tree Pipeline").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
@@ -304,6 +304,7 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 	sourceBranchInput := tview.NewInputField().SetLabel("Source Branch: ")
 	sourceBranchInput.SetBorder(true)
 	sourceBranchInput.SetTitle("Source Branch")
+	sourceBranchInput.SetText(strings.TrimSpace(defaultSourceBranch))
 	ui.runGitSourceInput = sourceBranchInput
 
 	concurrencyView := tview.NewTextView().SetDynamicColors(true)

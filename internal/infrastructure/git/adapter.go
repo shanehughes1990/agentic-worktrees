@@ -164,6 +164,14 @@ func (adapter *Adapter) CleanupRunArtifacts(ctx context.Context, repositoryRoot 
 	return nil
 }
 
+func (adapter *Adapter) CurrentBranch(ctx context.Context, repositoryRoot string) (string, error) {
+	output, err := adapter.runGit(ctx, repositoryRoot, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
 func (adapter *Adapter) conflictFiles(ctx context.Context, repositoryRoot string) ([]string, error) {
 	output, err := adapter.runGit(ctx, repositoryRoot, "diff", "--name-only", "--diff-filter=U")
 	if err != nil {

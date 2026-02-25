@@ -172,6 +172,7 @@ func Init() (*Runtime, error) {
 	authService := appcopilot.NewAuthService(authenticator)
 	decomposer := infracopilot.NewDecomposer(copilotConfig, logger)
 	gitAdapter := infragit.NewAdapter(logger)
+	sourceBranchService := appgitflow.NewSourceBranchService(gitAdapter)
 	gitWorktreeDispatcher := queueasynq.NewGitWorktreeDispatcher(queueClient, logger)
 	gitflowService := appgitflow.NewService(gitWorktreeDispatcher)
 	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository)
@@ -204,6 +205,16 @@ func Init() (*Runtime, error) {
 	repositoryRoot, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("determine repository root from working directory: %w", err)
+	}
+
+	defaultSourceBranch := ""
+	resolveBranchCtx, resolveBranchCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	resolvedSourceBranch, resolveBranchErr := sourceBranchService.Resolve(resolveBranchCtx, repositoryRoot)
+	resolveBranchCancel()
+	if resolveBranchErr != nil {
+		logger.WithError(resolveBranchErr).WithField("repository_root", repositoryRoot).Warn("failed to resolve current source branch for dashboard prefill")
+	} else {
+		defaultSourceBranch = resolvedSourceBranch
 	}
 
 	runtime := &Runtime{
@@ -261,6 +272,7 @@ func Init() (*Runtime, error) {
 		runtime.authService.Status,
 		runtime.authService.Authenticate,
 		runtime.repositoryRoot,
+		defaultSourceBranch,
 		effectiveMaxAgents,
 	)
 
