@@ -97,6 +97,10 @@ func runtimeTaskboardsDirectory(cfg *AppConfig) string {
 	return filepath.ToSlash(filepath.Join(runtimeRootDirectory(cfg), "taskboards"))
 }
 
+func runtimeWorkflowsDirectory(cfg *AppConfig) string {
+	return filepath.ToSlash(filepath.Join(runtimeRootDirectory(cfg), "workflows"))
+}
+
 func runtimeWorktreesDirectory(cfg *AppConfig) string {
 	return filepath.ToSlash(filepath.Join(runtimeRootDirectory(cfg), "worktrees"))
 }

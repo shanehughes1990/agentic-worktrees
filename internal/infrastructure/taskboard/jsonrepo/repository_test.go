@@ -114,6 +114,29 @@ func TestRepositoryWorkflowList(t *testing.T) {
 	}
 }
 
+func TestRepositoryStoresWorkflowFilesInConfiguredWorkflowsDirectory(t *testing.T) {
+	taskboardsDirectory := filepath.Join(t.TempDir(), "taskboards")
+	workflowsDirectory := filepath.Join(t.TempDir(), "workflows")
+
+	repository, err := NewRepositoryWithWorkflowDirectory(taskboardsDirectory, workflowsDirectory)
+	if err != nil {
+		t.Fatalf("unexpected repository creation error: %v", err)
+	}
+
+	workflow := &apptaskboard.IngestionWorkflow{RunID: "run-split-1", Status: apptaskboard.WorkflowStatusQueued}
+	workflow.Normalize("run-split-1")
+	if err := repository.SaveWorkflow(context.Background(), workflow); err != nil {
+		t.Fatalf("unexpected save workflow error: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(workflowsDirectory, "workflow-run-split-1.json")); err != nil {
+		t.Fatalf("expected workflow file in workflows directory: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(taskboardsDirectory, "workflow-run-split-1.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected no workflow file in taskboards directory, got err=%v", err)
+	}
+}
+
 func TestRepositorySaveRejectsIncompleteBoard(t *testing.T) {
 	repository, err := NewRepository(t.TempDir())
 	if err != nil {

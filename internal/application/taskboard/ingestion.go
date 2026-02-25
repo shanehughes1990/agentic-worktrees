@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,6 +22,25 @@ type IngestionJob struct {
 type IngestionResult struct {
 	RunID   string
 	BoardID string
+}
+
+type IngestionSourceType string
+
+const (
+	IngestionSourceTypeFile   IngestionSourceType = "file"
+	IngestionSourceTypeFolder IngestionSourceType = "folder"
+)
+
+type FolderTraversalOptions struct {
+	WalkDepth        int
+	IgnorePaths      []string
+	IgnoreExtensions []string
+}
+
+type IngestRequest struct {
+	SourcePath string
+	SourceType IngestionSourceType
+	Folder     FolderTraversalOptions
 }
 
 type IngestionDispatcher interface {
@@ -51,12 +72,37 @@ func NewIngestionServiceWithNormalizers(dispatcher IngestionDispatcher, reposito
 	}
 }
 
-func (service *IngestionService) IngestDirectory(ctx context.Context, directory string) (IngestionResult, error) {
-	cleanDirectory := strings.TrimSpace(directory)
-	if cleanDirectory == "" {
-		return IngestionResult{}, fmt.Errorf("directory is required")
+
+func (service *IngestionService) Ingest(ctx context.Context, request IngestRequest) (IngestionResult, error) {
+	cleanSourcePath := strings.TrimSpace(request.SourcePath)
+	if cleanSourcePath == "" {
+		return IngestionResult{}, fmt.Errorf("source path is required")
 	}
-	documents, err := NormalizeDirectoryDocuments(cleanDirectory, service.normalizers)
+
+	sourceType := strings.TrimSpace(string(request.SourceType))
+	if sourceType == "" {
+		info, statErr := os.Stat(cleanSourcePath)
+		if statErr != nil {
+			return IngestionResult{}, fmt.Errorf("determine source type: %w", statErr)
+		}
+		if info.IsDir() {
+			sourceType = string(IngestionSourceTypeFolder)
+		} else {
+			sourceType = string(IngestionSourceTypeFile)
+		}
+	}
+
+	cleanSourceType := IngestionSourceType(sourceType)
+	if cleanSourceType != IngestionSourceTypeFile && cleanSourceType != IngestionSourceTypeFolder {
+		return IngestionResult{}, fmt.Errorf("source type must be file or folder")
+	}
+
+	workingDirectory := cleanSourcePath
+	if cleanSourceType == IngestionSourceTypeFile {
+		workingDirectory = filepath.Dir(cleanSourcePath)
+	}
+
+	documents, err := NormalizeSourceDocuments(cleanSourcePath, cleanSourceType, request.Folder, service.normalizers)
 	if err != nil {
 		return IngestionResult{}, fmt.Errorf("normalize documents: %w", err)
 	}
@@ -64,9 +110,9 @@ func (service *IngestionService) IngestDirectory(ctx context.Context, directory 
 	runID := uuid.NewString()
 	job := IngestionJob{
 		RunID:            runID,
-		Prompt:           BuildTaskboardPrompt(cleanDirectory, documents...),
+		Prompt:           BuildTaskboardPrompt(cleanSourcePath, documents...),
 		Model:            service.model,
-		WorkingDirectory: cleanDirectory,
+		WorkingDirectory: workingDirectory,
 	}
 	taskID, err := service.dispatcher.EnqueueIngestion(ctx, job)
 	if err != nil {
@@ -108,6 +154,16 @@ func (service *IngestionService) IngestDirectory(ctx context.Context, directory 
 			}
 		}
 	}
+}
+
+func (service *IngestionService) IngestDirectory(ctx context.Context, directory string) (IngestionResult, error) {
+	return service.Ingest(ctx, IngestRequest{
+		SourcePath: strings.TrimSpace(directory),
+		SourceType: IngestionSourceTypeFolder,
+		Folder: FolderTraversalOptions{
+			WalkDepth: -1,
+		},
+	})
 }
 
 func (service *IngestionService) GetWorkflowStatus(ctx context.Context, runID string) (*IngestionWorkflow, error) {

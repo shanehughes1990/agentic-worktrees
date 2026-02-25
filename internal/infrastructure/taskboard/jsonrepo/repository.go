@@ -14,20 +14,62 @@ import (
 )
 
 type Repository struct {
-	rootDirectory string
+	taskboardsDirectory string
+	workflowsDirectory  string
 }
 
 func NewRepository(rootDirectory string) (*Repository, error) {
-	cleanDirectory := strings.TrimSpace(rootDirectory)
-	if cleanDirectory == "" {
-		return nil, fmt.Errorf("root directory is required")
+	return NewRepositoryWithWorkflowDirectory(rootDirectory, rootDirectory)
+}
+
+func NewRepositoryWithWorkflowDirectory(taskboardsDirectory string, workflowsDirectory string) (*Repository, error) {
+	cleanTaskboardsDirectory := strings.TrimSpace(taskboardsDirectory)
+	if cleanTaskboardsDirectory == "" {
+		return nil, fmt.Errorf("taskboards directory is required")
+	}
+	cleanWorkflowsDirectory := strings.TrimSpace(workflowsDirectory)
+	if cleanWorkflowsDirectory == "" {
+		return nil, fmt.Errorf("workflows directory is required")
 	}
 
-	if err := os.MkdirAll(cleanDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(cleanTaskboardsDirectory, 0o755); err != nil {
 		return nil, fmt.Errorf("create taskboard directory: %w", err)
 	}
+	if err := os.MkdirAll(cleanWorkflowsDirectory, 0o755); err != nil {
+		return nil, fmt.Errorf("create workflow directory: %w", err)
+	}
 
-	return &Repository{rootDirectory: cleanDirectory}, nil
+	return &Repository{taskboardsDirectory: cleanTaskboardsDirectory, workflowsDirectory: cleanWorkflowsDirectory}, nil
+}
+
+func (repository *Repository) taskboardsDir() string {
+	if repository == nil {
+		return ""
+	}
+	return strings.TrimSpace(repository.taskboardsDirectory)
+}
+
+func (repository *Repository) workflowsDir() string {
+	if repository == nil {
+		return ""
+}
+	cleanWorkflowsDirectory := strings.TrimSpace(repository.workflowsDirectory)
+	if cleanWorkflowsDirectory != "" {
+		return cleanWorkflowsDirectory
+}
+	return strings.TrimSpace(repository.taskboardsDirectory)
+}
+
+func (repository *Repository) legacyWorkflowsDir() string {
+	if repository == nil {
+		return ""
+}
+	cleanTaskboardsDirectory := strings.TrimSpace(repository.taskboardsDirectory)
+	cleanWorkflowsDirectory := strings.TrimSpace(repository.workflowsDirectory)
+	if cleanTaskboardsDirectory == "" || cleanTaskboardsDirectory == cleanWorkflowsDirectory {
+		return ""
+	}
+	return cleanTaskboardsDirectory
 }
 
 func (repository *Repository) GetByBoardID(ctx context.Context, boardID string) (*domaintaskboard.Board, error) {
@@ -72,7 +114,7 @@ func (repository *Repository) ListBoardIDs(ctx context.Context) ([]string, error
 	default:
 	}
 
-	entries, err := os.ReadDir(repository.rootDirectory)
+	entries, err := os.ReadDir(repository.taskboardsDir())
 	if err != nil {
 		return nil, fmt.Errorf("read taskboard directory: %w", err)
 	}
@@ -149,9 +191,22 @@ func (repository *Repository) GetWorkflow(ctx context.Context, runID string) (*a
 	payload, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			legacyDirectory := repository.legacyWorkflowsDir()
+			if legacyDirectory == "" {
+				return nil, nil
+			}
+			legacyPath := filepath.Join(legacyDirectory, "workflow-"+strings.TrimSpace(runID)+".json")
+			legacyPayload, legacyErr := os.ReadFile(legacyPath)
+			if legacyErr != nil {
+				if os.IsNotExist(legacyErr) {
+					return nil, nil
+				}
+				return nil, fmt.Errorf("read workflow file: %w", legacyErr)
+			}
+			payload = legacyPayload
+		} else {
+			return nil, fmt.Errorf("read workflow file: %w", err)
 		}
-		return nil, fmt.Errorf("read workflow file: %w", err)
 	}
 
 	workflow := &apptaskboard.IngestionWorkflow{}
@@ -168,13 +223,21 @@ func (repository *Repository) ListWorkflows(ctx context.Context) ([]apptaskboard
 	default:
 	}
 
-	pattern := filepath.Join(repository.rootDirectory, "workflow-*.json")
+	pattern := filepath.Join(repository.workflowsDir(), "workflow-*.json")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("list workflow files: %w", err)
 	}
+	legacyPattern := ""
+	if legacyDirectory := repository.legacyWorkflowsDir(); legacyDirectory != "" {
+		legacyPattern = filepath.Join(legacyDirectory, "workflow-*.json")
+		legacyMatches, legacyErr := filepath.Glob(legacyPattern)
+		if legacyErr == nil {
+			matches = append(matches, legacyMatches...)
+		}
+	}
 
-	workflows := make([]apptaskboard.IngestionWorkflow, 0, len(matches))
+	workflowsByRunID := make(map[string]apptaskboard.IngestionWorkflow, len(matches))
 	for _, filePath := range matches {
 		payload, err := os.ReadFile(filePath)
 		if err != nil {
@@ -184,6 +247,14 @@ func (repository *Repository) ListWorkflows(ctx context.Context) ([]apptaskboard
 		if err := json.Unmarshal(payload, &workflow); err != nil {
 			return nil, fmt.Errorf("unmarshal workflow file %s: %w", filePath, err)
 		}
+		existingWorkflow, exists := workflowsByRunID[workflow.RunID]
+		if !exists || workflow.UpdatedAt.After(existingWorkflow.UpdatedAt) {
+			workflowsByRunID[workflow.RunID] = workflow
+		}
+	}
+
+	workflows := make([]apptaskboard.IngestionWorkflow, 0, len(workflowsByRunID))
+	for _, workflow := range workflowsByRunID {
 		workflows = append(workflows, workflow)
 	}
 
@@ -259,7 +330,7 @@ func (repository *Repository) ListRunStates(ctx context.Context) ([]apptaskboard
 	default:
 	}
 
-	entries, err := os.ReadDir(repository.rootDirectory)
+	entries, err := os.ReadDir(repository.workflowsDir())
 	if err != nil {
 		return nil, fmt.Errorf("read taskboard directory: %w", err)
 	}
@@ -273,7 +344,7 @@ func (repository *Repository) ListRunStates(ctx context.Context) ([]apptaskboard
 		if !strings.HasPrefix(name, "run-") || !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		filePath := filepath.Join(repository.rootDirectory, name)
+		filePath := filepath.Join(repository.workflowsDir(), name)
 		payload, err := os.ReadFile(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("read run file %s: %w", filePath, err)
@@ -369,7 +440,7 @@ func (repository *Repository) ListJobStatesByRunID(ctx context.Context, runID st
 		return nil, fmt.Errorf("run_id cannot contain path separators")
 	}
 
-	entries, err := os.ReadDir(repository.rootDirectory)
+	entries, err := os.ReadDir(repository.workflowsDir())
 	if err != nil {
 		return nil, fmt.Errorf("read taskboard directory: %w", err)
 	}
@@ -384,7 +455,7 @@ func (repository *Repository) ListJobStatesByRunID(ctx context.Context, runID st
 		if !strings.HasPrefix(name, namePrefix) || !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		filePath := filepath.Join(repository.rootDirectory, name)
+		filePath := filepath.Join(repository.workflowsDir(), name)
 		payload, err := os.ReadFile(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("read job file %s: %w", filePath, err)
@@ -450,7 +521,7 @@ func (repository *Repository) filePathForBoard(boardID string) (string, error) {
 	if strings.Contains(cleanBoardID, "/") || strings.Contains(cleanBoardID, "\\") {
 		return "", fmt.Errorf("board_id cannot contain path separators")
 	}
-	return filepath.Join(repository.rootDirectory, cleanBoardID+".json"), nil
+	return filepath.Join(repository.taskboardsDir(), cleanBoardID+".json"), nil
 }
 
 func (repository *Repository) filePathForWorkflow(runID string) (string, error) {
@@ -461,7 +532,7 @@ func (repository *Repository) filePathForWorkflow(runID string) (string, error) 
 	if strings.Contains(cleanRunID, "/") || strings.Contains(cleanRunID, "\\") {
 		return "", fmt.Errorf("run_id cannot contain path separators")
 	}
-	return filepath.Join(repository.rootDirectory, "workflow-"+cleanRunID+".json"), nil
+	return filepath.Join(repository.workflowsDir(), "workflow-"+cleanRunID+".json"), nil
 }
 
 func (repository *Repository) filePathForRunState(runID string) (string, error) {
@@ -472,7 +543,7 @@ func (repository *Repository) filePathForRunState(runID string) (string, error) 
 	if strings.Contains(cleanRunID, "/") || strings.Contains(cleanRunID, "\\") {
 		return "", fmt.Errorf("run_id cannot contain path separators")
 	}
-	return filepath.Join(repository.rootDirectory, "run-"+cleanRunID+".json"), nil
+	return filepath.Join(repository.workflowsDir(), "run-"+cleanRunID+".json"), nil
 }
 
 func (repository *Repository) filePathForJobState(runID string, jobID string) (string, error) {
@@ -492,7 +563,7 @@ func (repository *Repository) filePathForJobState(runID string, jobID string) (s
 		return "", fmt.Errorf("job_id cannot contain path separators")
 	}
 
-	return filepath.Join(repository.rootDirectory, "job-"+cleanRunID+"-"+cleanJobID+".json"), nil
+	return filepath.Join(repository.workflowsDir(), "job-"+cleanRunID+"-"+cleanJobID+".json"), nil
 }
 
 func writeAtomically(targetPath string, payload []byte) error {
