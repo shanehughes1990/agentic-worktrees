@@ -9,6 +9,7 @@ import (
 type RuntimeWorkflowRepository interface {
 	ListRuntimeWorkflows(ctx context.Context) ([]IngestionWorkflow, error)
 	GetRuntimeWorkflow(ctx context.Context, runID string) (*IngestionWorkflow, error)
+	CancelRuntimeWorkflow(ctx context.Context, runID string) (WorkflowCancelResult, error)
 }
 
 type RuntimeWorkflowService struct {
@@ -40,4 +41,16 @@ func (service *RuntimeWorkflowService) GetWorkflowStatus(ctx context.Context, ru
 		return nil, fmt.Errorf("workflow not found: %s", cleanRunID)
 	}
 	return workflow, nil
+}
+
+func (service *RuntimeWorkflowService) CancelWorkflow(ctx context.Context, runID string) (WorkflowCancelResult, error) {
+	cleanRunID := strings.TrimSpace(runID)
+	if cleanRunID == "" {
+		return WorkflowCancelResult{}, fmt.Errorf("run_id is required")
+	}
+	result, err := service.repository.CancelRuntimeWorkflow(ctx, cleanRunID)
+	if err != nil {
+		return WorkflowCancelResult{}, fmt.Errorf("cancel runtime workflow: %w", err)
+	}
+	return result, nil
 }

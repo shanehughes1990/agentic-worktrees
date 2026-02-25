@@ -26,25 +26,25 @@ import (
 )
 
 type Runtime struct {
-	worker                 *queueasynq.Server
-	workerRegistrations    []queueasynq.HandlerRegistration
-	queueClient            *queueasynq.Client
-	runtimeWorkflowRepo    *queueasynq.RuntimeWorkflowRepository
-	ui                     *dashboard.UI
-	taskboardService       *apptaskboard.Service
-	ingestionCommand       *apptaskboard.IngestionService
-	executionCommand       *apptaskboard.ExecutionCommandService
-	executionControl       *apptaskboard.ExecutionControlService
-	authService            *appcopilot.AuthService
-	runtimeWorkflowService *apptaskboard.RuntimeWorkflowService
-	repositoryRoot         string
+	worker                  *queueasynq.Server
+	workerRegistrations     []queueasynq.HandlerRegistration
+	queueClient             *queueasynq.Client
+	runtimeWorkflowRepo     *queueasynq.RuntimeWorkflowRepository
+	ui                      *dashboard.UI
+	taskboardService        *apptaskboard.Service
+	ingestionCommand        *apptaskboard.IngestionService
+	executionCommand        *apptaskboard.ExecutionCommandService
+	executionControl        *apptaskboard.ExecutionControlService
+	authService             *appcopilot.AuthService
+	runtimeWorkflowService  *apptaskboard.RuntimeWorkflowService
+	repositoryRoot          string
 }
 
 type taskPipelineExecutorAdapter struct {
-	dispatcher      *appgitflow.Service
+	dispatcher       *appgitflow.Service
 	taskboardService *apptaskboard.Service
-	worktreeRoot    string
-	pollInterval    time.Duration
+	worktreeRoot     string
+	pollInterval     time.Duration
 }
 
 func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, request apptaskboard.TaskExecutionRequest) (apptaskboard.TaskExecutionOutcome, error) {
@@ -53,7 +53,7 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 	}
 	if adapter.taskboardService == nil {
 		return apptaskboard.TaskExecutionOutcome{}, fmt.Errorf("taskboard service is required")
-}
+	}
 
 	startResult, err := adapter.dispatcher.Start(ctx, appgitflow.StartRequest{
 		RunID:           request.RunID,
@@ -329,6 +329,27 @@ func Init() (*Runtime, error) {
 			defer overrideRepo.Close()
 			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
 			return overrideService.GetWorkflowStatus(ctx, runID)
+		},
+		func(ctx context.Context, runID string, redisURI string) (string, error) {
+			cleanRedisURI := strings.TrimSpace(redisURI)
+			service := runtime.runtimeWorkflowService
+			if cleanRedisURI != "" && cleanRedisURI != cfg.Redis.URI {
+				overrideCfg, overrideErr := queueasynq.NewConfig(cleanRedisURI)
+				if overrideErr != nil {
+					return "", overrideErr
+				}
+				overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+				defer overrideRepo.Close()
+				service = apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			}
+			result, cancelErr := service.CancelWorkflow(ctx, runID)
+			if cancelErr != nil {
+				return "", cancelErr
+			}
+			if result.MatchedTasks == 0 {
+				return fmt.Sprintf("No runtime tasks found for run %s", strings.TrimSpace(runID)), nil
+			}
+			return fmt.Sprintf("Canceled workflow %s: canceled=%d signaled_active=%d uncancelable=%d matched=%d", result.RunID, result.CanceledTasks, result.SignaledActive, result.UncancelableTasks, result.MatchedTasks), nil
 		},
 		runtime.authService.Status,
 		runtime.authService.Authenticate,

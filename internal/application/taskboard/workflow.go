@@ -13,25 +13,35 @@ const (
 	WorkflowStatusRunning   WorkflowStatus = "running"
 	WorkflowStatusCompleted WorkflowStatus = "completed"
 	WorkflowStatusFailed    WorkflowStatus = "failed"
+	WorkflowStatusCanceled  WorkflowStatus = "canceled"
 )
 
 const (
 	WorkflowTaskTypeCopilotDecompose = "copilot.decompose"
-	WorkflowTaskTypeGitWorktreeFlow  = "git.worktree_flow"
-	WorkflowTaskTypeGitConflict      = "git.conflict_resolve"
+	WorkflowTaskTypeGitWorktreeFlow  = "git.worktree.flow"
+	WorkflowTaskTypeGitConflict      = "git.conflict.resolve"
 	WorkflowTaskTypeTaskboardExecute = "taskboard.execute"
 )
 
 type IngestionWorkflow struct {
-	RunID     string         `json:"run_id"`
-	TaskID    string         `json:"task_id,omitempty"`
-	TaskType  string         `json:"task_type,omitempty"`
-	Status    WorkflowStatus `json:"status"`
-	Message   string         `json:"message,omitempty"`
-	Stream    string         `json:"stream,omitempty"`
-	BoardID   string         `json:"board_id,omitempty"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	CreatedAt time.Time      `json:"created_at"`
+	RunID      string         `json:"run_id"`
+	TaskID     string         `json:"task_id,omitempty"`
+	TaskType   string         `json:"task_type,omitempty"`
+	Status     WorkflowStatus `json:"status"`
+	Message    string         `json:"message,omitempty"`
+	Stream     string         `json:"stream,omitempty"`
+	BoardID    string         `json:"board_id,omitempty"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	CreatedAt  time.Time      `json:"created_at"`
+	Cancelable bool           `json:"cancelable,omitempty"`
+}
+
+type WorkflowCancelResult struct {
+	RunID             string `json:"run_id"`
+	MatchedTasks      int    `json:"matched_tasks"`
+	CanceledTasks     int    `json:"canceled_tasks"`
+	SignaledActive    int    `json:"signaled_active_tasks"`
+	UncancelableTasks int    `json:"uncancelable_tasks"`
 }
 
 func IsIngestionWorkflowTaskType(taskType string) bool {
