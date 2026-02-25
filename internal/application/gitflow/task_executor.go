@@ -137,7 +137,11 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			Prompt:           buildConflictResolutionPrompt(cleanTaskID, mergeAttempt.ConflictFiles),
 		})
 		if resolutionErr != nil {
-			return failedResult("failed", resolutionErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
+			resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
+			if strings.TrimSpace(resolutionResult.SessionID) != "" {
+				resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+			}
+			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
 		}
 		if strings.TrimSpace(resolutionResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
