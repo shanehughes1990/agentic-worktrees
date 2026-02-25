@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
@@ -11,24 +13,23 @@ import (
 )
 
 type AppConfig struct {
-	Logging   LoggingConfig
-	Redis     RedisConfig
-	Taskboard TaskboardConfig
-	Copilot   CopilotConfig
+	Application ApplicationConfig
+	Logging     LoggingConfig
+	Redis       RedisConfig
+	Copilot     CopilotConfig
+}
+
+type ApplicationConfig struct {
+	RootDirectory string `envconfig:"APP_ROOT_DIR" default:".worktree" validate:"required"`
 }
 
 type LoggingConfig struct {
 	Format   string `envconfig:"LOG_FORMAT" default:"text" validate:"required,oneof=text json"`
 	Level    string `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error fatal panic"`
-	FilePath string `envconfig:"LOG_FILE_PATH" default:"logs/app.log" validate:"required"`
 }
 
 type RedisConfig struct {
 	URI string `envconfig:"REDIS_URI" validate:"required"`
-}
-
-type TaskboardConfig struct {
-	JSONDirectory string `envconfig:"TASKBOARD_JSON_DIR" default:"data/taskboards" validate:"required"`
 }
 
 type CopilotConfig struct {
@@ -55,6 +56,51 @@ func LoadAppConfigFromEnv() (*AppConfig, error) {
 	if err := validate.Struct(cfg); err != nil {
 		return nil, fmt.Errorf("validate app config: %w", err)
 	}
+	if err := validateRuntimePaths(cfg); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
+}
+
+func validateRuntimePaths(cfg *AppConfig) error {
+	cleanRootDir := runtimeRootDirectory(cfg)
+	if cleanRootDir == "" {
+		return fmt.Errorf("validate app config: APP_ROOT_DIR is required")
+	}
+	if strings.HasPrefix(cleanRootDir, "/") {
+		return fmt.Errorf("validate app config: APP_ROOT_DIR must be repo-relative")
+	}
+	if cleanRootDir == "." || cleanRootDir == ".." || strings.HasPrefix(cleanRootDir, "../") {
+		return fmt.Errorf("validate app config: APP_ROOT_DIR must be a subdirectory under repository root")
+	}
+
+	return nil
+}
+
+func runtimeRootDirectory(cfg *AppConfig) string {
+	if cfg == nil {
+		return ".worktree"
+	}
+	cleanRootDir := filepath.ToSlash(filepath.Clean(strings.TrimSpace(cfg.Application.RootDirectory)))
+	if cleanRootDir == "" {
+		return ".worktree"
+	}
+	return strings.TrimSuffix(cleanRootDir, "/")
+}
+
+func runtimeLogsDirectory(cfg *AppConfig) string {
+	return filepath.ToSlash(filepath.Join(runtimeRootDirectory(cfg), "logs"))
+}
+
+func runtimeTaskboardsDirectory(cfg *AppConfig) string {
+	return filepath.ToSlash(filepath.Join(runtimeRootDirectory(cfg), "taskboards"))
+}
+
+func runtimeWorktreesDirectory(cfg *AppConfig) string {
+	return filepath.ToSlash(filepath.Join(runtimeRootDirectory(cfg), "worktrees"))
+}
+
+func defaultRuntimeLogFilePath(cfg *AppConfig) string {
+	return filepath.ToSlash(filepath.Join(runtimeLogsDirectory(cfg), "app.log"))
 }

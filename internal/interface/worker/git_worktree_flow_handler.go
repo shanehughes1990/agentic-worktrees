@@ -68,6 +68,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		ResumeSessionID: payload.ResumeSessionID,
 		SourceBranch:    payload.SourceBranch,
 		RepositoryRoot:  payload.RepositoryRoot,
+		WorktreePath:    payload.WorktreePath,
 	})
 	if err == nil {
 		markErr := handler.taskboardService.MarkTaskCompletedWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), domaintaskboard.TaskOutcome{

@@ -8,7 +8,7 @@ before:
 
 builds:
 - id: agentic-worktrees
-  main: ./cmd/agentic-worktrees
+  main: ./cmd
   binary: agentic-worktrees
   env:
   - CGO_ENABLED=0
@@ -23,7 +23,7 @@ archives:
 - id: default
   formats: [ tar.gz ]
   name_template: >-
-    {{ .ProjectName }}_ {{- .Version }}_ {{- .Os }}_ {{- .Arch }}
+    {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
 checksum:
   name_template: checksums.txt

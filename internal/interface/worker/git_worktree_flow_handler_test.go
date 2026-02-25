@@ -139,7 +139,7 @@ func TestGitWorktreeFlowHandlerProcessTask(t *testing.T) {
 		UpdatedAt: now,
 	}}
 	taskboardService := apptaskboard.NewService(repository)
-	handler := NewGitWorktreeFlowHandler(&fakeTaskExecutorForWorker{result: appgitflow.TaskExecutionResult{Status: "merged", Reason: "ok", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/run-1-task-1"}}, taskboardService, nil)
+	handler := NewGitWorktreeFlowHandler(&fakeTaskExecutorForWorker{result: appgitflow.TaskExecutionResult{Status: "merged", Reason: "ok", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/worktrees/run-1-task-1"}}, taskboardService, nil)
 
 	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
 		RunID:          "run-1",
@@ -148,7 +148,7 @@ func TestGitWorktreeFlowHandlerProcessTask(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected task build error: %v", err)
@@ -191,7 +191,7 @@ func TestGitWorktreeFlowHandlerSkipsRetryOnTerminalFailure(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected task build error: %v", err)
@@ -223,7 +223,7 @@ func TestGitConflictResolveHandlerProcessTask(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 		ConflictFiles:  []string{"main.go"},
 	})
 	if err != nil {

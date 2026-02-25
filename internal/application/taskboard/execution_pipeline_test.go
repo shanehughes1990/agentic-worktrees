@@ -83,7 +83,7 @@ func (executor *fakeTaskExecutor) ExecuteTask(_ context.Context, request TaskExe
 	if executor.err != nil {
 		return TaskExecutionOutcome{}, executor.err
 	}
-	return TaskExecutionOutcome{Status: "merged", Reason: "merged", TaskBranch: "task/test", Worktree: ".worktree/test"}, nil
+	return TaskExecutionOutcome{Status: "merged", Reason: "merged", TaskBranch: "task/test", Worktree: ".worktree/worktrees/test"}, nil
 }
 
 type fakeExecutionDispatcher struct {

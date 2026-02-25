@@ -3,6 +3,7 @@ package gitflow
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type StartRequest struct {
 	ResumeSessionID string
 	RepositoryRoot string
 	SourceBranch   string
+	WorktreeRoot   string
 }
 
 type StartResult struct {
@@ -74,7 +76,7 @@ func (service *Service) Start(ctx context.Context, request StartRequest) (StartR
 	}
 
 	taskBranch := fmt.Sprintf("task/%s/%s", sanitizeBranchSegment(runID), sanitizeBranchSegment(taskID))
-	worktreePath := fmt.Sprintf(".worktree/%s-%s", sanitizeWorktreeSegment(runID), sanitizeWorktreeSegment(taskID))
+	worktreePath := buildWorktreePath(request.WorktreeRoot, runID, taskID)
 
 	queueTaskID, err := service.dispatcher.EnqueueWorktreeFlow(ctx, WorktreeFlowJob{
 		RunID:          runID,
@@ -93,6 +95,14 @@ func (service *Service) Start(ctx context.Context, request StartRequest) (StartR
 	}
 
 	return StartResult{QueueTaskID: queueTaskID, TaskBranch: taskBranch, Worktree: worktreePath}, nil
+}
+
+func buildWorktreePath(worktreeRoot, runID, taskID string) string {
+	cleanRoot := filepath.ToSlash(filepath.Clean(strings.TrimSpace(worktreeRoot)))
+	if cleanRoot == "" || cleanRoot == "." {
+		cleanRoot = ".worktree"
+	}
+	return filepath.ToSlash(filepath.Join(cleanRoot, "worktrees", fmt.Sprintf("%s-%s", sanitizeWorktreeSegment(runID), sanitizeWorktreeSegment(taskID))))
 }
 
 func sanitizeBranchSegment(value string) string {

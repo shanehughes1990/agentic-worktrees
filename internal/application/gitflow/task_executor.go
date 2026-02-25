@@ -19,6 +19,8 @@ type TaskExecutionRequest struct {
 	ResumeSessionID string
 	SourceBranch    string
 	RepositoryRoot  string
+	WorktreePath    string
+	WorktreeRoot    string
 }
 
 type TaskExecutionResult struct {
@@ -62,7 +64,10 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 
 	taskBranch := fmt.Sprintf("task/%s/%s", sanitizeBranchSegment(cleanRunID), sanitizeBranchSegment(cleanTaskID))
-	worktreePath := fmt.Sprintf(".worktree/%s-%s", sanitizeWorktreeSegment(cleanRunID), sanitizeWorktreeSegment(cleanTaskID))
+	worktreePath := strings.TrimSpace(request.WorktreePath)
+	if worktreePath == "" {
+		worktreePath = buildWorktreePath(request.WorktreeRoot, cleanRunID, cleanTaskID)
+	}
 
 	failedResult := func(status string, reason string, resumeSessionID string) TaskExecutionResult {
 		cleanStatus := strings.TrimSpace(status)

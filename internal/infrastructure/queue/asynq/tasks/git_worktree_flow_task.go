@@ -44,8 +44,8 @@ func NewGitWorktreeFlowTask(payload GitWorktreeFlowPayload, options ...asynq.Opt
 	if strings.TrimSpace(payload.WorktreePath) == "" {
 		return nil, nil, fmt.Errorf("worktree_path is required")
 	}
-	if !strings.HasPrefix(strings.TrimSpace(payload.WorktreePath), ".worktree/") {
-		return nil, nil, fmt.Errorf("worktree_path must be under .worktree")
+	if !isWorktreePathUnderAppRoot(payload.WorktreePath) {
+		return nil, nil, fmt.Errorf("worktree_path must be under <app_root>/worktrees")
 	}
 
 	body, err := json.Marshal(payload)
@@ -57,4 +57,17 @@ func NewGitWorktreeFlowTask(payload GitWorktreeFlowPayload, options ...asynq.Opt
 	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour)}
 	opts = append(opts, options...)
 	return task, opts, nil
+}
+
+func isWorktreePathUnderAppRoot(worktreePath string) bool {
+	cleanPath := strings.TrimSpace(worktreePath)
+	if cleanPath == "" || cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, "/") || strings.HasPrefix(cleanPath, "../") {
+		return false
+	}
+	marker := "/worktrees/"
+	index := strings.Index(cleanPath, marker)
+	if index <= 0 {
+		return false
+	}
+	return index+len(marker) < len(cleanPath)
 }

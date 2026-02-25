@@ -44,7 +44,11 @@ func New(format, level, filePath string) (*logrus.Logger, error) {
 }
 
 func NewFromEnv() *logrus.Logger {
-	logger, err := New(os.Getenv("LOG_FORMAT"), os.Getenv("LOG_LEVEL"), envOrDefault("LOG_FILE_PATH", "logs/app.log"))
+	runtimeRoot := strings.TrimSpace(os.Getenv("APP_ROOT_DIR"))
+	if runtimeRoot == "" {
+		runtimeRoot = ".worktree"
+	}
+	logger, err := New(os.Getenv("LOG_FORMAT"), os.Getenv("LOG_LEVEL"), filepath.ToSlash(filepath.Join(runtimeRoot, "logs", "app.log")))
 	if err != nil {
 		fallback := logrus.New()
 		fallback.SetOutput(os.Stderr)
@@ -81,14 +85,6 @@ func newRotatingWriter(filePath string) (*lumberjack.Logger, error) {
 	}
 
 	return rotatingWriter, nil
-}
-
-func envOrDefault(key, fallbackValue string) string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallbackValue
-	}
-	return value
 }
 
 func pruneRotatedBackups(filePath string, maxBackups int) error {

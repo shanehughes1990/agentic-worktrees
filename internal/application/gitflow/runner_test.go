@@ -91,7 +91,7 @@ func TestRunnerRunWorktreeFlowQueuesConflictResolution(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected run worktree flow error: %v", err)
@@ -113,7 +113,7 @@ func TestRunnerRunWorktreeFlowClassifiesFailures(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 	})
 	if err == nil {
 		t.Fatalf("expected classified failure")
@@ -133,7 +133,7 @@ func TestRunnerRunConflictResolution(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 		ConflictFiles:  []string{"main.go"},
 	}, "")
 	if err != nil {
