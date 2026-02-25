@@ -6,6 +6,7 @@ This directory contains version-pinned operational handbooks built from:
 
 ## Current handbook files
 
+- `copilot-cli-0.0.417_sdk-v0.1.26-preview.0.0.20260223150653-f0909a78ce6c.md` (latest)
 - `copilot-cli-0.0.415_sdk-v0.1.25.md`
 
 ## How to add a new version
