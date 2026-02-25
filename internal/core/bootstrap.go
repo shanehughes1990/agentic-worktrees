@@ -42,11 +42,11 @@ type taskPipelineExecutorAdapter struct {
 	inner *appgitflow.TaskExecutor
 }
 
-func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, request apptaskboard.TaskExecutionRequest) error {
+func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, request apptaskboard.TaskExecutionRequest) (apptaskboard.TaskExecutionOutcome, error) {
 	if adapter == nil || adapter.inner == nil {
-		return fmt.Errorf("task executor adapter is not configured")
+		return apptaskboard.TaskExecutionOutcome{}, fmt.Errorf("task executor adapter is not configured")
 	}
-	return adapter.inner.ExecuteTask(ctx, appgitflow.TaskExecutionRequest{
+	result, err := adapter.inner.ExecuteTask(ctx, appgitflow.TaskExecutionRequest{
 		BoardID:        request.BoardID,
 		RunID:          request.RunID,
 		TaskID:         request.TaskID,
@@ -55,6 +55,15 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 		SourceBranch:   request.SourceBranch,
 		RepositoryRoot: request.RepositoryRoot,
 	})
+	if err != nil {
+		return apptaskboard.TaskExecutionOutcome{}, err
+	}
+	return apptaskboard.TaskExecutionOutcome{
+		Status:     result.Status,
+		Reason:     result.Reason,
+		TaskBranch: result.TaskBranch,
+		Worktree:   result.Worktree,
+	}, nil
 }
 
 func Init() (*Runtime, error) {
@@ -101,7 +110,7 @@ func Init() (*Runtime, error) {
 	taskExecutor := appgitflow.NewTaskExecutor(gitAdapter, decomposer)
 	executionRegistry := apptaskboard.NewExecutionRegistry()
 	taskboardService := apptaskboard.NewService(taskboardRepository)
-	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{inner: taskExecutor}, cfg.Taskboard.MaxConcurrentAgents)
+	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{inner: taskExecutor}, taskboardRepository, cfg.Taskboard.MaxConcurrentAgents)
 	taskboardExecutionHandler := workeriface.NewTaskboardExecuteHandler(executionPipeline, executionRegistry, logger)
 	taskboardExecutionDispatcher := queueasynq.NewTaskboardExecutionDispatcher(queueClient, logger)
 	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher)

@@ -3,6 +3,7 @@ package taskboard
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -57,7 +58,7 @@ type fakeTaskExecutor struct {
 	wait            time.Duration
 }
 
-func (executor *fakeTaskExecutor) ExecuteTask(context.Context, TaskExecutionRequest) error {
+func (executor *fakeTaskExecutor) ExecuteTask(context.Context, TaskExecutionRequest) (TaskExecutionOutcome, error) {
 	executor.mu.Lock()
 	executor.activeExecutors++
 	if executor.activeExecutors > executor.maxConcurrency {
@@ -73,12 +74,53 @@ func (executor *fakeTaskExecutor) ExecuteTask(context.Context, TaskExecutionRequ
 	executor.activeExecutors--
 	executor.calls++
 	executor.mu.Unlock()
-	return executor.err
+	if executor.err != nil {
+		return TaskExecutionOutcome{}, executor.err
+	}
+	return TaskExecutionOutcome{Status: "merged", Reason: "merged", TaskBranch: "task/test", Worktree: ".worktree/test"}, nil
 }
 
 type fakeExecutionDispatcher struct {
 	taskID string
 	err    error
+}
+
+type memoryWorkflowRepo struct {
+	workflow *IngestionWorkflow
+	err      error
+}
+
+func (repository *memoryWorkflowRepo) GetWorkflow(context.Context, string) (*IngestionWorkflow, error) {
+	if repository.err != nil {
+		return nil, repository.err
+	}
+	if repository.workflow == nil {
+		return nil, nil
+	}
+	copied := *repository.workflow
+	return &copied, nil
+}
+
+func (repository *memoryWorkflowRepo) ListWorkflows(context.Context) ([]IngestionWorkflow, error) {
+	if repository.err != nil {
+		return nil, repository.err
+	}
+	if repository.workflow == nil {
+		return []IngestionWorkflow{}, nil
+	}
+	return []IngestionWorkflow{*repository.workflow}, nil
+}
+
+func (repository *memoryWorkflowRepo) SaveWorkflow(_ context.Context, workflow *IngestionWorkflow) error {
+	if repository.err != nil {
+		return repository.err
+	}
+	if workflow == nil {
+		return nil
+	}
+	copied := *workflow
+	repository.workflow = &copied
+	return nil
 }
 
 func (dispatcher *fakeExecutionDispatcher) EnqueueTaskboardExecution(context.Context, StartExecutionRequest) (string, error) {
@@ -124,7 +166,8 @@ func TestExecutionPipelineServiceExecuteBoard(t *testing.T) {
 
 	taskboardService := NewService(repository)
 	executor := &fakeTaskExecutor{}
-	pipeline := NewExecutionPipelineService(taskboardService, executor, 2)
+	workflowRepo := &memoryWorkflowRepo{}
+	pipeline := NewExecutionPipelineService(taskboardService, executor, workflowRepo, 2)
 
 	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
 	if err != nil {
@@ -158,7 +201,8 @@ func TestExecutionPipelineServiceExecuteBoardMarksBlockedOnFailure(t *testing.T)
 	}}
 
 	taskboardService := NewService(repository)
-	pipeline := NewExecutionPipelineService(taskboardService, &fakeTaskExecutor{err: errors.New("fatal")}, 2)
+	workflowRepo := &memoryWorkflowRepo{}
+	pipeline := NewExecutionPipelineService(taskboardService, &fakeTaskExecutor{err: errors.New("fatal")}, workflowRepo, 2)
 
 	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
 	if err == nil {
@@ -197,7 +241,8 @@ func TestExecutionPipelineServiceExecuteBoardUsesConcurrencyLimit(t *testing.T) 
 
 	taskboardService := NewService(repository)
 	executor := &fakeTaskExecutor{wait: 50 * time.Millisecond}
-	pipeline := NewExecutionPipelineService(taskboardService, executor, 2)
+	workflowRepo := &memoryWorkflowRepo{}
+	pipeline := NewExecutionPipelineService(taskboardService, executor, workflowRepo, 2)
 
 	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
 	if err != nil {
@@ -211,5 +256,47 @@ func TestExecutionPipelineServiceExecuteBoardUsesConcurrencyLimit(t *testing.T) 
 	}
 	if executor.maxConcurrency < 2 {
 		t.Fatalf("expected pipeline to run tasks concurrently with limit 2, got %d", executor.maxConcurrency)
+	}
+}
+
+func TestExecutionPipelineServiceExecuteBoardAppendsResumeStreamEvents(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryRepo{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Title: "Epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Title: "Task 1", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	taskboardService := NewService(repository)
+	executor := &fakeTaskExecutor{}
+	workflowRepo := &memoryWorkflowRepo{workflow: &IngestionWorkflow{RunID: "board-1", Stream: "{\"event\":\"prior\"}"}}
+	pipeline := NewExecutionPipelineService(taskboardService, executor, workflowRepo, 2)
+
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".")
+	if err != nil {
+		t.Fatalf("unexpected execute board error: %v", err)
+	}
+	if workflowRepo.workflow == nil {
+		t.Fatalf("expected workflow to be saved")
+	}
+	if workflowRepo.workflow.Status != WorkflowStatusCompleted {
+		t.Fatalf("expected completed workflow status, got %s", workflowRepo.workflow.Status)
+	}
+	if !strings.Contains(workflowRepo.workflow.Stream, "\"event\":\"pipeline_start\"") {
+		t.Fatalf("expected pipeline_start event in stream")
+	}
+	if !strings.Contains(workflowRepo.workflow.Stream, "\"event\":\"resume_requeue\"") {
+		t.Fatalf("expected resume_requeue event in stream")
+	}
+	if !strings.Contains(workflowRepo.workflow.Stream, "\"event\":\"task_completed\"") {
+		t.Fatalf("expected task_completed event in stream")
 	}
 }

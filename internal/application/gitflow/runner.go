@@ -11,6 +11,7 @@ import (
 
 type MergeAttempt struct {
 	ConflictFiles []string
+	NoChanges     bool
 }
 
 type GitPort interface {

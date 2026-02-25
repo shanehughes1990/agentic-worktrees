@@ -60,9 +60,10 @@ func (adapter *Adapter) MergeTaskBranch(ctx context.Context, repositoryRoot stri
 		if _, commitErr := adapter.runGit(ctx, repositoryRoot, "commit", "-m", fmt.Sprintf("Merge %s into %s", taskBranch, sourceBranch)); commitErr != nil {
 			return appgitflow.MergeAttempt{}, commitErr
 		}
+		return appgitflow.MergeAttempt{}, nil
 	}
 
-	return appgitflow.MergeAttempt{}, nil
+	return appgitflow.MergeAttempt{NoChanges: true}, nil
 }
 
 func (adapter *Adapter) ResolveConflicts(ctx context.Context, repositoryRoot string, conflictFiles []string, copilotAdvice string) error {

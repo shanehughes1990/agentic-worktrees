@@ -2,14 +2,18 @@ package taskboard
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"sync"
+	"time"
+
+	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
 type TaskPipelineExecutor interface {
-	ExecuteTask(ctx context.Context, request TaskExecutionRequest) error
+	ExecuteTask(ctx context.Context, request TaskExecutionRequest) (TaskExecutionOutcome, error)
 }
 
 type TaskExecutionRequest struct {
@@ -22,17 +26,25 @@ type TaskExecutionRequest struct {
 	RepositoryRoot string
 }
 
+type TaskExecutionOutcome struct {
+	Status     string
+	Reason     string
+	TaskBranch string
+	Worktree   string
+}
+
 type ExecutionPipelineService struct {
 	taskboardService *Service
 	executor         TaskPipelineExecutor
+	workflowRepo     WorkflowRepository
 	maxAgents        int
 }
 
-func NewExecutionPipelineService(taskboardService *Service, executor TaskPipelineExecutor, maxAgents int) *ExecutionPipelineService {
+func NewExecutionPipelineService(taskboardService *Service, executor TaskPipelineExecutor, workflowRepo WorkflowRepository, maxAgents int) *ExecutionPipelineService {
 	if maxAgents < 1 {
 		maxAgents = 1
 	}
-	return &ExecutionPipelineService{taskboardService: taskboardService, executor: executor, maxAgents: maxAgents}
+	return &ExecutionPipelineService{taskboardService: taskboardService, executor: executor, workflowRepo: workflowRepo, maxAgents: maxAgents}
 }
 
 func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, boardID string, sourceBranch string, repositoryRoot string) error {
@@ -56,25 +68,73 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		return fmt.Errorf("repository_root is required")
 	}
 
+	_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "taskboard execution starting", map[string]any{
+		"event":           "pipeline_start",
+		"max_agents":      service.maxAgents,
+		"source_branch":   cleanSourceBranch,
+		"repository_root": cleanRepositoryRoot,
+		"resumed_at":      time.Now().UTC().Format(time.RFC3339),
+	})
+
+	requeuedCount, requeueErr := service.taskboardService.RequeueInProgressTasks(ctx, cleanBoardID, "runner interrupted previously; re-queued on resume")
+	if requeueErr != nil {
+		return fmt.Errorf("requeue interrupted in-progress tasks: %w", requeueErr)
+	}
+	if requeuedCount > 0 {
+		_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "requeued interrupted tasks", map[string]any{
+			"event":          "resume_requeue",
+			"requeued_tasks": requeuedCount,
+		})
+	}
+
+	if err := service.taskboardService.AnnotateCompletedTasksWithoutOutcome(ctx, cleanBoardID, "task was already completed before this pipeline run"); err != nil {
+		return fmt.Errorf("annotate pre-completed tasks: %w", err)
+	}
+
+	round := 0
 	for {
 		select {
 		case <-ctx.Done():
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "taskboard execution canceled", map[string]any{
+				"event": "pipeline_canceled",
+			})
 			return ctx.Err()
 		default:
 		}
+		round++
 
 		readyTasks, err := service.taskboardService.GetReadyTasks(ctx, cleanBoardID)
 		if err != nil {
 			return fmt.Errorf("load ready tasks: %w", err)
 		}
+		readyTaskIDs := make([]string, 0, len(readyTasks))
+		for _, readyTask := range readyTasks {
+			if readyTask == nil {
+				continue
+			}
+			readyTaskIDs = append(readyTaskIDs, readyTask.ID)
+		}
+		_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "ready task scan complete", map[string]any{
+			"event":       "round_ready",
+			"round":       round,
+			"ready_tasks": readyTaskIDs,
+		})
+
 		if len(readyTasks) == 0 {
 			completed, completedErr := service.taskboardService.IsBoardCompleted(ctx, cleanBoardID)
 			if completedErr != nil {
 				return fmt.Errorf("check board completion: %w", completedErr)
 			}
 			if completed {
+				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusCompleted, "taskboard execution completed", map[string]any{
+					"event": "pipeline_completed",
+				})
 				return nil
 			}
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "pipeline blocked by unresolved dependencies", map[string]any{
+				"event": "pipeline_blocked",
+				"round": round,
+			})
 			return fmt.Errorf("no ready tasks remain for board %s, but board is not completed", cleanBoardID)
 		}
 
@@ -83,10 +143,23 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 			batchSize = len(readyTasks)
 		}
 		batch := readyTasks[:batchSize]
+		batchTaskIDs := make([]string, 0, len(batch))
+		for _, task := range batch {
+			if task == nil {
+				continue
+			}
+			batchTaskIDs = append(batchTaskIDs, task.ID)
+		}
+		_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "starting task batch", map[string]any{
+			"event":       "batch_start",
+			"round":       round,
+			"batch_tasks": batchTaskIDs,
+		})
 
 		type taskResult struct {
-			taskID string
-			err    error
+			taskID  string
+			outcome TaskExecutionOutcome
+			err     error
 		}
 
 		results := make(chan taskResult, len(batch))
@@ -115,7 +188,8 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 			group.Add(1)
 			go func(taskID string, taskRequest TaskExecutionRequest) {
 				defer group.Done()
-				results <- taskResult{taskID: taskID, err: service.executor.ExecuteTask(ctx, taskRequest)}
+				outcome, err := service.executor.ExecuteTask(ctx, taskRequest)
+				results <- taskResult{taskID: taskID, outcome: outcome, err: err}
 			}(task.ID, request)
 		}
 
@@ -123,11 +197,17 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		close(results)
 
 		if len(startedTaskIDs) == 0 {
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "no tasks started in batch", map[string]any{
+				"event": "batch_empty",
+				"round": round,
+			})
 			return fmt.Errorf("no tasks were started from ready batch")
 		}
 
 		failedTaskErrors := map[string]error{}
+		outcomesByTaskID := map[string]TaskExecutionOutcome{}
 		for result := range results {
+			outcomesByTaskID[result.taskID] = result.outcome
 			if result.err == nil {
 				continue
 			}
@@ -137,15 +217,53 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		sort.Strings(startedTaskIDs)
 		for _, taskID := range startedTaskIDs {
 			executionErr := failedTaskErrors[taskID]
+			outcome := outcomesByTaskID[taskID]
 			if executionErr != nil {
-				if markErr := service.taskboardService.MarkTaskBlocked(ctx, cleanBoardID, taskID); markErr != nil {
+				if strings.TrimSpace(outcome.Status) == "" {
+					outcome.Status = "failed"
+				}
+				if strings.TrimSpace(outcome.Reason) == "" {
+					outcome.Reason = executionErr.Error()
+				}
+				if markErr := service.taskboardService.MarkTaskBlockedWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
+					Status:     outcome.Status,
+					Reason:     outcome.Reason,
+					TaskBranch: outcome.TaskBranch,
+					Worktree:   outcome.Worktree,
+				}); markErr != nil {
 					return fmt.Errorf("mark task blocked after failure: %w", markErr)
 				}
+				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "task blocked", map[string]any{
+					"event":       "task_blocked",
+					"task_id":     taskID,
+					"reason":      outcome.Reason,
+					"task_branch": outcome.TaskBranch,
+					"worktree":    outcome.Worktree,
+				})
 				continue
 			}
-			if err := service.taskboardService.MarkTaskCompleted(ctx, cleanBoardID, taskID); err != nil {
+			if strings.TrimSpace(outcome.Status) == "" {
+				outcome.Status = "merged"
+			}
+			if strings.TrimSpace(outcome.Reason) == "" {
+				outcome.Reason = "task execution completed"
+			}
+			if err := service.taskboardService.MarkTaskCompletedWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
+				Status:     outcome.Status,
+				Reason:     outcome.Reason,
+				TaskBranch: outcome.TaskBranch,
+				Worktree:   outcome.Worktree,
+			}); err != nil {
 				return fmt.Errorf("mark task completed: %w", err)
 			}
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "task completed", map[string]any{
+				"event":       "task_completed",
+				"task_id":     taskID,
+				"status":      outcome.Status,
+				"reason":      outcome.Reason,
+				"task_branch": outcome.TaskBranch,
+				"worktree":    outcome.Worktree,
+			})
 		}
 
 		if len(failedTaskErrors) > 0 {
@@ -154,7 +272,68 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 				failedTaskIDs = append(failedTaskIDs, taskID)
 			}
 			sort.Strings(failedTaskIDs)
+			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "batch failed", map[string]any{
+				"event":           "batch_failed",
+				"round":           round,
+				"failed_task_ids": failedTaskIDs,
+			})
 			return fmt.Errorf("task execution failed for %d tasks: %s", len(failedTaskIDs), strings.Join(failedTaskIDs, ", "))
 		}
+
+		_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "batch completed", map[string]any{
+			"event":         "batch_completed",
+			"round":         round,
+			"completed_ids": startedTaskIDs,
+		})
 	}
+}
+
+func (service *ExecutionPipelineService) appendWorkflowEvent(ctx context.Context, runID string, boardID string, status WorkflowStatus, message string, details map[string]any) error {
+	if service.workflowRepo == nil {
+		return nil
+	}
+
+	cleanRunID := strings.TrimSpace(runID)
+	if cleanRunID == "" {
+		return nil
+	}
+
+	workflow, err := service.workflowRepo.GetWorkflow(ctx, cleanRunID)
+	if err != nil {
+		return fmt.Errorf("load workflow stream: %w", err)
+	}
+	if workflow == nil {
+		workflow = &IngestionWorkflow{RunID: cleanRunID}
+	}
+
+	eventPayload := map[string]any{
+		"time":     time.Now().UTC().Format(time.RFC3339Nano),
+		"run_id":   cleanRunID,
+		"board_id": strings.TrimSpace(boardID),
+		"message":  strings.TrimSpace(message),
+	}
+	for key, value := range details {
+		eventPayload[key] = value
+	}
+	eventJSON, marshalErr := json.Marshal(eventPayload)
+	if marshalErr != nil {
+		return fmt.Errorf("marshal workflow event: %w", marshalErr)
+	}
+
+	existingStream := strings.TrimSpace(workflow.Stream)
+	if existingStream == "" {
+		workflow.Stream = string(eventJSON)
+	} else {
+		workflow.Stream = existingStream + "\n" + string(eventJSON)
+	}
+
+	workflow.Status = status
+	workflow.Message = strings.TrimSpace(message)
+	workflow.BoardID = strings.TrimSpace(boardID)
+	workflow.Normalize(cleanRunID)
+
+	if saveErr := service.workflowRepo.SaveWorkflow(ctx, workflow); saveErr != nil {
+		return fmt.Errorf("save workflow stream: %w", saveErr)
+	}
+	return nil
 }

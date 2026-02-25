@@ -19,6 +19,13 @@ type TaskExecutionRequest struct {
 	RepositoryRoot string
 }
 
+type TaskExecutionResult struct {
+	Status     string
+	Reason     string
+	TaskBranch string
+	Worktree   string
+}
+
 type TaskExecutor struct {
 	git        GitPort
 	decomposer appcopilot.Decomposer
@@ -28,7 +35,7 @@ func NewTaskExecutor(git GitPort, decomposer appcopilot.Decomposer) *TaskExecuto
 	return &TaskExecutor{git: git, decomposer: decomposer}
 }
 
-func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecutionRequest) (executeErr error) {
+func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecutionRequest) (result TaskExecutionResult, executeErr error) {
 	cleanBoardID := strings.TrimSpace(request.BoardID)
 	cleanRunID := strings.TrimSpace(request.RunID)
 	cleanTaskID := strings.TrimSpace(request.TaskID)
@@ -36,19 +43,19 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	cleanRepositoryRoot := strings.TrimSpace(request.RepositoryRoot)
 
 	if cleanBoardID == "" {
-		return WrapTerminal(fmt.Errorf("board_id is required"))
+		return TaskExecutionResult{}, WrapTerminal(fmt.Errorf("board_id is required"))
 	}
 	if cleanRunID == "" {
 		cleanRunID = cleanBoardID
 	}
 	if cleanTaskID == "" {
-		return WrapTerminal(fmt.Errorf("task_id is required"))
+		return TaskExecutionResult{}, WrapTerminal(fmt.Errorf("task_id is required"))
 	}
 	if cleanSourceBranch == "" {
-		return WrapTerminal(fmt.Errorf("source_branch is required"))
+		return TaskExecutionResult{}, WrapTerminal(fmt.Errorf("source_branch is required"))
 	}
 	if cleanRepositoryRoot == "" {
-		return WrapTerminal(fmt.Errorf("repository_root is required"))
+		return TaskExecutionResult{}, WrapTerminal(fmt.Errorf("repository_root is required"))
 	}
 
 	taskBranch := fmt.Sprintf("task/%s/%s", sanitizeBranchSegment(cleanRunID), sanitizeBranchSegment(cleanTaskID))
@@ -70,7 +77,7 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}()
 
 	if err := executor.git.CreateTaskWorktree(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch, worktreePath); err != nil {
-		return EnsureClassified(fmt.Errorf("create task worktree: %w", err), FailureClassTerminal)
+		return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("create task worktree: %w", err), FailureClassTerminal)
 	}
 	worktreeCreated = true
 
@@ -82,13 +89,13 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			Prompt:           buildTaskImplementationPrompt(request),
 		})
 		if err != nil {
-			return EnsureClassified(fmt.Errorf("implement task with agent: %w", err), FailureClassTerminal)
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("implement task with agent: %w", err), FailureClassTerminal)
 		}
 	}
 
 	mergeAttempt, err := executor.git.MergeTaskBranch(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch)
 	if err != nil {
-		return EnsureClassified(fmt.Errorf("merge task branch: %w", err), FailureClassTerminal)
+		return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("merge task branch: %w", err), FailureClassTerminal)
 	}
 
 	if len(mergeAttempt.ConflictFiles) > 0 {
@@ -104,14 +111,24 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			}
 		}
 		if resolveErr := executor.git.ResolveConflicts(ctx, cleanRepositoryRoot, mergeAttempt.ConflictFiles, advice); resolveErr != nil {
-			return EnsureClassified(fmt.Errorf("resolve merge conflicts: %w", resolveErr), FailureClassTerminal)
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts: %w", resolveErr), FailureClassTerminal)
 		}
 		if commitErr := executor.git.Commit(ctx, cleanRepositoryRoot, fmt.Sprintf("Resolve merge conflicts for task %s", cleanTaskID)); commitErr != nil {
-			return EnsureClassified(fmt.Errorf("commit conflict resolution: %w", commitErr), FailureClassTerminal)
+			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("commit conflict resolution: %w", commitErr), FailureClassTerminal)
 		}
 	}
 
-	return nil
+	result = TaskExecutionResult{
+		TaskBranch: taskBranch,
+		Worktree:   worktreePath,
+		Status:     "merged",
+		Reason:     "task merged into source branch and cleaned up",
+	}
+	if mergeAttempt.NoChanges {
+		result.Status = "no_changes"
+		result.Reason = "task execution produced no mergeable changes"
+	}
+	return result, nil
 }
 
 func (executor *TaskExecutor) CleanupBoardRun(ctx context.Context, boardID string, repositoryRoot string) error {

@@ -29,7 +29,16 @@ type WorkItem struct {
 
 type Task struct {
 	WorkItem
-	DependsOn []string `json:"depends_on,omitempty"`
+	DependsOn []string     `json:"depends_on,omitempty"`
+	Outcome   *TaskOutcome `json:"outcome,omitempty"`
+}
+
+type TaskOutcome struct {
+	Status     string    `json:"status"`
+	Reason     string    `json:"reason,omitempty"`
+	TaskBranch string    `json:"task_branch,omitempty"`
+	Worktree   string    `json:"worktree,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at,omitempty"`
 }
 
 type Epic struct {
@@ -155,6 +164,25 @@ func (board *Board) SetTaskStatus(taskID string, status Status) error {
 				board.UpdatedAt = now
 				return nil
 			}
+		}
+	}
+	return fmt.Errorf("task not found: %s", taskID)
+}
+
+func (board *Board) SetTaskOutcome(taskID string, outcome TaskOutcome) error {
+	for epicIndex := range board.Epics {
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			if board.Epics[epicIndex].Tasks[taskIndex].ID != taskID {
+				continue
+			}
+			now := time.Now().UTC()
+			if outcome.UpdatedAt.IsZero() {
+				outcome.UpdatedAt = now
+			}
+			board.Epics[epicIndex].Tasks[taskIndex].Outcome = &outcome
+			board.Epics[epicIndex].Tasks[taskIndex].UpdatedAt = now
+			board.UpdatedAt = now
+			return nil
 		}
 	}
 	return fmt.Errorf("task not found: %s", taskID)

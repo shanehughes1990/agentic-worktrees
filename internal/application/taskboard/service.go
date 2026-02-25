@@ -48,12 +48,20 @@ func (service *Service) MarkTaskCompleted(ctx context.Context, boardID string, t
 	return service.markTaskStatus(ctx, boardID, taskID, domaintaskboard.StatusCompleted)
 }
 
+func (service *Service) MarkTaskCompletedWithOutcome(ctx context.Context, boardID string, taskID string, outcome domaintaskboard.TaskOutcome) error {
+	return service.markTaskStatusAndOutcome(ctx, boardID, taskID, domaintaskboard.StatusCompleted, &outcome)
+}
+
 func (service *Service) MarkTaskInProgress(ctx context.Context, boardID string, taskID string) error {
 	return service.markTaskStatus(ctx, boardID, taskID, domaintaskboard.StatusInProgress)
 }
 
 func (service *Service) MarkTaskBlocked(ctx context.Context, boardID string, taskID string) error {
 	return service.markTaskStatus(ctx, boardID, taskID, domaintaskboard.StatusBlocked)
+}
+
+func (service *Service) MarkTaskBlockedWithOutcome(ctx context.Context, boardID string, taskID string, outcome domaintaskboard.TaskOutcome) error {
+	return service.markTaskStatusAndOutcome(ctx, boardID, taskID, domaintaskboard.StatusBlocked, &outcome)
 }
 
 func (service *Service) IsBoardCompleted(ctx context.Context, boardID string) (bool, error) {
@@ -95,7 +103,86 @@ func (service *Service) GetTaskByID(ctx context.Context, boardID string, taskID 
 	return nil, fmt.Errorf("task not found: %s", cleanTaskID)
 }
 
+func (service *Service) AnnotateCompletedTasksWithoutOutcome(ctx context.Context, boardID string, reason string) error {
+	board, err := service.loadBoard(ctx, boardID)
+	if err != nil {
+		return err
+	}
+
+	cleanReason := strings.TrimSpace(reason)
+	if cleanReason == "" {
+		cleanReason = "task already marked completed before current execution run"
+	}
+
+	modified := false
+	for epicIndex := range board.Epics {
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			task := &board.Epics[epicIndex].Tasks[taskIndex]
+			if task.Status != domaintaskboard.StatusCompleted {
+				continue
+			}
+			if task.Outcome != nil {
+				continue
+			}
+			outcome := domaintaskboard.TaskOutcome{Status: "precompleted", Reason: cleanReason}
+			if err := board.SetTaskOutcome(task.ID, outcome); err != nil {
+				return err
+			}
+			modified = true
+		}
+	}
+
+	if !modified {
+		return nil
+	}
+	if err := service.repository.Save(ctx, board); err != nil {
+		return fmt.Errorf("save board: %w", err)
+	}
+	return nil
+}
+
+func (service *Service) RequeueInProgressTasks(ctx context.Context, boardID string, reason string) (int, error) {
+	board, err := service.loadBoard(ctx, boardID)
+	if err != nil {
+		return 0, err
+	}
+
+	cleanReason := strings.TrimSpace(reason)
+	if cleanReason == "" {
+		cleanReason = "task was in-progress when runner stopped; re-queued for resume"
+	}
+
+	requeuedCount := 0
+	for epicIndex := range board.Epics {
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			task := &board.Epics[epicIndex].Tasks[taskIndex]
+			if task.Status != domaintaskboard.StatusInProgress {
+				continue
+			}
+			if err := board.SetTaskStatus(task.ID, domaintaskboard.StatusNotStarted); err != nil {
+				return 0, err
+			}
+			if err := board.SetTaskOutcome(task.ID, domaintaskboard.TaskOutcome{Status: "interrupted", Reason: cleanReason}); err != nil {
+				return 0, err
+			}
+			requeuedCount++
+		}
+	}
+
+	if requeuedCount == 0 {
+		return 0, nil
+	}
+	if err := service.repository.Save(ctx, board); err != nil {
+		return 0, fmt.Errorf("save board: %w", err)
+	}
+	return requeuedCount, nil
+}
+
 func (service *Service) markTaskStatus(ctx context.Context, boardID string, taskID string, status domaintaskboard.Status) error {
+	return service.markTaskStatusAndOutcome(ctx, boardID, taskID, status, nil)
+}
+
+func (service *Service) markTaskStatusAndOutcome(ctx context.Context, boardID string, taskID string, status domaintaskboard.Status, outcome *domaintaskboard.TaskOutcome) error {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {
 		return err
@@ -103,6 +190,11 @@ func (service *Service) markTaskStatus(ctx context.Context, boardID string, task
 
 	if err := board.SetTaskStatus(taskID, status); err != nil {
 		return err
+	}
+	if outcome != nil {
+		if err := board.SetTaskOutcome(taskID, *outcome); err != nil {
+			return err
+		}
 	}
 
 	if err := service.repository.Save(ctx, board); err != nil {

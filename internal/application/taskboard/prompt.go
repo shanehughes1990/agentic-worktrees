@@ -25,7 +25,11 @@ Return ONLY valid JSON (no markdown, no prose) in this schema:
           "board_id": "<string>",
           "title": "<small executable task>",
           "status": "not-started|in-progress|completed|blocked",
-          "depends_on": ["<task-id>", "..."]
+          "depends_on": ["<task-id>", "..."],
+          "outcome": {
+            "status": "merged|no_changes|failed|precompleted",
+            "reason": "<short explanation>"
+          }
         }
       ]
     }
