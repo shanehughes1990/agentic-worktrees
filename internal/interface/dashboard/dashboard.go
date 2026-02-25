@@ -12,13 +12,13 @@ import (
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 )
 
-type IngestFunc func(ctx context.Context, directory string) (apptaskboard.IngestionResult, error)
-type StartTaskTreeFunc func(ctx context.Context, boardID string, sourceBranch string, maxTasks int) (string, error)
+type IngestFunc func(ctx context.Context, directory string, redisURI string) (apptaskboard.IngestionResult, error)
+type StartTaskTreeFunc func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error)
 type CancelTaskTreeFunc func(ctx context.Context, boardID string) (string, error)
 type ListTaskboardsFunc func(ctx context.Context) ([]string, error)
 type ListReadyTaskIDsFunc func(ctx context.Context, boardID string) ([]string, error)
-type ListWorkflowsFunc func(ctx context.Context) ([]apptaskboard.IngestionWorkflow, error)
-type WorkflowStatusFunc func(ctx context.Context, runID string) (*apptaskboard.IngestionWorkflow, error)
+type ListWorkflowsFunc func(ctx context.Context, redisURI string) ([]apptaskboard.IngestionWorkflow, error)
+type WorkflowStatusFunc func(ctx context.Context, runID string, redisURI string) (*apptaskboard.IngestionWorkflow, error)
 type CopilotAuthStatusFunc func(ctx context.Context) (string, error)
 type CopilotAuthenticateFunc func(ctx context.Context) error
 
@@ -37,6 +37,8 @@ type UI struct {
 	screenStack          []string
 	currentScreen        string
 	mainCommandList      *tview.List
+	settingsCommandList  *tview.List
+	settingsRedisInput   *tview.InputField
 	authCommandList      *tview.List
 	ingestionCommandList *tview.List
 	worktreeCommandList  *tview.List
@@ -51,9 +53,11 @@ type UI struct {
 	selectedBoardID      string
 	workflowList         *tview.List
 	workflowDetails      *tview.TextView
+	defaultRedisURI      string
+	overrideRedisURI     string
 }
 
-func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, maxTaskLimit int) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
@@ -67,11 +71,13 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 		pages:         tview.NewPages(),
 		status:        status,
 		maxTaskLimit:  maxTaskLimit,
+		defaultRedisURI: strings.TrimSpace(defaultRedisURI),
 		screenStack:   []string{"main"},
 		currentScreen: "main",
 	}
 
 	mainScreen := ui.buildMainScreen()
+	settingsScreen := ui.buildSettingsScreen()
 	authenticationScreen := ui.buildAuthenticationCommandsScreen(copilotAuthStatus, copilotAuthenticate)
 	ingestionScreen := ui.buildIngestionCommandsScreen()
 	worktreeScreen := ui.buildWorktreeCommandsScreen()
@@ -99,6 +105,7 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 	)
 
 	ui.pages.AddPage("main", mainScreen, true, true)
+	ui.pages.AddPage("settings", settingsScreen, true, false)
 	ui.pages.AddPage("authentication_commands", authenticationScreen, true, false)
 	ui.pages.AddPage("ingestion_commands", ingestionScreen, true, false)
 	ui.pages.AddPage("worktree_commands", worktreeScreen, true, false)
@@ -152,6 +159,12 @@ func (ui *UI) buildMainScreen() tview.Primitive {
 
 	ui.mainCommandList = ui.newCommandList([]Command{
 		{
+			Title:       "Settings",
+			Description: "Configure global Redis override",
+			Shortcut:    's',
+			Action:      func() { ui.navigateTo("settings") },
+		},
+		{
 			Title:       "Authentication",
 			Description: "Open Copilot authentication commands",
 			Shortcut:    'a',
@@ -181,6 +194,58 @@ func (ui *UI) buildMainScreen() tview.Primitive {
 		AddItem(header, 3, 0, false).
 		AddItem(body, 3, 0, false).
 		AddItem(ui.mainCommandList, 0, 1, true).
+		AddItem(ui.status, 3, 0, false)
+}
+
+func (ui *UI) buildSettingsScreen() tview.Primitive {
+	header := tview.NewTextView().SetText("Settings").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+	header.SetBorder(true)
+
+	body := tview.NewTextView().SetDynamicColors(true)
+	body.SetBorder(true)
+	body.SetTitle("Redis Override")
+	body.SetText("Global override applied to ingestion, worktree run, and workflow status/list actions.")
+
+	redisInput := tview.NewInputField().SetLabel("Redis URI Override: ")
+	redisInput.SetBorder(true)
+	redisInput.SetTitle("Redis URI")
+	redisInput.SetText(ui.effectiveRedisURI())
+	ui.settingsRedisInput = redisInput
+
+	ui.settingsCommandList = ui.newCommandList([]Command{
+		{
+			Title:       "Apply Override",
+			Description: "Save Redis URI override globally",
+			Shortcut:    'a',
+			Action: func() {
+				candidate := strings.TrimSpace(redisInput.GetText())
+				if candidate == "" {
+					ui.overrideRedisURI = ""
+					redisInput.SetText(ui.defaultRedisURI)
+					ui.status.SetText(fmt.Sprintf("Redis override cleared; using default %s", ui.defaultRedisURI))
+					return
+				}
+				ui.overrideRedisURI = candidate
+				ui.status.SetText(fmt.Sprintf("Redis override set to %s", candidate))
+			},
+		},
+		{
+			Title:       "Reset To Default",
+			Description: "Clear override and use startup/default Redis URI",
+			Shortcut:    'r',
+			Action: func() {
+				ui.overrideRedisURI = ""
+				redisInput.SetText(ui.defaultRedisURI)
+				ui.status.SetText(fmt.Sprintf("Redis override reset to default %s", ui.defaultRedisURI))
+			},
+		},
+	}, true)
+
+	return tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(header, 3, 0, false).
+		AddItem(body, 3, 0, false).
+		AddItem(redisInput, 3, 0, true).
+		AddItem(ui.settingsCommandList, 0, 1, false).
 		AddItem(ui.status, 3, 0, false)
 }
 
@@ -435,6 +500,7 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 					return
 				}
 				maxTasks := 0
+				redisURI := ui.effectiveRedisURI()
 				maxTasksText := strings.TrimSpace(maxTasksInput.GetText())
 				if maxTasksText != "" {
 					parsedMaxTasks, parseErr := strconv.Atoi(maxTasksText)
@@ -467,7 +533,7 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree start command unavailable") })
 						return
 					}
-					queueTaskID, err := startTaskTree(ctx, boardID, sourceBranch, maxTasks)
+					queueTaskID, err := startTaskTree(ctx, boardID, sourceBranch, maxTasks, redisURI)
 					ui.application.QueueUpdateDraw(func() {
 						if err != nil {
 							ui.status.SetText(fmt.Sprintf("Task tree start failed: %s", formatUserError(err)))
@@ -517,6 +583,7 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 			Shortcut:    'e',
 			Action: func() {
 				directory := strings.TrimSpace(input.GetText())
+				redisURI := ui.effectiveRedisURI()
 				if directory == "" {
 					ui.status.SetText("Directory is required")
 					return
@@ -529,7 +596,7 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ingest command unavailable") })
 						return
 					}
-					result, err := ingest(ctx, directory)
+					result, err := ingest(ctx, directory, redisURI)
 					ui.application.QueueUpdateDraw(func() {
 						if err != nil {
 							ui.status.SetText(fmt.Sprintf("Ingest failed: %s", formatUserError(err)))
@@ -572,7 +639,8 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				ui.application.QueueUpdateDraw(func() { ui.status.SetText("Workflow details unavailable") })
 				return
 			}
-			workflow, err := getWorkflowStatus(ctx, runID)
+			redisURI := ui.effectiveRedisURI()
+			workflow, err := getWorkflowStatus(ctx, runID, redisURI)
 			ui.application.QueueUpdateDraw(func() {
 				if err != nil {
 					ui.status.SetText(fmt.Sprintf("Workflow lookup failed: %s", formatUserError(err)))
@@ -597,7 +665,8 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				ui.application.QueueUpdateDraw(func() { ui.status.SetText("Workflow list unavailable") })
 				return
 			}
-			workflows, err := listWorkflows(ctx)
+			redisURI := ui.effectiveRedisURI()
+			workflows, err := listWorkflows(ctx, redisURI)
 			ui.application.QueueUpdateDraw(func() {
 				if err != nil {
 					ui.status.SetText(fmt.Sprintf("Workflow list failed: %s", formatUserError(err)))
@@ -717,6 +786,11 @@ func (ui *UI) focusCurrentScreenDefault() {
 		if ui.authCommandList != nil {
 			ui.application.SetFocus(ui.authCommandList)
 		}
+	case "settings":
+		if ui.settingsRedisInput != nil {
+			ui.application.SetFocus(ui.settingsRedisInput)
+		}
+		
 	case "ingestion_commands":
 		if ui.ingestionCommandList != nil {
 			ui.application.SetFocus(ui.ingestionCommandList)
@@ -764,6 +838,16 @@ func (ui *UI) toggleFocusForCurrentScreen() {
 			return
 		}
 		ui.application.SetFocus(ui.workflowList)
+	case "settings":
+		if ui.settingsRedisInput == nil || ui.settingsCommandList == nil {
+			return
+		}
+		if ui.application.GetFocus() == ui.settingsRedisInput {
+			ui.application.SetFocus(ui.settingsCommandList)
+			return
+		}
+		ui.application.SetFocus(ui.settingsRedisInput)
+
 	case "gitflow_run":
 		if ui.runGitBoardList == nil || ui.runGitSourceInput == nil || ui.runGitConcurrency == nil || ui.runGitMaxTasksInput == nil || ui.runGitCommands == nil {
 			return
@@ -782,6 +866,16 @@ func (ui *UI) toggleFocusForCurrentScreen() {
 		}
 		ui.application.SetFocus(ui.runGitBoardList)
 	}
+}
+
+func (ui *UI) effectiveRedisURI() string {
+	if ui == nil {
+		return ""
+	}
+	if override := strings.TrimSpace(ui.overrideRedisURI); override != "" {
+		return override
+	}
+	return strings.TrimSpace(ui.defaultRedisURI)
 }
 
 func formatUserError(err error) string {

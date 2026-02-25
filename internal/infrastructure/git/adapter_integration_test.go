@@ -81,6 +81,54 @@ func TestAdapterMergeConflictFlow(t *testing.T) {
 	}
 }
 
+func TestAdapterCreateTaskWorktreeRecreatesFromExistingBranchWhenFilesystemMissing(t *testing.T) {
+	tempDirectory := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	runGitCommand(t, ctx, tempDirectory, "init")
+	runGitCommand(t, ctx, tempDirectory, "config", "user.email", "test@example.com")
+	runGitCommand(t, ctx, tempDirectory, "config", "user.name", "tester")
+
+	seedFilePath := filepath.Join(tempDirectory, "main.txt")
+	if err := os.WriteFile(seedFilePath, []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("write seed file: %v", err)
+	}
+	runGitCommand(t, ctx, tempDirectory, "add", "main.txt")
+	runGitCommand(t, ctx, tempDirectory, "commit", "-m", "seed")
+	defaultBranch := strings.TrimSpace(runGitCommandOutput(t, ctx, tempDirectory, "branch", "--show-current"))
+	if defaultBranch == "" {
+		defaultBranch = "master"
+	}
+
+	adapter := NewAdapter(nil)
+	worktreeRelPath := ".worktree/run-1-task-recreate"
+	taskBranch := "task/run-1/task-recreate"
+	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, taskBranch, worktreeRelPath); err != nil {
+		t.Fatalf("initial create task worktree: %v", err)
+	}
+
+	worktreeAbsPath := filepath.Join(tempDirectory, filepath.FromSlash(worktreeRelPath))
+	resumeFilePath := filepath.Join(worktreeAbsPath, "resume.txt")
+	if err := os.WriteFile(resumeFilePath, []byte("resume branch content\n"), 0o644); err != nil {
+		t.Fatalf("write resume file: %v", err)
+	}
+	runGitCommand(t, ctx, worktreeAbsPath, "add", "resume.txt")
+	runGitCommand(t, ctx, worktreeAbsPath, "commit", "-m", "save progress")
+
+	if err := adapter.CleanupTaskWorktree(ctx, tempDirectory, worktreeRelPath, taskBranch); err != nil {
+		t.Fatalf("cleanup worktree before recreate: %v", err)
+	}
+
+	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, taskBranch, worktreeRelPath); err != nil {
+		t.Fatalf("recreate task worktree from existing branch: %v", err)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(worktreeAbsPath, "resume.txt")); statErr != nil {
+		t.Fatalf("expected recreated worktree to contain existing branch changes: %v", statErr)
+	}
+}
+
 func runGitCommand(t *testing.T, ctx context.Context, repositoryRoot string, args ...string) {
 	t.Helper()
 	command := exec.CommandContext(ctx, "git", append([]string{"-C", repositoryRoot}, args...)...)

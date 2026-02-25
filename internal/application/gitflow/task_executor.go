@@ -63,26 +63,28 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 
 	taskBranch := fmt.Sprintf("task/%s/%s", sanitizeBranchSegment(cleanRunID), sanitizeBranchSegment(cleanTaskID))
 	worktreePath := fmt.Sprintf(".worktree/%s-%s", sanitizeWorktreeSegment(cleanRunID), sanitizeWorktreeSegment(cleanTaskID))
-	worktreeCreated := false
 
-	defer func() {
-		if !worktreeCreated {
-			return
+	failedResult := func(status string, reason string, resumeSessionID string) TaskExecutionResult {
+		cleanStatus := strings.TrimSpace(status)
+		if cleanStatus == "" {
+			cleanStatus = "failed"
 		}
-		cleanupErr := executor.git.CleanupTaskWorktree(ctx, cleanRepositoryRoot, worktreePath, taskBranch)
-		if cleanupErr == nil {
-			return
+		cleanReason := strings.TrimSpace(reason)
+		if cleanReason == "" {
+			cleanReason = "task execution failed"
 		}
-		wrappedCleanupErr := EnsureClassified(fmt.Errorf("cleanup task worktree: %w", cleanupErr), FailureClassTerminal)
-		if executeErr == nil {
-			executeErr = wrappedCleanupErr
+		return TaskExecutionResult{
+			Status:          cleanStatus,
+			Reason:          cleanReason,
+			TaskBranch:      taskBranch,
+			Worktree:        worktreePath,
+			ResumeSessionID: strings.TrimSpace(resumeSessionID),
 		}
-	}()
+	}
 
 	if err := executor.git.CreateTaskWorktree(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch, worktreePath); err != nil {
-		return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("create task worktree: %w", err), FailureClassTerminal)
+		return failedResult("failed", err.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("create task worktree: %w", err), FailureClassTerminal)
 	}
-	worktreeCreated = true
 
 	absoluteWorktreePath := filepath.Join(cleanRepositoryRoot, filepath.FromSlash(worktreePath))
 	if executor.decomposer != nil {
@@ -112,21 +114,21 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			request.ResumeSessionID = strings.TrimSpace(decomposeResult.SessionID)
 		}
 		if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("stage task worktree changes: %w", stageErr), FailureClassTerminal)
+			return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage task worktree changes: %w", stageErr), FailureClassTerminal)
 		}
 		if commitErr := executor.git.Commit(ctx, absoluteWorktreePath, fmt.Sprintf("Implement task %s", cleanTaskID)); commitErr != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("commit task worktree changes: %w", commitErr), FailureClassTerminal)
+			return failedResult("failed", commitErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("commit task worktree changes: %w", commitErr), FailureClassTerminal)
 		}
 	}
 
 	mergeAttempt, err := executor.git.MergeTaskBranch(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch)
 	if err != nil {
-		return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("merge task branch: %w", err), FailureClassTerminal)
+		return failedResult("failed", err.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("merge task branch: %w", err), FailureClassTerminal)
 	}
 
 	if len(mergeAttempt.ConflictFiles) > 0 {
 		if executor.decomposer == nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts: copilot decomposer is required"), FailureClassTerminal)
+			return failedResult("failed", "resolve merge conflicts: copilot decomposer is required", request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts: copilot decomposer is required"), FailureClassTerminal)
 		}
 		resolutionResult, resolutionErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 			RunID:            cleanRunID,
@@ -135,19 +137,19 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			Prompt:           buildConflictResolutionPrompt(cleanTaskID, mergeAttempt.ConflictFiles),
 		})
 		if resolutionErr != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
+			return failedResult("failed", resolutionErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
 		}
 		if strings.TrimSpace(resolutionResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
 		}
 		if resolveErr := executor.git.ResolveConflicts(ctx, cleanRepositoryRoot, mergeAttempt.ConflictFiles, resolutionResult.Response); resolveErr != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("resolve merge conflicts: %w", resolveErr), FailureClassTerminal)
+			return failedResult("failed", resolveErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts: %w", resolveErr), FailureClassTerminal)
 		}
 		if stageErr := executor.git.StageAll(ctx, cleanRepositoryRoot); stageErr != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("stage conflict resolution changes: %w", stageErr), FailureClassTerminal)
+			return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage conflict resolution changes: %w", stageErr), FailureClassTerminal)
 		}
 		if commitErr := executor.git.Commit(ctx, cleanRepositoryRoot, fmt.Sprintf("Resolve merge conflicts for task %s", cleanTaskID)); commitErr != nil {
-			return TaskExecutionResult{}, EnsureClassified(fmt.Errorf("commit conflict resolution: %w", commitErr), FailureClassTerminal)
+			return failedResult("failed", commitErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("commit conflict resolution: %w", commitErr), FailureClassTerminal)
 		}
 	}
 
@@ -161,6 +163,10 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	if mergeAttempt.NoChanges {
 		result.Status = "no_changes"
 		result.Reason = "task execution produced no mergeable changes"
+	}
+
+	if cleanupErr := executor.git.CleanupTaskWorktree(ctx, cleanRepositoryRoot, worktreePath, taskBranch); cleanupErr != nil {
+		return result, EnsureClassified(fmt.Errorf("cleanup task worktree: %w", cleanupErr), FailureClassTerminal)
 	}
 	return result, nil
 }

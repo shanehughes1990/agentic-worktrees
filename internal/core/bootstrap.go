@@ -231,9 +231,42 @@ func Init() (*Runtime, error) {
 		repositoryRoot:         repositoryRoot,
 	}
 	runtime.ui = dashboard.New(
-		runtime.ingestionCommand.IngestDirectory,
-		func(ctx context.Context, boardID string, sourceBranch string, maxTasks int) (string, error) {
-			return runtime.executionCommand.Start(ctx, apptaskboard.StartExecutionRequest{
+		func(ctx context.Context, directory string, redisURI string) (apptaskboard.IngestionResult, error) {
+			cleanRedisURI := strings.TrimSpace(redisURI)
+			if cleanRedisURI == "" || cleanRedisURI == cfg.Redis.URI {
+				return runtime.ingestionCommand.IngestDirectory(ctx, directory)
+			}
+			overrideCfg, overrideErr := queueasynq.NewConfig(cleanRedisURI)
+			if overrideErr != nil {
+				return apptaskboard.IngestionResult{}, overrideErr
+			}
+			overrideCfg = overrideCfg.WithLogger(logruslogger.NewAsynqAdapter(logger))
+			overrideClient := queueasynq.NewClient(overrideCfg)
+			defer overrideClient.Close()
+			overrideDispatcher := queueasynq.NewTaskboardIngestionDispatcher(overrideClient, copilotConfig, logger)
+			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, cfg.Copilot.Model)
+			return overrideIngestion.IngestDirectory(ctx, directory)
+		},
+		func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error) {
+			cleanRedisURI := strings.TrimSpace(redisURI)
+			if cleanRedisURI == "" || cleanRedisURI == cfg.Redis.URI {
+				return runtime.executionCommand.Start(ctx, apptaskboard.StartExecutionRequest{
+					BoardID:        boardID,
+					RepositoryRoot: runtime.repositoryRoot,
+					SourceBranch:   sourceBranch,
+					MaxTasks:       maxTasks,
+				})
+			}
+			overrideCfg, overrideErr := queueasynq.NewConfig(cleanRedisURI)
+			if overrideErr != nil {
+				return "", overrideErr
+			}
+			overrideCfg = overrideCfg.WithLogger(logruslogger.NewAsynqAdapter(logger))
+			overrideClient := queueasynq.NewClient(overrideCfg)
+			defer overrideClient.Close()
+			overrideDispatcher := queueasynq.NewTaskboardExecutionDispatcher(overrideClient, logger)
+			overrideExecutionCommand := apptaskboard.NewExecutionCommandService(overrideDispatcher)
+			return overrideExecutionCommand.Start(ctx, apptaskboard.StartExecutionRequest{
 				BoardID:        boardID,
 				RepositoryRoot: runtime.repositoryRoot,
 				SourceBranch:   sourceBranch,
@@ -267,12 +300,39 @@ func Init() (*Runtime, error) {
 			}
 			return readyTaskIDs, nil
 		},
-		runtime.runtimeWorkflowService.ListWorkflows,
-		runtime.runtimeWorkflowService.GetWorkflowStatus,
+		func(ctx context.Context, redisURI string) ([]apptaskboard.IngestionWorkflow, error) {
+			cleanRedisURI := strings.TrimSpace(redisURI)
+			if cleanRedisURI == "" || cleanRedisURI == cfg.Redis.URI {
+				return runtime.runtimeWorkflowService.ListWorkflows(ctx)
+			}
+			overrideCfg, overrideErr := queueasynq.NewConfig(cleanRedisURI)
+			if overrideErr != nil {
+				return nil, overrideErr
+			}
+			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+			defer overrideRepo.Close()
+			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			return overrideService.ListWorkflows(ctx)
+		},
+		func(ctx context.Context, runID string, redisURI string) (*apptaskboard.IngestionWorkflow, error) {
+			cleanRedisURI := strings.TrimSpace(redisURI)
+			if cleanRedisURI == "" || cleanRedisURI == cfg.Redis.URI {
+				return runtime.runtimeWorkflowService.GetWorkflowStatus(ctx, runID)
+			}
+			overrideCfg, overrideErr := queueasynq.NewConfig(cleanRedisURI)
+			if overrideErr != nil {
+				return nil, overrideErr
+			}
+			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+			defer overrideRepo.Close()
+			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			return overrideService.GetWorkflowStatus(ctx, runID)
+		},
 		runtime.authService.Status,
 		runtime.authService.Authenticate,
 		runtime.repositoryRoot,
 		defaultSourceBranch,
+		cfg.Redis.URI,
 		effectiveMaxAgents,
 	)
 

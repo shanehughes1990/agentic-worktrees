@@ -28,10 +28,29 @@ func (adapter *Adapter) CreateTaskWorktree(ctx context.Context, repositoryRoot s
 		return appgitflow.WrapTerminal(fmt.Errorf("create worktree parent directory: %w", err))
 	}
 
-	_, _ = adapter.runGit(ctx, repositoryRoot, "worktree", "remove", "--force", absoluteWorktreePath)
+	hasWorktreeMetadata := false
+	if statInfo, statErr := os.Stat(absoluteWorktreePath); statErr == nil && statInfo.IsDir() {
+		worktreeGitPath := filepath.Join(absoluteWorktreePath, ".git")
+		if _, gitStatErr := os.Stat(worktreeGitPath); gitStatErr == nil {
+			hasWorktreeMetadata = true
+		} else {
+			if removeErr := os.RemoveAll(absoluteWorktreePath); removeErr != nil {
+				return appgitflow.WrapTerminal(fmt.Errorf("remove invalid worktree path: %w", removeErr))
+			}
+		}
+	}
 
-	_, err := adapter.runGit(ctx, repositoryRoot, "worktree", "add", "-B", taskBranch, absoluteWorktreePath, sourceBranch)
-	if err != nil {
+	if hasWorktreeMetadata {
+		return nil
+	}
+
+	_, _ = adapter.runGit(ctx, repositoryRoot, "worktree", "prune")
+
+	if _, err := adapter.runGit(ctx, repositoryRoot, "worktree", "add", absoluteWorktreePath, taskBranch); err == nil {
+		return nil
+	}
+
+	if _, err := adapter.runGit(ctx, repositoryRoot, "worktree", "add", "-B", taskBranch, absoluteWorktreePath, sourceBranch); err != nil {
 		return err
 	}
 	return nil

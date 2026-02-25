@@ -19,3 +19,9 @@ data/taskboards/
 
 # Keep environment sample tracked
 !.env
+
+# OS-specific files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini

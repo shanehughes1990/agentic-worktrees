@@ -17,12 +17,22 @@ type writingDecomposer struct{}
 
 type integrationGitPort struct{}
 
+type failingAfterWriteDecomposer struct{}
+
 func (decomposer *writingDecomposer) Decompose(_ context.Context, request appcopilot.DecomposeRequest) (appcopilot.DecomposeResult, error) {
 	filePath := filepath.Join(request.WorkingDirectory, "feature.txt")
 	if err := os.WriteFile(filePath, []byte("merged from task worktree\n"), 0o644); err != nil {
 		return appcopilot.DecomposeResult{}, err
 	}
 	return appcopilot.DecomposeResult{RunID: request.RunID, SessionID: "session-e2e"}, nil
+}
+
+func (decomposer *failingAfterWriteDecomposer) Decompose(_ context.Context, request appcopilot.DecomposeRequest) (appcopilot.DecomposeResult, error) {
+	filePath := filepath.Join(request.WorkingDirectory, "resume.txt")
+	if err := os.WriteFile(filePath, []byte("partial change kept for resume\n"), 0o644); err != nil {
+		return appcopilot.DecomposeResult{}, err
+	}
+	return appcopilot.DecomposeResult{RunID: request.RunID, SessionID: "session-resume"}, fmt.Errorf("agent interrupted")
 }
 
 func (port *integrationGitPort) CreateTaskWorktree(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) error {
@@ -143,6 +153,58 @@ func TestTaskExecutorExecuteTaskMergesTaskWorktreeChangesBackToSourceBranch(t *t
 	logText := runGitCommandOutput(t, ctx, tempDirectory, "log", "--oneline", "-1")
 	if !strings.Contains(strings.ToLower(logText), "merge task/run-1/task-1") {
 		t.Fatalf("expected merge commit in source branch log, got %q", strings.TrimSpace(logText))
+	}
+}
+
+func TestTaskExecutorExecuteTaskKeepsWorktreeOnFailureForResume(t *testing.T) {
+	tempDirectory := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	runGitCommand(t, ctx, tempDirectory, "init")
+	runGitCommand(t, ctx, tempDirectory, "config", "user.email", "test@example.com")
+	runGitCommand(t, ctx, tempDirectory, "config", "user.name", "tester")
+
+	seedFilePath := filepath.Join(tempDirectory, "README.md")
+	if err := os.WriteFile(seedFilePath, []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("write seed file: %v", err)
+	}
+	runGitCommand(t, ctx, tempDirectory, "add", "README.md")
+	runGitCommand(t, ctx, tempDirectory, "commit", "-m", "seed")
+	defaultBranch := strings.TrimSpace(runGitCommandOutput(t, ctx, tempDirectory, "branch", "--show-current"))
+	if defaultBranch == "" {
+		defaultBranch = "master"
+	}
+
+	executor := NewTaskExecutor(&integrationGitPort{}, &failingAfterWriteDecomposer{})
+	result, err := executor.ExecuteTask(ctx, TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-keep-worktree",
+		TaskTitle:      "Keep worktree on failure",
+		TaskDetail:     "Persist local changes for resume",
+		SourceBranch:   defaultBranch,
+		RepositoryRoot: tempDirectory,
+	})
+	if err == nil {
+		t.Fatalf("expected execution error")
+	}
+	if result.Worktree == "" {
+		t.Fatalf("expected worktree path in failure result")
+	}
+
+	worktreePath := filepath.Join(tempDirectory, filepath.FromSlash(result.Worktree))
+	if _, statErr := os.Stat(worktreePath); statErr != nil {
+		t.Fatalf("expected failed task worktree to remain: %v", statErr)
+	}
+
+	resumeFilePath := filepath.Join(worktreePath, "resume.txt")
+	content, readErr := os.ReadFile(resumeFilePath)
+	if readErr != nil {
+		t.Fatalf("expected persisted local change in worktree: %v", readErr)
+	}
+	if !strings.Contains(string(content), "partial change kept for resume") {
+		t.Fatalf("unexpected resume file content: %q", string(content))
 	}
 }
 
