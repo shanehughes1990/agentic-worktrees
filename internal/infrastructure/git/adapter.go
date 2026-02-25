@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	"github.com/sirupsen/logrus"
@@ -14,6 +15,7 @@ import (
 
 type Adapter struct {
 	logger *logrus.Logger
+	mergeMu sync.Mutex
 }
 
 func NewAdapter(logger *logrus.Logger) *Adapter {
@@ -197,6 +199,11 @@ func (adapter *Adapter) hasStagedChanges(ctx context.Context, repositoryRoot str
 }
 
 func (adapter *Adapter) runGit(ctx context.Context, repositoryRoot string, args ...string) (string, error) {
+	if adapter.shouldSerializeMutation(repositoryRoot, args) {
+		adapter.mergeMu.Lock()
+		defer adapter.mergeMu.Unlock()
+	}
+
 	command := exec.CommandContext(ctx, "git", append([]string{"-C", repositoryRoot}, args...)...)
 	output, err := command.CombinedOutput()
 	outputText := string(output)
@@ -215,4 +222,23 @@ func (adapter *Adapter) runGit(ctx context.Context, repositoryRoot string, args 
 		return "", appgitflow.WrapTerminal(fmt.Errorf("git %s failed: %s", strings.Join(args, " "), strings.TrimSpace(outputText)))
 	}
 	return outputText, nil
+}
+
+func (adapter *Adapter) shouldSerializeMutation(repositoryRoot string, args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	cleanRepositoryRoot := filepath.Clean(strings.TrimSpace(repositoryRoot))
+	worktreeToken := string(filepath.Separator) + ".worktree" + string(filepath.Separator)
+	if strings.Contains(cleanRepositoryRoot, worktreeToken) {
+		return false
+	}
+
+	switch strings.TrimSpace(args[0]) {
+	case "checkout", "merge", "commit", "add", "reset", "restore", "cherry-pick", "rebase", "amend":
+		return true
+	default:
+		return false
+	}
 }
