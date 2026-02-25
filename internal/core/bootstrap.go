@@ -152,7 +152,7 @@ func Init() (*Runtime, error) {
 	}
 	queueCfg = queueCfg.WithLogger(logruslogger.NewAsynqAdapter(logger))
 
-	taskboardRepository, err := jsontaskboard.NewRepository(runtimeTaskboardsDirectory(cfg))
+	taskboardRepository, err := jsontaskboard.NewRepositoryWithWorkflowDirectory(runtimeTaskboardsDirectory(cfg), runtimeWorkflowsDirectory(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -233,10 +233,10 @@ func Init() (*Runtime, error) {
 		repositoryRoot:         repositoryRoot,
 	}
 	runtime.ui = dashboard.New(
-		func(ctx context.Context, directory string, redisURI string) (apptaskboard.IngestionResult, error) {
+		func(ctx context.Context, request apptaskboard.IngestRequest, redisURI string) (apptaskboard.IngestionResult, error) {
 			cleanRedisURI := strings.TrimSpace(redisURI)
 			if cleanRedisURI == "" || cleanRedisURI == cfg.Redis.URI {
-				return runtime.ingestionCommand.IngestDirectory(ctx, directory)
+				return runtime.ingestionCommand.Ingest(ctx, request)
 			}
 			overrideCfg, overrideErr := queueasynq.NewConfig(cleanRedisURI)
 			if overrideErr != nil {
@@ -247,7 +247,7 @@ func Init() (*Runtime, error) {
 			defer overrideClient.Close()
 			overrideDispatcher := queueasynq.NewTaskboardIngestionDispatcher(overrideClient, copilotConfig, logger)
 			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, cfg.Copilot.Model)
-			return overrideIngestion.IngestDirectory(ctx, directory)
+			return overrideIngestion.Ingest(ctx, request)
 		},
 		func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error) {
 			cleanRedisURI := strings.TrimSpace(redisURI)

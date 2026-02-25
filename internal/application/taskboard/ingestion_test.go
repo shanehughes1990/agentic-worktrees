@@ -2,6 +2,8 @@ package taskboard
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -98,5 +100,36 @@ func TestListWorkflows(t *testing.T) {
 	}
 	if len(workflows) != 1 {
 		t.Fatalf("expected 1 workflow, got %d", len(workflows))
+	}
+}
+
+func TestIngestSupportsFileSource(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "scope.md")
+	if err := os.WriteFile(filePath, []byte("scope"), 0o600); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+
+	repository := newPollingRepository()
+	dispatcher := &fakeDispatcher{
+		enqueue: func(_ context.Context, job IngestionJob) (string, error) {
+			repository.boards[job.RunID] = &domaintaskboard.Board{BoardID: job.RunID, RunID: job.RunID}
+			if job.WorkingDirectory != filepath.Dir(filePath) {
+				t.Fatalf("expected working directory to be source file parent directory, got %s", job.WorkingDirectory)
+			}
+			return "task-1", nil
+		},
+	}
+	service := NewIngestionService(dispatcher, repository, repository, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := service.Ingest(ctx, IngestRequest{SourcePath: filePath, SourceType: IngestionSourceTypeFile})
+	if err != nil {
+		t.Fatalf("unexpected ingestion error: %v", err)
+	}
+	if result.BoardID == "" || result.RunID == "" {
+		t.Fatalf("expected board id and run id, got %#v", result)
 	}
 }

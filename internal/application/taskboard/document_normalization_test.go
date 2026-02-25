@@ -67,3 +67,59 @@ func TestNormalizeDirectoryDocumentsUsesFirstMatchingNormalizer(t *testing.T) {
 		t.Fatalf("expected first matching normalizer result, got %q", documents[0].Content)
 	}
 }
+
+func TestNormalizeDirectoryDocumentsWithOptionsAppliesWalkDepthAndIgnores(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "root.md"), []byte("root"), 0o600); err != nil {
+		t.Fatalf("write root.md: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub", "keep.txt"), []byte("keep"), 0o600); err != nil {
+		t.Fatalf("write keep.txt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub", "skip.tmp"), []byte("skip"), 0o600); err != nil {
+		t.Fatalf("write skip.tmp: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "ignored"), 0o755); err != nil {
+		t.Fatalf("mkdir ignored: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ignored", "doc.md"), []byte("ignored"), 0o600); err != nil {
+		t.Fatalf("write ignored/doc.md: %v", err)
+	}
+
+	documents, err := NormalizeDirectoryDocumentsWithOptions(dir, FolderTraversalOptions{
+		WalkDepth:        1,
+		IgnorePaths:      []string{"ignored"},
+		IgnoreExtensions: []string{".tmp"},
+	}, DefaultDocumentNormalizers())
+	if err != nil {
+		t.Fatalf("unexpected normalization error: %v", err)
+	}
+	if len(documents) != 2 {
+		t.Fatalf("expected 2 normalized documents, got %d", len(documents))
+	}
+	if documents[0].RelativePath != "root.md" || documents[1].RelativePath != "sub/keep.txt" {
+		t.Fatalf("unexpected normalized paths: %#v", documents)
+	}
+}
+
+func TestNormalizeSourceDocumentsFromFile(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "single.md")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("write single.md: %v", err)
+	}
+
+	documents, err := NormalizeSourceDocuments(filePath, IngestionSourceTypeFile, FolderTraversalOptions{WalkDepth: -1}, DefaultDocumentNormalizers())
+	if err != nil {
+		t.Fatalf("unexpected normalization error: %v", err)
+	}
+	if len(documents) != 1 {
+		t.Fatalf("expected 1 normalized document, got %d", len(documents))
+	}
+	if documents[0].RelativePath != "single.md" {
+		t.Fatalf("unexpected relative path: %s", documents[0].RelativePath)
+	}
+}

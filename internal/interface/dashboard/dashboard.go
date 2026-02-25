@@ -12,7 +12,7 @@ import (
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 )
 
-type IngestFunc func(ctx context.Context, directory string, redisURI string) (apptaskboard.IngestionResult, error)
+type IngestFunc func(ctx context.Context, request apptaskboard.IngestRequest, redisURI string) (apptaskboard.IngestionResult, error)
 type StartTaskTreeFunc func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error)
 type CancelTaskTreeFunc func(ctx context.Context, boardID string) (string, error)
 type ListTaskboardsFunc func(ctx context.Context) ([]string, error)
@@ -43,6 +43,10 @@ type UI struct {
 	ingestionCommandList *tview.List
 	worktreeCommandList  *tview.List
 	runIngestionInput    *tview.InputField
+	runIngestionType     *tview.DropDown
+	runIngestionDepth    *tview.InputField
+	runIngestionIgnorePaths *tview.InputField
+	runIngestionIgnoreExtensions *tview.InputField
 	runIngestionCommands *tview.List
 	runGitBoardList      *tview.List
 	runGitSourceInput    *tview.InputField
@@ -55,6 +59,7 @@ type UI struct {
 	workflowDetails      *tview.TextView
 	defaultRedisURI      string
 	overrideRedisURI     string
+	pendingIngestionRunID string
 }
 
 func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
@@ -571,24 +576,106 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 	header := tview.NewTextView().SetText("Run Ingestion").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
-	input := tview.NewInputField().SetLabel("Directory: ")
+	input := tview.NewInputField().SetLabel("Path: ")
 	input.SetBorder(true)
 	input.SetTitle("Ingest Source")
 	ui.runIngestionInput = input
 
+	sourceType := tview.NewDropDown().SetLabel("Source Type: ")
+	sourceType.SetBorder(true)
+	sourceType.SetTitle("Source Type")
+	sourceType.SetOptions([]string{string(apptaskboard.IngestionSourceTypeFolder), string(apptaskboard.IngestionSourceTypeFile)}, nil)
+	sourceType.SetCurrentOption(0)
+	ui.runIngestionType = sourceType
+
+	walkDepth := tview.NewInputField().SetLabel("Walk Depth (folder only): ")
+	walkDepth.SetBorder(true)
+	walkDepth.SetTitle("Walk Depth")
+	walkDepth.SetText("")
+	ui.runIngestionDepth = walkDepth
+
+	ignorePaths := tview.NewInputField().SetLabel("Ignore Paths (comma-separated, folder only): ")
+	ignorePaths.SetBorder(true)
+	ignorePaths.SetTitle("Ignore Paths")
+	ui.runIngestionIgnorePaths = ignorePaths
+
+	ignoreExtensions := tview.NewInputField().SetLabel("Ignore Extensions (comma-separated, folder only; e.g. .md or md): ")
+	ignoreExtensions.SetBorder(true)
+	ignoreExtensions.SetTitle("Ignore Extensions")
+	ui.runIngestionIgnoreExtensions = ignoreExtensions
+
+	screen := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(header, 3, 0, false).
+		AddItem(sourceType, 3, 0, false).
+		AddItem(input, 3, 0, true).
+		AddItem(walkDepth, 3, 0, false).
+		AddItem(ignorePaths, 3, 0, false).
+		AddItem(ignoreExtensions, 3, 0, false)
+
+	setFolderOptionsVisibility := func(visible bool) {
+		if visible {
+			screen.ResizeItem(walkDepth, 3, 0)
+			screen.ResizeItem(ignorePaths, 3, 0)
+			screen.ResizeItem(ignoreExtensions, 3, 0)
+			return
+		}
+		screen.ResizeItem(walkDepth, 0, 0)
+		screen.ResizeItem(ignorePaths, 0, 0)
+		screen.ResizeItem(ignoreExtensions, 0, 0)
+		if ui.application != nil {
+			focus := ui.application.GetFocus()
+			if focus == walkDepth || focus == ignorePaths || focus == ignoreExtensions {
+				ui.application.SetFocus(ui.runIngestionCommands)
+			}
+		}
+	}
+
+	sourceType.SetSelectedFunc(func(text string, _ int) {
+		setFolderOptionsVisibility(strings.TrimSpace(text) == string(apptaskboard.IngestionSourceTypeFolder))
+	})
+	setFolderOptionsVisibility(true)
+
 	ui.runIngestionCommands = ui.newCommandList([]Command{
 		{
 			Title:       "Execute",
-			Description: "Start ingestion for provided directory",
+			Description: "Start ingestion for file or folder source",
 			Shortcut:    'e',
 			Action: func() {
-				directory := strings.TrimSpace(input.GetText())
+				sourcePath := strings.TrimSpace(input.GetText())
 				redisURI := ui.effectiveRedisURI()
-				if directory == "" {
-					ui.status.SetText("Directory is required")
+				if sourcePath == "" {
+					ui.status.SetText("Path is required")
 					return
 				}
-				ui.status.SetText(fmt.Sprintf("Ingesting %s ...", directory))
+				_, selectedSourceType := sourceType.GetCurrentOption()
+				cleanSourceType := strings.TrimSpace(selectedSourceType)
+				if cleanSourceType == "" {
+					cleanSourceType = string(apptaskboard.IngestionSourceTypeFolder)
+				}
+
+				request := apptaskboard.IngestRequest{
+					SourcePath: sourcePath,
+					SourceType: apptaskboard.IngestionSourceType(cleanSourceType),
+					Folder: apptaskboard.FolderTraversalOptions{
+						WalkDepth:        -1,
+						IgnorePaths:      parseCSVValues(ignorePaths.GetText()),
+						IgnoreExtensions: parseCSVValues(ignoreExtensions.GetText()),
+					},
+				}
+
+				if request.SourceType == apptaskboard.IngestionSourceTypeFolder {
+					walkDepthValue := strings.TrimSpace(walkDepth.GetText())
+					if walkDepthValue != "" {
+						parsedDepth, parseErr := strconv.Atoi(walkDepthValue)
+						if parseErr != nil || parsedDepth < 0 {
+							ui.status.SetText("Walk Depth must be a non-negative integer (or blank for unlimited)")
+							return
+						}
+						request.Folder.WalkDepth = parsedDepth
+					}
+				}
+
+				ui.status.SetText(fmt.Sprintf("Ingesting %s (%s) ...", sourcePath, request.SourceType))
 				go func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 					defer cancel()
@@ -596,11 +683,16 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ingest command unavailable") })
 						return
 					}
-					result, err := ingest(ctx, directory, redisURI)
+					result, err := ingest(ctx, request, redisURI)
 					ui.application.QueueUpdateDraw(func() {
 						if err != nil {
 							ui.status.SetText(fmt.Sprintf("Ingest failed: %s", formatUserError(err)))
 							return
+						}
+						ui.pendingIngestionRunID = strings.TrimSpace(result.RunID)
+						ui.navigateTo("ingestion_workflows")
+						if ui.workflowList != nil {
+							ui.application.SetFocus(ui.workflowList)
 						}
 						ui.status.SetText(fmt.Sprintf("Created board %s (run %s)", result.BoardID, result.RunID))
 					})
@@ -609,11 +701,10 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 		},
 	}, true)
 
-	return tview.NewFlex().SetDirection(tview.FlexRow).
-		AddItem(header, 3, 0, false).
-		AddItem(input, 3, 0, true).
-		AddItem(ui.runIngestionCommands, 0, 1, false).
+	screen.AddItem(ui.runIngestionCommands, 0, 1, false).
 		AddItem(ui.status, 3, 0, false)
+
+	return screen
 }
 
 func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emptyMessage string, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, includeWorkflow func(workflow apptaskboard.IngestionWorkflow) bool) tview.Primitive {
@@ -686,7 +777,7 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 					ui.status.SetText(strings.TrimSpace(emptyMessage))
 					return
 				}
-				for _, workflow := range filteredWorkflows {
+				for workflowIndex, workflow := range filteredWorkflows {
 					runID := workflow.RunID
 					statusText := string(workflow.Status)
 					if strings.TrimSpace(workflow.TaskType) != "" {
@@ -695,6 +786,11 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 					workflowList.AddItem(runID, statusText, 0, func() {
 						loadWorkflowDetails(runID)
 					})
+					if strings.TrimSpace(screenID) == "ingestion_workflows" && strings.TrimSpace(ui.pendingIngestionRunID) != "" && strings.TrimSpace(ui.pendingIngestionRunID) == strings.TrimSpace(runID) {
+						workflowList.SetCurrentItem(workflowIndex)
+						loadWorkflowDetails(runID)
+						ui.pendingIngestionRunID = ""
+					}
 				}
 				ui.status.SetText(fmt.Sprintf("Loaded %d workflows", len(filteredWorkflows)))
 			})
@@ -800,7 +896,9 @@ func (ui *UI) focusCurrentScreenDefault() {
 			ui.application.SetFocus(ui.worktreeCommandList)
 		}
 	case "ingestion_run":
-		if ui.runIngestionInput != nil {
+		if ui.runIngestionType != nil {
+			ui.application.SetFocus(ui.runIngestionType)
+		} else if ui.runIngestionInput != nil {
 			ui.application.SetFocus(ui.runIngestionInput)
 		}
 	case "ingestion_workflows":
@@ -821,14 +919,39 @@ func (ui *UI) focusCurrentScreenDefault() {
 func (ui *UI) toggleFocusForCurrentScreen() {
 	switch ui.currentScreen {
 	case "ingestion_run":
-		if ui.runIngestionInput == nil || ui.runIngestionCommands == nil {
+		if ui.runIngestionType == nil || ui.runIngestionInput == nil || ui.runIngestionDepth == nil || ui.runIngestionIgnorePaths == nil || ui.runIngestionIgnoreExtensions == nil || ui.runIngestionCommands == nil {
+			return
+		}
+		folderOptionsVisible := ui.isIngestionFolderMode()
+		if ui.application.GetFocus() == ui.runIngestionType {
+			ui.application.SetFocus(ui.runIngestionInput)
 			return
 		}
 		if ui.application.GetFocus() == ui.runIngestionInput {
+			if !folderOptionsVisible {
+				ui.application.SetFocus(ui.runIngestionCommands)
+				return
+			}
+			ui.application.SetFocus(ui.runIngestionDepth)
+			return
+		}
+		if !folderOptionsVisible {
+			ui.application.SetFocus(ui.runIngestionType)
+			return
+		}
+		if ui.application.GetFocus() == ui.runIngestionDepth {
+			ui.application.SetFocus(ui.runIngestionIgnorePaths)
+			return
+		}
+		if ui.application.GetFocus() == ui.runIngestionIgnorePaths {
+			ui.application.SetFocus(ui.runIngestionIgnoreExtensions)
+			return
+		}
+		if ui.application.GetFocus() == ui.runIngestionIgnoreExtensions {
 			ui.application.SetFocus(ui.runIngestionCommands)
 			return
 		}
-		ui.application.SetFocus(ui.runIngestionInput)
+		ui.application.SetFocus(ui.runIngestionType)
 	case "ingestion_workflows":
 		if ui.workflowList == nil || ui.workflowDetails == nil {
 			return
@@ -894,4 +1017,25 @@ func formatUserError(err error) string {
 		return "Request timed out. Try again and inspect the log for detailed progress."
 	}
 	return message
+}
+
+func parseCSVValues(raw string) []string {
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		cleanPart := strings.TrimSpace(part)
+		if cleanPart == "" {
+			continue
+		}
+		values = append(values, cleanPart)
+	}
+	return values
+}
+
+func (ui *UI) isIngestionFolderMode() bool {
+	if ui == nil || ui.runIngestionType == nil {
+		return true
+	}
+	_, sourceType := ui.runIngestionType.GetCurrentOption()
+	return strings.TrimSpace(sourceType) == string(apptaskboard.IngestionSourceTypeFolder)
 }

@@ -1,0 +1,106 @@
+{
+	"board_id": "board-sample-git-worktree-flow",
+	"run_id": "run-2026-02-25T03:15:00Z",
+	"title": "Sample Git Worktree Flow",
+	"goal": "Execute task-scoped implementation safely with isolated worktrees and merge back validated changes.",
+	"status": "in-progress",
+	"epics": [
+		{
+			"id": "epic-bootstrap",
+			"board_id": "board-sample-git-worktree-flow",
+			"title": "Bootstrap execution context",
+			"description": "Capture source branch state and prepare deterministic worktree layout.",
+			"status": "completed",
+			"priority": "high",
+			"depends_on": [],
+			"metadata": {
+				"owner": "platform"
+			},
+			"created_at": "2026-02-25T03:15:00Z",
+			"updated_at": "2026-02-25T03:20:00Z",
+			"tasks": [
+				{
+					"id": "task-capture-source-branch",
+					"board_id": "board-sample-git-worktree-flow",
+					"title": "Capture source branch and commit SHA",
+					"description": "Store source branch and head commit at run start.",
+					"status": "completed",
+					"priority": "high",
+					"depends_on": [],
+					"metadata": {
+						"kind": "admission"
+					},
+					"created_at": "2026-02-25T03:15:00Z",
+					"updated_at": "2026-02-25T03:16:00Z",
+					"outcome": {
+						"status": "merged",
+						"reason": "Captured and validated repository state",
+						"task_branch": "task/run-2026-02-25/task-capture-source-branch",
+						"worktree": ".worktree/worktrees/run-2026-02-25-task-capture-source-branch",
+						"updated_at": "2026-02-25T03:16:00Z"
+					}
+				},
+				{
+					"id": "task-create-worktree",
+					"board_id": "board-sample-git-worktree-flow",
+					"title": "Create deterministic task worktree",
+					"status": "completed",
+					"depends_on": [
+						"task-capture-source-branch"
+					],
+					"created_at": "2026-02-25T03:16:00Z",
+					"updated_at": "2026-02-25T03:18:00Z",
+					"outcome": {
+						"status": "merged",
+						"reason": "Worktree created successfully",
+						"task_branch": "task/run-2026-02-25/task-create-worktree",
+						"worktree": ".worktree/worktrees/run-2026-02-25-task-create-worktree",
+						"updated_at": "2026-02-25T03:18:00Z"
+					}
+				}
+			]
+		},
+		{
+			"id": "epic-implementation",
+			"board_id": "board-sample-git-worktree-flow",
+			"title": "Implement and validate changes",
+			"status": "in-progress",
+			"priority": "medium",
+			"depends_on": [
+				"epic-bootstrap"
+			],
+			"created_at": "2026-02-25T03:20:00Z",
+			"updated_at": "2026-02-25T03:30:00Z",
+			"tasks": [
+				{
+					"id": "task-implement-feature",
+					"board_id": "board-sample-git-worktree-flow",
+					"title": "Implement feature in isolated worktree",
+					"status": "in-progress",
+					"depends_on": [
+						"task-create-worktree"
+					],
+					"created_at": "2026-02-25T03:20:00Z",
+					"updated_at": "2026-02-25T03:30:00Z"
+				},
+				{
+					"id": "task-validate-tests",
+					"board_id": "board-sample-git-worktree-flow",
+					"title": "Run tests and verify diff scope",
+					"status": "not-started",
+					"depends_on": [
+						"task-implement-feature"
+					],
+					"created_at": "2026-02-25T03:20:00Z",
+					"updated_at": "2026-02-25T03:20:00Z"
+				}
+			]
+		}
+	],
+	"metadata": {
+		"source": "docs/architecture-git-worktree-flow.md",
+		"generated_by": "agentic-worktrees"
+	},
+	"created_at": "2026-02-25T03:15:00Z",
+	"updated_at": "2026-02-25T03:30:00Z"
+}

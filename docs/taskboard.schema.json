@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentic-worktrees.local/schemas/taskboard.schema.json",
-  "title": "Task Board",
-  "description": "Canonical schema for the dependency-graph task board generated from documentation ingestion.",
+  "title": "Agentic Worktrees Taskboard Schema",
+  "description": "Canonical board schema used by ingestion and execution pipelines. Structure is board -> epics -> tasks.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,9 +10,6 @@
     "run_id",
     "status",
     "epics",
-    "tasks",
-    "micro_tasks",
-    "dependencies",
     "created_at",
     "updated_at"
   ],
@@ -25,48 +22,30 @@
       "type": "string",
       "minLength": 1
     },
+    "title": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string"
+    },
     "status": {
       "$ref": "#/$defs/status"
     },
     "epics": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/epic"
-      },
-      "uniqueItems": true
-    },
-    "tasks": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/task"
-      },
-      "uniqueItems": true
-    },
-    "micro_tasks": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/micro_task"
-      },
-      "uniqueItems": true
-    },
-    "dependencies": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/dependency"
-      },
-      "uniqueItems": true
-    },
-    "created_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "updated_at": {
-      "type": "string",
-      "format": "date-time"
+      }
     },
     "metadata": {
-      "type": "object",
-      "additionalProperties": true
+      "$ref": "#/$defs/metadata"
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "#/$defs/timestamp"
     }
   },
   "$defs": {
@@ -79,16 +58,23 @@
         "blocked"
       ]
     },
-    "priority": {
+    "timestamp": {
       "type": "string",
-      "enum": [
-        "low",
-        "medium",
-        "high",
-        "critical"
-      ]
+      "format": "date-time"
     },
-    "common_work_item": {
+    "identifier_list": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "work_item": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -117,135 +103,91 @@
           "$ref": "#/$defs/status"
         },
         "priority": {
-          "$ref": "#/$defs/priority"
-        },
-        "acceptance_criteria": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "labels": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+          "type": "string"
         },
         "metadata": {
-          "type": "object",
-          "additionalProperties": true
+          "$ref": "#/$defs/metadata"
         },
         "created_at": {
-          "type": "string",
-          "format": "date-time"
+          "$ref": "#/$defs/timestamp"
         },
         "updated_at": {
-          "type": "string",
-          "format": "date-time"
+          "$ref": "#/$defs/timestamp"
         }
       }
     },
-    "epic": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/common_work_item"
+    "task_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "minLength": 1
         },
-        {
-          "type": "object",
-          "required": [
-            "item_type"
-          ],
-          "properties": {
-            "item_type": {
-              "const": "epic"
-            }
-          }
+        "reason": {
+          "type": "string"
+        },
+        "task_branch": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": "string"
+        },
+        "resume_session_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
         }
-      ]
+      }
     },
     "task": {
       "allOf": [
         {
-          "$ref": "#/$defs/common_work_item"
+          "$ref": "#/$defs/work_item"
         },
         {
           "type": "object",
-          "required": [
-            "item_type",
-            "epic_id"
-          ],
+          "additionalProperties": false,
           "properties": {
-            "item_type": {
-              "const": "task"
+            "depends_on": {
+              "$ref": "#/$defs/identifier_list"
             },
-            "epic_id": {
-              "type": "string",
-              "minLength": 1
+            "outcome": {
+              "$ref": "#/$defs/task_outcome"
             }
           }
         }
       ]
     },
-    "micro_task": {
+    "epic": {
       "allOf": [
         {
-          "$ref": "#/$defs/common_work_item"
+          "$ref": "#/$defs/work_item"
         },
         {
           "type": "object",
+          "additionalProperties": false,
           "required": [
-            "item_type",
-            "task_id"
+            "tasks"
           ],
           "properties": {
-            "item_type": {
-              "const": "micro_task"
+            "depends_on": {
+              "$ref": "#/$defs/identifier_list"
             },
-            "task_id": {
-              "type": "string",
-              "minLength": 1
+            "tasks": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/task"
+              }
             }
           }
         }
       ]
-    },
-    "dependency": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "edge_id",
-        "board_id",
-        "from_id",
-        "to_id"
-      ],
-      "properties": {
-        "edge_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "board_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "from_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "to_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "dependency_type": {
-          "type": "string",
-          "default": "blocks"
-        },
-        "metadata": {
-          "type": "object",
-          "additionalProperties": true
-        }
-      }
     }
   }
 }
