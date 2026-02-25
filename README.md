@@ -1,77 +1,155 @@
-# agentic-worktrees
+# 🚀 Agentic Worktrees
 
-A fully autonomous multi-agentic code builder.
+Welcome! 🎉 `agentic-worktrees` is a Go-powered orchestration system that turns scoped docs into execution-ready taskboards, then runs tasks through isolated Git worktrees with queue-backed workflows.
 
-The core goal is to turn provided documentation into a micro task board, spawn parallel Copilot SDK agents to execute those tasks, and keep progressing until the board is complete.
+Think of it as: **ingest docs ➜ generate board ➜ execute safely in parallel ➜ track workflow status** ✨
 
-## Vision
+---
 
-`agentic-worktrees` is designed to:
+## 🌟 What This Project Does
 
-1. Ingest scoped documentation.
-2. Derive small, actionable implementation tasks.
-3. Execute tasks in parallel via Copilot SDK agents.
-4. Track task state and mark tasks complete as work lands.
-5. Continue orchestration until all tasks are finished.
+- 📥 Ingests a **file or folder** as source input
+- 🧠 Builds/normalizes documentation for decomposition
+- 🗂️ Produces taskboards and stores board/workflow state on disk
+- 🌲 Executes task flows in isolated Git worktrees
+- 🧵 Uses Redis + Asynq for resilient queue/workflow processing
+- 🖥️ Provides an interactive terminal dashboard for operations
 
-## Execution Model
+---
 
-High-level workflow:
+## 🧱 Runtime Dependencies
 
-1. **Document Intake**: collect and normalize requirement/context documents.
-2. **Micro-Task Planning**: decompose documentation into bounded tasks with clear done criteria.
-3. **Parallel Agent Dispatch**: assign tasks to isolated Copilot SDK agents running concurrently.
-4. **Task Lifecycle Tracking**: move tasks through states (`not-started`, `in-progress`, `completed`, `blocked`).
-5. **Autonomous Completion Loop**: re-plan remaining work and dispatch again until complete.
+You’ll need these installed/running:
 
-## Architecture Boundaries (DDD)
+| Dependency              | Why it’s needed                                 | Required               |
+| ----------------------- | ----------------------------------------------- | ---------------------- |
+| Go 1.25.3+              | Build and run the app                           | Yes                    |
+| Redis 7+                | Queue backend for Asynq workflows               | Yes                    |
+| Git                     | Worktree and merge flow execution               | Yes                    |
+| GitHub Copilot CLI/auth | Decomposition + conflict-resolution agent calls | Yes for agent features |
+| Docker (optional)       | Easy local Redis/Asynqmon via docker-compose    | No                     |
+| Task CLI (optional)     | Convenience runner for `task` command           | No                     |
 
-This repository follows strict Domain-Driven Design layering:
+### Optional local infra with Docker 🐳
 
-- `internal/interface`: admission surfaces (CLI/MCP/HTTP/worker handlers), input validation, and mapping.
-- `internal/application`: use-case orchestration and process boundaries.
-- `internal/domain`: business invariants, entities, value objects, and domain services.
-- `internal/infrastructure`: adapters for persistence, queues, SDK integrations, and observability.
+```bash
+docker compose up -d
+```
 
-Dependency direction is enforced as:
+This starts:
 
-- `interface -> application -> domain`
-- `infrastructure` implements ports required by inner layers.
+- Redis on `localhost:6379`
+- Asynqmon on `http://localhost:8085`
 
-## Repository Layout
+---
 
-- `docs/`: project documentation.
-- `internal/`: DDD layers (`application`, `domain`, `infrastructure`, `interface`).
-- `go.mod`: Go module and language version.
+## ⚡ Quick Start
 
-## Current Status
+1. Create/update your `.env` (see full table below).
+2. Start Redis (locally or with Docker).
+3. Run the app:
 
-This repository is currently scaffolded for architecture-first development.
+```bash
+task
+```
 
-Implemented now:
+or
 
-- DDD folder layout.
-- Project/release metadata configuration.
+```bash
+go run ./cmd/main.go
+```
 
-Planned next (aligned to this project goal):
+---
 
-- micro task board generation from documentation,
-- parallel Copilot SDK agent orchestration,
-- task state transitions and completion tracking,
-- end-to-end autonomous completion loop.
+## 🧭 Dashboard Flow
 
-## Build Metadata
+- **Settings**: set global Redis override
+- **Ingestion**:
+  - choose source type (`folder` or `file`)
+  - if `folder`, configure walk depth + ignore paths/extensions
+  - execute and auto-redirect to workflow status
+- **Worktrees**:
+  - select board
+  - choose source branch
+  - run/monitor task execution pipeline
 
-- Go version: `1.25.3`
-- Release project/binary name: `agentic-worktrees`
-- Expected CLI entrypoint for builds: `./cmd/agentic-worktrees`
+---
 
-Note: the Go module path currently uses `github.com/goeasycare/agentic-workflows`; naming alignment can be handled in a follow-up change.
+## 🗃️ Runtime Filesystem Layout
 
-## First Implementation Milestones
+All runtime artifacts are rooted at `APP_ROOT_DIR` (default `.worktree`):
 
-1. Define task board domain model and state machine.
-2. Implement application use-case for documentation-to-task decomposition.
-3. Add infrastructure adapter for parallel Copilot SDK agent execution.
-4. Implement orchestration loop that converges on full board completion.
-5. Expose interface entrypoint for autonomous run execution.
+- `logs/` → application logs
+- `taskboards/` → board JSON files
+- `workflows/` → workflow/run/job JSON files
+- `worktrees/` → git worktree directories used during execution
+
+---
+
+## 🔧 Environment Variables
+
+The table below documents all currently supported public env vars.
+
+| Variable                      | Description                                                                                                    | Default               | Required |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------- | -------- |
+| `APP_ROOT_DIR`                | Runtime root directory for logs, taskboards, workflows, and worktrees. Must be repo-relative and not `.`/`..`. | `.worktree`           | No       |
+| `LOG_FORMAT`                  | Log output format (`text` or `json`).                                                                          | `text`                | No       |
+| `LOG_LEVEL`                   | Log level (`debug`, `info`, `warn`, `error`, `fatal`, `panic`).                                                | `info`                | No       |
+| `REDIS_URI`                   | Redis connection URI used by Asynq client/server.                                                              | _(none)_              | Yes      |
+| `COPILOT_MODEL`               | Preferred model for Copilot decomposition requests.                                                            | _(none)_              | No       |
+| `GITHUB_TOKEN`                | GitHub token passed to Copilot client when provided.                                                           | _(none)_              | No       |
+| `COPILOT_CLI_PATH`            | Override path to Copilot CLI executable.                                                                       | _(none)_              | No       |
+| `COPILOT_CLI_URL`             | Optional Copilot CLI endpoint override.                                                                        | _(none)_              | No       |
+| `COPILOT_AUTH_STATUS_COMMAND` | Command used to check Copilot auth status.                                                                     | `copilot auth status` | No       |
+| `COPILOT_AUTH_LOGIN_COMMAND`  | Command used to trigger Copilot login flow.                                                                    | `copilot auth login`  | No       |
+| `COPILOT_SKILL_DIRECTORIES`   | Comma-separated skill directories for Copilot context.                                                         | _(none)_              | No       |
+
+### Example `.env` 🧪
+
+```env
+APP_ROOT_DIR=.worktree
+LOG_FORMAT=text
+LOG_LEVEL=info
+REDIS_URI=redis://localhost:6379/0
+
+# Optional Copilot settings
+# COPILOT_MODEL=
+# GITHUB_TOKEN=
+# COPILOT_CLI_PATH=
+# COPILOT_CLI_URL=
+# COPILOT_AUTH_STATUS_COMMAND=copilot auth status
+# COPILOT_AUTH_LOGIN_COMMAND=copilot auth login
+# COPILOT_SKILL_DIRECTORIES=
+```
+
+---
+
+## 🏗️ Architecture (DDD)
+
+Project layers follow strict DDD boundaries:
+
+- `internal/interface` → terminal/dashboard + worker handlers
+- `internal/application` → orchestration/use-cases
+- `internal/domain` → business rules and invariants
+- `internal/infrastructure` → adapters (redis, git, persistence, logging)
+
+Dependency direction is inward: `interface -> application -> domain`, with infrastructure implementing required ports.
+
+---
+
+## 🧰 Tech Stack Highlights
+
+- Go 1.25
+- Asynq + Redis
+- tview/tcell terminal UI
+- Logrus + lumberjack log rotation
+- Gonum for dependency graph traversal
+- GitHub Copilot SDK integration
+
+---
+
+## 🙌 Contributing
+
+Issues and PRs are welcome! Please keep changes scoped, tested, and aligned with the repository’s DDD boundaries and runtime safety conventions.
+
+Happy building! 💙
