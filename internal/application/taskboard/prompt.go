@@ -1,9 +1,18 @@
 package taskboard
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
 
-func BuildTaskboardPrompt(directory string) string {
-	return fmt.Sprintf(`Analyze the code and documentation in directory %q.
+func BuildTaskboardPrompt(directory string, documents ...NormalizedDocument) string {
+	sortedDocuments := append([]NormalizedDocument(nil), documents...)
+	sort.SliceStable(sortedDocuments, func(left, right int) bool {
+		return sortedDocuments[left].RelativePath < sortedDocuments[right].RelativePath
+	})
+
+	prompt := fmt.Sprintf(`Analyze the code and documentation in directory %q.
 
 Return ONLY valid JSON (no markdown, no prose) in this schema:
 {
@@ -45,5 +54,21 @@ Execution planning requirements:
 - Encode concurrency by leaving independent tasks without unnecessary dependencies.
 - Put first-executable tasks early in each epic.tasks array.
 - Ensure IDs are unique across epics and tasks.
+- Prioritize facts from the normalized UTF-8 documents listed below.
 `, directory)
+	if len(sortedDocuments) == 0 {
+		return prompt + "\nNo normalized documents were extracted; inspect the directory directly.\n"
+	}
+
+	var builder strings.Builder
+	builder.WriteString(prompt)
+	builder.WriteString("\nNormalized UTF-8 documents (stable path order):\n")
+	for _, document := range sortedDocuments {
+		relativePath := strings.TrimSpace(document.RelativePath)
+		if relativePath == "" {
+			continue
+		}
+		builder.WriteString(fmt.Sprintf("\n---\npath: %s\ncontent:\n%s\n", relativePath, document.Content))
+	}
+	return builder.String()
 }

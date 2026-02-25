@@ -31,14 +31,23 @@ type IngestionService struct {
 	repository   Repository
 	workflowRepo WorkflowRepository
 	model        string
+	normalizers  []DocumentNormalizer
 }
 
 func NewIngestionService(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, model string) *IngestionService {
+	return NewIngestionServiceWithNormalizers(dispatcher, repository, workflowRepo, model, nil)
+}
+
+func NewIngestionServiceWithNormalizers(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, model string, normalizers []DocumentNormalizer) *IngestionService {
+	if len(normalizers) == 0 {
+		normalizers = DefaultDocumentNormalizers()
+	}
 	return &IngestionService{
 		dispatcher:   dispatcher,
 		repository:   repository,
 		workflowRepo: workflowRepo,
 		model:        strings.TrimSpace(model),
+		normalizers:  normalizers,
 	}
 }
 
@@ -47,11 +56,15 @@ func (service *IngestionService) IngestDirectory(ctx context.Context, directory 
 	if cleanDirectory == "" {
 		return IngestionResult{}, fmt.Errorf("directory is required")
 	}
+	documents, err := NormalizeDirectoryDocuments(cleanDirectory, service.normalizers)
+	if err != nil {
+		return IngestionResult{}, fmt.Errorf("normalize documents: %w", err)
+	}
 
 	runID := uuid.NewString()
 	job := IngestionJob{
 		RunID:            runID,
-		Prompt:           BuildTaskboardPrompt(cleanDirectory),
+		Prompt:           BuildTaskboardPrompt(cleanDirectory, documents...),
 		Model:            service.model,
 		WorkingDirectory: cleanDirectory,
 	}
