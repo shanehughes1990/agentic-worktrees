@@ -2,6 +2,8 @@ package jsonrepo
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -73,6 +75,14 @@ func TestRepositoryListBoardIDs(t *testing.T) {
 	if err := repository.SaveWorkflow(context.Background(), workflow); err != nil {
 		t.Fatalf("unexpected save workflow error: %v", err)
 	}
+	runState := &apptaskboard.RunState{RunID: "run-list-1", Status: apptaskboard.WorkflowStatusRunning}
+	if err := repository.SaveRunState(context.Background(), runState); err != nil {
+		t.Fatalf("unexpected save run state error: %v", err)
+	}
+	jobState := &apptaskboard.JobState{RunID: "run-list-1", JobID: "job-1", Status: "running", Attempt: 1}
+	if err := repository.SaveJobState(context.Background(), jobState); err != nil {
+		t.Fatalf("unexpected save job state error: %v", err)
+	}
 
 	boardIDs, err := repository.ListBoardIDs(context.Background())
 	if err != nil {
@@ -133,5 +143,82 @@ func TestRepositorySaveRejectsIncompleteBoard(t *testing.T) {
 	}
 	if loaded != nil {
 		t.Fatalf("expected no persisted board for failed save, got %#v", loaded)
+	}
+}
+
+func TestRepositorySaveAndLoadRunState(t *testing.T) {
+	repository, err := NewRepository(t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected repository creation error: %v", err)
+	}
+
+	runState := &apptaskboard.RunState{
+		RunID:   "run-state-1",
+		BoardID: "board-1",
+		Status:  apptaskboard.WorkflowStatusRunning,
+		Message: "started",
+		Checkpoints: []apptaskboard.RunCheckpoint{
+			{Name: "ingestion_started", Timestamp: time.Now().UTC()},
+		},
+	}
+	if err := repository.SaveRunState(context.Background(), runState); err != nil {
+		t.Fatalf("unexpected save run state error: %v", err)
+	}
+
+	loaded, err := repository.GetRunState(context.Background(), "run-state-1")
+	if err != nil {
+		t.Fatalf("unexpected load run state error: %v", err)
+	}
+	if loaded == nil || loaded.RunID != "run-state-1" {
+		t.Fatalf("expected run-state-1, got %#v", loaded)
+	}
+
+	runs, err := repository.ListRunStates(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected list run states error: %v", err)
+	}
+	if len(runs) != 1 || runs[0].RunID != "run-state-1" {
+		t.Fatalf("expected listed run-state-1, got %#v", runs)
+	}
+}
+
+func TestRepositorySaveAndLoadJobState(t *testing.T) {
+	root := t.TempDir()
+	repository, err := NewRepository(root)
+	if err != nil {
+		t.Fatalf("unexpected repository creation error: %v", err)
+	}
+
+	jobState := &apptaskboard.JobState{
+		RunID:        "run-job-1",
+		JobID:        "job-1",
+		TaskID:       "task-1",
+		Attempt:      2,
+		Status:       "failed",
+		FailureClass: "transient",
+		ResultRef:    "result://job-1",
+	}
+	if err := repository.SaveJobState(context.Background(), jobState); err != nil {
+		t.Fatalf("unexpected save job state error: %v", err)
+	}
+
+	loaded, err := repository.GetJobState(context.Background(), "run-job-1", "job-1")
+	if err != nil {
+		t.Fatalf("unexpected load job state error: %v", err)
+	}
+	if loaded == nil || loaded.JobID != "job-1" || loaded.RunID != "run-job-1" {
+		t.Fatalf("expected job run-job-1/job-1, got %#v", loaded)
+	}
+
+	jobs, err := repository.ListJobStatesByRunID(context.Background(), "run-job-1")
+	if err != nil {
+		t.Fatalf("unexpected list job states error: %v", err)
+	}
+	if len(jobs) != 1 || jobs[0].JobID != "job-1" {
+		t.Fatalf("expected listed job-1, got %#v", jobs)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "job-run-job-1-job-1.json.tmp")); !os.IsNotExist(err) {
+		t.Fatalf("expected no temp file after atomic write, got err=%v", err)
 	}
 }
