@@ -16,6 +16,9 @@ tmp/
 # Runtime application artifacts
 .worktree/
 
+# Local docs and working scopes
+.docs/
+
 # Keep environment sample tracked
 !.env
 
