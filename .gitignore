@@ -14,8 +14,7 @@ tmp/
 **/*.db
 
 # Runtime application artifacts
-logs/
-data/taskboards/
+.worktree/
 
 # Keep environment sample tracked
 !.env

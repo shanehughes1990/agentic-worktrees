@@ -13,7 +13,7 @@ func TestNewGitConflictResolveTaskValidatesInput(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 		ConflictFiles:  nil,
 	})
 	if err == nil {
@@ -28,7 +28,7 @@ func TestNewGitConflictResolveTaskBuildsTask(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 		ConflictFiles:  []string{"main.go"},
 	})
 	if err != nil {

@@ -27,7 +27,7 @@ func TestNewGitWorktreeFlowTaskBuildsTask(t *testing.T) {
 		RepositoryRoot: ".",
 		SourceBranch:   "revamp",
 		TaskBranch:     "task/run-1/task-1",
-		WorktreePath:   ".worktree/run-1-task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

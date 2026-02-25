@@ -32,7 +32,25 @@ func TestServiceStartBuildsTaskBranchAndWorktreePath(t *testing.T) {
 	if result.TaskBranch != "task/run-1/task-1" {
 		t.Fatalf("unexpected task branch: %s", result.TaskBranch)
 	}
-	if result.Worktree != ".worktree/run-1-task-1" {
+	if result.Worktree != ".worktree/worktrees/run-1-task-1" {
+		t.Fatalf("unexpected worktree path: %s", result.Worktree)
+	}
+}
+
+func TestServiceStartBuildsWorktreePathUnderConfiguredRoot(t *testing.T) {
+	service := NewService(&fakeDispatcher{})
+
+	result, err := service.Start(context.Background(), StartRequest{
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		RepositoryRoot: ".",
+		SourceBranch:   "revamp",
+		WorktreeRoot:   ".runtime-root",
+	})
+	if err != nil {
+		t.Fatalf("unexpected start error: %v", err)
+	}
+	if result.Worktree != ".runtime-root/worktrees/run-1-task-1" {
 		t.Fatalf("unexpected worktree path: %s", result.Worktree)
 	}
 }

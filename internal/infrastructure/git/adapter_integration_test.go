@@ -31,16 +31,16 @@ func TestAdapterMergeConflictFlow(t *testing.T) {
 	}
 
 	adapter := NewAdapter(nil)
-	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, "task/run-1/task-1", ".worktree/run-1-task-1"); err != nil {
+	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, "task/run-1/task-1", ".worktree/worktrees/run-1-task-1"); err != nil {
 		t.Fatalf("create task worktree: %v", err)
 	}
 
-	worktreeFilePath := filepath.Join(tempDirectory, ".worktree", "run-1-task-1", "main.txt")
+	worktreeFilePath := filepath.Join(tempDirectory, ".worktree", "worktrees", "run-1-task-1", "main.txt")
 	if err := os.WriteFile(worktreeFilePath, []byte("line1\ntask-branch\n"), 0o644); err != nil {
 		t.Fatalf("write worktree file: %v", err)
 	}
-	runGitCommand(t, ctx, filepath.Join(tempDirectory, ".worktree", "run-1-task-1"), "add", "main.txt")
-	runGitCommand(t, ctx, filepath.Join(tempDirectory, ".worktree", "run-1-task-1"), "commit", "-m", "task change")
+	runGitCommand(t, ctx, filepath.Join(tempDirectory, ".worktree", "worktrees", "run-1-task-1"), "add", "main.txt")
+	runGitCommand(t, ctx, filepath.Join(tempDirectory, ".worktree", "worktrees", "run-1-task-1"), "commit", "-m", "task change")
 
 	runGitCommand(t, ctx, tempDirectory, "checkout", defaultBranch)
 	if err := os.WriteFile(filePath, []byte("line1\nsource-branch\n"), 0o644); err != nil {
@@ -68,7 +68,7 @@ func TestAdapterMergeConflictFlow(t *testing.T) {
 	if err := adapter.Commit(ctx, tempDirectory, "resolve conflicts"); err != nil {
 		t.Fatalf("commit resolution: %v", err)
 	}
-	if err := adapter.CleanupTaskWorktree(ctx, tempDirectory, ".worktree/run-1-task-1", "task/run-1/task-1"); err != nil {
+	if err := adapter.CleanupTaskWorktree(ctx, tempDirectory, ".worktree/worktrees/run-1-task-1", "task/run-1/task-1"); err != nil {
 		t.Fatalf("cleanup worktree: %v", err)
 	}
 
@@ -102,7 +102,7 @@ func TestAdapterCreateTaskWorktreeRecreatesFromExistingBranchWhenFilesystemMissi
 	}
 
 	adapter := NewAdapter(nil)
-	worktreeRelPath := ".worktree/run-1-task-recreate"
+	worktreeRelPath := ".worktree/worktrees/run-1-task-recreate"
 	taskBranch := "task/run-1/task-recreate"
 	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, taskBranch, worktreeRelPath); err != nil {
 		t.Fatalf("initial create task worktree: %v", err)
@@ -116,8 +116,8 @@ func TestAdapterCreateTaskWorktreeRecreatesFromExistingBranchWhenFilesystemMissi
 	runGitCommand(t, ctx, worktreeAbsPath, "add", "resume.txt")
 	runGitCommand(t, ctx, worktreeAbsPath, "commit", "-m", "save progress")
 
-	if err := adapter.CleanupTaskWorktree(ctx, tempDirectory, worktreeRelPath, taskBranch); err != nil {
-		t.Fatalf("cleanup worktree before recreate: %v", err)
+	if err := os.RemoveAll(worktreeAbsPath); err != nil {
+		t.Fatalf("remove worktree filesystem before recreate: %v", err)
 	}
 
 	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, taskBranch, worktreeRelPath); err != nil {

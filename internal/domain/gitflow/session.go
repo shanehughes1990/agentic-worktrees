@@ -101,10 +101,23 @@ func ValidateWorktreePath(path string) error {
 		return fmt.Errorf("worktree_path is required")
 	}
 	if strings.HasPrefix(cleanPath, "/") {
-		return fmt.Errorf("worktree_path must be repo-relative under .worktree")
+		return fmt.Errorf("worktree_path must be repo-relative under <app_root>/worktrees")
 	}
-	if cleanPath == ".worktree" || strings.HasPrefix(cleanPath, ".worktree/") {
+	if isWorktreePathUnderAppRoot(cleanPath) {
 		return nil
 	}
-	return fmt.Errorf("worktree_path must be under .worktree: %s", cleanPath)
+	return fmt.Errorf("worktree_path must be under <app_root>/worktrees: %s", cleanPath)
+}
+
+func isWorktreePathUnderAppRoot(worktreePath string) bool {
+	cleanPath := filepath.ToSlash(filepath.Clean(strings.TrimSpace(worktreePath)))
+	if cleanPath == "" || cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, "../") {
+		return false
+	}
+	marker := "/worktrees/"
+	index := strings.Index(cleanPath, marker)
+	if index <= 0 {
+		return false
+	}
+	return index+len(marker) < len(cleanPath)
 }

@@ -41,8 +41,8 @@ func NewGitConflictResolveTask(payload GitConflictResolvePayload, options ...asy
 	if strings.TrimSpace(payload.WorktreePath) == "" {
 		return nil, nil, fmt.Errorf("worktree_path is required")
 	}
-	if !strings.HasPrefix(strings.TrimSpace(payload.WorktreePath), ".worktree/") {
-		return nil, nil, fmt.Errorf("worktree_path must be under .worktree")
+	if !isWorktreePathUnderAppRoot(payload.WorktreePath) {
+		return nil, nil, fmt.Errorf("worktree_path must be under <app_root>/worktrees")
 	}
 	if len(payload.ConflictFiles) == 0 {
 		return nil, nil, fmt.Errorf("conflict_files is required")

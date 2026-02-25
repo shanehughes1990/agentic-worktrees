@@ -43,6 +43,7 @@ type Runtime struct {
 type taskPipelineExecutorAdapter struct {
 	dispatcher      *appgitflow.Service
 	taskboardService *apptaskboard.Service
+	worktreeRoot    string
 	pollInterval    time.Duration
 }
 
@@ -63,6 +64,7 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 		ResumeSessionID: request.ResumeSessionID,
 		RepositoryRoot:  request.RepositoryRoot,
 		SourceBranch:    request.SourceBranch,
+		WorktreeRoot:    strings.TrimSpace(adapter.worktreeRoot),
 	})
 	if err != nil {
 		return apptaskboard.TaskExecutionOutcome{}, err
@@ -139,7 +141,7 @@ func Init() (*Runtime, error) {
 		return nil, err
 	}
 
-	logger, err := logruslogger.New(cfg.Logging.Format, cfg.Logging.Level, cfg.Logging.FilePath)
+	logger, err := logruslogger.New(cfg.Logging.Format, cfg.Logging.Level, defaultRuntimeLogFilePath(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +152,7 @@ func Init() (*Runtime, error) {
 	}
 	queueCfg = queueCfg.WithLogger(logruslogger.NewAsynqAdapter(logger))
 
-	taskboardRepository, err := jsontaskboard.NewRepository(cfg.Taskboard.JSONDirectory)
+	taskboardRepository, err := jsontaskboard.NewRepository(runtimeTaskboardsDirectory(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +185,7 @@ func Init() (*Runtime, error) {
 	if effectiveMaxAgents < 1 {
 		effectiveMaxAgents = 1
 	}
-	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{dispatcher: gitflowService, taskboardService: taskboardService}, taskboardRepository, effectiveMaxAgents)
+	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{dispatcher: gitflowService, taskboardService: taskboardService, worktreeRoot: runtimeRootDirectory(cfg)}, taskboardRepository, effectiveMaxAgents)
 	taskboardExecutionHandler := workeriface.NewTaskboardExecuteHandler(executionPipeline, executionRegistry, logger)
 	taskboardExecutionDispatcher := queueasynq.NewTaskboardExecutionDispatcher(queueClient, logger)
 	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher)

@@ -50,8 +50,8 @@ github.com/gdamore/encoding v1.0.1 h1:YzKZckdBL6jVt2Gc+5p82qhrGiqMdG/eNs6Wy0u3Uh
 github.com/gdamore/encoding v1.0.1/go.mod h1:0Z0cMFinngz9kS1QfMjCP8TY7em3bZYeeklsSDPivEo=
 github.com/gdamore/tcell/v2 v2.13.8 h1:Mys/Kl5wfC/GcC5Cx4C2BIQH9dbnhnkPgS9/wF3RlfU=
 github.com/gdamore/tcell/v2 v2.13.8/go.mod h1:+Wfe208WDdB7INEtCsNrAN6O2m+wsTPk1RAovjaILlo=
-github.com/github/copilot-sdk/go v0.1.25 h1:SJ/jSoesbpjDEBcvMkoCG+xITvgvnhxnd6oJdmNQnOs=
-github.com/github/copilot-sdk/go v0.1.25/go.mod h1:qc2iEF7hdO8kzSvbyGvrcGhuk2fzdW4xTtT0+1EH2ts=
+github.com/github/copilot-sdk/go v0.1.26-preview.0.0.20260223150653-f0909a78ce6c h1:3IaPj55a5sWqn90VBkMUjMi3XcOJDHg0tFKjO0OVeP8=
+github.com/github/copilot-sdk/go v0.1.26-preview.0.0.20260223150653-f0909a78ce6c/go.mod h1:qc2iEF7hdO8kzSvbyGvrcGhuk2fzdW4xTtT0+1EH2ts=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
 github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
@@ -240,5 +240,3 @@ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gotest.tools/v3 v3.5.2 h1:7koQfIKdy+I8UTetycgUqXWSDwpgv193Ka+qRsmBY8Q=
 gotest.tools/v3 v3.5.2/go.mod h1:LtdLGcnqToBH83WByAAi/wiwSFCArdFIUV/xxN4pcjA=
-github.com/github/copilot-sdk/go v0.1.26-preview.0.0.20260223150653-f0909a78ce6c h1:3IaPj55a5sWqn90VBkMUjMi3XcOJDHg0tFKjO0OVeP8=
-github.com/github/copilot-sdk/go v0.1.26-preview.0.0.20260223150653-f0909a78ce6c/go.mod h1:qc2iEF7hdO8kzSvbyGvrcGhuk2fzdW4xTtT0+1EH2ts=

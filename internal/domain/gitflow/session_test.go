@@ -8,7 +8,7 @@ func TestTaskExecutionSessionValidateBasics(t *testing.T) {
 		TaskID:       "task-1",
 		SourceBranch: "revamp",
 		TaskBranch:   "task/run-1/task-1",
-		WorktreePath: ".worktree/run-1-task-1",
+		WorktreePath: ".worktree/worktrees/run-1-task-1",
 	}
 	session.Normalize()
 
