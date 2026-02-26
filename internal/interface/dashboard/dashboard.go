@@ -537,25 +537,10 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 					}
 					maxTasks = parsedMaxTasks
 				}
-				ui.status.SetText(fmt.Sprintf("Loading ready tasks for board %s ...", boardID))
+				ui.status.SetText(fmt.Sprintf("Starting task tree for board %s ...", boardID))
 				go func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 					defer cancel()
-					if listReadyTaskIDs == nil {
-						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ready task query unavailable") })
-						return
-					}
-					readyTaskIDs, err := listReadyTaskIDs(ctx, boardID)
-					if err != nil {
-						ui.application.QueueUpdateDraw(func() {
-							ui.status.SetText(fmt.Sprintf("Load ready tasks failed: %s", formatUserError(err)))
-						})
-						return
-					}
-					if len(readyTaskIDs) == 0 {
-						ui.application.QueueUpdateDraw(func() { ui.status.SetText("No ready tasks in selected taskboard") })
-						return
-					}
 					if startTaskTree == nil {
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree start command unavailable") })
 						return
