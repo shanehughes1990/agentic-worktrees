@@ -16,8 +16,10 @@ type MergeAttempt struct {
 
 type GitPort interface {
 	CreateTaskWorktree(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) error
+	SyncTaskBranchWithSource(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) (MergeAttempt, error)
 	MergeTaskBranch(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string) (MergeAttempt, error)
 	ResolveConflicts(ctx context.Context, repositoryRoot string, conflictFiles []string, copilotAdvice string) error
+	ValidateWorktree(ctx context.Context, repositoryRoot string) error
 	StageAll(ctx context.Context, repositoryRoot string) error
 	Commit(ctx context.Context, repositoryRoot string, message string) error
 	CleanupTaskWorktree(ctx context.Context, repositoryRoot string, worktreePath string, taskBranch string) error

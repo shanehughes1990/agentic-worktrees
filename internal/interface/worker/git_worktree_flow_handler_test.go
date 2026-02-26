@@ -59,7 +59,13 @@ func (port *fakeGitPortForWorker) CreateTaskWorktree(context.Context, string, st
 func (port *fakeGitPortForWorker) MergeTaskBranch(context.Context, string, string, string) (appgitflow.MergeAttempt, error) {
 	return appgitflow.MergeAttempt{}, nil
 }
+func (port *fakeGitPortForWorker) SyncTaskBranchWithSource(context.Context, string, string, string, string) (appgitflow.MergeAttempt, error) {
+	return appgitflow.MergeAttempt{NoChanges: true}, nil
+}
 func (port *fakeGitPortForWorker) ResolveConflicts(context.Context, string, []string, string) error {
+	return nil
+}
+func (port *fakeGitPortForWorker) ValidateWorktree(context.Context, string) error {
 	return nil
 }
 func (port *fakeGitPortForWorker) Commit(context.Context, string, string) error {
@@ -89,8 +95,14 @@ func (port *failingGitPortForWorker) CreateTaskWorktree(context.Context, string,
 func (port *failingGitPortForWorker) MergeTaskBranch(context.Context, string, string, string) (appgitflow.MergeAttempt, error) {
 	return appgitflow.MergeAttempt{}, nil
 }
+func (port *failingGitPortForWorker) SyncTaskBranchWithSource(context.Context, string, string, string, string) (appgitflow.MergeAttempt, error) {
+	return appgitflow.MergeAttempt{}, appgitflow.WrapTerminal(errors.New("fatal git error"))
+}
 func (port *failingGitPortForWorker) ResolveConflicts(context.Context, string, []string, string) error {
 	return nil
+}
+func (port *failingGitPortForWorker) ValidateWorktree(context.Context, string) error {
+	return appgitflow.WrapTerminal(errors.New("fatal git error"))
 }
 func (port *failingGitPortForWorker) Commit(context.Context, string, string) error {
 	return nil

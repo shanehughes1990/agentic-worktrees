@@ -11,6 +11,8 @@ import (
 
 type resumeTestGitPort struct {
 	mergeAttempt MergeAttempt
+	syncAttempt  *MergeAttempt
+	validateCalls int
 }
 
 func (port *resumeTestGitPort) CreateTaskWorktree(context.Context, string, string, string, string) error {
@@ -19,6 +21,13 @@ func (port *resumeTestGitPort) CreateTaskWorktree(context.Context, string, strin
 
 func (port *resumeTestGitPort) MergeTaskBranch(context.Context, string, string, string) (MergeAttempt, error) {
 	return port.mergeAttempt, nil
+}
+
+func (port *resumeTestGitPort) SyncTaskBranchWithSource(context.Context, string, string, string, string) (MergeAttempt, error) {
+	if port.syncAttempt != nil {
+		return *port.syncAttempt, nil
+	}
+	return MergeAttempt{NoChanges: true}, nil
 }
 
 func (port *resumeTestGitPort) ResolveConflicts(context.Context, string, []string, string) error {
@@ -38,6 +47,11 @@ func (port *resumeTestGitPort) CleanupTaskWorktree(context.Context, string, stri
 }
 
 func (port *resumeTestGitPort) CleanupRunArtifacts(context.Context, string, string) error {
+	return nil
+}
+
+func (port *resumeTestGitPort) ValidateWorktree(context.Context, string) error {
+	port.validateCalls++
 	return nil
 }
 
@@ -111,5 +125,27 @@ func TestTaskExecutorPreservesLatestSessionOnConflictDecomposeFailure(t *testing
 	}
 	if strings.TrimSpace(result.Status) != "failed" {
 		t.Fatalf("expected failed status, got %q", result.Status)
+	}
+}
+
+func TestTaskExecutorRunsValidationWhenSourceSyncIntroducesChanges(t *testing.T) {
+	decomposer := &resumeTestDecomposer{sessionFirst: "session-first", sessionSecond: "session-second"}
+	gitPort := &resumeTestGitPort{mergeAttempt: MergeAttempt{NoChanges: true}, syncAttempt: &MergeAttempt{NoChanges: false}}
+	executor := NewTaskExecutor(gitPort, decomposer)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		TaskTitle:      "title",
+		TaskDetail:     "detail",
+		SourceBranch:   "main",
+		RepositoryRoot: ".",
+	})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if gitPort.validateCalls != 1 {
+		t.Fatalf("expected one validation run after source sync merge, got %d", gitPort.validateCalls)
 	}
 }

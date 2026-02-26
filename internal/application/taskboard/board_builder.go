@@ -27,20 +27,23 @@ func BuildBoardFromResponse(runID string, response string) (*domaintaskboard.Boa
 	if strings.TrimSpace(board.RunID) == "" {
 		board.RunID = runID
 	}
-	if board.CreatedAt.IsZero() {
-		board.CreatedAt = now
-	}
-	if board.UpdatedAt.IsZero() {
-		board.UpdatedAt = now
-	}
+	board.CreatedAt = now
+	board.UpdatedAt = now
 
 	for epicIndex := range board.Epics {
 		if strings.TrimSpace(board.Epics[epicIndex].BoardID) == "" {
 			board.Epics[epicIndex].BoardID = board.BoardID
 		}
+		board.Epics[epicIndex].CreatedAt = now
+		board.Epics[epicIndex].UpdatedAt = now
 		for taskIndex := range board.Epics[epicIndex].Tasks {
 			if strings.TrimSpace(board.Epics[epicIndex].Tasks[taskIndex].BoardID) == "" {
 				board.Epics[epicIndex].Tasks[taskIndex].BoardID = board.BoardID
+			}
+			board.Epics[epicIndex].Tasks[taskIndex].CreatedAt = now
+			board.Epics[epicIndex].Tasks[taskIndex].UpdatedAt = now
+			if board.Epics[epicIndex].Tasks[taskIndex].Outcome != nil {
+				board.Epics[epicIndex].Tasks[taskIndex].Outcome.UpdatedAt = now
 			}
 		}
 	}

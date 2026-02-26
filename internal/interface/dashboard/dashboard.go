@@ -19,6 +19,7 @@ type ListTaskboardsFunc func(ctx context.Context) ([]string, error)
 type ListReadyTaskIDsFunc func(ctx context.Context, boardID string) ([]string, error)
 type ListWorkflowsFunc func(ctx context.Context, redisURI string) ([]apptaskboard.IngestionWorkflow, error)
 type WorkflowStatusFunc func(ctx context.Context, runID string, redisURI string) (*apptaskboard.IngestionWorkflow, error)
+type CancelWorkflowFunc func(ctx context.Context, runID string, redisURI string) (string, error)
 type CopilotAuthStatusFunc func(ctx context.Context) (string, error)
 type CopilotAuthenticateFunc func(ctx context.Context) error
 
@@ -30,39 +31,39 @@ type Command struct {
 }
 
 type UI struct {
-	application          *tview.Application
-	pages                *tview.Pages
-	status               *tview.TextView
-	maxTaskLimit         int
-	screenStack          []string
-	currentScreen        string
-	mainCommandList      *tview.List
-	settingsCommandList  *tview.List
-	settingsRedisInput   *tview.InputField
-	authCommandList      *tview.List
-	ingestionCommandList *tview.List
-	worktreeCommandList  *tview.List
-	runIngestionInput    *tview.InputField
-	runIngestionType     *tview.DropDown
-	runIngestionDepth    *tview.InputField
-	runIngestionIgnorePaths *tview.InputField
+	application                *tview.Application
+	pages                      *tview.Pages
+	status                     *tview.TextView
+	maxTaskLimit               int
+	screenStack                []string
+	currentScreen              string
+	mainCommandList            *tview.List
+	settingsCommandList        *tview.List
+	settingsRedisInput         *tview.InputField
+	authCommandList            *tview.List
+	ingestionCommandList       *tview.List
+	worktreeCommandList        *tview.List
+	runIngestionInput          *tview.InputField
+	runIngestionType           *tview.DropDown
+	runIngestionDepth          *tview.InputField
+	runIngestionIgnorePaths    *tview.InputField
 	runIngestionIgnoreExtensions *tview.InputField
-	runIngestionCommands *tview.List
-	runGitBoardList      *tview.List
-	runGitSourceInput    *tview.InputField
-	runGitConcurrency    *tview.TextView
-	runGitMaxTasksInput  *tview.InputField
-	runGitCommands       *tview.List
-	runGitReadyTasks     *tview.TextView
-	selectedBoardID      string
-	workflowList         *tview.List
-	workflowDetails      *tview.TextView
-	defaultRedisURI      string
-	overrideRedisURI     string
-	pendingIngestionRunID string
+	runIngestionCommands       *tview.List
+	runGitBoardList            *tview.List
+	runGitSourceInput          *tview.InputField
+	runGitConcurrency          *tview.TextView
+	runGitMaxTasksInput        *tview.InputField
+	runGitCommands             *tview.List
+	runGitReadyTasks           *tview.TextView
+	selectedBoardID            string
+	workflowList               *tview.List
+	workflowDetails            *tview.TextView
+	defaultRedisURI            string
+	overrideRedisURI           string
+	pendingIngestionRunID      string
 }
 
-func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, cancelWorkflow CancelWorkflowFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
@@ -72,13 +73,13 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 	}
 
 	ui := &UI{
-		application:   application,
-		pages:         tview.NewPages(),
-		status:        status,
-		maxTaskLimit:  maxTaskLimit,
+		application:    application,
+		pages:          tview.NewPages(),
+		status:         status,
+		maxTaskLimit:   maxTaskLimit,
 		defaultRedisURI: strings.TrimSpace(defaultRedisURI),
-		screenStack:   []string{"main"},
-		currentScreen: "main",
+		screenStack:    []string{"main"},
+		currentScreen:  "main",
 	}
 
 	mainScreen := ui.buildMainScreen()
@@ -94,6 +95,7 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 		"No ingestion workflows available.",
 		listWorkflows,
 		getWorkflowStatus,
+		cancelWorkflow,
 		func(workflow apptaskboard.IngestionWorkflow) bool {
 			return apptaskboard.IsIngestionWorkflowTaskType(workflow.TaskType)
 		},
@@ -104,6 +106,7 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 		"No worktree workflows available.",
 		listWorkflows,
 		getWorkflowStatus,
+		cancelWorkflow,
 		func(workflow apptaskboard.IngestionWorkflow) bool {
 			return apptaskboard.IsWorktreeWorkflowTaskType(workflow.TaskType)
 		},
@@ -707,7 +710,7 @@ func (ui *UI) buildRunIngestionScreen(ingest IngestFunc) tview.Primitive {
 	return screen
 }
 
-func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emptyMessage string, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, includeWorkflow func(workflow apptaskboard.IngestionWorkflow) bool) tview.Primitive {
+func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emptyMessage string, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, cancelWorkflow CancelWorkflowFunc, includeWorkflow func(workflow apptaskboard.IngestionWorkflow) bool) tview.Primitive {
 	header := tview.NewTextView().SetText(strings.TrimSpace(headerTitle)).SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
@@ -722,7 +725,14 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 	details.SetText("Select a workflow.")
 	ui.workflowDetails = details
 
+	selectedRunID := ""
+
 	loadWorkflowDetails := func(runID string) {
+		cleanRunID := strings.TrimSpace(runID)
+		if cleanRunID == "" {
+			return
+		}
+		selectedRunID = cleanRunID
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -731,7 +741,7 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				return
 			}
 			redisURI := ui.effectiveRedisURI()
-			workflow, err := getWorkflowStatus(ctx, runID, redisURI)
+			workflow, err := getWorkflowStatus(ctx, cleanRunID, redisURI)
 			ui.application.QueueUpdateDraw(func() {
 				if err != nil {
 					ui.status.SetText(fmt.Sprintf("Workflow lookup failed: %s", formatUserError(err)))
@@ -742,7 +752,7 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				if strings.TrimSpace(stream) == "" {
 					stream = "(no stream details recorded yet)"
 				}
-				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), stream))
+				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), stream))
 				ui.status.SetText(fmt.Sprintf("Loaded workflow %s", workflow.RunID))
 			})
 		}()
@@ -775,6 +785,7 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 					workflowList.AddItem("(none)", strings.TrimSpace(emptyMessage), 0, nil)
 					details.SetText(strings.TrimSpace(emptyMessage))
 					ui.status.SetText(strings.TrimSpace(emptyMessage))
+					selectedRunID = ""
 					return
 				}
 				for workflowIndex, workflow := range filteredWorkflows {
@@ -783,16 +794,56 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 					if strings.TrimSpace(workflow.TaskType) != "" {
 						statusText = fmt.Sprintf("%s | %s", statusText, strings.TrimSpace(workflow.TaskType))
 					}
+					if workflow.Cancelable {
+						statusText = fmt.Sprintf("%s | cancelable", statusText)
+					}
 					workflowList.AddItem(runID, statusText, 0, func() {
+						selectedRunID = strings.TrimSpace(runID)
 						loadWorkflowDetails(runID)
 					})
 					if strings.TrimSpace(screenID) == "ingestion_workflows" && strings.TrimSpace(ui.pendingIngestionRunID) != "" && strings.TrimSpace(ui.pendingIngestionRunID) == strings.TrimSpace(runID) {
 						workflowList.SetCurrentItem(workflowIndex)
+						selectedRunID = strings.TrimSpace(runID)
 						loadWorkflowDetails(runID)
 						ui.pendingIngestionRunID = ""
 					}
 				}
 				ui.status.SetText(fmt.Sprintf("Loaded %d workflows", len(filteredWorkflows)))
+			})
+		}()
+	}
+
+	cancelSelectedWorkflow := func() {
+		runID := strings.TrimSpace(selectedRunID)
+		if runID == "" && workflowList != nil {
+			currentItem := workflowList.GetCurrentItem()
+			if currentItem >= 0 {
+				mainText, _ := workflowList.GetItemText(currentItem)
+				runID = strings.TrimSpace(mainText)
+			}
+		}
+		if runID == "" || runID == "(none)" {
+			ui.status.SetText("Select a workflow first")
+			return
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if cancelWorkflow == nil {
+				ui.application.QueueUpdateDraw(func() { ui.status.SetText("Workflow cancel command unavailable") })
+				return
+			}
+			redisURI := ui.effectiveRedisURI()
+			message, err := cancelWorkflow(ctx, runID, redisURI)
+			ui.application.QueueUpdateDraw(func() {
+				if err != nil {
+					ui.status.SetText(fmt.Sprintf("Workflow cancel failed: %s", formatUserError(err)))
+					return
+				}
+				selectedRunID = runID
+				ui.status.SetText(strings.TrimSpace(message))
+				refreshWorkflows()
+				loadWorkflowDetails(runID)
 			})
 		}()
 	}
@@ -809,6 +860,12 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 			Description: "Reload workflow statuses from Asynq",
 			Shortcut:    'f',
 			Action:      refreshWorkflows,
+		},
+		{
+			Title:       "Cancel Workflow",
+			Description: "Cancel selected workflow task(s) for this run",
+			Shortcut:    'x',
+			Action:      cancelSelectedWorkflow,
 		},
 	}, false)
 
@@ -886,7 +943,7 @@ func (ui *UI) focusCurrentScreenDefault() {
 		if ui.settingsRedisInput != nil {
 			ui.application.SetFocus(ui.settingsRedisInput)
 		}
-		
+
 	case "ingestion_commands":
 		if ui.ingestionCommandList != nil {
 			ui.application.SetFocus(ui.ingestionCommandList)
@@ -901,7 +958,7 @@ func (ui *UI) focusCurrentScreenDefault() {
 		} else if ui.runIngestionInput != nil {
 			ui.application.SetFocus(ui.runIngestionInput)
 		}
-	case "ingestion_workflows":
+	case "ingestion_workflows", "worktree_workflows":
 		if ui.workflowList != nil {
 			ui.application.SetFocus(ui.workflowList)
 		}
@@ -952,7 +1009,7 @@ func (ui *UI) toggleFocusForCurrentScreen() {
 			return
 		}
 		ui.application.SetFocus(ui.runIngestionType)
-	case "ingestion_workflows":
+	case "ingestion_workflows", "worktree_workflows":
 		if ui.workflowList == nil || ui.workflowDetails == nil {
 			return
 		}
