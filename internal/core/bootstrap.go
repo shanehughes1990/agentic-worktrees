@@ -20,7 +20,7 @@ import (
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/logging/logruslogger"
 	queueasynq "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
-	filesystemsource "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystemsource"
+	filesystem "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystem"
 	jsontaskboard "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/jsonrepo"
 	"github.com/shanehughes1990/agentic-worktrees/internal/interface/dashboard"
 	workeriface "github.com/shanehughes1990/agentic-worktrees/internal/interface/worker"
@@ -213,7 +213,7 @@ func Init() (*Runtime, error) {
 	}
 
 	ingestionDispatcher := queueasynq.NewTaskboardIngestionDispatcher(queueClient, copilotConfig, logger)
-	sourceAdapter := filesystemsource.NewAdapter()
+	sourceAdapter := filesystem.NewAdapter()
 	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
 	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo)
 

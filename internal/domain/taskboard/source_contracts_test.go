@@ -48,7 +48,7 @@ func TestSourceReaderReadContractIsProviderAgnostic(t *testing.T) {
 	}
 	expectedContent := []byte("content-from-provider")
 
-	reader := sourceReaderStub{
+	var reader SourceReader = sourceReaderStub{
 		read: func(ctx context.Context, source SourceIdentity) ([]byte, error) {
 			if source != providerSource {
 				t.Fatalf("expected source identity to be passed through unchanged, got %#v", source)
