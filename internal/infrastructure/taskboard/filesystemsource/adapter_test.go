@@ -48,6 +48,19 @@ func TestAdapterReadCanceledContextIsTransient(t *testing.T) {
 	}
 }
 
+func TestAdapterReadDirectoryIsTerminal(t *testing.T) {
+	_, err := NewAdapter().Read(context.Background(), domaintaskboard.SourceIdentity{
+		Kind:    domaintaskboard.SourceKindFile,
+		Locator: t.TempDir(),
+	})
+	if err == nil {
+		t.Fatalf("expected read to fail for directory")
+	}
+	if !appgitflow.IsTerminalFailure(err) {
+		t.Fatalf("expected directory read error to be terminal, got: %v", err)
+	}
+}
+
 func TestAdapterListMissingFolderIsTerminal(t *testing.T) {
 	_, err := NewAdapter().List(context.Background(), domaintaskboard.SourceMetadata{
 		Identity: domaintaskboard.SourceIdentity{
@@ -60,5 +73,26 @@ func TestAdapterListMissingFolderIsTerminal(t *testing.T) {
 	}
 	if !appgitflow.IsTerminalFailure(err) {
 		t.Fatalf("expected missing folder error to be terminal, got: %v", err)
+	}
+}
+
+func TestAdapterListFilePathIsTerminal(t *testing.T) {
+	directory := t.TempDir()
+	filePath := filepath.Join(directory, "source.md")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("write source.md: %v", err)
+	}
+
+	_, err := NewAdapter().List(context.Background(), domaintaskboard.SourceMetadata{
+		Identity: domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFolder,
+			Locator: filePath,
+		},
+	}, domaintaskboard.SourceListOptions{})
+	if err == nil {
+		t.Fatalf("expected list to fail for file source")
+	}
+	if !appgitflow.IsTerminalFailure(err) {
+		t.Fatalf("expected file source list error to be terminal, got: %v", err)
 	}
 }

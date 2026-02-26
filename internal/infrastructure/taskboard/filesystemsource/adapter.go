@@ -64,6 +64,13 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 	if cleanDirectory == "" {
 		return nil, wrapTerminal(fmt.Errorf("source locator is required"))
 	}
+	info, err := os.Stat(cleanDirectory)
+	if err != nil {
+		return nil, classifyFilesystemError(fmt.Errorf("stat source folder %s: %w", cleanDirectory, err))
+	}
+	if !info.IsDir() {
+		return nil, wrapTerminal(fmt.Errorf("source locator must be a directory"))
+	}
 	cleanWalkDepth := options.WalkDepth
 	cleanIgnorePaths := normalizeIgnorePaths(options.IgnorePaths)
 	cleanIgnoreExtensions := normalizeIgnoreExtensions(options.IgnoreExtensions)
@@ -149,9 +156,18 @@ func (adapter *Adapter) Read(ctx context.Context, source domaintaskboard.SourceI
 		}
 	}
 
-	content, err := os.ReadFile(strings.TrimSpace(source.Locator))
+	cleanLocator := strings.TrimSpace(source.Locator)
+	info, err := os.Stat(cleanLocator)
 	if err != nil {
-		return nil, classifyFilesystemError(fmt.Errorf("read source %s: %w", strings.TrimSpace(source.Locator), err))
+		return nil, classifyFilesystemError(fmt.Errorf("stat source %s: %w", cleanLocator, err))
+	}
+	if info.IsDir() {
+		return nil, wrapTerminal(fmt.Errorf("source locator must be a file"))
+	}
+
+	content, err := os.ReadFile(cleanLocator)
+	if err != nil {
+		return nil, classifyFilesystemError(fmt.Errorf("read source %s: %w", cleanLocator, err))
 	}
 	return content, nil
 }
