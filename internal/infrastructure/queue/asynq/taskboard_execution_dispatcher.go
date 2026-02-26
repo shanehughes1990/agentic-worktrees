@@ -2,8 +2,10 @@ package asynq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/hibiken/asynq"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
 	"github.com/sirupsen/logrus"
@@ -19,11 +21,13 @@ func NewTaskboardExecutionDispatcher(client *Client, logger *logrus.Logger) *Tas
 }
 
 func (dispatcher *TaskboardExecutionDispatcher) EnqueueTaskboardExecution(ctx context.Context, request apptaskboard.StartExecutionRequest) (string, error) {
+	idempotencyKey := fmt.Sprintf("%s:%s:%d", request.BoardID, request.SourceBranch, request.MaxTasks)
 	entry := dispatcher.entry().WithFields(logrus.Fields{
 		"event":           "taskboard.execute.enqueue",
 		"board_id":        request.BoardID,
 		"source_branch":   request.SourceBranch,
 		"repository_root": request.RepositoryRoot,
+		"idempotency_key": idempotencyKey,
 	})
 	entry.Info("enqueueing taskboard execution pipeline")
 
@@ -32,9 +36,13 @@ func (dispatcher *TaskboardExecutionDispatcher) EnqueueTaskboardExecution(ctx co
 		SourceBranch:   request.SourceBranch,
 		RepositoryRoot: request.RepositoryRoot,
 		MaxTasks:       request.MaxTasks,
-		IdempotencyKey: fmt.Sprintf("%s:%s:%d", request.BoardID, request.SourceBranch, request.MaxTasks),
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			entry.WithError(err).Warn("taskboard execution already enqueued or running; duplicate enqueue suppressed")
+			return idempotencyKey, nil
+		}
 		entry.WithError(err).Error("failed to enqueue taskboard execution pipeline")
 		return "", err
 	}
