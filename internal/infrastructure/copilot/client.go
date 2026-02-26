@@ -36,6 +36,7 @@ func (client *Client) RunPrompt(ctx context.Context, runID string, taskID string
 	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
 	cleanCorrelationID := strings.TrimSpace(correlationID)
 	invocationID := buildInvocationID(cleanRunID, cleanTaskID, cleanQueueTaskID)
+	tracePathID := buildTracePathID(cleanRunID, cleanTaskID, cleanQueueTaskID, cleanCorrelationID)
 
 	entry := client.entry().WithFields(logrus.Fields{
 		"event":             "copilot.run_prompt",
@@ -43,10 +44,12 @@ func (client *Client) RunPrompt(ctx context.Context, runID string, taskID string
 		"task_id":           cleanTaskID,
 		"queue_task_id":     cleanQueueTaskID,
 		"correlation_id":    cleanCorrelationID,
+		"trace_path_id":     tracePathID,
 		"invocation_id":     invocationID,
 		"model":             model,
 		"working_directory": strings.TrimSpace(workingDirectory),
 	})
+	entry.WithFields(logrus.Fields{"phase": "start", "resume_session_id": cleanResumeSessionID}).Info("copilot prompt state snapshot")
 	entry.WithFields(logrus.Fields{
 		"cli_path":         strings.TrimSpace(client.config.CLIPath),
 		"cli_url":          strings.TrimSpace(client.config.CLIURL),
@@ -66,6 +69,7 @@ func (client *Client) RunPrompt(ctx context.Context, runID string, taskID string
 		return "", "", "", fmt.Errorf("copilot preflight failed: %w", preflightErr)
 	}
 	entry.WithField("preflight", preflight).Info("copilot startup preflight succeeded")
+	entry.WithFields(logrus.Fields{"phase": "preflight_ok"}).Info("copilot prompt state snapshot")
 
 	options := &sdk.ClientOptions{
 		GitHubToken: client.config.GitHubToken,
@@ -140,6 +144,7 @@ func (client *Client) RunPrompt(ctx context.Context, runID string, taskID string
 		entry.WithField("resumed_session_id", cleanResumeSessionID).Info("copilot session resumed")
 	}
 	entry = entry.WithField("session_id", session.SessionID)
+	entry.WithFields(logrus.Fields{"phase": "session_ready"}).Info("copilot prompt state snapshot")
 	entry.Info("copilot session created")
 	defer session.Destroy()
 
@@ -154,6 +159,7 @@ func (client *Client) RunPrompt(ctx context.Context, runID string, taskID string
 		response = *responseEvent.Data.Content
 	}
 	entry.WithField("response_bytes", len(response)).Info("received copilot response")
+	entry.WithFields(logrus.Fields{"phase": "completed", "response_bytes": len(response)}).Info("copilot prompt state snapshot")
 
 	return session.SessionID, response, model, nil
 }
@@ -229,12 +235,35 @@ func (client *Client) runPromptViaCLIFallback(ctx context.Context, invocationID 
 		"task_id":        strings.TrimSpace(taskID),
 		"queue_task_id":  strings.TrimSpace(queueTaskID),
 		"correlation_id": strings.TrimSpace(correlationID),
+		"trace_path_id":  buildTracePathID(runID, taskID, queueTaskID, correlationID),
 		"copilot_pid":    fallbackPID,
 		"session_id":     sessionID,
 		"response_bytes": len(response),
 		"binary":         binary,
+		"phase":          "cli_fallback_completed",
 	}).Info("copilot cli fallback completed")
 	return sessionID, response, model, nil
+}
+
+func buildTracePathID(runID string, taskID string, queueTaskID string, correlationID string) string {
+	cleanCorrelationID := strings.TrimSpace(correlationID)
+	if cleanCorrelationID != "" {
+		return cleanCorrelationID
+	}
+	parts := make([]string, 0, 3)
+	if cleanRunID := strings.TrimSpace(runID); cleanRunID != "" {
+		parts = append(parts, cleanRunID)
+	}
+	if cleanTaskID := strings.TrimSpace(taskID); cleanTaskID != "" {
+		parts = append(parts, cleanTaskID)
+	}
+	if cleanQueueTaskID := strings.TrimSpace(queueTaskID); cleanQueueTaskID != "" {
+		parts = append(parts, cleanQueueTaskID)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ":")
 }
 
 func buildInvocationID(runID string, taskID string, queueTaskID string) string {

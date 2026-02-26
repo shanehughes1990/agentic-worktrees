@@ -41,7 +41,12 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	queueTaskID, _ := asynq.GetTaskID(ctx)
 	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
 	correlationID := buildCorrelationID(strings.TrimSpace(payload.RunID), cleanQueueTaskID)
-	entry := handler.entry().WithFields(logrus.Fields{"event": "worker.copilot_decompose", "run_id": strings.TrimSpace(payload.RunID), "task_type": task.Type(), "queue_task_id": cleanQueueTaskID, "correlation_id": correlationID})
+	tracePathID := correlationID
+	if tracePathID == "" {
+		tracePathID = strings.TrimSpace(payload.RunID)
+	}
+	entry := handler.entry().WithFields(logrus.Fields{"event": "worker.copilot_decompose", "run_id": strings.TrimSpace(payload.RunID), "task_type": task.Type(), "queue_task_id": cleanQueueTaskID, "correlation_id": correlationID, "trace_path_id": tracePathID})
+	entry.WithFields(logrus.Fields{"phase": "received", "model": strings.TrimSpace(payload.Model), "working_directory": strings.TrimSpace(payload.WorkingDirectory)}).Info("copilot decompose state snapshot")
 	entry.Info("processing copilot decomposition task")
 
 	runID := strings.TrimSpace(payload.RunID)
@@ -56,6 +61,7 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		}
 		workflow.Normalize(runID)
 		_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
+		entry.WithFields(logrus.Fields{"phase": "workflow_running", "status": apptaskboard.WorkflowStatusRunning}).Info("copilot decompose state snapshot")
 		entry.Info("workflow updated to running")
 	}
 
@@ -74,11 +80,13 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if err != nil {
 		if isInterruptionError(err) {
 			handler.saveResumableWorkflow(ctx, payload.RunID, "copilot decomposition interrupted; will automatically resume")
+			entry.WithFields(logrus.Fields{"phase": "interrupted", "status": apptaskboard.WorkflowStatusResumable}).WithError(err).Warn("copilot decompose state snapshot")
 			entry.WithError(err).Warn("copilot decomposition interrupted; retrying for automatic resume")
 			return fmt.Errorf("copilot decompose interrupted: %w", err)
 		}
 		userMessage := formatUserFacingDecomposeError(err)
 		handler.saveFailureWorkflow(ctx, payload.RunID, userMessage)
+		entry.WithFields(logrus.Fields{"phase": "failed", "status": apptaskboard.WorkflowStatusFailed, "user_message": userMessage}).WithError(err).Error("copilot decompose state snapshot")
 		entry.WithError(err).WithField("user_message", userMessage).Error("copilot decomposition failed")
 		if isTerminalCopilotFailure(err) {
 			entry.WithError(err).Warn("terminal copilot failure detected; skipping retry")
@@ -135,6 +143,7 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if !qualityReport.Passed {
 		failureMessage := fmt.Sprintf("taskboard quality gate failed: score=%d threshold=%d", qualityReport.Score, qualityReport.Threshold)
 		handler.saveFailureWorkflow(ctx, payload.RunID, failureMessage)
+		entry.WithFields(logrus.Fields{"phase": "quality_gate_failed", "status": apptaskboard.WorkflowStatusFailed, "quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold}).Error("copilot decompose state snapshot")
 		entry.WithFields(logrus.Fields{"quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold}).Error("taskboard quality gate failed")
 		return fmt.Errorf("%s", failureMessage)
 	}
@@ -146,6 +155,7 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 
 	if err := handler.repository.Save(ctx, board); err != nil {
 		handler.saveFailureWorkflow(ctx, payload.RunID, fmt.Sprintf("taskboard persistence failed: %v", err))
+		entry.WithFields(logrus.Fields{"phase": "save_failed", "status": apptaskboard.WorkflowStatusFailed, "board_id": strings.TrimSpace(board.BoardID)}).WithError(err).Error("copilot decompose state snapshot")
 		entry.WithError(err).Error("taskboard save failed")
 		return fmt.Errorf("save taskboard: %w", err)
 	}
@@ -173,6 +183,7 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		}
 		workflow.Normalize(runID)
 		_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
+		entry.WithFields(logrus.Fields{"phase": "completed", "status": apptaskboard.WorkflowStatusCompleted, "board_id": strings.TrimSpace(board.BoardID), "session_id": strings.TrimSpace(result.SessionID)}).Info("copilot decompose state snapshot")
 		entry.Info("workflow updated to completed")
 	}
 

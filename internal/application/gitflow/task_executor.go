@@ -65,6 +65,8 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	cleanBoardID := strings.TrimSpace(request.BoardID)
 	cleanRunID := strings.TrimSpace(request.RunID)
 	cleanTaskID := strings.TrimSpace(request.TaskID)
+	cleanQueueTaskID := strings.TrimSpace(request.QueueTaskID)
+	cleanCorrelationID := strings.TrimSpace(request.CorrelationID)
 	cleanSourceBranch := strings.TrimSpace(request.SourceBranch)
 	cleanRepositoryRoot := strings.TrimSpace(request.RepositoryRoot)
 	entry := executor.entry().WithFields(logrus.Fields{
@@ -72,8 +74,9 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		"board_id":         cleanBoardID,
 		"run_id":           cleanRunID,
 		"task_id":          cleanTaskID,
-		"queue_task_id":    strings.TrimSpace(request.QueueTaskID),
-		"correlation_id":   strings.TrimSpace(request.CorrelationID),
+		"queue_task_id":    cleanQueueTaskID,
+		"correlation_id":   cleanCorrelationID,
+		"trace_path_id":    buildTracePathID(cleanRunID, cleanTaskID, cleanQueueTaskID, cleanCorrelationID),
 		"source_branch":    cleanSourceBranch,
 		"repository_root":  cleanRepositoryRoot,
 		"execution_attempt": request.ExecutionAttempt,
@@ -85,6 +88,7 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 	if cleanRunID == "" {
 		cleanRunID = cleanBoardID
+		entry = entry.WithFields(logrus.Fields{"run_id": cleanRunID, "trace_path_id": buildTracePathID(cleanRunID, cleanTaskID, cleanQueueTaskID, cleanCorrelationID)})
 	}
 	if cleanTaskID == "" {
 		entry.Error("task_id is required")
@@ -105,6 +109,7 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		worktreePath = buildWorktreePath(request.WorktreeRoot, cleanRunID, cleanTaskID)
 	}
 	entry = entry.WithFields(logrus.Fields{"task_branch": taskBranch, "worktree_path": worktreePath})
+	entry.WithFields(logrus.Fields{"phase": "start", "resume_session_id": strings.TrimSpace(request.ResumeSessionID)}).Info("task execution state snapshot")
 	entry.Info("starting gitflow task execution")
 
 	failedResult := func(status string, reason string, resumeSessionID string) TaskExecutionResult {
@@ -137,6 +142,13 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		return failedResult("failed", worktreeDetectErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("detect existing task worktree state: %w", worktreeDetectErr), FailureClassTerminal)
 	}
 	shouldRunResumePreflight := strings.TrimSpace(request.ResumeSessionID) != "" || hasExistingWorktree
+	entry.WithFields(logrus.Fields{
+		"phase":                            "preflight_decision",
+		"preflight_enabled":                shouldRunResumePreflight,
+		"preflight_reason_resume_session":  strings.TrimSpace(request.ResumeSessionID) != "",
+		"preflight_reason_existing_worktree": hasExistingWorktree,
+		"resume_session_id":                strings.TrimSpace(request.ResumeSessionID),
+	}).Info("task execution state snapshot")
 	if shouldRunResumePreflight {
 		entry.WithField("resume_session_id", strings.TrimSpace(request.ResumeSessionID)).Info("resumed task detected; running preflight source sync before implementation")
 		resumeSyncAttempt, resumeSyncErr := executor.git.SyncTaskBranchWithSource(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch, worktreePath)
@@ -190,11 +202,12 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 
 	if executor.decomposer != nil {
+		entry.WithFields(logrus.Fields{"phase": "implementation", "resume_session_id": strings.TrimSpace(request.ResumeSessionID)}).Info("task execution state snapshot")
 		decomposeResult, err := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 			RunID:            cleanRunID,
 			TaskID:           cleanTaskID,
-			QueueTaskID:      strings.TrimSpace(request.QueueTaskID),
-			CorrelationID:    strings.TrimSpace(request.CorrelationID),
+			QueueTaskID:      cleanQueueTaskID,
+			CorrelationID:    cleanCorrelationID,
 			ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
 			WorkingDirectory: absoluteWorktreePath,
 			Prompt:           buildTaskImplementationPrompt(request),
@@ -287,12 +300,13 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 
 	if !syncAttempt.NoChanges {
+		entry.WithFields(logrus.Fields{"phase": "post_sync_recheck", "resume_session_id": strings.TrimSpace(request.ResumeSessionID)}).Info("task execution state snapshot")
 		if executor.decomposer != nil {
 			recheckResult, recheckErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 				RunID:            cleanRunID,
 				TaskID:           cleanTaskID,
-				QueueTaskID:      strings.TrimSpace(request.QueueTaskID),
-				CorrelationID:    strings.TrimSpace(request.CorrelationID),
+				QueueTaskID:      cleanQueueTaskID,
+				CorrelationID:    cleanCorrelationID,
 				ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
 				WorkingDirectory: absoluteWorktreePath,
 				Prompt:           buildPostSourceSyncRecheckPrompt(request, cleanSourceBranch),
@@ -393,6 +407,7 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		entry.WithError(cleanupErr).Error("cleanup task worktree failed")
 		return result, EnsureClassified(fmt.Errorf("cleanup task worktree: %w", cleanupErr), FailureClassTerminal)
 	}
+	entry.WithFields(logrus.Fields{"phase": "completed", "final_status": result.Status, "resume_session_id": result.ResumeSessionID}).Info("task execution state snapshot")
 	entry.WithFields(logrus.Fields{"final_status": result.Status, "reason": result.Reason, "resume_session_id": result.ResumeSessionID}).Info("gitflow task execution completed")
 	return result, nil
 }
@@ -464,6 +479,27 @@ func worktreeExistsWithGitMetadata(absoluteWorktreePath string) (bool, error) {
 		return false, nil
 	}
 	return false, gitErr
+}
+
+func buildTracePathID(runID string, taskID string, queueTaskID string, correlationID string) string {
+	cleanCorrelationID := strings.TrimSpace(correlationID)
+	if cleanCorrelationID != "" {
+		return cleanCorrelationID
+	}
+	parts := make([]string, 0, 3)
+	if cleanRunID := strings.TrimSpace(runID); cleanRunID != "" {
+		parts = append(parts, cleanRunID)
+	}
+	if cleanTaskID := strings.TrimSpace(taskID); cleanTaskID != "" {
+		parts = append(parts, cleanTaskID)
+	}
+	if cleanQueueTaskID := strings.TrimSpace(queueTaskID); cleanQueueTaskID != "" {
+		parts = append(parts, cleanQueueTaskID)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ":")
 }
 
 func buildTaskImplementationPrompt(request TaskExecutionRequest) string {

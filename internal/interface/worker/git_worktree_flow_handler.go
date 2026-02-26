@@ -68,15 +68,15 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 	})
 	queueTaskID, _ := asynq.GetTaskID(ctx)
 	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
-	correlationID := strings.TrimSpace(payload.RunID)
-	if cleanQueueTaskID != "" {
-		if correlationID == "" {
-			correlationID = cleanQueueTaskID
-		} else {
-			correlationID = correlationID + ":" + cleanQueueTaskID
-		}
+	correlationID := buildCorrelationID(strings.TrimSpace(payload.RunID), cleanQueueTaskID)
+	tracePathID := correlationID
+	if tracePathID == "" {
+		tracePathID = strings.TrimSpace(payload.RunID)
 	}
-	entry = entry.WithFields(logrus.Fields{"queue_task_id": cleanQueueTaskID, "correlation_id": correlationID})
+	if tracePathID == "" {
+		tracePathID = strings.TrimSpace(payload.TaskID)
+	}
+	entry = entry.WithFields(logrus.Fields{"queue_task_id": cleanQueueTaskID, "correlation_id": correlationID, "trace_path_id": tracePathID})
 	retryCount, maxRetry := readRetryContext(ctx)
 	attempt := retryCount + 1
 	entry = entry.WithFields(logrus.Fields{
@@ -84,6 +84,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		"max_retry":   maxRetry,
 		"attempt":     attempt,
 	})
+	entry.WithFields(logrus.Fields{"phase": "received", "resume_session_id": strings.TrimSpace(payload.ResumeSessionID)}).Info("git worktree flow state snapshot")
 	entry.Info("processing git worktree flow task")
 
 	boardID := strings.TrimSpace(payload.BoardID)
@@ -129,6 +130,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 					entry.WithError(markErr).Error("failed to requeue task after no-progress result")
 					return fmt.Errorf("requeue task after no-progress result: %w", markErr)
 				}
+				entry.WithFields(logrus.Fields{"phase": "no_progress_retry", "status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID, "retry_next_attempt": attempt + 1}).Warn("git worktree flow state snapshot")
 				entry.WithField("retry_next_attempt", attempt+1).Warn("git worktree flow returned no progress; triggering automatic retry")
 				return fmt.Errorf("git worktree flow no progress on attempt %d/%d", attempt, maxRetry+1)
 			}
@@ -139,6 +141,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 				entry.WithError(markErr).Error("failed to mark task blocked after no-progress retry exhaustion")
 				return fmt.Errorf("mark task blocked after no-progress retry exhaustion: %w", markErr)
 			}
+			entry.WithFields(logrus.Fields{"phase": "no_progress_exhausted", "status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).Error("git worktree flow state snapshot")
 			entry.Error("git worktree flow no-progress retries exhausted")
 			return fmt.Errorf("%w: git worktree flow no progress after retries", asynq.SkipRetry)
 		}
@@ -154,6 +157,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 			entry.WithError(markErr).Error("failed to mark task completed after git worktree flow")
 			return fmt.Errorf("mark task completed: %w", markErr)
 		}
+		entry.WithFields(logrus.Fields{"phase": "completed", "status": result.Status, "reason": result.Reason, "resume_session_id": result.ResumeSessionID}).Info("git worktree flow state snapshot")
 		entry.Info("git worktree flow task completed")
 		return nil
 	}
@@ -180,6 +184,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 			entry.WithError(markErr).Error("failed to mark task canceled after git worktree flow")
 			return fmt.Errorf("mark task canceled: %w", markErr)
 		}
+		entry.WithFields(logrus.Fields{"phase": "interrupted", "status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).WithError(err).Warn("git worktree flow state snapshot")
 		entry.WithError(err).Warn("git worktree flow task interrupted; retrying for automatic resume")
 		return fmt.Errorf("git worktree flow interrupted: %w", err)
 	}
@@ -195,6 +200,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 			entry.WithError(markErr).Error("failed to requeue task after transient git worktree flow failure")
 			return fmt.Errorf("requeue task after transient failure: %w", markErr)
 		}
+		entry.WithFields(logrus.Fields{"phase": "transient_failure", "status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).WithError(err).Warn("git worktree flow state snapshot")
 		entry.WithError(err).Warn("git worktree flow transient failure; task re-queued for automatic restart")
 		return fmt.Errorf("git worktree flow transient failure: %w", err)
 	}
@@ -203,6 +209,7 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		entry.WithError(markErr).Error("failed to mark task blocked after git worktree flow")
 		return fmt.Errorf("mark task blocked: %w", markErr)
 	}
+	entry.WithFields(logrus.Fields{"phase": "terminal_failure", "status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).WithError(err).Error("git worktree flow state snapshot")
 	entry.WithError(err).Error("git worktree flow task failed")
 	return fmt.Errorf("%w: git worktree flow: %v", asynq.SkipRetry, err)
 }
