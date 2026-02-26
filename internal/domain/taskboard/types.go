@@ -49,15 +49,16 @@ type Epic struct {
 }
 
 type Board struct {
-	BoardID   string         `json:"board_id"`
-	RunID     string         `json:"run_id"`
-	Title     string         `json:"title,omitempty"`
-	Goal      string         `json:"goal,omitempty"`
-	Status    Status         `json:"status"`
-	Epics     []Epic         `json:"epics"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	BoardID   string          `json:"board_id"`
+	RunID     string          `json:"run_id"`
+	Title     string          `json:"title,omitempty"`
+	Goal      string          `json:"goal,omitempty"`
+	Source    *SourceMetadata `json:"source,omitempty"`
+	Status    Status          `json:"status"`
+	Epics     []Epic          `json:"epics"`
+	Metadata  map[string]any  `json:"metadata,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 func (board *Board) ValidateBasics() error {
@@ -66,6 +67,11 @@ func (board *Board) ValidateBasics() error {
 	}
 	if strings.TrimSpace(board.RunID) == "" {
 		return fmt.Errorf("run_id is required")
+	}
+	if board.Source != nil {
+		if err := board.Source.ValidateBasics(); err != nil {
+			return fmt.Errorf("source metadata invalid: %w", err)
+		}
 	}
 
 	epicByID := make(map[string]struct{}, len(board.Epics))

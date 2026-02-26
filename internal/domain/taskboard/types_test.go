@@ -38,6 +38,19 @@ func TestBoardValidateCompleteRejectsMissingDependency(t *testing.T) {
 	}
 }
 
+func TestBoardValidateBasicsRejectsInvalidSourceMetadata(t *testing.T) {
+	board := validBoard()
+	board.Source = &SourceMetadata{
+		Identity: SourceIdentity{
+			Kind: SourceKindFile,
+		},
+	}
+
+	if err := board.ValidateBasics(); err == nil {
+		t.Fatalf("expected validation error for invalid source metadata")
+	}
+}
+
 func TestBoardSetTaskStatus(t *testing.T) {
 	board := validBoard()
 	before := board.UpdatedAt
