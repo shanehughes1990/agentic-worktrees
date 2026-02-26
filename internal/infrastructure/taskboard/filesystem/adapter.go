@@ -14,6 +14,11 @@ import (
 
 type Adapter struct{}
 
+var (
+	_ domaintaskboard.SourceLister = (*Adapter)(nil)
+	_ domaintaskboard.SourceReader = (*Adapter)(nil)
+)
+
 func NewAdapter() *Adapter {
 	return &Adapter{}
 }
