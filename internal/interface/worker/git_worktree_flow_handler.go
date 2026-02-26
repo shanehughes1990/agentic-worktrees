@@ -66,6 +66,17 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		"worktree_path":   strings.TrimSpace(payload.WorktreePath),
 		"repository_root": strings.TrimSpace(payload.RepositoryRoot),
 	})
+	queueTaskID, _ := asynq.GetTaskID(ctx)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	correlationID := strings.TrimSpace(payload.RunID)
+	if cleanQueueTaskID != "" {
+		if correlationID == "" {
+			correlationID = cleanQueueTaskID
+		} else {
+			correlationID = correlationID + ":" + cleanQueueTaskID
+		}
+	}
+	entry = entry.WithFields(logrus.Fields{"queue_task_id": cleanQueueTaskID, "correlation_id": correlationID})
 	retryCount, maxRetry := readRetryContext(ctx)
 	attempt := retryCount + 1
 	entry = entry.WithFields(logrus.Fields{
@@ -94,6 +105,8 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		BoardID:         boardID,
 		RunID:           payload.RunID,
 		TaskID:          payload.TaskID,
+		QueueTaskID:     cleanQueueTaskID,
+		CorrelationID:   correlationID,
 		TaskTitle:       payload.TaskTitle,
 		TaskDetail:      payload.TaskDetail,
 		ResumeSessionID: payload.ResumeSessionID,

@@ -38,7 +38,10 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
 		return fmt.Errorf("decode copilot payload: %w", err)
 	}
-	entry := handler.entry().WithFields(logrus.Fields{"event": "worker.copilot_decompose", "run_id": strings.TrimSpace(payload.RunID), "task_type": task.Type()})
+	queueTaskID, _ := asynq.GetTaskID(ctx)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	correlationID := buildCorrelationID(strings.TrimSpace(payload.RunID), cleanQueueTaskID)
+	entry := handler.entry().WithFields(logrus.Fields{"event": "worker.copilot_decompose", "run_id": strings.TrimSpace(payload.RunID), "task_type": task.Type(), "queue_task_id": cleanQueueTaskID, "correlation_id": correlationID})
 	entry.Info("processing copilot decomposition task")
 
 	runID := strings.TrimSpace(payload.RunID)
@@ -46,7 +49,8 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		workflow := &apptaskboard.IngestionWorkflow{RunID: runID, TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose, TaskID: strings.TrimSpace(payload.RunID), BoardID: runID, Status: apptaskboard.WorkflowStatusRunning, Message: "copilot decomposition running"}
 		workflow.Details = map[string]any{
 			"run_id":       runID,
-			"queue_task_id": strings.TrimSpace(payload.RunID),
+			"queue_task_id": cleanQueueTaskID,
+			"correlation_id": correlationID,
 			"worker_pid":   os.Getpid(),
 			"model":        strings.TrimSpace(payload.Model),
 		}
@@ -57,6 +61,8 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 
 	result, err := handler.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 		RunID:            payload.RunID,
+		QueueTaskID:      cleanQueueTaskID,
+		CorrelationID:    correlationID,
 		Prompt:           payload.Prompt,
 		Model:            payload.Model,
 		WorkingDirectory: payload.WorkingDirectory,
@@ -101,6 +107,8 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 
 		supervisorResult, supervisorErr := handler.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 			RunID:            payload.RunID,
+			QueueTaskID:      cleanQueueTaskID,
+			CorrelationID:    correlationID,
 			Prompt:           apptaskboard.BuildBoardSupervisorPromptWithReport(payload.Prompt, board, qualityReport),
 			Model:            payload.Model,
 			WorkingDirectory: payload.WorkingDirectory,
@@ -156,7 +164,8 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		workflow.Details = map[string]any{
 			"run_id":        runID,
 			"board_id":      strings.TrimSpace(board.BoardID),
-			"queue_task_id": strings.TrimSpace(payload.RunID),
+			"queue_task_id": cleanQueueTaskID,
+			"correlation_id": correlationID,
 			"worker_pid":    os.Getpid(),
 			"session_id":    strings.TrimSpace(result.SessionID),
 			"prompt_hash":   strings.TrimSpace(result.PromptHash),
@@ -183,6 +192,7 @@ func (handler *CopilotDecomposeHandler) saveResumableWorkflow(ctx context.Contex
 	}
 	workflow.Details = map[string]any{
 		"run_id":     cleanRunID,
+		"correlation_id": buildCorrelationID(cleanRunID, ""),
 		"worker_pid": os.Getpid(),
 		"resumable":  true,
 	}
@@ -203,6 +213,7 @@ func (handler *CopilotDecomposeHandler) saveFailureWorkflow(ctx context.Context,
 	}
 	workflow.Details = map[string]any{
 		"run_id":     cleanRunID,
+		"correlation_id": buildCorrelationID(cleanRunID, ""),
 		"worker_pid": os.Getpid(),
 	}
 	workflow.Normalize(cleanRunID)
@@ -272,4 +283,19 @@ func isInterruptionError(err error) bool {
 		return false
 	}
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func buildCorrelationID(runID string, queueTaskID string) string {
+	cleanRunID := strings.TrimSpace(runID)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	if cleanRunID == "" && cleanQueueTaskID == "" {
+		return ""
+	}
+	if cleanQueueTaskID == "" {
+		return cleanRunID
+	}
+	if cleanRunID == "" {
+		return cleanQueueTaskID
+	}
+	return cleanRunID + ":" + cleanQueueTaskID
 }

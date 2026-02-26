@@ -29,11 +29,14 @@ func (decomposer *Decomposer) Decompose(ctx context.Context, request appcopilot.
 	entry := decomposer.entry().WithFields(logrus.Fields{
 		"event":             "copilot.decompose",
 		"run_id":            strings.TrimSpace(request.RunID),
+		"task_id":           strings.TrimSpace(request.TaskID),
+		"queue_task_id":     strings.TrimSpace(request.QueueTaskID),
+		"correlation_id":    strings.TrimSpace(request.CorrelationID),
 		"working_directory": strings.TrimSpace(request.WorkingDirectory),
 	})
 	entry.Info("copilot decomposition request received")
 
-	sessionID, response, usedModel, err := decomposer.client.RunPrompt(ctx, request.Model, request.ResumeSessionID, request.WorkingDirectory, request.SkillDirectories, prompt)
+	sessionID, response, usedModel, err := decomposer.client.RunPrompt(ctx, request.RunID, request.TaskID, request.QueueTaskID, request.CorrelationID, request.Model, request.ResumeSessionID, request.WorkingDirectory, request.SkillDirectories, prompt)
 	if err != nil {
 		entry.WithError(err).Error("copilot decomposition failed")
 		return appcopilot.DecomposeResult{RunID: request.RunID, SessionID: sessionID, Model: usedModel}, err

@@ -40,6 +40,7 @@ type Runtime struct {
 	authService            *appcopilot.AuthService
 	runtimeWorkflowService *apptaskboard.RuntimeWorkflowService
 	repositoryRoot         string
+	logger                 *logrus.Logger
 }
 
 type taskPipelineExecutorAdapter struct {
@@ -208,17 +209,17 @@ func Init() (*Runtime, error) {
 	}.Normalized()
 
 	queueClient := queueasynq.NewClient(queueCfg)
-	runtimeWorkflowRepo := queueasynq.NewRuntimeWorkflowRepository(queueCfg)
+	runtimeWorkflowRepo := queueasynq.NewRuntimeWorkflowRepository(queueCfg, logger)
 	authenticator := infracopilot.NewAuthenticator(copilotConfig, logger)
-	authService := appcopilot.NewAuthService(authenticator)
+	authService := appcopilot.NewAuthService(authenticator, logger)
 	decomposer := infracopilot.NewDecomposer(copilotConfig, logger)
 	gitAdapter := infragit.NewAdapter(logger)
-	sourceBranchService := appgitflow.NewSourceBranchService(gitAdapter)
+	sourceBranchService := appgitflow.NewSourceBranchService(gitAdapter, logger)
 	gitWorktreeDispatcher := queueasynq.NewGitWorktreeDispatcher(queueClient, logger)
 	gitflowService := appgitflow.NewService(gitWorktreeDispatcher, logger)
-	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository)
+	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository, logger)
 	taskboardService := apptaskboard.NewService(taskboardRepository, logger)
-	taskExecutor := appgitflow.NewTaskExecutor(gitAdapter, decomposer, &taskResumeCheckpointAdapter{taskboardService: taskboardService})
+	taskExecutor := appgitflow.NewTaskExecutorWithLogger(gitAdapter, decomposer, logger, &taskResumeCheckpointAdapter{taskboardService: taskboardService})
 	executionRegistry := apptaskboard.NewExecutionRegistry()
 	effectiveMaxAgents := queueCfg.Concurrency
 	if effectiveMaxAgents < 1 {
@@ -227,8 +228,8 @@ func Init() (*Runtime, error) {
 	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{dispatcher: gitflowService, taskboardService: taskboardService, worktreeRoot: runtimeRootDirectory(cfg), logger: logger}, taskboardRepository, effectiveMaxAgents, logger)
 	taskboardExecutionHandler := workeriface.NewTaskboardExecuteHandler(executionPipeline, executionRegistry, logger)
 	taskboardExecutionDispatcher := queueasynq.NewTaskboardExecutionDispatcher(queueClient, logger)
-	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher)
-	executionControl := apptaskboard.NewExecutionControlService(executionRegistry, taskExecutor)
+	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher, logger)
+	executionControl := apptaskboard.NewExecutionControlService(executionRegistry, taskExecutor, logger)
 	copilotHandler := workeriface.NewCopilotDecomposeHandler(decomposer, taskboardRepository, taskboardRepository, logger)
 	gitWorktreeFlowHandler := workeriface.NewGitWorktreeFlowHandler(taskExecutor, taskboardService, logger)
 	gitConflictResolveHandler := workeriface.NewGitConflictResolveHandler(gitflowRunner, decomposer, logger)
@@ -241,8 +242,8 @@ func Init() (*Runtime, error) {
 
 	ingestionDispatcher := queueasynq.NewTaskboardIngestionDispatcher(queueClient, copilotConfig, logger)
 	sourceAdapter := filesystem.NewAdapter()
-	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
-	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo)
+	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model, logger)
+	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo, logger)
 
 	repositoryRoot, err := os.Getwd()
 	if err != nil {
@@ -271,7 +272,9 @@ func Init() (*Runtime, error) {
 		authService:            authService,
 		runtimeWorkflowService: runtimeWorkflowService,
 		repositoryRoot:         repositoryRoot,
+		logger:                 logger,
 	}
+	logger.WithFields(logrus.Fields{"event": "core.init.complete", "repository_root": repositoryRoot, "max_agents": effectiveMaxAgents}).Info("runtime initialized")
 	runtime.ui = dashboard.New(
 		func(ctx context.Context, request apptaskboard.IngestRequest, redisURI string) (apptaskboard.IngestionResult, error) {
 			cleanRedisURI := strings.TrimSpace(redisURI)
@@ -286,7 +289,7 @@ func Init() (*Runtime, error) {
 			overrideClient := queueasynq.NewClient(overrideCfg)
 			defer overrideClient.Close()
 			overrideDispatcher := queueasynq.NewTaskboardIngestionDispatcher(overrideClient, copilotConfig, logger)
-			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
+			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model, logger)
 			return overrideIngestion.Ingest(ctx, request)
 		},
 		func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error) {
@@ -307,7 +310,7 @@ func Init() (*Runtime, error) {
 			overrideClient := queueasynq.NewClient(overrideCfg)
 			defer overrideClient.Close()
 			overrideDispatcher := queueasynq.NewTaskboardExecutionDispatcher(overrideClient, logger)
-			overrideExecutionCommand := apptaskboard.NewExecutionCommandService(overrideDispatcher)
+			overrideExecutionCommand := apptaskboard.NewExecutionCommandService(overrideDispatcher, logger)
 			return overrideExecutionCommand.Start(ctx, apptaskboard.StartExecutionRequest{
 				BoardID:        boardID,
 				RepositoryRoot: runtime.repositoryRoot,
@@ -351,9 +354,9 @@ func Init() (*Runtime, error) {
 			if overrideErr != nil {
 				return nil, overrideErr
 			}
-			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg, logger)
 			defer overrideRepo.Close()
-			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo, logger)
 			return overrideService.ListWorkflows(ctx)
 		},
 		func(ctx context.Context, runID string, redisURI string) (*apptaskboard.IngestionWorkflow, error) {
@@ -365,9 +368,9 @@ func Init() (*Runtime, error) {
 			if overrideErr != nil {
 				return nil, overrideErr
 			}
-			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg, logger)
 			defer overrideRepo.Close()
-			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo, logger)
 			return overrideService.GetWorkflowStatus(ctx, runID)
 		},
 		func(ctx context.Context, runID string, redisURI string) (string, error) {
@@ -378,9 +381,9 @@ func Init() (*Runtime, error) {
 				if overrideErr != nil {
 					return "", overrideErr
 				}
-				overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+				overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg, logger)
 				defer overrideRepo.Close()
-				service = apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+				service = apptaskboard.NewRuntimeWorkflowService(overrideRepo, logger)
 			}
 			result, cancelErr := service.CancelWorkflow(ctx, runID)
 			if cancelErr != nil {
@@ -404,6 +407,8 @@ func Init() (*Runtime, error) {
 }
 
 func (runtime *Runtime) Run() error {
+	entry := runtime.entry().WithField("event", "core.runtime.run")
+	entry.Info("starting runtime")
 	defer runtime.queueClient.Close()
 	defer func() {
 		if runtime.runtimeWorkflowRepo != nil {
@@ -457,14 +462,17 @@ func (runtime *Runtime) Run() error {
 	select {
 	case err := <-workerErr:
 		if err != nil && !errors.Is(err, asynq.ErrServerClosed) {
+			entry.WithError(err).Error("worker exited with error")
 			runtime.ui.Stop()
 			_ = waitUI()
 			return fmt.Errorf("asynq worker stopped: %w", err)
 		}
+		entry.Info("worker exited; stopping ui")
 		runtime.ui.Stop()
 		return waitUI()
 
 	case err := <-uiErr:
+		entry.WithError(err).Warn("ui exited; stopping worker")
 		cancelWorker()
 		workerStopErr := waitWorker()
 		if err != nil {
@@ -473,6 +481,7 @@ func (runtime *Runtime) Run() error {
 		return workerStopErr
 
 	case <-sigCtx.Done():
+		entry.WithField("signal", sigCtx.Err()).Info("shutdown signal received")
 		cancelWorker()
 		if err := waitWorker(); err != nil {
 			runtime.ui.Stop()
@@ -482,4 +491,11 @@ func (runtime *Runtime) Run() error {
 		runtime.ui.Stop()
 		return waitUI()
 	}
+}
+
+func (runtime *Runtime) entry() *logrus.Entry {
+	if runtime == nil || runtime.logger == nil {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.NewEntry(runtime.logger)
 }
