@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
+	filesystemsource "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystemsource"
 )
 
 type fakeDispatcher struct {
@@ -69,13 +70,14 @@ func (repository *pollingRepository) SaveWorkflow(_ context.Context, workflow *I
 
 func TestIngestDirectoryReturnsBoardAndRunID(t *testing.T) {
 	repository := newPollingRepository()
+	sourceAdapter := filesystemsource.NewAdapter()
 	dispatcher := &fakeDispatcher{
 		enqueue: func(_ context.Context, job IngestionJob) (string, error) {
 			repository.boards[job.RunID] = &domaintaskboard.Board{BoardID: job.RunID, RunID: job.RunID}
 			return "task-1", nil
 		},
 	}
-	service := NewIngestionService(dispatcher, repository, repository, "")
+	service := NewIngestionService(dispatcher, repository, repository, sourceAdapter, sourceAdapter, "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -92,7 +94,8 @@ func TestIngestDirectoryReturnsBoardAndRunID(t *testing.T) {
 func TestListWorkflows(t *testing.T) {
 	repository := newPollingRepository()
 	repository.workflows["run-1"] = &IngestionWorkflow{RunID: "run-1", Status: WorkflowStatusQueued}
-	service := NewIngestionService(&fakeDispatcher{}, repository, repository, "")
+	sourceAdapter := filesystemsource.NewAdapter()
+	service := NewIngestionService(&fakeDispatcher{}, repository, repository, sourceAdapter, sourceAdapter, "")
 
 	workflows, err := service.ListWorkflows(context.Background())
 	if err != nil {
@@ -111,6 +114,7 @@ func TestIngestSupportsFileSource(t *testing.T) {
 	}
 
 	repository := newPollingRepository()
+	sourceAdapter := filesystemsource.NewAdapter()
 	dispatcher := &fakeDispatcher{
 		enqueue: func(_ context.Context, job IngestionJob) (string, error) {
 			repository.boards[job.RunID] = &domaintaskboard.Board{BoardID: job.RunID, RunID: job.RunID}
@@ -120,7 +124,7 @@ func TestIngestSupportsFileSource(t *testing.T) {
 			return "task-1", nil
 		},
 	}
-	service := NewIngestionService(dispatcher, repository, repository, "")
+	service := NewIngestionService(dispatcher, repository, repository, sourceAdapter, sourceAdapter, "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

@@ -20,24 +20,25 @@ import (
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/logging/logruslogger"
 	queueasynq "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
+	filesystemsource "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystemsource"
 	jsontaskboard "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/jsonrepo"
 	"github.com/shanehughes1990/agentic-worktrees/internal/interface/dashboard"
 	workeriface "github.com/shanehughes1990/agentic-worktrees/internal/interface/worker"
 )
 
 type Runtime struct {
-	worker                  *queueasynq.Server
-	workerRegistrations     []queueasynq.HandlerRegistration
-	queueClient             *queueasynq.Client
-	runtimeWorkflowRepo     *queueasynq.RuntimeWorkflowRepository
-	ui                      *dashboard.UI
-	taskboardService        *apptaskboard.Service
-	ingestionCommand        *apptaskboard.IngestionService
-	executionCommand        *apptaskboard.ExecutionCommandService
-	executionControl        *apptaskboard.ExecutionControlService
-	authService             *appcopilot.AuthService
-	runtimeWorkflowService  *apptaskboard.RuntimeWorkflowService
-	repositoryRoot          string
+	worker                 *queueasynq.Server
+	workerRegistrations    []queueasynq.HandlerRegistration
+	queueClient            *queueasynq.Client
+	runtimeWorkflowRepo    *queueasynq.RuntimeWorkflowRepository
+	ui                     *dashboard.UI
+	taskboardService       *apptaskboard.Service
+	ingestionCommand       *apptaskboard.IngestionService
+	executionCommand       *apptaskboard.ExecutionCommandService
+	executionControl       *apptaskboard.ExecutionControlService
+	authService            *appcopilot.AuthService
+	runtimeWorkflowService *apptaskboard.RuntimeWorkflowService
+	repositoryRoot         string
 }
 
 type taskPipelineExecutorAdapter struct {
@@ -201,7 +202,8 @@ func Init() (*Runtime, error) {
 	}
 
 	ingestionDispatcher := queueasynq.NewTaskboardIngestionDispatcher(queueClient, copilotConfig, logger)
-	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, cfg.Copilot.Model)
+	sourceAdapter := filesystemsource.NewAdapter()
+	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
 	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo)
 
 	repositoryRoot, err := os.Getwd()
@@ -246,7 +248,7 @@ func Init() (*Runtime, error) {
 			overrideClient := queueasynq.NewClient(overrideCfg)
 			defer overrideClient.Close()
 			overrideDispatcher := queueasynq.NewTaskboardIngestionDispatcher(overrideClient, copilotConfig, logger)
-			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, cfg.Copilot.Model)
+			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
 			return overrideIngestion.Ingest(ctx, request)
 		},
 		func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error) {
