@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,33 @@ func (dispatcher *fakeDispatcher) EnqueueIngestion(ctx context.Context, job Inge
 		return dispatcher.enqueue(ctx, job)
 	}
 	return "task-1", nil
+}
+
+type fakeSourceProvider struct {
+	list                    func(ctx context.Context, source domaintaskboard.SourceMetadata, options domaintaskboard.SourceListOptions) ([]domaintaskboard.SourceListEntry, error)
+	read                    func(ctx context.Context, source domaintaskboard.SourceIdentity) ([]byte, error)
+	resolveWorkingDirectory func(ctx context.Context, source domaintaskboard.SourceIdentity) (string, error)
+}
+
+func (provider *fakeSourceProvider) List(ctx context.Context, source domaintaskboard.SourceMetadata, options domaintaskboard.SourceListOptions) ([]domaintaskboard.SourceListEntry, error) {
+	if provider.list != nil {
+		return provider.list(ctx, source, options)
+	}
+	return nil, nil
+}
+
+func (provider *fakeSourceProvider) Read(ctx context.Context, source domaintaskboard.SourceIdentity) ([]byte, error) {
+	if provider.read != nil {
+		return provider.read(ctx, source)
+	}
+	return nil, nil
+}
+
+func (provider *fakeSourceProvider) ResolveWorkingDirectory(ctx context.Context, source domaintaskboard.SourceIdentity) (string, error) {
+	if provider.resolveWorkingDirectory != nil {
+		return provider.resolveWorkingDirectory(ctx, source)
+	}
+	return "", nil
 }
 
 type pollingRepository struct {
@@ -135,5 +163,98 @@ func TestIngestSupportsFileSource(t *testing.T) {
 	}
 	if result.BoardID == "" || result.RunID == "" {
 		t.Fatalf("expected board id and run id, got %#v", result)
+	}
+}
+
+func TestIngestOrchestratesWithFakeSourceProvider(t *testing.T) {
+	repository := newPollingRepository()
+	readSources := make([]domaintaskboard.SourceIdentity, 0, 2)
+	provider := &fakeSourceProvider{
+		list: func(_ context.Context, source domaintaskboard.SourceMetadata, options domaintaskboard.SourceListOptions) ([]domaintaskboard.SourceListEntry, error) {
+			if source.Identity.Kind != domaintaskboard.SourceKindFolder || source.Identity.Locator != "provider://scope" {
+				t.Fatalf("unexpected source metadata: %#v", source)
+			}
+			if options.WalkDepth != 3 || len(options.IgnorePaths) != 1 || options.IgnorePaths[0] != "ignored" {
+				t.Fatalf("unexpected list options: %#v", options)
+			}
+			if len(options.IgnoreExtensions) != 1 || options.IgnoreExtensions[0] != ".tmp" {
+				t.Fatalf("unexpected list options: %#v", options)
+			}
+			return []domaintaskboard.SourceListEntry{
+				{
+					Identity: domaintaskboard.SourceIdentity{
+						Kind:    domaintaskboard.SourceKindFile,
+						Locator: "provider://scope/a.md",
+					},
+					RelativePath: "a.md",
+				},
+				{
+					Identity: domaintaskboard.SourceIdentity{
+						Kind:    domaintaskboard.SourceKindFile,
+						Locator: "provider://scope/b.md",
+					},
+					RelativePath: "b.md",
+				},
+			}, nil
+		},
+		read: func(_ context.Context, source domaintaskboard.SourceIdentity) ([]byte, error) {
+			readSources = append(readSources, source)
+			switch source.Locator {
+			case "provider://scope/a.md":
+				return []byte("first"), nil
+			case "provider://scope/b.md":
+				return []byte("second"), nil
+			default:
+				t.Fatalf("unexpected source read: %#v", source)
+			}
+			return nil, nil
+		},
+		resolveWorkingDirectory: func(_ context.Context, source domaintaskboard.SourceIdentity) (string, error) {
+			if source.Kind != domaintaskboard.SourceKindFolder || source.Locator != "provider://scope" {
+				t.Fatalf("unexpected source identity for working directory: %#v", source)
+			}
+			return "/virtual/worktree", nil
+		},
+	}
+
+	var capturedJob IngestionJob
+	dispatcher := &fakeDispatcher{
+		enqueue: func(_ context.Context, job IngestionJob) (string, error) {
+			capturedJob = job
+			repository.boards[job.RunID] = &domaintaskboard.Board{BoardID: job.RunID, RunID: job.RunID}
+			return "task-1", nil
+		},
+	}
+	service := NewIngestionService(dispatcher, repository, repository, provider, provider, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := service.Ingest(ctx, IngestRequest{
+		SourcePath: "provider://scope",
+		SourceType: IngestionSourceTypeFolder,
+		Folder: FolderTraversalOptions{
+			WalkDepth:        3,
+			IgnorePaths:      []string{"ignored"},
+			IgnoreExtensions: []string{".tmp"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected ingestion error: %v", err)
+	}
+	if result.BoardID == "" || result.RunID == "" {
+		t.Fatalf("expected board id and run id, got %#v", result)
+	}
+	if len(readSources) != 2 {
+		t.Fatalf("expected 2 source reads, got %d", len(readSources))
+	}
+	if capturedJob.WorkingDirectory != "/virtual/worktree" {
+		t.Fatalf("expected provider working directory, got %q", capturedJob.WorkingDirectory)
+	}
+	if !strings.Contains(capturedJob.Prompt, "path: a.md") || !strings.Contains(capturedJob.Prompt, "content:\nfirst") {
+		t.Fatalf("expected prompt to include normalized first document, got %q", capturedJob.Prompt)
+	}
+	if !strings.Contains(capturedJob.Prompt, "path: b.md") || !strings.Contains(capturedJob.Prompt, "content:\nsecond") {
+		t.Fatalf("expected prompt to include normalized second document, got %q", capturedJob.Prompt)
 	}
 }
