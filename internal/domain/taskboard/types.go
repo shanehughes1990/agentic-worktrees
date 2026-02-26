@@ -166,6 +166,7 @@ func (board *Board) SetTaskStatus(taskID string, status Status) error {
 		for taskIndex := range board.Epics[epicIndex].Tasks {
 			if board.Epics[epicIndex].Tasks[taskIndex].ID == taskID {
 				board.Epics[epicIndex].Tasks[taskIndex].Status = status
+				board.recalculateHierarchyStatus()
 				now := time.Now().UTC()
 				board.Epics[epicIndex].Tasks[taskIndex].UpdatedAt = now
 				board.UpdatedAt = now
@@ -193,4 +194,60 @@ func (board *Board) SetTaskOutcome(taskID string, outcome TaskOutcome) error {
 		}
 	}
 	return fmt.Errorf("task not found: %s", taskID)
+}
+
+func (board *Board) recalculateHierarchyStatus() {
+	if board == nil {
+		return
+	}
+
+	epicStatuses := make([]Status, 0, len(board.Epics))
+	for epicIndex := range board.Epics {
+		taskStatuses := make([]Status, 0, len(board.Epics[epicIndex].Tasks))
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			taskStatuses = append(taskStatuses, board.Epics[epicIndex].Tasks[taskIndex].Status)
+		}
+		epicStatus := aggregateStatus(taskStatuses)
+		board.Epics[epicIndex].Status = epicStatus
+		epicStatuses = append(epicStatuses, epicStatus)
+	}
+
+	board.Status = aggregateStatus(epicStatuses)
+}
+
+func aggregateStatus(statuses []Status) Status {
+	if len(statuses) == 0 {
+		return StatusNotStarted
+	}
+
+	allCompleted := true
+	hasInProgress := false
+	hasBlocked := false
+	hasCompleted := false
+
+	for _, status := range statuses {
+		switch status {
+		case StatusCompleted:
+			hasCompleted = true
+		case StatusInProgress:
+			hasInProgress = true
+			allCompleted = false
+		case StatusBlocked:
+			hasBlocked = true
+			allCompleted = false
+		default:
+			allCompleted = false
+		}
+	}
+
+	if allCompleted {
+		return StatusCompleted
+	}
+	if hasBlocked {
+		return StatusBlocked
+	}
+	if hasInProgress || hasCompleted {
+		return StatusInProgress
+	}
+	return StatusNotStarted
 }
