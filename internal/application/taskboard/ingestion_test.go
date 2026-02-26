@@ -443,3 +443,56 @@ func TestIngestDirectoryUsesSourceAbstractionForFilesystemSource(t *testing.T) {
 		t.Fatalf("expected source reader to read %q, got %#v", filePath, sourceAdapter.read)
 	}
 }
+
+func TestIngestDefaultsToFilesystemProviderWhenSourceTypeIsOmitted(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "scope.md")
+	if err := os.WriteFile(filePath, []byte("scope"), 0o600); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+
+	repository := newPollingRepository()
+	sourceAdapter := newRecordingFilesystemSourceAdapter()
+	dispatcher := &fakeDispatcher{
+		enqueue: func(_ context.Context, job IngestionJob) (string, error) {
+			repository.boards[job.RunID] = &domaintaskboard.Board{BoardID: job.RunID, RunID: job.RunID}
+			return "task-1", nil
+		},
+	}
+	service := NewIngestionService(dispatcher, repository, repository, sourceAdapter, sourceAdapter, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := service.Ingest(ctx, IngestRequest{
+		SourcePath: dir,
+		Folder: FolderTraversalOptions{
+			WalkDepth: -1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected ingestion error: %v", err)
+	}
+	if result.BoardID == "" || result.RunID == "" {
+		t.Fatalf("expected board id and run id, got %#v", result)
+	}
+	if len(sourceAdapter.listed) == 0 {
+		t.Fatalf("expected default ingestion to use filesystem source lister")
+	}
+	if sourceAdapter.listed[0].Identity.Kind != domaintaskboard.SourceKindFolder || sourceAdapter.listed[0].Identity.Locator != dir {
+		t.Fatalf("expected first list call to infer folder source from %q, got %#v", dir, sourceAdapter.listed[0].Identity)
+	}
+	if len(sourceAdapter.listOptions) == 0 || sourceAdapter.listOptions[0].WalkDepth != 0 {
+		t.Fatalf("expected source-type inference list walk depth of 0, got %#v", sourceAdapter.listOptions)
+	}
+	readObserved := false
+	for _, identity := range sourceAdapter.read {
+		if identity.Kind == domaintaskboard.SourceKindFile && identity.Locator == filePath {
+			readObserved = true
+			break
+		}
+	}
+	if !readObserved {
+		t.Fatalf("expected source reader to read %q via default filesystem provider, got %#v", filePath, sourceAdapter.read)
+	}
+}
