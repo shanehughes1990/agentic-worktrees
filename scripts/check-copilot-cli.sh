@@ -14,6 +14,7 @@ matches="$(ps -axo pid=,command= | awk '
 
     # Include only likely Copilot CLI agent entrypoints.
     if (cmd ~ /(^|[[:space:]])gh[[:space:]]+copilot([[:space:]]|$)/ ||
+      cmd ~ /(^|[[:space:]\/])copilot([[:space:]]|$)/ ||
         cmd ~ /(^|[[:space:]\/])copilot-cli([[:space:]]|$)/ ||
         cmd ~ /(^|[[:space:]\/])copilot-agent([[:space:]]|$)/ ||
         cmd ~ /(^|[[:space:]\/])github-copilot-cli([[:space:]]|$)/) {
