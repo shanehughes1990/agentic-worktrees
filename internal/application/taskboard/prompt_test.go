@@ -22,4 +22,13 @@ func TestBuildTaskboardPromptIncludesNormalizedDocumentsInStableOrder(t *testing
 	if !strings.Contains(prompt, "Prioritize facts from the normalized UTF-8 documents listed below.") {
 		t.Fatalf("expected normalized document instruction in prompt")
 	}
+	if !strings.Contains(prompt, "You are a senior project manager for an autonomous engineering team.") {
+		t.Fatalf("expected project manager persona in prompt")
+	}
+	if !strings.Contains(prompt, "Do not create duplicate or near-duplicate tasks") {
+		t.Fatalf("expected anti-duplication instruction in prompt")
+	}
+	if !strings.Contains(prompt, "Never output parallel tasks that could implement the same thing.") {
+		t.Fatalf("expected anti-overlap parallelism guard in prompt")
+	}
 }
