@@ -24,6 +24,7 @@ import (
 	jsontaskboard "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/jsonrepo"
 	"github.com/shanehughes1990/agentic-worktrees/internal/interface/dashboard"
 	workeriface "github.com/shanehughes1990/agentic-worktrees/internal/interface/worker"
+	"github.com/sirupsen/logrus"
 )
 
 type Runtime struct {
@@ -39,6 +40,7 @@ type Runtime struct {
 	authService            *appcopilot.AuthService
 	runtimeWorkflowService *apptaskboard.RuntimeWorkflowService
 	repositoryRoot         string
+	logger                 *logrus.Logger
 }
 
 type taskPipelineExecutorAdapter struct {
@@ -46,6 +48,7 @@ type taskPipelineExecutorAdapter struct {
 	taskboardService *apptaskboard.Service
 	worktreeRoot     string
 	pollInterval     time.Duration
+	logger           *logrus.Logger
 }
 
 type taskResumeCheckpointAdapter struct {
@@ -60,12 +63,23 @@ func (adapter *taskResumeCheckpointAdapter) CheckpointResumeSession(ctx context.
 }
 
 func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, request apptaskboard.TaskExecutionRequest) (apptaskboard.TaskExecutionOutcome, error) {
+	entry := adapter.entry().WithFields(logrus.Fields{
+		"event":           "core.task_pipeline_adapter.execute_task",
+		"run_id":          strings.TrimSpace(request.RunID),
+		"board_id":        strings.TrimSpace(request.BoardID),
+		"task_id":         strings.TrimSpace(request.TaskID),
+		"source_branch":   strings.TrimSpace(request.SourceBranch),
+		"repository_root": strings.TrimSpace(request.RepositoryRoot),
+	})
 	if adapter == nil || adapter.dispatcher == nil {
+		entry.Error("task executor adapter is not configured")
 		return apptaskboard.TaskExecutionOutcome{}, fmt.Errorf("task executor adapter is not configured")
 	}
 	if adapter.taskboardService == nil {
+		entry.Error("taskboard service is required")
 		return apptaskboard.TaskExecutionOutcome{}, fmt.Errorf("taskboard service is required")
 	}
+	entry.Info("dispatching task execution")
 
 	startResult, err := adapter.dispatcher.Start(ctx, appgitflow.StartRequest{
 		RunID:           request.RunID,
@@ -79,8 +93,10 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 		WorktreeRoot:    strings.TrimSpace(adapter.worktreeRoot),
 	})
 	if err != nil {
+		entry.WithError(err).Error("failed to dispatch git worktree flow")
 		return apptaskboard.TaskExecutionOutcome{}, err
 	}
+	entry.WithFields(logrus.Fields{"queue_task_id": startResult.QueueTaskID, "task_branch": startResult.TaskBranch, "worktree": startResult.Worktree}).Info("dispatched git worktree flow")
 
 	pollInterval := adapter.pollInterval
 	if pollInterval <= 0 {
@@ -92,10 +108,12 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 	for {
 		select {
 		case <-ctx.Done():
+			entry.WithError(ctx.Err()).Warn("task execution polling canceled")
 			return apptaskboard.TaskExecutionOutcome{TaskBranch: startResult.TaskBranch, Worktree: startResult.Worktree}, ctx.Err()
 		case <-ticker.C:
 			task, getErr := adapter.taskboardService.GetTaskByID(ctx, strings.TrimSpace(request.BoardID), strings.TrimSpace(request.TaskID))
 			if getErr != nil {
+				entry.WithError(getErr).Error("failed to load task state while polling")
 				return apptaskboard.TaskExecutionOutcome{TaskBranch: startResult.TaskBranch, Worktree: startResult.Worktree}, fmt.Errorf("load task state: %w", getErr)
 			}
 			if task == nil {
@@ -120,6 +138,7 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 
 			switch task.Status {
 			case domaintaskboard.StatusCompleted:
+				entry.WithFields(logrus.Fields{"final_status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).Info("task reached completed status")
 				if outcome.Status == "" {
 					outcome.Status = "merged"
 				}
@@ -128,6 +147,7 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 				}
 				return outcome, nil
 			case domaintaskboard.StatusBlocked:
+				entry.WithFields(logrus.Fields{"final_status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).Error("task reached blocked status")
 				if outcome.Status == "" {
 					outcome.Status = "failed"
 				}
@@ -137,6 +157,7 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 				return outcome, fmt.Errorf("%s", outcome.Reason)
 			case domaintaskboard.StatusNotStarted:
 				if strings.EqualFold(outcome.Status, "canceled") {
+					entry.WithFields(logrus.Fields{"final_status": outcome.Status, "reason": outcome.Reason, "resume_session_id": outcome.ResumeSessionID}).Warn("task returned to not-started with canceled outcome")
 					if outcome.Reason == "" {
 						outcome.Reason = "task execution canceled"
 					}
@@ -145,6 +166,13 @@ func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, req
 			}
 		}
 	}
+}
+
+func (adapter *taskPipelineExecutorAdapter) entry() *logrus.Entry {
+	if adapter == nil || adapter.logger == nil {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.NewEntry(adapter.logger)
 }
 
 func Init() (*Runtime, error) {
@@ -181,27 +209,27 @@ func Init() (*Runtime, error) {
 	}.Normalized()
 
 	queueClient := queueasynq.NewClient(queueCfg)
-	runtimeWorkflowRepo := queueasynq.NewRuntimeWorkflowRepository(queueCfg)
+	runtimeWorkflowRepo := queueasynq.NewRuntimeWorkflowRepository(queueCfg, logger)
 	authenticator := infracopilot.NewAuthenticator(copilotConfig, logger)
-	authService := appcopilot.NewAuthService(authenticator)
+	authService := appcopilot.NewAuthService(authenticator, logger)
 	decomposer := infracopilot.NewDecomposer(copilotConfig, logger)
 	gitAdapter := infragit.NewAdapter(logger)
-	sourceBranchService := appgitflow.NewSourceBranchService(gitAdapter)
+	sourceBranchService := appgitflow.NewSourceBranchService(gitAdapter, logger)
 	gitWorktreeDispatcher := queueasynq.NewGitWorktreeDispatcher(queueClient, logger)
-	gitflowService := appgitflow.NewService(gitWorktreeDispatcher)
-	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository)
-	taskboardService := apptaskboard.NewService(taskboardRepository)
-	taskExecutor := appgitflow.NewTaskExecutor(gitAdapter, decomposer, &taskResumeCheckpointAdapter{taskboardService: taskboardService})
+	gitflowService := appgitflow.NewService(gitWorktreeDispatcher, logger)
+	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository, logger)
+	taskboardService := apptaskboard.NewService(taskboardRepository, logger)
+	taskExecutor := appgitflow.NewTaskExecutorWithLogger(gitAdapter, decomposer, logger, &taskResumeCheckpointAdapter{taskboardService: taskboardService})
 	executionRegistry := apptaskboard.NewExecutionRegistry()
 	effectiveMaxAgents := queueCfg.Concurrency
 	if effectiveMaxAgents < 1 {
 		effectiveMaxAgents = 1
 	}
-	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{dispatcher: gitflowService, taskboardService: taskboardService, worktreeRoot: runtimeRootDirectory(cfg)}, taskboardRepository, effectiveMaxAgents)
+	executionPipeline := apptaskboard.NewExecutionPipelineService(taskboardService, &taskPipelineExecutorAdapter{dispatcher: gitflowService, taskboardService: taskboardService, worktreeRoot: runtimeRootDirectory(cfg), logger: logger}, taskboardRepository, effectiveMaxAgents, logger)
 	taskboardExecutionHandler := workeriface.NewTaskboardExecuteHandler(executionPipeline, executionRegistry, logger)
 	taskboardExecutionDispatcher := queueasynq.NewTaskboardExecutionDispatcher(queueClient, logger)
-	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher)
-	executionControl := apptaskboard.NewExecutionControlService(executionRegistry, taskExecutor)
+	executionCommand := apptaskboard.NewExecutionCommandService(taskboardExecutionDispatcher, logger)
+	executionControl := apptaskboard.NewExecutionControlService(executionRegistry, taskExecutor, logger)
 	copilotHandler := workeriface.NewCopilotDecomposeHandler(decomposer, taskboardRepository, taskboardRepository, logger)
 	gitWorktreeFlowHandler := workeriface.NewGitWorktreeFlowHandler(taskExecutor, taskboardService, logger)
 	gitConflictResolveHandler := workeriface.NewGitConflictResolveHandler(gitflowRunner, decomposer, logger)
@@ -214,8 +242,8 @@ func Init() (*Runtime, error) {
 
 	ingestionDispatcher := queueasynq.NewTaskboardIngestionDispatcher(queueClient, copilotConfig, logger)
 	sourceAdapter := filesystem.NewAdapter()
-	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
-	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo)
+	ingestionCommand := apptaskboard.NewIngestionService(ingestionDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model, logger)
+	runtimeWorkflowService := apptaskboard.NewRuntimeWorkflowService(runtimeWorkflowRepo, logger)
 
 	repositoryRoot, err := os.Getwd()
 	if err != nil {
@@ -244,7 +272,9 @@ func Init() (*Runtime, error) {
 		authService:            authService,
 		runtimeWorkflowService: runtimeWorkflowService,
 		repositoryRoot:         repositoryRoot,
+		logger:                 logger,
 	}
+	logger.WithFields(logrus.Fields{"event": "core.init.complete", "repository_root": repositoryRoot, "max_agents": effectiveMaxAgents}).Info("runtime initialized")
 	runtime.ui = dashboard.New(
 		func(ctx context.Context, request apptaskboard.IngestRequest, redisURI string) (apptaskboard.IngestionResult, error) {
 			cleanRedisURI := strings.TrimSpace(redisURI)
@@ -259,7 +289,7 @@ func Init() (*Runtime, error) {
 			overrideClient := queueasynq.NewClient(overrideCfg)
 			defer overrideClient.Close()
 			overrideDispatcher := queueasynq.NewTaskboardIngestionDispatcher(overrideClient, copilotConfig, logger)
-			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model)
+			overrideIngestion := apptaskboard.NewIngestionService(overrideDispatcher, taskboardRepository, taskboardRepository, sourceAdapter, sourceAdapter, cfg.Copilot.Model, logger)
 			return overrideIngestion.Ingest(ctx, request)
 		},
 		func(ctx context.Context, boardID string, sourceBranch string, maxTasks int, redisURI string) (string, error) {
@@ -280,7 +310,7 @@ func Init() (*Runtime, error) {
 			overrideClient := queueasynq.NewClient(overrideCfg)
 			defer overrideClient.Close()
 			overrideDispatcher := queueasynq.NewTaskboardExecutionDispatcher(overrideClient, logger)
-			overrideExecutionCommand := apptaskboard.NewExecutionCommandService(overrideDispatcher)
+			overrideExecutionCommand := apptaskboard.NewExecutionCommandService(overrideDispatcher, logger)
 			return overrideExecutionCommand.Start(ctx, apptaskboard.StartExecutionRequest{
 				BoardID:        boardID,
 				RepositoryRoot: runtime.repositoryRoot,
@@ -324,9 +354,9 @@ func Init() (*Runtime, error) {
 			if overrideErr != nil {
 				return nil, overrideErr
 			}
-			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg, logger)
 			defer overrideRepo.Close()
-			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo, logger)
 			return overrideService.ListWorkflows(ctx)
 		},
 		func(ctx context.Context, runID string, redisURI string) (*apptaskboard.IngestionWorkflow, error) {
@@ -338,9 +368,9 @@ func Init() (*Runtime, error) {
 			if overrideErr != nil {
 				return nil, overrideErr
 			}
-			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+			overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg, logger)
 			defer overrideRepo.Close()
-			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+			overrideService := apptaskboard.NewRuntimeWorkflowService(overrideRepo, logger)
 			return overrideService.GetWorkflowStatus(ctx, runID)
 		},
 		func(ctx context.Context, runID string, redisURI string) (string, error) {
@@ -351,9 +381,9 @@ func Init() (*Runtime, error) {
 				if overrideErr != nil {
 					return "", overrideErr
 				}
-				overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg)
+				overrideRepo := queueasynq.NewRuntimeWorkflowRepository(overrideCfg, logger)
 				defer overrideRepo.Close()
-				service = apptaskboard.NewRuntimeWorkflowService(overrideRepo)
+				service = apptaskboard.NewRuntimeWorkflowService(overrideRepo, logger)
 			}
 			result, cancelErr := service.CancelWorkflow(ctx, runID)
 			if cancelErr != nil {
@@ -377,6 +407,8 @@ func Init() (*Runtime, error) {
 }
 
 func (runtime *Runtime) Run() error {
+	entry := runtime.entry().WithField("event", "core.runtime.run")
+	entry.Info("starting runtime")
 	defer runtime.queueClient.Close()
 	defer func() {
 		if runtime.runtimeWorkflowRepo != nil {
@@ -430,14 +462,17 @@ func (runtime *Runtime) Run() error {
 	select {
 	case err := <-workerErr:
 		if err != nil && !errors.Is(err, asynq.ErrServerClosed) {
+			entry.WithError(err).Error("worker exited with error")
 			runtime.ui.Stop()
 			_ = waitUI()
 			return fmt.Errorf("asynq worker stopped: %w", err)
 		}
+		entry.Info("worker exited; stopping ui")
 		runtime.ui.Stop()
 		return waitUI()
 
 	case err := <-uiErr:
+		entry.WithError(err).Warn("ui exited; stopping worker")
 		cancelWorker()
 		workerStopErr := waitWorker()
 		if err != nil {
@@ -446,6 +481,7 @@ func (runtime *Runtime) Run() error {
 		return workerStopErr
 
 	case <-sigCtx.Done():
+		entry.WithField("signal", sigCtx.Err()).Info("shutdown signal received")
 		cancelWorker()
 		if err := waitWorker(); err != nil {
 			runtime.ui.Stop()
@@ -455,4 +491,11 @@ func (runtime *Runtime) Run() error {
 		runtime.ui.Stop()
 		return waitUI()
 	}
+}
+
+func (runtime *Runtime) entry() *logrus.Entry {
+	if runtime == nil || runtime.logger == nil {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.NewEntry(runtime.logger)
 }

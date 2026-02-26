@@ -537,25 +537,10 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 					}
 					maxTasks = parsedMaxTasks
 				}
-				ui.status.SetText(fmt.Sprintf("Loading ready tasks for board %s ...", boardID))
+				ui.status.SetText(fmt.Sprintf("Starting task tree for board %s ...", boardID))
 				go func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 					defer cancel()
-					if listReadyTaskIDs == nil {
-						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ready task query unavailable") })
-						return
-					}
-					readyTaskIDs, err := listReadyTaskIDs(ctx, boardID)
-					if err != nil {
-						ui.application.QueueUpdateDraw(func() {
-							ui.status.SetText(fmt.Sprintf("Load ready tasks failed: %s", formatUserError(err)))
-						})
-						return
-					}
-					if len(readyTaskIDs) == 0 {
-						ui.application.QueueUpdateDraw(func() { ui.status.SetText("No ready tasks in selected taskboard") })
-						return
-					}
 					if startTaskTree == nil {
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree start command unavailable") })
 						return
@@ -771,7 +756,8 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				if strings.TrimSpace(stream) == "" {
 					stream = "(no stream details recorded yet)"
 				}
-				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\nDetails: %v\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), workflow.Details, stream))
+				correlationID := detailString(workflow.Details, "correlation_id")
+				details.SetText(fmt.Sprintf("RunID: %s\nCorrelationID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\nDetails: %v\n\nStream:\n%s", workflow.RunID, correlationID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), workflow.Details, stream))
 				ui.status.SetText(fmt.Sprintf("Loaded workflow %s", workflow.RunID))
 			})
 		}()
@@ -812,6 +798,10 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 					statusText := string(workflow.Status)
 					if strings.TrimSpace(workflow.TaskType) != "" {
 						statusText = fmt.Sprintf("%s | %s", statusText, strings.TrimSpace(workflow.TaskType))
+					}
+					correlationID := detailString(workflow.Details, "correlation_id")
+					if correlationID != "" {
+						statusText = fmt.Sprintf("%s | corr=%s", statusText, correlationID)
 					}
 					if workflow.Cancelable {
 						statusText = fmt.Sprintf("%s | cancelable", statusText)
@@ -909,6 +899,17 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 		}
 	}()
 	return screen
+}
+
+func detailString(details map[string]any, key string) string {
+	if len(details) == 0 {
+		return ""
+	}
+	value, ok := details[strings.TrimSpace(key)]
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", value))
 }
 
 func (ui *UI) newCommandList(commands []Command, includeBack bool) *tview.List {

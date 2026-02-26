@@ -3,6 +3,8 @@ package gitflow
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -121,6 +123,79 @@ func TestTaskExecutorUsesProvidedResumeSessionForFirstIteration(t *testing.T) {
 	}
 }
 
+func TestTaskExecutorResumedTaskRunsSourceSyncConflictResolutionBeforeImplementation(t *testing.T) {
+	decomposer := &resumeTestDecomposer{
+		sessionFirst:  "session-preflight",
+		sessionSecond: "session-work",
+	}
+	gitPort := &resumeTestGitPort{
+		mergeAttempt: MergeAttempt{NoChanges: true},
+		syncAttempt:  &MergeAttempt{ConflictFiles: []string{"README.md"}},
+	}
+	executor := NewTaskExecutor(gitPort, decomposer)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:         "board-1",
+		RunID:           "run-1",
+		TaskID:          "task-1",
+		TaskTitle:       "title",
+		TaskDetail:      "detail",
+		ResumeSessionID: "session-prev",
+		SourceBranch:    "main",
+		RepositoryRoot:  ".",
+	})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if len(decomposer.requests) == 0 {
+		t.Fatalf("expected decomposer requests")
+	}
+	if !strings.Contains(decomposer.requests[0].Prompt, "You are synchronizing task") {
+		t.Fatalf("expected first decomposer call to handle source sync conflicts, got prompt %q", decomposer.requests[0].Prompt)
+	}
+	if got := strings.TrimSpace(decomposer.requests[0].ResumeSessionID); got != "session-prev" {
+		t.Fatalf("expected first decomposer call to use prior resume session, got %q", got)
+	}
+}
+
+func TestTaskExecutorExistingWorktreeWithoutResumeSessionRunsPreflightFirst(t *testing.T) {
+	tempDirectory := t.TempDir()
+	worktreePath := filepath.Join(tempDirectory, ".worktree", "run-1-task-1")
+	if err := os.MkdirAll(worktreePath, 0o755); err != nil {
+		t.Fatalf("create worktree path: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(worktreePath, ".git"), []byte("gitdir: /tmp/fake\n"), 0o644); err != nil {
+		t.Fatalf("create worktree .git marker: %v", err)
+	}
+
+	decomposer := &resumeTestDecomposer{sessionFirst: "session-preflight", sessionSecond: "session-work"}
+	gitPort := &resumeTestGitPort{mergeAttempt: MergeAttempt{NoChanges: true}, syncAttempt: &MergeAttempt{ConflictFiles: []string{"README.md"}}}
+	executor := NewTaskExecutor(gitPort, decomposer)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		TaskTitle:      "title",
+		TaskDetail:     "detail",
+		SourceBranch:   "main",
+		RepositoryRoot: tempDirectory,
+		WorktreePath:   ".worktree/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if len(decomposer.requests) == 0 {
+		t.Fatalf("expected decomposer requests")
+	}
+	if !strings.Contains(decomposer.requests[0].Prompt, "You are synchronizing task") {
+		t.Fatalf("expected first decomposer call to handle source sync conflicts, got prompt %q", decomposer.requests[0].Prompt)
+	}
+	if got := strings.TrimSpace(decomposer.requests[0].ResumeSessionID); got != "" {
+		t.Fatalf("expected empty resume session id on first call, got %q", got)
+	}
+}
+
 func TestTaskExecutorPreservesLatestSessionOnConflictDecomposeFailure(t *testing.T) {
 	decomposer := &resumeTestDecomposer{
 		conflictError: fmt.Errorf("conflict resolution interrupted"),
@@ -214,5 +289,33 @@ func TestTaskExecutorClassifiesStartupProbeKilledAsTransient(t *testing.T) {
 	}
 	if IsTerminalFailure(err) {
 		t.Fatalf("expected transient classification for startup probe killed error")
+	}
+}
+
+func TestTaskExecutorUsesRetryPromptOnSecondAttempt(t *testing.T) {
+	decomposer := &resumeTestDecomposer{
+		sessionFirst:  "session-updated",
+		sessionSecond: "session-updated",
+	}
+	executor := NewTaskExecutor(&resumeTestGitPort{mergeAttempt: MergeAttempt{NoChanges: true}}, decomposer)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:          "board-1",
+		RunID:            "run-1",
+		TaskID:           "task-1",
+		TaskTitle:        "title",
+		TaskDetail:       "detail",
+		ExecutionAttempt: 2,
+		SourceBranch:     "main",
+		RepositoryRoot:   ".",
+	})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if len(decomposer.requests) == 0 {
+		t.Fatalf("expected at least one decomposer request")
+	}
+	if !strings.Contains(decomposer.requests[0].Prompt, "Previous attempt made no forward progress") {
+		t.Fatalf("expected retry prompt content, got %q", decomposer.requests[0].Prompt)
 	}
 }
