@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
-	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
@@ -20,7 +20,7 @@ func TestAdapterReadMissingFileIsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected read to fail for missing file")
 	}
-	if !appgitflow.IsTerminalFailure(err) {
+	if !isTerminalFailure(err) {
 		t.Fatalf("expected missing file error to be terminal, got: %v", err)
 	}
 }
@@ -41,7 +41,7 @@ func TestAdapterReadCanceledContextIsTransient(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected read to fail for canceled context")
 	}
-	if appgitflow.IsTerminalFailure(err) {
+	if isTerminalFailure(err) {
 		t.Fatalf("expected canceled context error to be transient, got terminal: %v", err)
 	}
 	if !errors.Is(err, context.Canceled) {
@@ -57,7 +57,7 @@ func TestAdapterReadDirectoryIsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected read to fail for directory")
 	}
-	if !appgitflow.IsTerminalFailure(err) {
+	if !isTerminalFailure(err) {
 		t.Fatalf("expected directory read error to be terminal, got: %v", err)
 	}
 }
@@ -72,7 +72,7 @@ func TestAdapterListMissingFolderIsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected list to fail for missing folder")
 	}
-	if !appgitflow.IsTerminalFailure(err) {
+	if !isTerminalFailure(err) {
 		t.Fatalf("expected missing folder error to be terminal, got: %v", err)
 	}
 }
@@ -93,7 +93,7 @@ func TestAdapterListFilePathIsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected list to fail for file source")
 	}
-	if !appgitflow.IsTerminalFailure(err) {
+	if !isTerminalFailure(err) {
 		t.Fatalf("expected file source list error to be terminal, got: %v", err)
 	}
 }
@@ -192,4 +192,20 @@ func TestAdapterListFolderAppliesOptions(t *testing.T) {
 			t.Fatalf("expected metadata relative path %s, got %#v", entry.RelativePath, entry.Metadata.Attributes["relative_path"])
 		}
 	}
+}
+
+func isTerminalFailure(err error) bool {
+	current := err
+	for current != nil {
+		classProvider, ok := current.(interface{ FailureClass() string })
+		if ok {
+			return strings.EqualFold(strings.TrimSpace(classProvider.FailureClass()), failureClassTerminal)
+		}
+		unwrapper, ok := current.(interface{ Unwrap() error })
+		if !ok {
+			return false
+		}
+		current = unwrapper.Unwrap()
+	}
+	return false
 }

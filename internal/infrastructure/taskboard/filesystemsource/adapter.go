@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
@@ -174,33 +173,86 @@ func classifyFilesystemError(err error) error {
 		return nil
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return ensureClassified(err, appgitflow.FailureClassTransient)
+		return ensureClassified(err, failureClassTransient)
 	}
 	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrInvalid) {
-		return ensureClassified(err, appgitflow.FailureClassTerminal)
+		return ensureClassified(err, failureClassTerminal)
 	}
-	return ensureClassified(err, appgitflow.FailureClassTransient)
+	return ensureClassified(err, failureClassTransient)
 }
 
 func wrapTerminal(err error) error {
 	if err == nil {
 		return nil
 	}
-	return appgitflow.WrapTerminal(err)
+	return ensureClassified(err, failureClassTerminal)
 }
 
 func wrapTransient(err error) error {
 	if err == nil {
 		return nil
 	}
-	return appgitflow.WrapTransient(err)
+	return ensureClassified(err, failureClassTransient)
 }
 
-func ensureClassified(err error, defaultClass appgitflow.FailureClass) error {
+func ensureClassified(err error, defaultClass string) error {
 	if err == nil {
 		return nil
 	}
-	return appgitflow.EnsureClassified(err, defaultClass)
+	if hasFailureClass(err) {
+		return err
+	}
+	return &classifiedFailureError{class: defaultClass, err: err}
+}
+
+const (
+	failureClassTransient = "transient"
+	failureClassTerminal  = "terminal"
+)
+
+type classifiedFailureError struct {
+	class string
+	err   error
+}
+
+func (err *classifiedFailureError) Error() string {
+	if err == nil || err.err == nil {
+		return "classified failure"
+	}
+	return err.err.Error()
+}
+
+func (err *classifiedFailureError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.err
+}
+
+func (err *classifiedFailureError) FailureClass() string {
+	if err == nil {
+		return ""
+	}
+	return err.class
+}
+
+func hasFailureClass(err error) bool {
+	current := err
+	for current != nil {
+		classProvider, ok := current.(interface{ FailureClass() string })
+		if ok {
+			class := strings.ToLower(strings.TrimSpace(classProvider.FailureClass()))
+			if class == failureClassTransient || class == failureClassTerminal {
+				return true
+			}
+		}
+		unwrapper, ok := current.(interface{ Unwrap() error })
+		if !ok {
+			return false
+		}
+		current = unwrapper.Unwrap()
+	}
+	return false
 }
 
 func normalizeIgnorePaths(ignorePaths []string) []string {
