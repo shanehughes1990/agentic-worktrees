@@ -35,6 +35,19 @@ func TestAdapterListFileReturnsSingleEntry(t *testing.T) {
 	if entries[0].Identity.Locator != filePath {
 		t.Fatalf("expected locator %s, got %s", filePath, entries[0].Identity.Locator)
 	}
+	if entries[0].Metadata == nil {
+		t.Fatalf("expected metadata to be populated")
+	}
+	if entries[0].Metadata.Identity.Locator != filePath {
+		t.Fatalf("expected metadata locator %s, got %s", filePath, entries[0].Metadata.Identity.Locator)
+	}
+	relativePath, ok := entries[0].Metadata.Attributes["relative_path"].(string)
+	if !ok || relativePath != "scope.md" {
+		t.Fatalf("expected metadata relative path scope.md, got %#v", entries[0].Metadata.Attributes["relative_path"])
+	}
+	if _, ok := entries[0].Metadata.Attributes["size_bytes"].(int64); !ok {
+		t.Fatalf("expected metadata size_bytes to be int64, got %#v", entries[0].Metadata.Attributes["size_bytes"])
+	}
 }
 
 func TestAdapterListFolderAppliesOptions(t *testing.T) {
@@ -84,6 +97,15 @@ func TestAdapterListFolderAppliesOptions(t *testing.T) {
 	}
 	if !slices.Equal(paths, []string{"root.md", "sub/keep.txt"}) {
 		t.Fatalf("unexpected listed paths: %#v", paths)
+	}
+	for _, entry := range entries {
+		if entry.Metadata == nil {
+			t.Fatalf("expected metadata to be populated for %s", entry.RelativePath)
+		}
+		metadataRelativePath, ok := entry.Metadata.Attributes["relative_path"].(string)
+		if !ok || metadataRelativePath != entry.RelativePath {
+			t.Fatalf("expected metadata relative path %s, got %#v", entry.RelativePath, entry.Metadata.Attributes["relative_path"])
+		}
 	}
 }
 

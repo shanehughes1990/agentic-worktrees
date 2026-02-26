@@ -79,12 +79,18 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 		if shouldIgnoreExtension(relativePath, cleanIgnoreExtensions) {
 			return nil
 		}
+		fileIdentity := domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFile,
+			Locator: path,
+		}
+		fileInfo, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("load file info for %s: %w", path, err)
+		}
 		entries = append(entries, domaintaskboard.SourceListEntry{
-			Identity: domaintaskboard.SourceIdentity{
-				Kind:    domaintaskboard.SourceKindFile,
-				Locator: path,
-			},
+			Identity:     fileIdentity,
 			RelativePath: relativePath,
+			Metadata:     mapFilesystemObjectMetadata(fileIdentity, relativePath, fileInfo),
 		})
 		return nil
 	}); err != nil {
@@ -210,4 +216,19 @@ func pathDepth(relativePath string) int {
 		return 0
 	}
 	return strings.Count(cleanRelativePath, "/")
+}
+
+func mapFilesystemObjectMetadata(identity domaintaskboard.SourceIdentity, relativePath string, info fs.FileInfo) *domaintaskboard.SourceMetadata {
+	attributes := map[string]any{
+		"relative_path": relativePath,
+	}
+	if info != nil {
+		attributes["size_bytes"] = info.Size()
+		attributes["mode"] = info.Mode().String()
+		attributes["mod_time_unix"] = info.ModTime().UTC().Unix()
+	}
+	return &domaintaskboard.SourceMetadata{
+		Identity:   identity,
+		Attributes: attributes,
+	}
 }
