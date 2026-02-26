@@ -6,6 +6,12 @@ Think of it as: **ingest docs ➜ generate board ➜ execute safely in parallel 
 
 ---
 
+## ✅ Project Status
+
+**MVP:** This codebase is now considered a **Minimum Viable Product (MVP)** with a working proof of concept, and is ready to proceed to the next phase.
+
+---
+
 ## 🌟 What This Project Does
 
 - 📥 Ingests a **file or folder** as source input
