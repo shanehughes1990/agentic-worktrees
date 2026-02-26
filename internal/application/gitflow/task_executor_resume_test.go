@@ -63,6 +63,14 @@ type resumeTestDecomposer struct {
 	sessionSecond  string
 }
 
+type failingFirstCallDecomposer struct {
+	err error
+}
+
+func (decomposer *failingFirstCallDecomposer) Decompose(_ context.Context, _ appcopilot.DecomposeRequest) (appcopilot.DecomposeResult, error) {
+	return appcopilot.DecomposeResult{}, decomposer.err
+}
+
 type resumeCheckpointRecorder struct {
 	boardID   string
 	taskID    string
@@ -185,5 +193,26 @@ func TestTaskExecutorCheckpointsResumeSession(t *testing.T) {
 	}
 	if len(checkpoint.sessions) == 0 || checkpoint.sessions[0] != "session-first" {
 		t.Fatalf("expected first checkpoint session to persist, got %#v", checkpoint.sessions)
+	}
+}
+
+func TestTaskExecutorClassifiesStartupProbeKilledAsTransient(t *testing.T) {
+	decomposer := &failingFirstCallDecomposer{err: fmt.Errorf("copilot preflight failed: copilot cli startup probe failed: signal: killed")}
+	executor := NewTaskExecutor(&resumeTestGitPort{mergeAttempt: MergeAttempt{NoChanges: true}}, decomposer)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		TaskTitle:      "title",
+		TaskDetail:     "detail",
+		SourceBranch:   "main",
+		RepositoryRoot: ".",
+	})
+	if err == nil {
+		t.Fatalf("expected execution error")
+	}
+	if IsTerminalFailure(err) {
+		t.Fatalf("expected transient classification for startup probe killed error")
 	}
 }

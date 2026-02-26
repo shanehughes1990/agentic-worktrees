@@ -109,7 +109,11 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			Prompt:           buildTaskImplementationPrompt(request),
 		})
 		if err != nil {
-			classifiedErr := EnsureClassified(fmt.Errorf("implement task with agent: %w", err), FailureClassTerminal)
+			defaultClass := FailureClassTerminal
+			if IsTransientInfrastructureFailure(err) {
+				defaultClass = FailureClassTransient
+			}
+			classifiedErr := EnsureClassified(fmt.Errorf("implement task with agent: %w", err), defaultClass)
 			result := TaskExecutionResult{
 				Status:          "failed",
 				Reason:          err.Error(),
@@ -154,12 +158,16 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			Prompt:           buildSourceSyncConflictResolutionPrompt(cleanTaskID, cleanSourceBranch, syncAttempt.ConflictFiles),
 		})
 		if resolutionErr != nil {
+			defaultClass := FailureClassTerminal
+			if IsTransientInfrastructureFailure(resolutionErr) {
+				defaultClass = FailureClassTransient
+			}
 			resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
 			if strings.TrimSpace(resolutionResult.SessionID) != "" {
 				resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
 				_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
 			}
-			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
+			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts with copilot: %w", resolutionErr), defaultClass)
 		}
 		if strings.TrimSpace(resolutionResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
@@ -188,12 +196,16 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 				Prompt:           buildPostSourceSyncRecheckPrompt(request, cleanSourceBranch),
 			})
 			if recheckErr != nil {
+				defaultClass := FailureClassTerminal
+				if IsTransientInfrastructureFailure(recheckErr) {
+					defaultClass = FailureClassTransient
+				}
 				resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
 				if strings.TrimSpace(recheckResult.SessionID) != "" {
 					resumeSessionID = strings.TrimSpace(recheckResult.SessionID)
 					_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
 				}
-				return failedResult("failed", recheckErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("post-sync recheck with agent: %w", recheckErr), FailureClassTerminal)
+				return failedResult("failed", recheckErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("post-sync recheck with agent: %w", recheckErr), defaultClass)
 			}
 			if strings.TrimSpace(recheckResult.SessionID) != "" {
 				request.ResumeSessionID = strings.TrimSpace(recheckResult.SessionID)
@@ -230,12 +242,16 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			Prompt:           buildConflictResolutionPrompt(cleanTaskID, mergeAttempt.ConflictFiles),
 		})
 		if resolutionErr != nil {
+			defaultClass := FailureClassTerminal
+			if IsTransientInfrastructureFailure(resolutionErr) {
+				defaultClass = FailureClassTransient
+			}
 			resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
 			if strings.TrimSpace(resolutionResult.SessionID) != "" {
 				resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
 				_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
 			}
-			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
+			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), defaultClass)
 		}
 		if strings.TrimSpace(resolutionResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
