@@ -2,11 +2,13 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
+	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
@@ -135,5 +137,42 @@ func TestAdapterReadRejectsFolderIdentity(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected read to reject folder identity")
+	}
+}
+
+func TestAdapterReadMissingFileIsTerminal(t *testing.T) {
+	_, err := NewAdapter().Read(context.Background(), domaintaskboard.SourceIdentity{
+		Kind:    domaintaskboard.SourceKindFile,
+		Locator: filepath.Join(t.TempDir(), "missing.md"),
+	})
+	if err == nil {
+		t.Fatalf("expected read to fail for missing file")
+	}
+	if !appgitflow.IsTerminalFailure(err) {
+		t.Fatalf("expected missing file error to be terminal, got: %v", err)
+	}
+}
+
+func TestAdapterReadCanceledContextIsTransient(t *testing.T) {
+	directory := t.TempDir()
+	filePath := filepath.Join(directory, "source.md")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("write source.md: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := NewAdapter().Read(ctx, domaintaskboard.SourceIdentity{
+		Kind:    domaintaskboard.SourceKindFile,
+		Locator: filePath,
+	})
+	if err == nil {
+		t.Fatalf("expected read to fail for canceled context")
+	}
+	if appgitflow.IsTerminalFailure(err) {
+		t.Fatalf("expected canceled context error to be transient, got terminal: %v", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled context error, got: %v", err)
 	}
 }

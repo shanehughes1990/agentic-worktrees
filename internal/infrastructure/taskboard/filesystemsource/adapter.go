@@ -2,6 +2,7 @@ package filesystemsource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -20,15 +21,22 @@ func NewAdapter() *Adapter {
 
 func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceMetadata, options domaintaskboard.SourceListOptions) ([]domaintaskboard.SourceListEntry, error) {
 	if err := source.ValidateBasics(); err != nil {
-		return nil, err
+		return nil, wrapTerminal(err)
 	}
 	if source.Identity.Kind != domaintaskboard.SourceKindFolder {
-		return nil, fmt.Errorf("source kind must be folder")
+		return nil, wrapTerminal(fmt.Errorf("source kind must be folder"))
 	}
 
 	cleanDirectory := strings.TrimSpace(source.Identity.Locator)
 	if cleanDirectory == "" {
-		return nil, fmt.Errorf("source locator is required")
+		return nil, wrapTerminal(fmt.Errorf("source locator is required"))
+	}
+	info, err := os.Stat(cleanDirectory)
+	if err != nil {
+		return nil, classifyFilesystemError(fmt.Errorf("stat source folder %s: %w", cleanDirectory, err))
+	}
+	if !info.IsDir() {
+		return nil, wrapTerminal(fmt.Errorf("source locator must be a directory"))
 	}
 	cleanWalkDepth := options.WalkDepth
 	cleanIgnorePaths := normalizeIgnorePaths(options.IgnorePaths)
@@ -37,19 +45,19 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 	entries := make([]domaintaskboard.SourceListEntry, 0, 32)
 	if err := filepath.WalkDir(cleanDirectory, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return classifyFilesystemError(walkErr)
 		}
 		if ctx != nil {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return wrapTransient(ctx.Err())
 			default:
 			}
 		}
 
 		relativePath, err := filepath.Rel(cleanDirectory, path)
 		if err != nil {
-			return fmt.Errorf("build relative path for %s: %w", path, err)
+			return wrapTerminal(fmt.Errorf("build relative path for %s: %w", path, err))
 		}
 		relativePath = filepath.ToSlash(relativePath)
 		if relativePath == "." {
@@ -94,7 +102,7 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 		})
 		return nil
 	}); err != nil {
-		return nil, fmt.Errorf("walk directory %s: %w", cleanDirectory, err)
+		return nil, classifyFilesystemError(fmt.Errorf("walk directory %s: %w", cleanDirectory, err))
 	}
 
 	sort.Slice(entries, func(i int, j int) bool {
@@ -108,34 +116,43 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 
 func (adapter *Adapter) Read(ctx context.Context, source domaintaskboard.SourceIdentity) ([]byte, error) {
 	if err := source.ValidateBasics(); err != nil {
-		return nil, err
+		return nil, wrapTerminal(err)
 	}
 	if source.Kind != domaintaskboard.SourceKindFile {
-		return nil, fmt.Errorf("source kind must be file")
+		return nil, wrapTerminal(fmt.Errorf("source kind must be file"))
 	}
 	if ctx != nil {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, wrapTransient(ctx.Err())
 		default:
 		}
 	}
 
-	content, err := os.ReadFile(strings.TrimSpace(source.Locator))
+	cleanLocator := strings.TrimSpace(source.Locator)
+	info, err := os.Stat(cleanLocator)
 	if err != nil {
-		return nil, fmt.Errorf("read source %s: %w", strings.TrimSpace(source.Locator), err)
+		return nil, classifyFilesystemError(fmt.Errorf("stat source %s: %w", cleanLocator, err))
+	}
+	if info.IsDir() {
+		return nil, wrapTerminal(fmt.Errorf("source locator must be a file"))
+	}
+
+	content, err := os.ReadFile(cleanLocator)
+	if err != nil {
+		return nil, classifyFilesystemError(fmt.Errorf("read source %s: %w", cleanLocator, err))
 	}
 	return content, nil
 }
 
 func (adapter *Adapter) ResolveWorkingDirectory(ctx context.Context, source domaintaskboard.SourceIdentity) (string, error) {
 	if err := source.ValidateBasics(); err != nil {
-		return "", err
+		return "", wrapTerminal(err)
 	}
 	if ctx != nil {
 		select {
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return "", wrapTransient(ctx.Err())
 		default:
 		}
 	}
@@ -147,8 +164,95 @@ func (adapter *Adapter) ResolveWorkingDirectory(ctx context.Context, source doma
 	case domaintaskboard.SourceKindFile:
 		return filepath.Dir(cleanLocator), nil
 	default:
-		return "", fmt.Errorf("source kind must be file or folder")
+		return "", wrapTerminal(fmt.Errorf("source kind must be file or folder"))
 	}
+}
+
+func classifyFilesystemError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return ensureClassified(err, failureClassTransient)
+	}
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrInvalid) {
+		return ensureClassified(err, failureClassTerminal)
+	}
+	return ensureClassified(err, failureClassTransient)
+}
+
+func wrapTerminal(err error) error {
+	if err == nil {
+		return nil
+	}
+	return ensureClassified(err, failureClassTerminal)
+}
+
+func wrapTransient(err error) error {
+	if err == nil {
+		return nil
+	}
+	return ensureClassified(err, failureClassTransient)
+}
+
+func ensureClassified(err error, defaultClass string) error {
+	if err == nil {
+		return nil
+	}
+	if hasFailureClass(err) {
+		return err
+	}
+	return &classifiedFailureError{class: defaultClass, err: err}
+}
+
+const (
+	failureClassTransient = "transient"
+	failureClassTerminal  = "terminal"
+)
+
+type classifiedFailureError struct {
+	class string
+	err   error
+}
+
+func (err *classifiedFailureError) Error() string {
+	if err == nil || err.err == nil {
+		return "classified failure"
+	}
+	return err.err.Error()
+}
+
+func (err *classifiedFailureError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.err
+}
+
+func (err *classifiedFailureError) FailureClass() string {
+	if err == nil {
+		return ""
+	}
+	return err.class
+}
+
+func hasFailureClass(err error) bool {
+	current := err
+	for current != nil {
+		classProvider, ok := current.(interface{ FailureClass() string })
+		if ok {
+			class := strings.ToLower(strings.TrimSpace(classProvider.FailureClass()))
+			if class == failureClassTransient || class == failureClassTerminal {
+				return true
+			}
+		}
+		unwrapper, ok := current.(interface{ Unwrap() error })
+		if !ok {
+			return false
+		}
+		current = unwrapper.Unwrap()
+	}
+	return false
 }
 
 func normalizeIgnorePaths(ignorePaths []string) []string {

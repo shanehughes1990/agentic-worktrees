@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
@@ -25,10 +27,10 @@ func NewAdapter() *Adapter {
 
 func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceMetadata, options domaintaskboard.SourceListOptions) ([]domaintaskboard.SourceListEntry, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, appgitflow.WrapTransient(err)
 	}
 	if err := source.ValidateBasics(); err != nil {
-		return nil, err
+		return nil, appgitflow.WrapTerminal(err)
 	}
 
 	switch source.Identity.Kind {
@@ -37,35 +39,35 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 	case domaintaskboard.SourceKindFolder:
 		return adapter.listFolder(ctx, source.Identity, options)
 	default:
-		return nil, fmt.Errorf("unsupported source kind: %s", source.Identity.Kind)
+		return nil, appgitflow.WrapTerminal(fmt.Errorf("unsupported source kind: %s", source.Identity.Kind))
 	}
 }
 
 func (adapter *Adapter) Read(ctx context.Context, source domaintaskboard.SourceIdentity) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, appgitflow.WrapTransient(err)
 	}
 	if err := source.ValidateBasics(); err != nil {
-		return nil, err
+		return nil, appgitflow.WrapTerminal(err)
 	}
 	if source.Kind != domaintaskboard.SourceKindFile {
-		return nil, fmt.Errorf("source kind must be file")
+		return nil, appgitflow.WrapTerminal(fmt.Errorf("source kind must be file"))
 	}
 
 	info, err := os.Stat(strings.TrimSpace(source.Locator))
 	if err != nil {
-		return nil, fmt.Errorf("stat source file: %w", err)
+		return nil, classifyFilesystemError(fmt.Errorf("stat source file: %w", err))
 	}
 	if info.IsDir() {
-		return nil, fmt.Errorf("source locator must be a file")
+		return nil, appgitflow.WrapTerminal(fmt.Errorf("source locator must be a file"))
 	}
 
 	content, err := os.ReadFile(strings.TrimSpace(source.Locator))
 	if err != nil {
-		return nil, fmt.Errorf("read source file: %w", err)
+		return nil, classifyFilesystemError(fmt.Errorf("read source file: %w", err))
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, appgitflow.WrapTransient(err)
 	}
 	return content, nil
 }
@@ -74,10 +76,10 @@ func (adapter *Adapter) listFile(identity domaintaskboard.SourceIdentity) ([]dom
 	cleanLocator := strings.TrimSpace(identity.Locator)
 	info, err := os.Stat(cleanLocator)
 	if err != nil {
-		return nil, fmt.Errorf("stat source file: %w", err)
+		return nil, classifyFilesystemError(fmt.Errorf("stat source file: %w", err))
 	}
 	if info.IsDir() {
-		return nil, fmt.Errorf("source locator must be a file")
+		return nil, appgitflow.WrapTerminal(fmt.Errorf("source locator must be a file"))
 	}
 	fileIdentity := domaintaskboard.SourceIdentity{
 		Kind:    domaintaskboard.SourceKindFile,
@@ -97,10 +99,10 @@ func (adapter *Adapter) listFolder(ctx context.Context, identity domaintaskboard
 	cleanLocator := strings.TrimSpace(identity.Locator)
 	info, err := os.Stat(cleanLocator)
 	if err != nil {
-		return nil, fmt.Errorf("stat source folder: %w", err)
+		return nil, classifyFilesystemError(fmt.Errorf("stat source folder: %w", err))
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("source locator must be a directory")
+		return nil, appgitflow.WrapTerminal(fmt.Errorf("source locator must be a directory"))
 	}
 
 	cleanWalkDepth := options.WalkDepth
@@ -110,15 +112,15 @@ func (adapter *Adapter) listFolder(ctx context.Context, identity domaintaskboard
 	entries := make([]domaintaskboard.SourceListEntry, 0, 32)
 	if err := filepath.WalkDir(cleanLocator, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return classifyFilesystemError(walkErr)
 		}
 		if err := ctx.Err(); err != nil {
-			return err
+			return appgitflow.WrapTransient(err)
 		}
 
 		relativePath, err := filepath.Rel(cleanLocator, path)
 		if err != nil {
-			return fmt.Errorf("build relative path for %s: %w", path, err)
+			return appgitflow.WrapTerminal(fmt.Errorf("build relative path for %s: %w", path, err))
 		}
 		relativePath = filepath.ToSlash(relativePath)
 		if relativePath == "." {
@@ -162,7 +164,7 @@ func (adapter *Adapter) listFolder(ctx context.Context, identity domaintaskboard
 		})
 		return nil
 	}); err != nil {
-		return nil, fmt.Errorf("walk source folder %s: %w", cleanLocator, err)
+		return nil, classifyFilesystemError(fmt.Errorf("walk source folder %s: %w", cleanLocator, err))
 	}
 
 	sort.Slice(entries, func(i int, j int) bool {
@@ -172,6 +174,19 @@ func (adapter *Adapter) listFolder(ctx context.Context, identity domaintaskboard
 		return entries[i].RelativePath < entries[j].RelativePath
 	})
 	return entries, nil
+}
+
+func classifyFilesystemError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return appgitflow.EnsureClassified(err, appgitflow.FailureClassTransient)
+	}
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrInvalid) {
+		return appgitflow.EnsureClassified(err, appgitflow.FailureClassTerminal)
+	}
+	return appgitflow.EnsureClassified(err, appgitflow.FailureClassTransient)
 }
 
 func normalizeIgnorePaths(ignorePaths []string) []string {
