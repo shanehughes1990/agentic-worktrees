@@ -122,15 +122,27 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		return fmt.Errorf("git worktree flow interrupted: %w", err)
 	}
 
+	if !appgitflow.IsTerminalFailure(err) {
+		if strings.TrimSpace(outcome.Status) == "" || strings.EqualFold(strings.TrimSpace(outcome.Status), "failed") {
+			outcome.Status = "interrupted"
+		}
+		if strings.TrimSpace(outcome.Reason) == "" {
+			outcome.Reason = "transient task execution failure"
+		}
+		if markErr := handler.taskboardService.MarkTaskCanceledWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), outcome); markErr != nil {
+			entry.WithError(markErr).Error("failed to requeue task after transient git worktree flow failure")
+			return fmt.Errorf("requeue task after transient failure: %w", markErr)
+		}
+		entry.WithError(err).Warn("git worktree flow transient failure; task re-queued for automatic restart")
+		return fmt.Errorf("git worktree flow transient failure: %w", err)
+	}
+
 	if markErr := handler.taskboardService.MarkTaskBlockedWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), outcome); markErr != nil {
 		entry.WithError(markErr).Error("failed to mark task blocked after git worktree flow")
 		return fmt.Errorf("mark task blocked: %w", markErr)
 	}
 	entry.WithError(err).Error("git worktree flow task failed")
-	if appgitflow.IsTerminalFailure(err) {
-		return fmt.Errorf("%w: git worktree flow: %v", asynq.SkipRetry, err)
-	}
-	return fmt.Errorf("git worktree flow: %w", err)
+	return fmt.Errorf("%w: git worktree flow: %v", asynq.SkipRetry, err)
 }
 
 func (handler *GitWorktreeFlowHandler) entry() *logrus.Entry {
