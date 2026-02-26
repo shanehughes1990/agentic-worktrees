@@ -26,11 +26,22 @@ func (port *fakeGitPort) MergeTaskBranch(context.Context, string, string, string
 	return port.mergeAttempt, nil
 }
 
+func (port *fakeGitPort) SyncTaskBranchWithSource(context.Context, string, string, string, string) (MergeAttempt, error) {
+	if port.err != nil {
+		return MergeAttempt{}, port.err
+	}
+	return MergeAttempt{NoChanges: true}, nil
+}
+
 func (port *fakeGitPort) ResolveConflicts(context.Context, string, []string, string) error {
 	if port.err != nil {
 		return port.err
 	}
 	port.resolved = true
+	return nil
+}
+
+func (port *fakeGitPort) ValidateWorktree(context.Context, string) error {
 	return nil
 }
 

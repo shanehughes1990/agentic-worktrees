@@ -87,6 +87,63 @@ func (adapter *Adapter) MergeTaskBranch(ctx context.Context, repositoryRoot stri
 	return appgitflow.MergeAttempt{NoChanges: true}, nil
 }
 
+func (adapter *Adapter) SyncTaskBranchWithSource(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) (appgitflow.MergeAttempt, error) {
+	absoluteWorktreePath := filepath.Join(repositoryRoot, filepath.FromSlash(worktreePath))
+
+	if _, err := adapter.runGit(ctx, repositoryRoot, "checkout", sourceBranch); err != nil {
+		return appgitflow.MergeAttempt{}, err
+	}
+	if _, err := adapter.runGit(ctx, absoluteWorktreePath, "checkout", taskBranch); err != nil {
+		return appgitflow.MergeAttempt{}, err
+	}
+
+	_, err := adapter.runGit(ctx, absoluteWorktreePath, "merge", "--no-ff", "--no-commit", sourceBranch)
+	if err != nil {
+		conflictFiles, conflictErr := adapter.conflictFiles(ctx, absoluteWorktreePath)
+		if conflictErr != nil {
+			return appgitflow.MergeAttempt{}, conflictErr
+		}
+		if len(conflictFiles) > 0 {
+			return appgitflow.MergeAttempt{ConflictFiles: conflictFiles}, nil
+		}
+		return appgitflow.MergeAttempt{}, err
+	}
+
+	hasStagedChanges, stagedErr := adapter.hasStagedChanges(ctx, absoluteWorktreePath)
+	if stagedErr != nil {
+		return appgitflow.MergeAttempt{}, stagedErr
+	}
+	if hasStagedChanges {
+		if _, commitErr := adapter.runGit(ctx, absoluteWorktreePath, "commit", "-m", fmt.Sprintf("Sync %s with latest %s before final merge", taskBranch, sourceBranch)); commitErr != nil {
+			return appgitflow.MergeAttempt{}, commitErr
+		}
+		return appgitflow.MergeAttempt{}, nil
+	}
+
+	return appgitflow.MergeAttempt{NoChanges: true}, nil
+}
+
+func (adapter *Adapter) ValidateWorktree(ctx context.Context, repositoryRoot string) error {
+	command := exec.CommandContext(ctx, "go", "test", "./...")
+	command.Dir = repositoryRoot
+	output, err := command.CombinedOutput()
+	outputText := strings.TrimSpace(string(output))
+	if adapter.logger != nil {
+		adapter.logger.WithFields(logrus.Fields{
+			"event": "git.validation",
+			"repository_root": repositoryRoot,
+			"output": outputText,
+		}).Debug("validated worktree with go test ./...")
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return appgitflow.WrapTransient(fmt.Errorf("validate worktree tests: %w", ctx.Err()))
+		}
+		return appgitflow.WrapTerminal(fmt.Errorf("validate worktree tests failed: %s", outputText))
+	}
+	return nil
+}
+
 func (adapter *Adapter) ResolveConflicts(ctx context.Context, repositoryRoot string, conflictFiles []string, copilotAdvice string) error {
 	_ = strings.TrimSpace(copilotAdvice)
 	if len(conflictFiles) == 0 {

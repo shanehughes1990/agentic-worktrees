@@ -65,6 +65,10 @@ func (port *integrationGitPort) MergeTaskBranch(ctx context.Context, repositoryR
 	return MergeAttempt{}, nil
 }
 
+func (port *integrationGitPort) SyncTaskBranchWithSource(context.Context, string, string, string, string) (MergeAttempt, error) {
+	return MergeAttempt{NoChanges: true}, nil
+}
+
 func (port *integrationGitPort) ResolveConflicts(context.Context, string, []string, string) error {
 	return nil
 }
@@ -96,6 +100,10 @@ func (port *integrationGitPort) CleanupTaskWorktree(ctx context.Context, reposit
 }
 
 func (port *integrationGitPort) CleanupRunArtifacts(context.Context, string, string) error {
+	return nil
+}
+
+func (port *integrationGitPort) ValidateWorktree(context.Context, string) error {
 	return nil
 }
 

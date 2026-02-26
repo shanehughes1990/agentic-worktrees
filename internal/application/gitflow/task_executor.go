@@ -126,6 +126,74 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		}
 	}
 
+	syncAttempt, err := executor.git.SyncTaskBranchWithSource(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch, worktreePath)
+	if err != nil {
+		return failedResult("failed", err.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("sync task branch with source: %w", err), FailureClassTerminal)
+	}
+
+	if len(syncAttempt.ConflictFiles) > 0 {
+		if executor.decomposer == nil {
+			return failedResult("failed", "resolve pre-merge sync conflicts: copilot decomposer is required", request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts: copilot decomposer is required"), FailureClassTerminal)
+		}
+		resolutionResult, resolutionErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
+			RunID:            cleanRunID,
+			ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
+			WorkingDirectory: absoluteWorktreePath,
+			Prompt:           buildSourceSyncConflictResolutionPrompt(cleanTaskID, cleanSourceBranch, syncAttempt.ConflictFiles),
+		})
+		if resolutionErr != nil {
+			resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
+			if strings.TrimSpace(resolutionResult.SessionID) != "" {
+				resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+			}
+			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
+		}
+		if strings.TrimSpace(resolutionResult.SessionID) != "" {
+			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+		}
+		if resolveErr := executor.git.ResolveConflicts(ctx, absoluteWorktreePath, syncAttempt.ConflictFiles, resolutionResult.Response); resolveErr != nil {
+			return failedResult("failed", resolveErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts: %w", resolveErr), FailureClassTerminal)
+		}
+		if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
+			return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage pre-merge sync conflict resolution changes: %w", stageErr), FailureClassTerminal)
+		}
+		if commitErr := executor.git.Commit(ctx, absoluteWorktreePath, fmt.Sprintf("Resolve pre-merge sync conflicts for task %s", cleanTaskID)); commitErr != nil {
+			return failedResult("failed", commitErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("commit pre-merge sync conflict resolution: %w", commitErr), FailureClassTerminal)
+		}
+		syncAttempt.NoChanges = false
+	}
+
+	if !syncAttempt.NoChanges {
+		if executor.decomposer != nil {
+			recheckResult, recheckErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
+				RunID:            cleanRunID,
+				ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
+				WorkingDirectory: absoluteWorktreePath,
+				Prompt:           buildPostSourceSyncRecheckPrompt(request, cleanSourceBranch),
+			})
+			if recheckErr != nil {
+				resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
+				if strings.TrimSpace(recheckResult.SessionID) != "" {
+					resumeSessionID = strings.TrimSpace(recheckResult.SessionID)
+				}
+				return failedResult("failed", recheckErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("post-sync recheck with agent: %w", recheckErr), FailureClassTerminal)
+			}
+			if strings.TrimSpace(recheckResult.SessionID) != "" {
+				request.ResumeSessionID = strings.TrimSpace(recheckResult.SessionID)
+			}
+			if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
+				return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage post-sync recheck changes: %w", stageErr), FailureClassTerminal)
+			}
+			if commitErr := executor.git.Commit(ctx, absoluteWorktreePath, fmt.Sprintf("Recheck task %s after source sync", cleanTaskID)); commitErr != nil {
+				return failedResult("failed", commitErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("commit post-sync recheck changes: %w", commitErr), FailureClassTerminal)
+			}
+		}
+
+		if validateErr := executor.git.ValidateWorktree(ctx, absoluteWorktreePath); validateErr != nil {
+			return failedResult("failed", validateErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("validate task worktree after source sync: %w", validateErr), FailureClassTerminal)
+		}
+	}
+
 	mergeAttempt, err := executor.git.MergeTaskBranch(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch)
 	if err != nil {
 		return failedResult("failed", err.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("merge task branch: %w", err), FailureClassTerminal)
@@ -211,4 +279,18 @@ func buildTaskImplementationPrompt(request TaskExecutionRequest) string {
 
 func buildConflictResolutionPrompt(taskID string, files []string) string {
 	return fmt.Sprintf("Resolve merge conflicts for task %s in files: %s. You must fully resolve all conflict markers, preserve intended task changes, ensure the repository builds/tests still pass for impacted scope, and leave the repository in a merge-ready clean state for commit.", strings.TrimSpace(taskID), strings.Join(files, ", "))
+}
+
+func buildSourceSyncConflictResolutionPrompt(taskID string, sourceBranch string, files []string) string {
+	return fmt.Sprintf("You are synchronizing task %s with the latest %s branch before final merge. Resolve these conflicts in the task worktree files: %s. Preserve task intent while integrating latest upstream changes, ensure conflict markers are fully removed, and keep repository state commit-ready.", strings.TrimSpace(taskID), strings.TrimSpace(sourceBranch), strings.Join(files, ", "))
+}
+
+func buildPostSourceSyncRecheckPrompt(request TaskExecutionRequest, sourceBranch string) string {
+	return fmt.Sprintf("Recheck task %s for board %s after syncing with latest %s. Confirm the task is still complete and correct, adjust implementation if required, and ensure tests/build expectations remain satisfied. Task title: %s. Task detail: %s.",
+		strings.TrimSpace(request.TaskID),
+		strings.TrimSpace(request.BoardID),
+		strings.TrimSpace(sourceBranch),
+		strings.TrimSpace(request.TaskTitle),
+		strings.TrimSpace(request.TaskDetail),
+	)
 }
