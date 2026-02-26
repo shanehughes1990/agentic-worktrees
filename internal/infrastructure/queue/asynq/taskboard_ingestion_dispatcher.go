@@ -2,7 +2,9 @@ package asynq
 
 import (
 	"context"
+	"errors"
 
+	"github.com/hibiken/asynq"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	infracopilot "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/copilot"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
@@ -33,6 +35,7 @@ func (dispatcher *TaskboardIngestionDispatcher) EnqueueIngestion(ctx context.Con
 	entry.Info("enqueueing copilot decomposition task")
 
 	taskInfo, err := dispatcher.client.EnqueueCopilotDecompose(ctx, tasks.CopilotDecomposePayload{
+		IdempotencyKey:   job.RunID,
 		RunID:            job.RunID,
 		Prompt:           job.Prompt,
 		Model:            job.Model,
@@ -43,6 +46,10 @@ func (dispatcher *TaskboardIngestionDispatcher) EnqueueIngestion(ctx context.Con
 		CLIURL:           dispatcher.config.CLIURL,
 	})
 	if err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			entry.WithError(err).Warn("ingestion task already enqueued or running; duplicate enqueue suppressed")
+			return job.RunID, nil
+		}
 		entry.WithError(err).Error("failed to enqueue copilot decomposition task")
 		return "", err
 	}

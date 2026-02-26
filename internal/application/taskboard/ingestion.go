@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -48,13 +47,14 @@ type IngestionDispatcher interface {
 }
 
 type IngestionService struct {
-	dispatcher   IngestionDispatcher
-	repository   Repository
-	workflowRepo WorkflowRepository
-	sourceLister domaintaskboard.SourceLister
-	sourceReader domaintaskboard.SourceReader
-	model        string
-	normalizers  []DocumentNormalizer
+	dispatcher                      IngestionDispatcher
+	repository                      Repository
+	workflowRepo                    WorkflowRepository
+	sourceLister                    domaintaskboard.SourceLister
+	sourceReader                    domaintaskboard.SourceReader
+	sourceWorkingDirectoryResolver  domaintaskboard.SourceWorkingDirectoryResolver
+	model                           string
+	normalizers                     []DocumentNormalizer
 }
 
 func NewIngestionService(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, model string) *IngestionService {
@@ -65,14 +65,21 @@ func NewIngestionServiceWithNormalizers(dispatcher IngestionDispatcher, reposito
 	if len(normalizers) == 0 {
 		normalizers = DefaultDocumentNormalizers()
 	}
+	var sourceWorkingDirectoryResolver domaintaskboard.SourceWorkingDirectoryResolver
+	if resolver, ok := sourceLister.(domaintaskboard.SourceWorkingDirectoryResolver); ok {
+		sourceWorkingDirectoryResolver = resolver
+	} else if resolver, ok := sourceReader.(domaintaskboard.SourceWorkingDirectoryResolver); ok {
+		sourceWorkingDirectoryResolver = resolver
+	}
 	return &IngestionService{
-		dispatcher:   dispatcher,
-		repository:   repository,
-		workflowRepo: workflowRepo,
-		sourceLister: sourceLister,
-		sourceReader: sourceReader,
-		model:        strings.TrimSpace(model),
-		normalizers:  normalizers,
+		dispatcher:                     dispatcher,
+		repository:                     repository,
+		workflowRepo:                   workflowRepo,
+		sourceLister:                   sourceLister,
+		sourceReader:                   sourceReader,
+		sourceWorkingDirectoryResolver: sourceWorkingDirectoryResolver,
+		model:                          strings.TrimSpace(model),
+		normalizers:                    normalizers,
 	}
 }
 
@@ -103,9 +110,9 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 		return IngestionResult{}, fmt.Errorf("source type must be file or folder")
 	}
 
-	workingDirectory := cleanSourcePath
-	if cleanSourceType == IngestionSourceTypeFile {
-		workingDirectory = filepath.Dir(cleanSourcePath)
+	workingDirectory, err := service.resolveWorkingDirectory(ctx, cleanSourceType, cleanSourcePath)
+	if err != nil {
+		return IngestionResult{}, fmt.Errorf("resolve working directory: %w", err)
 	}
 
 	documents, err := NormalizeSourceDocumentsWithSourcePort(ctx, cleanSourcePath, cleanSourceType, request.Folder, service.sourceLister, service.sourceReader, service.normalizers)
@@ -126,6 +133,16 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 	}
 
 	workflow := &IngestionWorkflow{TaskID: taskID, Status: WorkflowStatusQueued, Message: "ingestion queued"}
+	workflow.TaskType = WorkflowTaskTypeCopilotDecompose
+	workflow.BoardID = runID
+	workflow.Details = map[string]any{
+		"run_id":            runID,
+		"queue_task_id":     strings.TrimSpace(taskID),
+		"source_path":       cleanSourcePath,
+		"source_type":       string(cleanSourceType),
+		"working_directory": workingDirectory,
+		"model":             service.model,
+	}
 	workflow.Normalize(runID)
 	if err := service.workflowRepo.SaveWorkflow(ctx, workflow); err != nil {
 		return IngestionResult{}, fmt.Errorf("save workflow queued status: %w", err)
@@ -160,6 +177,37 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 			}
 		}
 	}
+}
+
+func (service *IngestionService) resolveWorkingDirectory(ctx context.Context, sourceType IngestionSourceType, sourcePath string) (string, error) {
+	if service.sourceWorkingDirectoryResolver != nil {
+		sourceKind := domaintaskboard.SourceKindFolder
+		if sourceType == IngestionSourceTypeFile {
+			sourceKind = domaintaskboard.SourceKindFile
+		}
+		workingDirectory, err := service.sourceWorkingDirectoryResolver.ResolveWorkingDirectory(ctx, domaintaskboard.SourceIdentity{
+			Kind:    sourceKind,
+			Locator: sourcePath,
+		})
+		if err != nil {
+			return "", err
+		}
+		cleanWorkingDirectory := strings.TrimSpace(workingDirectory)
+		if cleanWorkingDirectory != "" {
+			return cleanWorkingDirectory, nil
+		}
+	}
+	if sourceType != IngestionSourceTypeFile {
+		return sourcePath, nil
+	}
+	lastSeparator := strings.LastIndexAny(sourcePath, `/\`)
+	if lastSeparator < 0 {
+		return ".", nil
+	}
+	if lastSeparator == 0 {
+		return sourcePath[:1], nil
+	}
+	return sourcePath[:lastSeparator], nil
 }
 
 func (service *IngestionService) inferSourceType(ctx context.Context, sourcePath string) (IngestionSourceType, error) {

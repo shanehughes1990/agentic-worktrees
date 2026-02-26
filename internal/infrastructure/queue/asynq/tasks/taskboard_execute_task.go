@@ -42,7 +42,7 @@ func NewTaskboardExecuteTask(payload TaskboardExecutePayload, options ...asynq.O
 	}
 
 	task := asynq.NewTask(TaskTypeTaskboardExecute, body)
-	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour), asynq.Unique(2 * time.Hour)}
+	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour), asynq.TaskID(payload.IdempotencyKey), asynq.Unique(2 * time.Hour)}
 	opts = append(opts, options...)
 	return task, opts, nil
 }

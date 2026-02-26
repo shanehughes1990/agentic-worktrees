@@ -24,3 +24,7 @@ type SourceLister interface {
 type SourceReader interface {
 	Read(ctx context.Context, source SourceIdentity) ([]byte, error)
 }
+
+type SourceWorkingDirectoryResolver interface {
+	ResolveWorkingDirectory(ctx context.Context, source SourceIdentity) (string, error)
+}

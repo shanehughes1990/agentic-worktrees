@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hibiken/asynq"
@@ -41,7 +42,13 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 
 	runID := strings.TrimSpace(payload.RunID)
 	if runID != "" {
-		workflow := &apptaskboard.IngestionWorkflow{RunID: runID, Status: apptaskboard.WorkflowStatusRunning, Message: "copilot decomposition running"}
+		workflow := &apptaskboard.IngestionWorkflow{RunID: runID, TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose, TaskID: strings.TrimSpace(payload.RunID), BoardID: runID, Status: apptaskboard.WorkflowStatusRunning, Message: "copilot decomposition running"}
+		workflow.Details = map[string]any{
+			"run_id":       runID,
+			"queue_task_id": strings.TrimSpace(payload.RunID),
+			"worker_pid":   os.Getpid(),
+			"model":        strings.TrimSpace(payload.Model),
+		}
 		workflow.Normalize(runID)
 		_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
 		entry.Info("workflow updated to running")
@@ -133,10 +140,21 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if runID != "" {
 		workflow := &apptaskboard.IngestionWorkflow{
 			RunID:   runID,
+			TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose,
+			TaskID: strings.TrimSpace(payload.RunID),
 			Status:  apptaskboard.WorkflowStatusCompleted,
 			Message: "taskboard created",
 			Stream:  result.Response,
 			BoardID: board.BoardID,
+		}
+		workflow.Details = map[string]any{
+			"run_id":        runID,
+			"board_id":      strings.TrimSpace(board.BoardID),
+			"queue_task_id": strings.TrimSpace(payload.RunID),
+			"worker_pid":    os.Getpid(),
+			"session_id":    strings.TrimSpace(result.SessionID),
+			"prompt_hash":   strings.TrimSpace(result.PromptHash),
+			"model":         strings.TrimSpace(result.Model),
 		}
 		workflow.Normalize(runID)
 		_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
@@ -153,8 +171,13 @@ func (handler *CopilotDecomposeHandler) saveFailureWorkflow(ctx context.Context,
 	}
 	workflow := &apptaskboard.IngestionWorkflow{
 		RunID:   cleanRunID,
+		TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose,
 		Status:  apptaskboard.WorkflowStatusFailed,
 		Message: message,
+	}
+	workflow.Details = map[string]any{
+		"run_id":     cleanRunID,
+		"worker_pid": os.Getpid(),
 	}
 	workflow.Normalize(cleanRunID)
 	_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)

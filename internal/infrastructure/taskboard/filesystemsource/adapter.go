@@ -122,6 +122,29 @@ func (adapter *Adapter) Read(ctx context.Context, source domaintaskboard.SourceI
 	return content, nil
 }
 
+func (adapter *Adapter) ResolveWorkingDirectory(ctx context.Context, source domaintaskboard.SourceIdentity) (string, error) {
+	if err := source.ValidateBasics(); err != nil {
+		return "", err
+	}
+	if ctx != nil {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+	}
+
+	cleanLocator := strings.TrimSpace(source.Locator)
+	switch source.Kind {
+	case domaintaskboard.SourceKindFolder:
+		return cleanLocator, nil
+	case domaintaskboard.SourceKindFile:
+		return filepath.Dir(cleanLocator), nil
+	default:
+		return "", fmt.Errorf("source kind must be file or folder")
+	}
+}
+
 func normalizeIgnorePaths(ignorePaths []string) []string {
 	normalized := make([]string, 0, len(ignorePaths))
 	for _, ignorePath := range ignorePaths {

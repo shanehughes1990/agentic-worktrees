@@ -233,6 +233,13 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 		UpdatedAt:  mapTaskUpdatedAt(info),
 		CreatedAt:  time.Time{},
 		Cancelable: isCancelableTaskState(info.State),
+		Details: map[string]any{
+			"asynq_task_id":    strings.TrimSpace(info.ID),
+			"asynq_task_type":  strings.TrimSpace(info.Type),
+			"asynq_state":      strings.TrimSpace(info.State.String()),
+			"asynq_retry_count": info.Retried,
+			"asynq_max_retry":   info.MaxRetry,
+		},
 	}
 }
 

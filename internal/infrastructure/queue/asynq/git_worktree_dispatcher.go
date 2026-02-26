@@ -2,7 +2,9 @@ package asynq
 
 import (
 	"context"
+	"errors"
 
+	"github.com/hibiken/asynq"
 	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
 	"github.com/sirupsen/logrus"
@@ -43,6 +45,10 @@ func (dispatcher *GitWorktreeDispatcher) EnqueueWorktreeFlow(ctx context.Context
 		IdempotencyKey: job.RunID + ":" + job.TaskID,
 	})
 	if err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			entry.WithError(err).Warn("git worktree flow already enqueued or running; duplicate enqueue suppressed")
+			return job.RunID + ":" + job.TaskID, nil
+		}
 		entry.WithError(err).Error("failed to enqueue git worktree flow task")
 		return "", err
 	}
@@ -78,6 +84,10 @@ func (dispatcher *GitWorktreeDispatcher) EnqueueConflictResolution(ctx context.C
 		IdempotencyKey: job.IdempotencyKey,
 	})
 	if err != nil {
+		if errors.Is(err, asynq.ErrDuplicateTask) {
+			entry.WithError(err).Warn("git conflict resolve already enqueued or running; duplicate enqueue suppressed")
+			return job.IdempotencyKey, nil
+		}
 		entry.WithError(err).Error("failed to enqueue git conflict resolve task")
 		return "", err
 	}

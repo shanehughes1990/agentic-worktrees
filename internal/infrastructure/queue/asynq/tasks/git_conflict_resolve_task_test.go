@@ -1,6 +1,9 @@
 package tasks
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestNewGitConflictResolveTaskValidatesInput(t *testing.T) {
 	if _, _, err := NewGitConflictResolveTask(GitConflictResolvePayload{}); err == nil {
@@ -39,5 +42,12 @@ func TestNewGitConflictResolveTaskBuildsTask(t *testing.T) {
 	}
 	if len(options) == 0 {
 		t.Fatalf("expected default queue option")
+	}
+	payload := GitConflictResolvePayload{}
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		t.Fatalf("unexpected payload decode error: %v", err)
+	}
+	if payload.IdempotencyKey == "" {
+		t.Fatalf("expected idempotency key fallback to be populated")
 	}
 }

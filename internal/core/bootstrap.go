@@ -355,6 +355,7 @@ func Init() (*Runtime, error) {
 		},
 		runtime.authService.Status,
 		runtime.authService.Authenticate,
+		runtime.authService.KillOrphanedProcesses,
 		runtime.repositoryRoot,
 		defaultSourceBranch,
 		cfg.Redis.URI,

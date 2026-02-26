@@ -31,6 +31,7 @@ type IngestionWorkflow struct {
 	Message    string         `json:"message,omitempty"`
 	Stream     string         `json:"stream,omitempty"`
 	BoardID    string         `json:"board_id,omitempty"`
+	Details    map[string]any `json:"details,omitempty"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	CreatedAt  time.Time      `json:"created_at"`
 	Cancelable bool           `json:"cancelable,omitempty"`

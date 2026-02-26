@@ -22,6 +22,7 @@ type WorkflowStatusFunc func(ctx context.Context, runID string, redisURI string)
 type CancelWorkflowFunc func(ctx context.Context, runID string, redisURI string) (string, error)
 type CopilotAuthStatusFunc func(ctx context.Context) (string, error)
 type CopilotAuthenticateFunc func(ctx context.Context) error
+type CopilotKillOrphanedFunc func(ctx context.Context) (string, error)
 
 type Command struct {
 	Title       string
@@ -63,7 +64,7 @@ type UI struct {
 	pendingIngestionRunID      string
 }
 
-func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, cancelWorkflow CancelWorkflowFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, cancelWorkflow CancelWorkflowFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, copilotKillOrphaned CopilotKillOrphanedFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
@@ -84,7 +85,7 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 
 	mainScreen := ui.buildMainScreen()
 	settingsScreen := ui.buildSettingsScreen()
-	authenticationScreen := ui.buildAuthenticationCommandsScreen(copilotAuthStatus, copilotAuthenticate)
+	authenticationScreen := ui.buildAuthenticationCommandsScreen(copilotAuthStatus, copilotAuthenticate, copilotKillOrphaned)
 	ingestionScreen := ui.buildIngestionCommandsScreen()
 	worktreeScreen := ui.buildWorktreeCommandsScreen()
 	runIngestionScreen := ui.buildRunIngestionScreen(ingest)
@@ -257,7 +258,7 @@ func (ui *UI) buildSettingsScreen() tview.Primitive {
 		AddItem(ui.status, 3, 0, false)
 }
 
-func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc) tview.Primitive {
+func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, copilotKillOrphaned CopilotKillOrphanedFunc) tview.Primitive {
 	header := tview.NewTextView().SetText("Authentication Commands").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
@@ -304,6 +305,24 @@ func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthSta
 					ui.status.SetText("Copilot authentication completed")
 				})
 			})
+		}},
+		{Title: "Kill Orphaned Copilot Processes", Description: "Last-resort cleanup of stuck Copilot CLI processes", Shortcut: 'k', Action: func() {
+			if copilotKillOrphaned == nil {
+				ui.status.SetText("Copilot orphan process cleanup command unavailable")
+				return
+			}
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				defer cancel()
+				message, err := copilotKillOrphaned(ctx)
+				ui.application.QueueUpdateDraw(func() {
+					if err != nil {
+						ui.status.SetText(fmt.Sprintf("Copilot orphan process cleanup failed: %s", formatUserError(err)))
+						return
+					}
+					ui.status.SetText(strings.TrimSpace(message))
+				})
+			}()
 		}},
 	}, true)
 

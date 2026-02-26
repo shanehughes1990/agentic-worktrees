@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -398,6 +399,7 @@ func (service *ExecutionPipelineService) appendWorkflowEvent(ctx context.Context
 		"run_id":   cleanRunID,
 		"board_id": strings.TrimSpace(boardID),
 		"message":  strings.TrimSpace(message),
+		"worker_pid": os.Getpid(),
 	}
 	for key, value := range details {
 		eventPayload[key] = value
