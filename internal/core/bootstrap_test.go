@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unsafe"
 
-	filesystem "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystem"
+	filesystemsource "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystemsource"
 )
 
 func TestInitRuntime(t *testing.T) {
@@ -49,7 +49,7 @@ func TestInitRuntimeRegistersFilesystemAsOnlyConcreteSourceProvider(t *testing.T
 
 	listerValue := sourceLister.Elem()
 	readerValue := sourceReader.Elem()
-	expectedType := reflect.TypeOf(&filesystem.Adapter{})
+	expectedType := reflect.TypeOf(&filesystemsource.Adapter{})
 	if listerValue.Type() != expectedType {
 		t.Fatalf("expected filesystem source lister, got %s", listerValue.Type())
 	}
