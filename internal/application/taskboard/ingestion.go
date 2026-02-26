@@ -47,14 +47,14 @@ type IngestionDispatcher interface {
 }
 
 type IngestionService struct {
-	dispatcher                      IngestionDispatcher
-	repository                      Repository
-	workflowRepo                    WorkflowRepository
-	sourceLister                    domaintaskboard.SourceLister
-	sourceReader                    domaintaskboard.SourceReader
-	sourceWorkingDirectoryResolver  domaintaskboard.SourceWorkingDirectoryResolver
-	model                           string
-	normalizers                     []DocumentNormalizer
+	dispatcher                     IngestionDispatcher
+	repository                     Repository
+	workflowRepo                   WorkflowRepository
+	sourceLister                   domaintaskboard.SourceLister
+	sourceReader                   domaintaskboard.SourceReader
+	sourceWorkingDirectoryResolver domaintaskboard.SourceWorkingDirectoryResolver
+	model                          string
+	normalizers                    []DocumentNormalizer
 }
 
 func NewIngestionService(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, model string) *IngestionService {
@@ -115,7 +115,16 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 		return IngestionResult{}, fmt.Errorf("resolve working directory: %w", err)
 	}
 
-	documents, err := NormalizeSourceDocumentsWithSourcePort(ctx, cleanSourcePath, cleanSourceType, request.Folder, service.sourceLister, service.sourceReader, service.normalizers)
+	sourceKind := domaintaskboard.SourceKindFolder
+	if cleanSourceType == IngestionSourceTypeFile {
+		sourceKind = domaintaskboard.SourceKindFile
+	}
+	documents, err := NormalizeSourceDocuments(ctx, domaintaskboard.SourceMetadata{
+		Identity: domaintaskboard.SourceIdentity{
+			Kind:    sourceKind,
+			Locator: cleanSourcePath,
+		},
+	}, request.Folder, service.sourceLister, service.sourceReader, service.normalizers)
 	if err != nil {
 		return IngestionResult{}, fmt.Errorf("normalize documents: %w", err)
 	}
