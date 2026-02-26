@@ -33,3 +33,21 @@ func TestNewCopilotDecomposeTaskBuildsTask(t *testing.T) {
 		t.Fatalf("expected idempotency key fallback to be populated")
 	}
 }
+
+func TestNewCopilotDecomposeTaskDoesNotRequireAdditionalIngestionInputs(t *testing.T) {
+	task, _, err := NewCopilotDecomposeTask(CopilotDecomposePayload{
+		RunID:  "run-legacy",
+		Prompt: "prompt",
+	})
+	if err != nil {
+		t.Fatalf("expected legacy ingestion payload to remain valid: %v", err)
+	}
+
+	payload := CopilotDecomposePayload{}
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		t.Fatalf("unexpected payload decode error: %v", err)
+	}
+	if payload.Model != "" || payload.WorkingDirectory != "" || len(payload.SkillDirectories) != 0 || payload.GithubToken != "" || payload.CLIPath != "" || payload.CLIURL != "" {
+		t.Fatalf("expected optional ingestion inputs to remain optional, got %#v", payload)
+	}
+}
