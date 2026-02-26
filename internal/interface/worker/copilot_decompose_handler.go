@@ -190,6 +190,18 @@ func isTerminalCopilotFailure(err error) bool {
 		return false
 	}
 	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	transientIndicators := []string{
+		"startup probe failed",
+		"signal: killed",
+		"context deadline exceeded",
+		"timeout",
+		"temporarily unavailable",
+	}
+	for _, indicator := range transientIndicators {
+		if strings.Contains(message, indicator) {
+			return false
+		}
+	}
 	terminalIndicators := []string{
 		"start copilot client",
 		"authentication failed",
