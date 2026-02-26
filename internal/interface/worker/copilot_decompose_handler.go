@@ -13,6 +13,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const maxBoardSupervisorRetries = 2
+
 type CopilotDecomposeHandler struct {
 	decomposer   appcopilot.Decomposer
 	repository   apptaskboard.Repository
@@ -79,6 +81,47 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		entry.WithError(err).Error("taskboard build failed")
 		return fmt.Errorf("build taskboard from copilot response: %w", err)
 	}
+
+	qualityReport := apptaskboard.EvaluateBoardQuality(board, apptaskboard.DefaultBoardQualityThreshold)
+	for retry := 0; !qualityReport.Passed && retry < maxBoardSupervisorRetries; retry++ {
+		entry.WithFields(logrus.Fields{"quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold, "retry": retry + 1}).Warn("taskboard quality below threshold; sending to supervisor")
+
+		supervisorResult, supervisorErr := handler.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
+			RunID:            payload.RunID,
+			Prompt:           apptaskboard.BuildBoardSupervisorPromptWithReport(payload.Prompt, board, qualityReport),
+			Model:            payload.Model,
+			WorkingDirectory: payload.WorkingDirectory,
+			SkillDirectories: payload.SkillDirectories,
+			GitHubToken:      payload.GithubToken,
+			CLIPath:          payload.CLIPath,
+			CLIURL:           payload.CLIURL,
+		})
+		if supervisorErr != nil {
+			entry.WithError(supervisorErr).Warn("taskboard supervisor review failed for retry")
+			continue
+		}
+
+		reviewedBoard, reviewedBoardErr := apptaskboard.BuildBoardFromResponse(payload.RunID, supervisorResult.Response)
+		if reviewedBoardErr != nil {
+			entry.WithError(reviewedBoardErr).Warn("taskboard supervisor produced invalid board for retry")
+			continue
+		}
+
+		board = reviewedBoard
+		qualityReport = apptaskboard.EvaluateBoardQuality(board, apptaskboard.DefaultBoardQualityThreshold)
+	}
+
+	if !qualityReport.Passed {
+		failureMessage := fmt.Sprintf("taskboard quality gate failed: score=%d threshold=%d", qualityReport.Score, qualityReport.Threshold)
+		handler.saveFailureWorkflow(ctx, payload.RunID, failureMessage)
+		entry.WithFields(logrus.Fields{"quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold}).Error("taskboard quality gate failed")
+		return fmt.Errorf("%s", failureMessage)
+	}
+	entry.WithFields(logrus.Fields{"quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold}).Info("taskboard quality gate passed")
+	if board.Metadata == nil {
+		board.Metadata = map[string]any{}
+	}
+	board.Metadata["quality_report"] = qualityReport
 
 	if err := handler.repository.Save(ctx, board); err != nil {
 		handler.saveFailureWorkflow(ctx, payload.RunID, fmt.Sprintf("taskboard persistence failed: %v", err))

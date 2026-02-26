@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,15 +15,24 @@ import (
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
 )
 
-type fakeDecomposer struct{}
+type fakeDecomposer struct {
+	responses []string
+	requests  []appcopilot.DecomposeRequest
+}
 
 type failingDecomposer struct {
 	err error
 }
 
-func (decomposer *fakeDecomposer) Decompose(context.Context, appcopilot.DecomposeRequest) (appcopilot.DecomposeResult, error) {
+func (decomposer *fakeDecomposer) Decompose(_ context.Context, request appcopilot.DecomposeRequest) (appcopilot.DecomposeResult, error) {
+	decomposer.requests = append(decomposer.requests, request)
+	response := `{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Task","status":"not-started"}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`
+	if len(decomposer.responses) > 0 {
+		response = decomposer.responses[0]
+		decomposer.responses = decomposer.responses[1:]
+	}
 	return appcopilot.DecomposeResult{
-		Response: `{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Task","status":"not-started"}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+		Response: response,
 	}, nil
 }
 
@@ -46,8 +56,9 @@ func (repo *captureRepo) ListBoardIDs(context.Context) ([]string, error) {
 	return []string{repo.saved.BoardID}, nil
 }
 
-func (repo *captureRepo) Save(context.Context, *domaintaskboard.Board) error {
-	repo.saved = &domaintaskboard.Board{BoardID: "saved"}
+func (repo *captureRepo) Save(_ context.Context, board *domaintaskboard.Board) error {
+	copiedBoard := *board
+	repo.saved = &copiedBoard
 	return nil
 }
 
@@ -69,7 +80,10 @@ func (repo *captureRepo) SaveWorkflow(_ context.Context, workflow *apptaskboard.
 
 func TestCopilotDecomposeHandlerProcessTask(t *testing.T) {
 	repo := &captureRepo{}
-	handler := NewCopilotDecomposeHandler(&fakeDecomposer{}, repo, repo, nil)
+	decomposer := &fakeDecomposer{responses: []string{
+		`{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Task one","status":"not-started"},{"id":"t2","board_id":"b1","title":"Task two","status":"not-started","depends_on":["t1"]}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+	}}
+	handler := NewCopilotDecomposeHandler(decomposer, repo, repo, nil)
 
 	taskPayload := tasks.CopilotDecomposePayload{RunID: "run-1", Prompt: "prompt", Model: "gpt-5", WorkingDirectory: "."}
 	task, _, err := tasks.NewCopilotDecomposeTask(taskPayload)
@@ -87,6 +101,76 @@ func TestCopilotDecomposeHandlerProcessTask(t *testing.T) {
 	}
 	if repo.workflow == nil || repo.workflow.Status != apptaskboard.WorkflowStatusCompleted {
 		t.Fatalf("expected completed workflow status, got %#v", repo.workflow)
+	}
+	qualityRaw, exists := repo.saved.Metadata["quality_report"]
+	if !exists {
+		t.Fatalf("expected quality_report metadata to be set on saved board")
+	}
+	qualityReport, ok := qualityRaw.(apptaskboard.BoardQualityReport)
+	if !ok {
+		t.Fatalf("expected quality_report metadata to be BoardQualityReport, got %T", qualityRaw)
+	}
+	if !qualityReport.Passed || qualityReport.Score < apptaskboard.DefaultBoardQualityThreshold {
+		t.Fatalf("expected saved board quality report to be passing, got %#v", qualityReport)
+	}
+	if len(decomposer.requests) != 1 {
+		t.Fatalf("expected only generation call when quality already passes, got %d", len(decomposer.requests))
+	}
+}
+
+func TestCopilotDecomposeHandlerProcessTaskRetriesSupervisorUntilQualityPasses(t *testing.T) {
+	repo := &captureRepo{}
+	decomposer := &fakeDecomposer{responses: []string{
+		`{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"},{"id":"t2","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+		`{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Define source contract package","status":"not-started"},{"id":"t2","board_id":"b1","title":"Implement filesystem adapter package","status":"not-started","depends_on":["t1"]}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+	}}
+	handler := NewCopilotDecomposeHandler(decomposer, repo, repo, nil)
+
+	taskPayload := tasks.CopilotDecomposePayload{RunID: "run-1", Prompt: "prompt", Model: "gpt-5", WorkingDirectory: "."}
+	task, _, err := tasks.NewCopilotDecomposeTask(taskPayload)
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := handler.ProcessTask(ctx, task); err != nil {
+		t.Fatalf("unexpected handler error: %v", err)
+	}
+	if len(decomposer.requests) != 2 {
+		t.Fatalf("expected generation + one supervisor retry, got %d", len(decomposer.requests))
+	}
+	if !strings.Contains(decomposer.requests[1].Prompt, "You are a taskboard quality supervisor.") {
+		t.Fatalf("expected second prompt to be supervisor prompt")
+	}
+}
+
+func TestCopilotDecomposeHandlerProcessTaskFailsWhenQualityNeverPasses(t *testing.T) {
+	repo := &captureRepo{}
+	decomposer := &fakeDecomposer{responses: []string{
+		`{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"},{"id":"t2","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+		`{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"},{"id":"t2","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+		`{"board_id":"b1","run_id":"r1","status":"in-progress","epics":[{"id":"e1","board_id":"b1","title":"Epic","status":"in-progress","tasks":[{"id":"t1","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"},{"id":"t2","board_id":"b1","title":"Wire filesystem adapter as default provider","status":"not-started"}]}],"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`,
+	}}
+	handler := NewCopilotDecomposeHandler(decomposer, repo, repo, nil)
+
+	taskPayload := tasks.CopilotDecomposePayload{RunID: "run-1", Prompt: "prompt", Model: "gpt-5", WorkingDirectory: "."}
+	task, _, err := tasks.NewCopilotDecomposeTask(taskPayload)
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = handler.ProcessTask(ctx, task)
+	if err == nil {
+		t.Fatalf("expected quality gate failure")
+	}
+	if repo.workflow == nil || repo.workflow.Status != apptaskboard.WorkflowStatusFailed {
+		t.Fatalf("expected failed workflow status, got %#v", repo.workflow)
+	}
+	if len(decomposer.requests) != 3 {
+		t.Fatalf("expected generation + 2 supervisor retries, got %d", len(decomposer.requests))
 	}
 }
 

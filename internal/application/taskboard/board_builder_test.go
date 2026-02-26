@@ -22,7 +22,7 @@ func TestBuildBoardFromResponseRejectsInvalidPayload(t *testing.T) {
 }
 
 func TestBuildBoardFromResponseInitializesTimestampsFromApplication(t *testing.T) {
-	response := `{"status":"in-progress","epics":[{"id":"e1","title":"Epic","status":"completed","tasks":[{"id":"t1","title":"Task","status":"not-started"}]}],"created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z"}`
+	response := `{"status":"in-progress","epics":[{"id":"e1","title":"Epic","status":"completed","tasks":[{"id":"t1","title":"Task","status":"not-started","outcome":{"status":"no_changes","reason":"planned"}}]}],"created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z"}`
 
 	board, err := BuildBoardFromResponse("run-1", response)
 	if err != nil {
@@ -53,5 +53,11 @@ func TestBuildBoardFromResponseInitializesTimestampsFromApplication(t *testing.T
 	}
 	if !task.CreatedAt.Equal(board.CreatedAt) || !task.UpdatedAt.Equal(board.UpdatedAt) {
 		t.Fatalf("expected task timestamps to match board initial timestamp")
+	}
+	if task.Outcome == nil || task.Outcome.UpdatedAt.IsZero() {
+		t.Fatalf("expected task outcome updated_at to be initialized")
+	}
+	if !task.Outcome.UpdatedAt.Equal(board.UpdatedAt) {
+		t.Fatalf("expected task outcome updated_at to match board initial timestamp")
 	}
 }

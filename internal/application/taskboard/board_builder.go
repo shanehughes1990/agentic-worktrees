@@ -42,6 +42,9 @@ func BuildBoardFromResponse(runID string, response string) (*domaintaskboard.Boa
 			}
 			board.Epics[epicIndex].Tasks[taskIndex].CreatedAt = now
 			board.Epics[epicIndex].Tasks[taskIndex].UpdatedAt = now
+			if board.Epics[epicIndex].Tasks[taskIndex].Outcome != nil {
+				board.Epics[epicIndex].Tasks[taskIndex].Outcome.UpdatedAt = now
+			}
 		}
 	}
 
