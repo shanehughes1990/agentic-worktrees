@@ -227,6 +227,53 @@ func TestGitWorktreeFlowHandlerSkipsRetryOnTerminalFailure(t *testing.T) {
 	}
 }
 
+func TestGitWorktreeFlowHandlerRequeuesOnTransientFailure(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	handler := NewGitWorktreeFlowHandler(&fakeTaskExecutorForWorker{err: appgitflow.WrapTransient(errors.New("worktree missing after cleanup"))}, taskboardService, nil)
+
+	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
+		RunID:          "run-1",
+		BoardID:        "board-1",
+		TaskID:         "task-1",
+		RepositoryRoot: ".",
+		SourceBranch:   "revamp",
+		TaskBranch:     "task/run-1/task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	err = handler.ProcessTask(context.Background(), task)
+	if err == nil {
+		t.Fatalf("expected handler error")
+	}
+	if errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("expected retryable transient error, got skip retry: %v", err)
+	}
+	updatedTask, getErr := taskboardService.GetTaskByID(context.Background(), "board-1", "task-1")
+	if getErr != nil {
+		t.Fatalf("unexpected get task error: %v", getErr)
+	}
+	if updatedTask == nil || updatedTask.Status != domaintaskboard.StatusNotStarted {
+		t.Fatalf("expected task requeued to not-started, got %#v", updatedTask)
+	}
+}
+
 func TestGitConflictResolveHandlerProcessTask(t *testing.T) {
 	runner := appgitflow.NewRunner(&fakeGitPortForWorker{}, &fakeConflictDispatcherForWorker{}, &fakeWorkflowRepoForWorker{})
 	handler := NewGitConflictResolveHandler(runner, &fakeCopilotDecomposerForWorker{}, nil)
