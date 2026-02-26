@@ -41,30 +41,9 @@ func DefaultDocumentNormalizers() []DocumentNormalizer {
 	return []DocumentNormalizer{CanonicalUTF8DocumentNormalizer{}}
 }
 
-func NormalizeSourceDocuments(sourcePath string, sourceType IngestionSourceType, folderOptions FolderTraversalOptions, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
-	cleanSourcePath := strings.TrimSpace(sourcePath)
-	if cleanSourcePath == "" {
-		return nil, fmt.Errorf("source path is required")
-	}
-
-	if len(normalizers) == 0 {
-		normalizers = DefaultDocumentNormalizers()
-	}
-
-	switch sourceType {
-	case IngestionSourceTypeFile:
-		return normalizeSingleDocument(cleanSourcePath, filepath.ToSlash(filepath.Base(cleanSourcePath)), normalizers)
-	case IngestionSourceTypeFolder:
-		return NormalizeDirectoryDocumentsWithOptions(cleanSourcePath, folderOptions, normalizers)
-	default:
-		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
-	}
-}
-
-func NormalizeSourceDocumentsWithSourcePort(ctx context.Context, sourcePath string, sourceType IngestionSourceType, folderOptions FolderTraversalOptions, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
-	cleanSourcePath := strings.TrimSpace(sourcePath)
-	if cleanSourcePath == "" {
-		return nil, fmt.Errorf("source path is required")
+func NormalizeSourceDocuments(ctx context.Context, source domaintaskboard.SourceMetadata, folderOptions FolderTraversalOptions, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
+	if err := source.ValidateBasics(); err != nil {
+		return nil, err
 	}
 	if sourceLister == nil {
 		return nil, fmt.Errorf("source lister is required")
@@ -76,19 +55,19 @@ func NormalizeSourceDocumentsWithSourcePort(ctx context.Context, sourcePath stri
 		normalizers = DefaultDocumentNormalizers()
 	}
 
-	switch sourceType {
-	case IngestionSourceTypeFile:
+	cleanSource := source
+	cleanSource.Identity = source.Identity
+	cleanSource.Identity.Kind = domaintaskboard.SourceKind(strings.TrimSpace(string(source.Identity.Kind)))
+	cleanSource.Identity.Locator = strings.TrimSpace(source.Identity.Locator)
+
+	switch cleanSource.Identity.Kind {
+	case domaintaskboard.SourceKindFile:
 		return normalizeSingleDocumentFromSource(ctx, domaintaskboard.SourceIdentity{
 			Kind:    domaintaskboard.SourceKindFile,
-			Locator: cleanSourcePath,
-		}, filepath.ToSlash(filepath.Base(cleanSourcePath)), sourceReader, normalizers)
-	case IngestionSourceTypeFolder:
-		entries, err := sourceLister.List(ctx, domaintaskboard.SourceMetadata{
-			Identity: domaintaskboard.SourceIdentity{
-				Kind:    domaintaskboard.SourceKindFolder,
-				Locator: cleanSourcePath,
-			},
-		}, domaintaskboard.SourceListOptions{
+			Locator: cleanSource.Identity.Locator,
+		}, filepath.ToSlash(filepath.Base(cleanSource.Identity.Locator)), sourceReader, normalizers)
+	case domaintaskboard.SourceKindFolder:
+		entries, err := sourceLister.List(ctx, cleanSource, domaintaskboard.SourceListOptions{
 			WalkDepth:        folderOptions.WalkDepth,
 			IgnorePaths:      folderOptions.IgnorePaths,
 			IgnoreExtensions: folderOptions.IgnoreExtensions,
@@ -122,8 +101,12 @@ func NormalizeSourceDocumentsWithSourcePort(ctx context.Context, sourcePath stri
 		}
 		return documents, nil
 	default:
-		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
+		return nil, fmt.Errorf("unsupported source kind: %s", cleanSource.Identity.Kind)
 	}
+}
+
+func NormalizeSourceDocumentsWithSourcePort(ctx context.Context, source domaintaskboard.SourceMetadata, folderOptions FolderTraversalOptions, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
+	return NormalizeSourceDocuments(ctx, source, folderOptions, sourceLister, sourceReader, normalizers)
 }
 
 func NormalizeDirectoryDocuments(directory string, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
