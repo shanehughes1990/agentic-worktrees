@@ -216,3 +216,31 @@ func TestTaskExecutorClassifiesStartupProbeKilledAsTransient(t *testing.T) {
 		t.Fatalf("expected transient classification for startup probe killed error")
 	}
 }
+
+func TestTaskExecutorUsesRetryPromptOnSecondAttempt(t *testing.T) {
+	decomposer := &resumeTestDecomposer{
+		sessionFirst:  "session-updated",
+		sessionSecond: "session-updated",
+	}
+	executor := NewTaskExecutor(&resumeTestGitPort{mergeAttempt: MergeAttempt{NoChanges: true}}, decomposer)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:          "board-1",
+		RunID:            "run-1",
+		TaskID:           "task-1",
+		TaskTitle:        "title",
+		TaskDetail:       "detail",
+		ExecutionAttempt: 2,
+		SourceBranch:     "main",
+		RepositoryRoot:   ".",
+	})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if len(decomposer.requests) == 0 {
+		t.Fatalf("expected at least one decomposer request")
+	}
+	if !strings.Contains(decomposer.requests[0].Prompt, "Previous attempt made no forward progress") {
+		t.Fatalf("expected retry prompt content, got %q", decomposer.requests[0].Prompt)
+	}
+}

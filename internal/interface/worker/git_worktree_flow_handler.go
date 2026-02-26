@@ -21,6 +21,20 @@ type GitWorktreeFlowHandler struct {
 	logger           *logrus.Logger
 }
 
+const noProgressOutcomeStatus = "no_changes"
+
+var readRetryContext = func(ctx context.Context) (int, int) {
+	retryCount, ok := asynq.GetRetryCount(ctx)
+	if !ok || retryCount < 0 {
+		retryCount = 0
+	}
+	maxRetry, ok := asynq.GetMaxRetry(ctx)
+	if !ok || maxRetry < 0 {
+		maxRetry = 0
+	}
+	return retryCount, maxRetry
+}
+
 type taskExecutor interface {
 	ExecuteTask(ctx context.Context, request appgitflow.TaskExecutionRequest) (appgitflow.TaskExecutionResult, error)
 }
@@ -52,6 +66,13 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		"worktree_path":   strings.TrimSpace(payload.WorktreePath),
 		"repository_root": strings.TrimSpace(payload.RepositoryRoot),
 	})
+	retryCount, maxRetry := readRetryContext(ctx)
+	attempt := retryCount + 1
+	entry = entry.WithFields(logrus.Fields{
+		"retry_count": retryCount,
+		"max_retry":   maxRetry,
+		"attempt":     attempt,
+	})
 	entry.Info("processing git worktree flow task")
 
 	boardID := strings.TrimSpace(payload.BoardID)
@@ -76,11 +97,39 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		TaskTitle:       payload.TaskTitle,
 		TaskDetail:      payload.TaskDetail,
 		ResumeSessionID: payload.ResumeSessionID,
+		ExecutionAttempt: attempt,
 		SourceBranch:    payload.SourceBranch,
 		RepositoryRoot:  payload.RepositoryRoot,
 		WorktreePath:    payload.WorktreePath,
 	})
 	if err == nil {
+		if strings.EqualFold(strings.TrimSpace(result.Status), noProgressOutcomeStatus) {
+			outcome := domaintaskboard.TaskOutcome{
+				Status:          "interrupted",
+				Reason:          fmt.Sprintf("no forward progress detected; auto-retry attempt %d/%d", attempt, maxRetry+1),
+				TaskBranch:      strings.TrimSpace(result.TaskBranch),
+				Worktree:        strings.TrimSpace(result.Worktree),
+				ResumeSessionID: strings.TrimSpace(result.ResumeSessionID),
+			}
+			if retryCount < maxRetry {
+				if markErr := handler.taskboardService.MarkTaskCanceledWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), outcome); markErr != nil {
+					entry.WithError(markErr).Error("failed to requeue task after no-progress result")
+					return fmt.Errorf("requeue task after no-progress result: %w", markErr)
+				}
+				entry.WithField("retry_next_attempt", attempt+1).Warn("git worktree flow returned no progress; triggering automatic retry")
+				return fmt.Errorf("git worktree flow no progress on attempt %d/%d", attempt, maxRetry+1)
+			}
+
+			outcome.Status = "blocked"
+			outcome.Reason = fmt.Sprintf("no forward progress after %d attempts", maxRetry+1)
+			if markErr := handler.taskboardService.MarkTaskBlockedWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), outcome); markErr != nil {
+				entry.WithError(markErr).Error("failed to mark task blocked after no-progress retry exhaustion")
+				return fmt.Errorf("mark task blocked after no-progress retry exhaustion: %w", markErr)
+			}
+			entry.Error("git worktree flow no-progress retries exhausted")
+			return fmt.Errorf("%w: git worktree flow no progress after retries", asynq.SkipRetry)
+		}
+
 		markErr := handler.taskboardService.MarkTaskCompletedWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), domaintaskboard.TaskOutcome{
 			Status:          result.Status,
 			Reason:          result.Reason,

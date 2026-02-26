@@ -19,6 +19,8 @@ type Client struct {
 	logger *logrus.Logger
 }
 
+const fallbackPromptTimeout = 3 * time.Minute
+
 func NewClient(config ClientConfig, logger *logrus.Logger) *Client {
 	return &Client{config: config.Normalized(), logger: logger}
 }
@@ -147,6 +149,13 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resu
 }
 
 func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string, workingDirectory string, prompt string) (string, string, string, error) {
+	runCtx := ctx
+	cancel := func() {}
+	if deadline, hasDeadline := ctx.Deadline(); !hasDeadline || time.Until(deadline) > fallbackPromptTimeout {
+		runCtx, cancel = context.WithTimeout(ctx, fallbackPromptTimeout)
+	}
+	defer cancel()
+
 	binary := strings.TrimSpace(client.config.CLIPath)
 	if binary == "" {
 		binary = "copilot"
@@ -156,7 +165,7 @@ func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string,
 		args = append(args, "--model", strings.TrimSpace(model))
 	}
 
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := exec.CommandContext(runCtx, binary, args...)
 	if strings.TrimSpace(workingDirectory) != "" {
 		cmd.Dir = strings.TrimSpace(workingDirectory)
 	}
@@ -177,6 +186,9 @@ func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string,
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			return "", "", "", fmt.Errorf("copilot cli fallback timed out after %s", fallbackPromptTimeout)
+		}
 		stderrText := strings.TrimSpace(stderr.String())
 		if stderrText == "" {
 			stderrText = strings.TrimSpace(stdout.String())

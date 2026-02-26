@@ -377,3 +377,121 @@ func TestGitWorktreeFlowHandlerPrefersPersistedResumeSessionID(t *testing.T) {
 		t.Fatalf("expected persisted resume session id, got %q", got)
 	}
 }
+
+func TestGitWorktreeFlowHandlerAutoRetriesNoProgress(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	fakeExecutor := &fakeTaskExecutorForWorker{result: appgitflow.TaskExecutionResult{Status: "no_changes", Reason: "no diff", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/worktrees/run-1-task-1"}}
+	handler := NewGitWorktreeFlowHandler(fakeExecutor, taskboardService, nil)
+
+	originalReadRetryContext := readRetryContext
+	readRetryContext = func(context.Context) (int, int) {
+		return 0, 2
+	}
+	defer func() {
+		readRetryContext = originalReadRetryContext
+	}()
+
+	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
+		RunID:          "run-1",
+		BoardID:        "board-1",
+		TaskID:         "task-1",
+		RepositoryRoot: ".",
+		SourceBranch:   "revamp",
+		TaskBranch:     "task/run-1/task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	err = handler.ProcessTask(context.Background(), task)
+	if err == nil {
+		t.Fatalf("expected retryable no-progress error")
+	}
+	if errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("expected retryable no-progress error, got skip retry: %v", err)
+	}
+	if got := fakeExecutor.lastRequest.ExecutionAttempt; got != 1 {
+		t.Fatalf("expected first execution attempt to be 1, got %d", got)
+	}
+	updatedTask, getErr := taskboardService.GetTaskByID(context.Background(), "board-1", "task-1")
+	if getErr != nil {
+		t.Fatalf("unexpected get task error: %v", getErr)
+	}
+	if updatedTask == nil || updatedTask.Status != domaintaskboard.StatusNotStarted {
+		t.Fatalf("expected no-progress task requeued to not-started, got %#v", updatedTask)
+	}
+}
+
+func TestGitWorktreeFlowHandlerBlocksWhenNoProgressRetriesExhausted(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	fakeExecutor := &fakeTaskExecutorForWorker{result: appgitflow.TaskExecutionResult{Status: "no_changes", Reason: "no diff", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/worktrees/run-1-task-1"}}
+	handler := NewGitWorktreeFlowHandler(fakeExecutor, taskboardService, nil)
+
+	originalReadRetryContext := readRetryContext
+	readRetryContext = func(context.Context) (int, int) {
+		return 2, 2
+	}
+	defer func() {
+		readRetryContext = originalReadRetryContext
+	}()
+
+	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
+		RunID:          "run-1",
+		BoardID:        "board-1",
+		TaskID:         "task-1",
+		RepositoryRoot: ".",
+		SourceBranch:   "revamp",
+		TaskBranch:     "task/run-1/task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	err = handler.ProcessTask(context.Background(), task)
+	if err == nil {
+		t.Fatalf("expected no-progress exhaustion error")
+	}
+	if !errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("expected skip retry on no-progress exhaustion, got: %v", err)
+	}
+	if got := fakeExecutor.lastRequest.ExecutionAttempt; got != 3 {
+		t.Fatalf("expected third execution attempt to be 3, got %d", got)
+	}
+	updatedTask, getErr := taskboardService.GetTaskByID(context.Background(), "board-1", "task-1")
+	if getErr != nil {
+		t.Fatalf("unexpected get task error: %v", getErr)
+	}
+	if updatedTask == nil || updatedTask.Status != domaintaskboard.StatusBlocked {
+		t.Fatalf("expected no-progress exhausted task to be blocked, got %#v", updatedTask)
+	}
+}

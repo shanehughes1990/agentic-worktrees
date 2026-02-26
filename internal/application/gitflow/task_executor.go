@@ -17,6 +17,7 @@ type TaskExecutionRequest struct {
 	TaskTitle       string
 	TaskDetail      string
 	ResumeSessionID string
+	ExecutionAttempt int
 	SourceBranch    string
 	RepositoryRoot  string
 	WorktreePath    string
@@ -320,6 +321,14 @@ func (executor *TaskExecutor) CleanupBoardRun(ctx context.Context, boardID strin
 }
 
 func buildTaskImplementationPrompt(request TaskExecutionRequest) string {
+	if request.ExecutionAttempt > 1 {
+		return fmt.Sprintf("Previous attempt made no forward progress for task %s on board %s. Continue only the remaining work, make minimal correct code changes in this worktree, and if blocked return an explicit BLOCKED reason. Task title: %s. Task detail: %s.",
+			strings.TrimSpace(request.TaskID),
+			strings.TrimSpace(request.BoardID),
+			strings.TrimSpace(request.TaskTitle),
+			strings.TrimSpace(request.TaskDetail),
+		)
+	}
 	return fmt.Sprintf("Implement task %s for board %s. Task title: %s. Task detail: %s. Apply minimal correct code changes in this worktree and ensure code remains buildable.",
 		strings.TrimSpace(request.TaskID),
 		strings.TrimSpace(request.BoardID),
