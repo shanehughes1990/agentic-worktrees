@@ -3,6 +3,7 @@ package filesystem
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -174,5 +175,31 @@ func TestAdapterReadCanceledContextIsTransient(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected canceled context error, got: %v", err)
+	}
+}
+
+func TestClassifyFilesystemErrorMapsTransientVersusTerminal(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          error
+		expectTerminal bool
+	}{
+		{name: "context canceled is transient", input: context.Canceled, expectTerminal: false},
+		{name: "missing file is terminal", input: fs.ErrNotExist, expectTerminal: true},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := classifyFilesystemError(testCase.input)
+			if err == nil {
+				t.Fatalf("expected classified error")
+			}
+			if gotTerminal := appgitflow.IsTerminalFailure(err); gotTerminal != testCase.expectTerminal {
+				t.Fatalf("expected terminal=%v, got %v for err=%v", testCase.expectTerminal, gotTerminal, err)
+			}
+			if !errors.Is(err, testCase.input) {
+				t.Fatalf("expected classified error to unwrap to %v, got %v", testCase.input, err)
+			}
+		})
 	}
 }
