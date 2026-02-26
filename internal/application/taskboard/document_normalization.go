@@ -1,12 +1,15 @@
 package taskboard
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
 type NormalizedDocument struct {
@@ -53,6 +56,71 @@ func NormalizeSourceDocuments(sourcePath string, sourceType IngestionSourceType,
 		return normalizeSingleDocument(cleanSourcePath, filepath.ToSlash(filepath.Base(cleanSourcePath)), normalizers)
 	case IngestionSourceTypeFolder:
 		return NormalizeDirectoryDocumentsWithOptions(cleanSourcePath, folderOptions, normalizers)
+	default:
+		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
+	}
+}
+
+func NormalizeSourceDocumentsWithSourcePort(ctx context.Context, sourcePath string, sourceType IngestionSourceType, folderOptions FolderTraversalOptions, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
+	cleanSourcePath := strings.TrimSpace(sourcePath)
+	if cleanSourcePath == "" {
+		return nil, fmt.Errorf("source path is required")
+	}
+	if sourceLister == nil {
+		return nil, fmt.Errorf("source lister is required")
+	}
+	if sourceReader == nil {
+		return nil, fmt.Errorf("source reader is required")
+	}
+	if len(normalizers) == 0 {
+		normalizers = DefaultDocumentNormalizers()
+	}
+
+	switch sourceType {
+	case IngestionSourceTypeFile:
+		return normalizeSingleDocumentFromSource(ctx, domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFile,
+			Locator: cleanSourcePath,
+		}, filepath.ToSlash(filepath.Base(cleanSourcePath)), sourceReader, normalizers)
+	case IngestionSourceTypeFolder:
+		entries, err := sourceLister.List(ctx, domaintaskboard.SourceMetadata{
+			Identity: domaintaskboard.SourceIdentity{
+				Kind:    domaintaskboard.SourceKindFolder,
+				Locator: cleanSourcePath,
+			},
+		}, domaintaskboard.SourceListOptions{
+			WalkDepth:        folderOptions.WalkDepth,
+			IgnorePaths:      folderOptions.IgnorePaths,
+			IgnoreExtensions: folderOptions.IgnoreExtensions,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list source documents: %w", err)
+		}
+		sort.Slice(entries, func(i int, j int) bool {
+			leftPath := strings.TrimSpace(entries[i].RelativePath)
+			rightPath := strings.TrimSpace(entries[j].RelativePath)
+			if leftPath == rightPath {
+				return entries[i].Identity.Locator < entries[j].Identity.Locator
+			}
+			return leftPath < rightPath
+		})
+
+		documents := make([]NormalizedDocument, 0, len(entries))
+		for _, entry := range entries {
+			if entry.Identity.Kind != domaintaskboard.SourceKindFile {
+				continue
+			}
+			relativePath := strings.TrimSpace(entry.RelativePath)
+			if relativePath == "" {
+				relativePath = filepath.ToSlash(filepath.Base(entry.Identity.Locator))
+			}
+			normalizedDocuments, normalizeErr := normalizeSingleDocumentFromSource(ctx, entry.Identity, relativePath, sourceReader, normalizers)
+			if normalizeErr != nil {
+				return nil, normalizeErr
+			}
+			documents = append(documents, normalizedDocuments...)
+		}
+		return documents, nil
 	default:
 		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
 	}
@@ -134,6 +202,28 @@ func normalizeSingleDocument(absolutePath string, relativePath string, normalize
 		return nil, nil
 	}
 	content, err := os.ReadFile(absolutePath)
+	if err != nil {
+		return nil, fmt.Errorf("read document %s: %w", relativePath, err)
+	}
+	normalized, err := normalizer.Normalize(relativePath, content)
+	if err != nil {
+		return nil, fmt.Errorf("normalize document %s: %w", relativePath, err)
+	}
+	if strings.TrimSpace(normalized) == "" {
+		return nil, nil
+	}
+	return []NormalizedDocument{{
+		RelativePath: relativePath,
+		Content:      normalized,
+	}}, nil
+}
+
+func normalizeSingleDocumentFromSource(ctx context.Context, source domaintaskboard.SourceIdentity, relativePath string, sourceReader domaintaskboard.SourceReader, normalizers []DocumentNormalizer) ([]NormalizedDocument, error) {
+	normalizer := pickDocumentNormalizer(relativePath, normalizers)
+	if normalizer == nil {
+		return nil, nil
+	}
+	content, err := sourceReader.Read(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("read document %s: %w", relativePath, err)
 	}

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
 type IngestionJob struct {
@@ -51,15 +51,17 @@ type IngestionService struct {
 	dispatcher   IngestionDispatcher
 	repository   Repository
 	workflowRepo WorkflowRepository
+	sourceLister domaintaskboard.SourceLister
+	sourceReader domaintaskboard.SourceReader
 	model        string
 	normalizers  []DocumentNormalizer
 }
 
-func NewIngestionService(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, model string) *IngestionService {
-	return NewIngestionServiceWithNormalizers(dispatcher, repository, workflowRepo, model, nil)
+func NewIngestionService(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, model string) *IngestionService {
+	return NewIngestionServiceWithNormalizers(dispatcher, repository, workflowRepo, sourceLister, sourceReader, model, nil)
 }
 
-func NewIngestionServiceWithNormalizers(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, model string, normalizers []DocumentNormalizer) *IngestionService {
+func NewIngestionServiceWithNormalizers(dispatcher IngestionDispatcher, repository Repository, workflowRepo WorkflowRepository, sourceLister domaintaskboard.SourceLister, sourceReader domaintaskboard.SourceReader, model string, normalizers []DocumentNormalizer) *IngestionService {
 	if len(normalizers) == 0 {
 		normalizers = DefaultDocumentNormalizers()
 	}
@@ -67,13 +69,21 @@ func NewIngestionServiceWithNormalizers(dispatcher IngestionDispatcher, reposito
 		dispatcher:   dispatcher,
 		repository:   repository,
 		workflowRepo: workflowRepo,
+		sourceLister: sourceLister,
+		sourceReader: sourceReader,
 		model:        strings.TrimSpace(model),
 		normalizers:  normalizers,
 	}
 }
 
-
 func (service *IngestionService) Ingest(ctx context.Context, request IngestRequest) (IngestionResult, error) {
+	if service.sourceLister == nil {
+		return IngestionResult{}, fmt.Errorf("source lister is required")
+	}
+	if service.sourceReader == nil {
+		return IngestionResult{}, fmt.Errorf("source reader is required")
+	}
+
 	cleanSourcePath := strings.TrimSpace(request.SourcePath)
 	if cleanSourcePath == "" {
 		return IngestionResult{}, fmt.Errorf("source path is required")
@@ -81,15 +91,11 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 
 	sourceType := strings.TrimSpace(string(request.SourceType))
 	if sourceType == "" {
-		info, statErr := os.Stat(cleanSourcePath)
-		if statErr != nil {
-			return IngestionResult{}, fmt.Errorf("determine source type: %w", statErr)
+		inferredSourceType, inferErr := service.inferSourceType(ctx, cleanSourcePath)
+		if inferErr != nil {
+			return IngestionResult{}, inferErr
 		}
-		if info.IsDir() {
-			sourceType = string(IngestionSourceTypeFolder)
-		} else {
-			sourceType = string(IngestionSourceTypeFile)
-		}
+		sourceType = string(inferredSourceType)
 	}
 
 	cleanSourceType := IngestionSourceType(sourceType)
@@ -102,7 +108,7 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 		workingDirectory = filepath.Dir(cleanSourcePath)
 	}
 
-	documents, err := NormalizeSourceDocuments(cleanSourcePath, cleanSourceType, request.Folder, service.normalizers)
+	documents, err := NormalizeSourceDocumentsWithSourcePort(ctx, cleanSourcePath, cleanSourceType, request.Folder, service.sourceLister, service.sourceReader, service.normalizers)
 	if err != nil {
 		return IngestionResult{}, fmt.Errorf("normalize documents: %w", err)
 	}
@@ -154,6 +160,28 @@ func (service *IngestionService) Ingest(ctx context.Context, request IngestReque
 			}
 		}
 	}
+}
+
+func (service *IngestionService) inferSourceType(ctx context.Context, sourcePath string) (IngestionSourceType, error) {
+	_, folderErr := service.sourceLister.List(ctx, domaintaskboard.SourceMetadata{
+		Identity: domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFolder,
+			Locator: sourcePath,
+		},
+	}, domaintaskboard.SourceListOptions{WalkDepth: 0})
+	if folderErr == nil {
+		return IngestionSourceTypeFolder, nil
+	}
+
+	_, fileErr := service.sourceReader.Read(ctx, domaintaskboard.SourceIdentity{
+		Kind:    domaintaskboard.SourceKindFile,
+		Locator: sourcePath,
+	})
+	if fileErr == nil {
+		return IngestionSourceTypeFile, nil
+	}
+
+	return "", fmt.Errorf("determine source type: %w", errors.Join(folderErr, fileErr))
 }
 
 func (service *IngestionService) IngestDirectory(ctx context.Context, directory string) (IngestionResult, error) {
