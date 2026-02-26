@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
+	"github.com/sirupsen/logrus"
 )
 
 type TaskPipelineExecutor interface {
@@ -41,13 +43,18 @@ type ExecutionPipelineService struct {
 	executor         TaskPipelineExecutor
 	workflowRepo     WorkflowRepository
 	maxAgents        int
+	logger           *logrus.Logger
 }
 
-func NewExecutionPipelineService(taskboardService *Service, executor TaskPipelineExecutor, workflowRepo WorkflowRepository, maxAgents int) *ExecutionPipelineService {
+func NewExecutionPipelineService(taskboardService *Service, executor TaskPipelineExecutor, workflowRepo WorkflowRepository, maxAgents int, loggers ...*logrus.Logger) *ExecutionPipelineService {
 	if maxAgents < 1 {
 		maxAgents = 1
 	}
-	return &ExecutionPipelineService{taskboardService: taskboardService, executor: executor, workflowRepo: workflowRepo, maxAgents: maxAgents}
+	var logger *logrus.Logger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
+	return &ExecutionPipelineService{taskboardService: taskboardService, executor: executor, workflowRepo: workflowRepo, maxAgents: maxAgents, logger: logger}
 }
 
 func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, boardID string, sourceBranch string, repositoryRoot string, maxTasks int) error {
@@ -55,6 +62,14 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 	cleanSourceBranch := strings.TrimSpace(sourceBranch)
 	cleanRepositoryRoot := strings.TrimSpace(repositoryRoot)
 	cleanMaxTasks := maxTasks
+	entry := service.entry().WithFields(logrus.Fields{
+		"event":           "taskboard.execution_pipeline",
+		"board_id":        cleanBoardID,
+		"source_branch":   cleanSourceBranch,
+		"repository_root": cleanRepositoryRoot,
+		"max_tasks":       cleanMaxTasks,
+		"max_agents":      service.maxAgents,
+	})
 
 	if service.taskboardService == nil {
 		return fmt.Errorf("taskboard service is required")
@@ -74,6 +89,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 	if cleanMaxTasks < 0 {
 		return fmt.Errorf("max_tasks cannot be negative")
 	}
+	entry.Info("starting taskboard execution pipeline")
 
 	_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "taskboard execution starting", map[string]any{
 		"event":           "pipeline_start",
@@ -86,8 +102,10 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 
 	requeuedCount, requeueErr := service.taskboardService.RequeueInProgressTasks(ctx, cleanBoardID, "runner interrupted previously; re-queued on resume")
 	if requeueErr != nil {
+		entry.WithError(requeueErr).Error("failed to requeue in-progress tasks on resume")
 		return fmt.Errorf("requeue interrupted in-progress tasks: %w", requeueErr)
 	}
+	entry.WithField("requeued_count", requeuedCount).Info("resume requeue check completed")
 	if requeuedCount > 0 {
 		_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusRunning, "requeued interrupted tasks", map[string]any{
 			"event":          "resume_requeue",
@@ -96,6 +114,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 	}
 
 	if err := service.taskboardService.AnnotateCompletedTasksWithoutOutcome(ctx, cleanBoardID, "task was already completed before this pipeline run"); err != nil {
+		entry.WithError(err).Error("failed to annotate pre-completed tasks")
 		return fmt.Errorf("annotate pre-completed tasks: %w", err)
 	}
 
@@ -104,6 +123,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 	for {
 		select {
 		case <-ctx.Done():
+			entry.WithError(ctx.Err()).Warn("taskboard execution pipeline canceled")
 			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "taskboard execution canceled", map[string]any{
 				"event": "pipeline_canceled",
 			})
@@ -114,6 +134,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 
 		readyTasks, err := service.taskboardService.GetReadyTasks(ctx, cleanBoardID)
 		if err != nil {
+			entry.WithError(err).WithField("round", round).Error("failed to load ready tasks")
 			return fmt.Errorf("load ready tasks: %w", err)
 		}
 		readyTaskIDs := make([]string, 0, len(readyTasks))
@@ -132,14 +153,17 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		if len(readyTasks) == 0 {
 			completed, completedErr := service.taskboardService.IsBoardCompleted(ctx, cleanBoardID)
 			if completedErr != nil {
+				entry.WithError(completedErr).WithField("round", round).Error("failed to evaluate board completion")
 				return fmt.Errorf("check board completion: %w", completedErr)
 			}
 			if completed {
+				entry.WithField("round", round).Info("taskboard execution pipeline completed")
 				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusCompleted, "taskboard execution completed", map[string]any{
 					"event": "pipeline_completed",
 				})
 				return nil
 			}
+			entry.WithField("round", round).Warn("pipeline blocked with no ready tasks and incomplete board")
 			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "pipeline blocked by unresolved dependencies", map[string]any{
 				"event": "pipeline_blocked",
 				"round": round,
@@ -226,6 +250,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		close(results)
 
 		if len(startedTaskIDs) == 0 {
+			entry.WithField("round", round).Error("ready batch produced no started tasks")
 			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "no tasks started in batch", map[string]any{
 				"event": "batch_empty",
 				"round": round,
@@ -308,6 +333,31 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 				})
 				continue
 			}
+			if strings.EqualFold(strings.TrimSpace(outcome.Status), "no_changes") {
+				if strings.TrimSpace(outcome.Reason) == "" {
+					outcome.Reason = "no forward progress detected"
+				}
+				outcome.Status = "interrupted"
+				if markErr := service.taskboardService.MarkTaskCanceledWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
+					Status:          outcome.Status,
+					Reason:          outcome.Reason,
+					TaskBranch:      outcome.TaskBranch,
+					Worktree:        outcome.Worktree,
+					ResumeSessionID: outcome.ResumeSessionID,
+				}); markErr != nil {
+					return fmt.Errorf("mark task canceled after no-progress result: %w", markErr)
+				}
+				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "task re-queued after no progress", map[string]any{
+					"event":             "task_no_progress_requeued",
+					"task_id":           taskID,
+					"status":            outcome.Status,
+					"reason":            outcome.Reason,
+					"task_branch":       outcome.TaskBranch,
+					"worktree":          outcome.Worktree,
+					"resume_session_id": outcome.ResumeSessionID,
+				})
+				return fmt.Errorf("task %s returned no progress and was re-queued", taskID)
+			}
 			if strings.TrimSpace(outcome.Status) == "" {
 				outcome.Status = "merged"
 			}
@@ -334,6 +384,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		}
 
 		if len(canceledTaskIDs) > 0 {
+			entry.WithFields(logrus.Fields{"round": round, "canceled_task_count": len(canceledTaskIDs)}).Warn("batch ended with canceled tasks")
 			sort.Strings(canceledTaskIDs)
 			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "taskboard execution canceled", map[string]any{
 				"event":             "pipeline_canceled",
@@ -344,6 +395,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 		}
 
 		if len(failedTaskErrors) > 0 {
+			entry.WithFields(logrus.Fields{"round": round, "failed_task_count": len(failedTaskErrors)}).Error("batch ended with task failures")
 			failedTaskIDs := make([]string, 0, len(failedTaskErrors))
 			for taskID := range failedTaskErrors {
 				failedTaskIDs = append(failedTaskIDs, taskID)
@@ -365,6 +417,7 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 
 		tasksExecuted += len(startedTaskIDs)
 		if cleanMaxTasks > 0 && tasksExecuted >= cleanMaxTasks {
+			entry.WithField("tasks_executed", tasksExecuted).Info("pipeline reached max task limit")
 			_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusCompleted, "taskboard execution stopped at task limit", map[string]any{
 				"event":          "pipeline_limit_reached",
 				"max_tasks":      cleanMaxTasks,
@@ -373,6 +426,13 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 			return nil
 		}
 	}
+}
+
+func (service *ExecutionPipelineService) entry() *logrus.Entry {
+	if service == nil || service.logger == nil {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.NewEntry(service.logger)
 }
 
 func (service *ExecutionPipelineService) appendWorkflowEvent(ctx context.Context, runID string, boardID string, status WorkflowStatus, message string, details map[string]any) error {
@@ -398,6 +458,7 @@ func (service *ExecutionPipelineService) appendWorkflowEvent(ctx context.Context
 		"run_id":   cleanRunID,
 		"board_id": strings.TrimSpace(boardID),
 		"message":  strings.TrimSpace(message),
+		"worker_pid": os.Getpid(),
 	}
 	for key, value := range details {
 		eventPayload[key] = value

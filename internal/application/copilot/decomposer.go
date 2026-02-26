@@ -4,6 +4,9 @@ import "context"
 
 type DecomposeRequest struct {
 	RunID            string
+	TaskID           string
+	QueueTaskID      string
+	CorrelationID    string
 	ResumeSessionID  string
 	Prompt           string
 	Model            string

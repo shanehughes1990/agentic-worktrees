@@ -15,6 +15,7 @@ tmp/
 
 # Runtime application artifacts
 .worktree/
+*.log
 
 # Local docs and working scopes
 .docs/

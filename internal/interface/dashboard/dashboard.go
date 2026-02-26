@@ -22,6 +22,7 @@ type WorkflowStatusFunc func(ctx context.Context, runID string, redisURI string)
 type CancelWorkflowFunc func(ctx context.Context, runID string, redisURI string) (string, error)
 type CopilotAuthStatusFunc func(ctx context.Context) (string, error)
 type CopilotAuthenticateFunc func(ctx context.Context) error
+type CopilotKillOrphanedFunc func(ctx context.Context) (string, error)
 
 type Command struct {
 	Title       string
@@ -63,7 +64,7 @@ type UI struct {
 	pendingIngestionRunID      string
 }
 
-func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, cancelWorkflow CancelWorkflowFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
+func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree CancelTaskTreeFunc, listTaskboards ListTaskboardsFunc, listReadyTaskIDs ListReadyTaskIDsFunc, listWorkflows ListWorkflowsFunc, getWorkflowStatus WorkflowStatusFunc, cancelWorkflow CancelWorkflowFunc, copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, copilotKillOrphaned CopilotKillOrphanedFunc, repositoryRoot string, defaultSourceBranch string, defaultRedisURI string, maxTaskLimit int) *UI {
 	application := tview.NewApplication().EnableMouse(true)
 	status := tview.NewTextView().SetText("Ready").SetDynamicColors(true)
 	status.SetBorder(true)
@@ -84,7 +85,7 @@ func New(ingest IngestFunc, startTaskTree StartTaskTreeFunc, cancelTaskTree Canc
 
 	mainScreen := ui.buildMainScreen()
 	settingsScreen := ui.buildSettingsScreen()
-	authenticationScreen := ui.buildAuthenticationCommandsScreen(copilotAuthStatus, copilotAuthenticate)
+	authenticationScreen := ui.buildAuthenticationCommandsScreen(copilotAuthStatus, copilotAuthenticate, copilotKillOrphaned)
 	ingestionScreen := ui.buildIngestionCommandsScreen()
 	worktreeScreen := ui.buildWorktreeCommandsScreen()
 	runIngestionScreen := ui.buildRunIngestionScreen(ingest)
@@ -257,7 +258,7 @@ func (ui *UI) buildSettingsScreen() tview.Primitive {
 		AddItem(ui.status, 3, 0, false)
 }
 
-func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc) tview.Primitive {
+func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthStatusFunc, copilotAuthenticate CopilotAuthenticateFunc, copilotKillOrphaned CopilotKillOrphanedFunc) tview.Primitive {
 	header := tview.NewTextView().SetText("Authentication Commands").SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
 	header.SetBorder(true)
 
@@ -304,6 +305,24 @@ func (ui *UI) buildAuthenticationCommandsScreen(copilotAuthStatus CopilotAuthSta
 					ui.status.SetText("Copilot authentication completed")
 				})
 			})
+		}},
+		{Title: "Kill Orphaned Copilot Processes", Description: "Last-resort cleanup of stuck Copilot CLI processes", Shortcut: 'k', Action: func() {
+			if copilotKillOrphaned == nil {
+				ui.status.SetText("Copilot orphan process cleanup command unavailable")
+				return
+			}
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				defer cancel()
+				message, err := copilotKillOrphaned(ctx)
+				ui.application.QueueUpdateDraw(func() {
+					if err != nil {
+						ui.status.SetText(fmt.Sprintf("Copilot orphan process cleanup failed: %s", formatUserError(err)))
+						return
+					}
+					ui.status.SetText(strings.TrimSpace(message))
+				})
+			}()
 		}},
 	}, true)
 
@@ -518,25 +537,10 @@ func (ui *UI) buildRunGitflowScreen(startTaskTree StartTaskTreeFunc, cancelTaskT
 					}
 					maxTasks = parsedMaxTasks
 				}
-				ui.status.SetText(fmt.Sprintf("Loading ready tasks for board %s ...", boardID))
+				ui.status.SetText(fmt.Sprintf("Starting task tree for board %s ...", boardID))
 				go func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 					defer cancel()
-					if listReadyTaskIDs == nil {
-						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Ready task query unavailable") })
-						return
-					}
-					readyTaskIDs, err := listReadyTaskIDs(ctx, boardID)
-					if err != nil {
-						ui.application.QueueUpdateDraw(func() {
-							ui.status.SetText(fmt.Sprintf("Load ready tasks failed: %s", formatUserError(err)))
-						})
-						return
-					}
-					if len(readyTaskIDs) == 0 {
-						ui.application.QueueUpdateDraw(func() { ui.status.SetText("No ready tasks in selected taskboard") })
-						return
-					}
 					if startTaskTree == nil {
 						ui.application.QueueUpdateDraw(func() { ui.status.SetText("Task tree start command unavailable") })
 						return
@@ -752,7 +756,8 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				if strings.TrimSpace(stream) == "" {
 					stream = "(no stream details recorded yet)"
 				}
-				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), stream))
+				correlationID := detailString(workflow.Details, "correlation_id")
+				details.SetText(fmt.Sprintf("RunID: %s\nCorrelationID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\nDetails: %v\n\nStream:\n%s", workflow.RunID, correlationID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), workflow.Details, stream))
 				ui.status.SetText(fmt.Sprintf("Loaded workflow %s", workflow.RunID))
 			})
 		}()
@@ -793,6 +798,10 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 					statusText := string(workflow.Status)
 					if strings.TrimSpace(workflow.TaskType) != "" {
 						statusText = fmt.Sprintf("%s | %s", statusText, strings.TrimSpace(workflow.TaskType))
+					}
+					correlationID := detailString(workflow.Details, "correlation_id")
+					if correlationID != "" {
+						statusText = fmt.Sprintf("%s | corr=%s", statusText, correlationID)
 					}
 					if workflow.Cancelable {
 						statusText = fmt.Sprintf("%s | cancelable", statusText)
@@ -890,6 +899,17 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 		}
 	}()
 	return screen
+}
+
+func detailString(details map[string]any, key string) string {
+	if len(details) == 0 {
+		return ""
+	}
+	value, ok := details[strings.TrimSpace(key)]
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", value))
 }
 
 func (ui *UI) newCommandList(commands []Command, includeBack bool) *tview.List {

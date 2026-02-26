@@ -19,11 +19,13 @@ func NewTaskboardExecutionDispatcher(client *Client, logger *logrus.Logger) *Tas
 }
 
 func (dispatcher *TaskboardExecutionDispatcher) EnqueueTaskboardExecution(ctx context.Context, request apptaskboard.StartExecutionRequest) (string, error) {
+	idempotencyKey := fmt.Sprintf("%s:%s", request.BoardID, request.SourceBranch)
 	entry := dispatcher.entry().WithFields(logrus.Fields{
 		"event":           "taskboard.execute.enqueue",
 		"board_id":        request.BoardID,
 		"source_branch":   request.SourceBranch,
 		"repository_root": request.RepositoryRoot,
+		"idempotency_key": idempotencyKey,
 	})
 	entry.Info("enqueueing taskboard execution pipeline")
 
@@ -32,9 +34,13 @@ func (dispatcher *TaskboardExecutionDispatcher) EnqueueTaskboardExecution(ctx co
 		SourceBranch:   request.SourceBranch,
 		RepositoryRoot: request.RepositoryRoot,
 		MaxTasks:       request.MaxTasks,
-		IdempotencyKey: fmt.Sprintf("%s:%s:%d", request.BoardID, request.SourceBranch, request.MaxTasks),
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
+		if isDuplicateEnqueueError(err) {
+			entry.WithError(err).Warn("taskboard execution already enqueued or running; duplicate enqueue suppressed")
+			return idempotencyKey, nil
+		}
 		entry.WithError(err).Error("failed to enqueue taskboard execution pipeline")
 		return "", err
 	}

@@ -3,6 +3,9 @@ package copilot
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,6 +59,53 @@ func (authenticator *Authenticator) Authenticate(ctx context.Context) error {
 	return fmt.Errorf("non-interactive auth is required. current_status=%s. configure one of COPILOT_GITHUB_TOKEN, GH_TOKEN, or GITHUB_TOKEN (or ensure stored CLI login is available without interactive prompts)", message)
 }
 
+func (authenticator *Authenticator) KillOrphanedProcesses(ctx context.Context) (int, error) {
+	pids, err := authenticator.findCopilotProcessPIDs(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(pids) == 0 {
+		return 0, nil
+	}
+
+	currentPID := os.Getpid()
+	killedCount := 0
+	for _, pid := range pids {
+		if pid <= 1 || pid == currentPID {
+			continue
+		}
+		process, findErr := os.FindProcess(pid)
+		if findErr != nil {
+			continue
+		}
+		if signalErr := process.Signal(os.Interrupt); signalErr != nil {
+			continue
+		}
+		killedCount++
+	}
+
+	if killedCount == 0 {
+		return 0, nil
+	}
+
+	time.Sleep(350 * time.Millisecond)
+	remainingPIDs, remainingErr := authenticator.findCopilotProcessPIDs(ctx)
+	if remainingErr == nil {
+		for _, pid := range remainingPIDs {
+			if pid <= 1 || pid == currentPID {
+				continue
+			}
+			process, findErr := os.FindProcess(pid)
+			if findErr != nil {
+				continue
+			}
+			_ = process.Kill()
+		}
+	}
+
+	return killedCount, nil
+}
+
 func (authenticator *Authenticator) fetchAuthStatus(ctx context.Context) (*sdk.GetAuthStatusResponse, error) {
 	checkCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
@@ -91,4 +141,33 @@ func (authenticator *Authenticator) entry() *logrus.Entry {
 		return logrus.NewEntry(logrus.StandardLogger())
 	}
 	return logrus.NewEntry(authenticator.logger)
+}
+
+func (authenticator *Authenticator) findCopilotProcessPIDs(ctx context.Context) ([]int, error) {
+	commandContext, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	command := exec.CommandContext(commandContext, "pgrep", "-f", "copilot.*(--headless|--stdio|--allow-all-tools)")
+	output, err := command.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find copilot processes: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	pids := make([]int, 0, len(lines))
+	for _, line := range lines {
+		cleanLine := strings.TrimSpace(line)
+		if cleanLine == "" {
+			continue
+		}
+		pid, parseErr := strconv.Atoi(cleanLine)
+		if parseErr != nil {
+			continue
+		}
+		pids = append(pids, pid)
+	}
+	return pids, nil
 }

@@ -17,6 +17,7 @@ const (
 
 type CopilotDecomposePayload struct {
 	RunID            string   `json:"run_id"`
+	IdempotencyKey   string   `json:"idempotency_key,omitempty"`
 	Prompt           string   `json:"prompt"`
 	Model            string   `json:"model"`
 	WorkingDirectory string   `json:"working_directory,omitempty"`
@@ -33,6 +34,9 @@ func NewCopilotDecomposeTask(payload CopilotDecomposePayload, options ...asynq.O
 	if strings.TrimSpace(payload.Prompt) == "" {
 		return nil, nil, fmt.Errorf("prompt is required")
 	}
+	if strings.TrimSpace(payload.IdempotencyKey) == "" {
+		payload.IdempotencyKey = strings.TrimSpace(payload.RunID)
+	}
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -40,7 +44,7 @@ func NewCopilotDecomposeTask(payload CopilotDecomposePayload, options ...asynq.O
 	}
 
 	task := asynq.NewTask(TaskTypeCopilotDecompose, body)
-	opts := []asynq.Option{asynq.Queue(queueIngestion), asynq.Retention(24 * time.Hour)}
+	opts := []asynq.Option{asynq.Queue(queueIngestion), asynq.Retention(24 * time.Hour), asynq.TaskID(payload.IdempotencyKey), asynq.Unique(2 * time.Hour)}
 	opts = append(opts, options...)
 	return task, opts, nil
 }

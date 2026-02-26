@@ -43,6 +43,10 @@ func (dispatcher *GitWorktreeDispatcher) EnqueueWorktreeFlow(ctx context.Context
 		IdempotencyKey: job.RunID + ":" + job.TaskID,
 	})
 	if err != nil {
+		if isDuplicateEnqueueError(err) {
+			entry.WithError(err).Warn("git worktree flow already enqueued or running; duplicate enqueue suppressed")
+			return job.RunID + ":" + job.TaskID, nil
+		}
 		entry.WithError(err).Error("failed to enqueue git worktree flow task")
 		return "", err
 	}
@@ -78,6 +82,10 @@ func (dispatcher *GitWorktreeDispatcher) EnqueueConflictResolution(ctx context.C
 		IdempotencyKey: job.IdempotencyKey,
 	})
 	if err != nil {
+		if isDuplicateEnqueueError(err) {
+			entry.WithError(err).Warn("git conflict resolve already enqueued or running; duplicate enqueue suppressed")
+			return job.IdempotencyKey, nil
+		}
 		entry.WithError(err).Error("failed to enqueue git conflict resolve task")
 		return "", err
 	}

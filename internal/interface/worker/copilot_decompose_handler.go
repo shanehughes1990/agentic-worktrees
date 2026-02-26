@@ -3,7 +3,9 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hibiken/asynq"
@@ -36,19 +38,37 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
 		return fmt.Errorf("decode copilot payload: %w", err)
 	}
-	entry := handler.entry().WithFields(logrus.Fields{"event": "worker.copilot_decompose", "run_id": strings.TrimSpace(payload.RunID), "task_type": task.Type()})
+	queueTaskID, _ := asynq.GetTaskID(ctx)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	correlationID := buildCorrelationID(strings.TrimSpace(payload.RunID), cleanQueueTaskID)
+	tracePathID := correlationID
+	if tracePathID == "" {
+		tracePathID = strings.TrimSpace(payload.RunID)
+	}
+	entry := handler.entry().WithFields(logrus.Fields{"event": "worker.copilot_decompose", "run_id": strings.TrimSpace(payload.RunID), "task_type": task.Type(), "queue_task_id": cleanQueueTaskID, "correlation_id": correlationID, "trace_path_id": tracePathID})
+	entry.WithFields(logrus.Fields{"phase": "received", "model": strings.TrimSpace(payload.Model), "working_directory": strings.TrimSpace(payload.WorkingDirectory)}).Info("copilot decompose state snapshot")
 	entry.Info("processing copilot decomposition task")
 
 	runID := strings.TrimSpace(payload.RunID)
 	if runID != "" {
-		workflow := &apptaskboard.IngestionWorkflow{RunID: runID, Status: apptaskboard.WorkflowStatusRunning, Message: "copilot decomposition running"}
+		workflow := &apptaskboard.IngestionWorkflow{RunID: runID, TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose, TaskID: strings.TrimSpace(payload.RunID), BoardID: runID, Status: apptaskboard.WorkflowStatusRunning, Message: "copilot decomposition running"}
+		workflow.Details = map[string]any{
+			"run_id":       runID,
+			"queue_task_id": cleanQueueTaskID,
+			"correlation_id": correlationID,
+			"worker_pid":   os.Getpid(),
+			"model":        strings.TrimSpace(payload.Model),
+		}
 		workflow.Normalize(runID)
 		_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
+		entry.WithFields(logrus.Fields{"phase": "workflow_running", "status": apptaskboard.WorkflowStatusRunning}).Info("copilot decompose state snapshot")
 		entry.Info("workflow updated to running")
 	}
 
 	result, err := handler.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 		RunID:            payload.RunID,
+		QueueTaskID:      cleanQueueTaskID,
+		CorrelationID:    correlationID,
 		Prompt:           payload.Prompt,
 		Model:            payload.Model,
 		WorkingDirectory: payload.WorkingDirectory,
@@ -58,8 +78,15 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		CLIURL:           payload.CLIURL,
 	})
 	if err != nil {
+		if isInterruptionError(err) {
+			handler.saveResumableWorkflow(ctx, payload.RunID, "copilot decomposition interrupted; will automatically resume")
+			entry.WithFields(logrus.Fields{"phase": "interrupted", "status": apptaskboard.WorkflowStatusResumable}).WithError(err).Warn("copilot decompose state snapshot")
+			entry.WithError(err).Warn("copilot decomposition interrupted; retrying for automatic resume")
+			return fmt.Errorf("copilot decompose interrupted: %w", err)
+		}
 		userMessage := formatUserFacingDecomposeError(err)
 		handler.saveFailureWorkflow(ctx, payload.RunID, userMessage)
+		entry.WithFields(logrus.Fields{"phase": "failed", "status": apptaskboard.WorkflowStatusFailed, "user_message": userMessage}).WithError(err).Error("copilot decompose state snapshot")
 		entry.WithError(err).WithField("user_message", userMessage).Error("copilot decomposition failed")
 		if isTerminalCopilotFailure(err) {
 			entry.WithError(err).Warn("terminal copilot failure detected; skipping retry")
@@ -88,6 +115,8 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 
 		supervisorResult, supervisorErr := handler.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 			RunID:            payload.RunID,
+			QueueTaskID:      cleanQueueTaskID,
+			CorrelationID:    correlationID,
 			Prompt:           apptaskboard.BuildBoardSupervisorPromptWithReport(payload.Prompt, board, qualityReport),
 			Model:            payload.Model,
 			WorkingDirectory: payload.WorkingDirectory,
@@ -114,6 +143,7 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if !qualityReport.Passed {
 		failureMessage := fmt.Sprintf("taskboard quality gate failed: score=%d threshold=%d", qualityReport.Score, qualityReport.Threshold)
 		handler.saveFailureWorkflow(ctx, payload.RunID, failureMessage)
+		entry.WithFields(logrus.Fields{"phase": "quality_gate_failed", "status": apptaskboard.WorkflowStatusFailed, "quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold}).Error("copilot decompose state snapshot")
 		entry.WithFields(logrus.Fields{"quality_score": qualityReport.Score, "quality_threshold": qualityReport.Threshold}).Error("taskboard quality gate failed")
 		return fmt.Errorf("%s", failureMessage)
 	}
@@ -125,6 +155,7 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 
 	if err := handler.repository.Save(ctx, board); err != nil {
 		handler.saveFailureWorkflow(ctx, payload.RunID, fmt.Sprintf("taskboard persistence failed: %v", err))
+		entry.WithFields(logrus.Fields{"phase": "save_failed", "status": apptaskboard.WorkflowStatusFailed, "board_id": strings.TrimSpace(board.BoardID)}).WithError(err).Error("copilot decompose state snapshot")
 		entry.WithError(err).Error("taskboard save failed")
 		return fmt.Errorf("save taskboard: %w", err)
 	}
@@ -133,17 +164,51 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	if runID != "" {
 		workflow := &apptaskboard.IngestionWorkflow{
 			RunID:   runID,
+			TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose,
+			TaskID: strings.TrimSpace(payload.RunID),
 			Status:  apptaskboard.WorkflowStatusCompleted,
 			Message: "taskboard created",
 			Stream:  result.Response,
 			BoardID: board.BoardID,
 		}
+		workflow.Details = map[string]any{
+			"run_id":        runID,
+			"board_id":      strings.TrimSpace(board.BoardID),
+			"queue_task_id": cleanQueueTaskID,
+			"correlation_id": correlationID,
+			"worker_pid":    os.Getpid(),
+			"session_id":    strings.TrimSpace(result.SessionID),
+			"prompt_hash":   strings.TrimSpace(result.PromptHash),
+			"model":         strings.TrimSpace(result.Model),
+		}
 		workflow.Normalize(runID)
 		_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
+		entry.WithFields(logrus.Fields{"phase": "completed", "status": apptaskboard.WorkflowStatusCompleted, "board_id": strings.TrimSpace(board.BoardID), "session_id": strings.TrimSpace(result.SessionID)}).Info("copilot decompose state snapshot")
 		entry.Info("workflow updated to completed")
 	}
 
 	return nil
+}
+
+func (handler *CopilotDecomposeHandler) saveResumableWorkflow(ctx context.Context, runID string, message string) {
+	cleanRunID := strings.TrimSpace(runID)
+	if cleanRunID == "" {
+		return
+	}
+	workflow := &apptaskboard.IngestionWorkflow{
+		RunID:    cleanRunID,
+		TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose,
+		Status:   apptaskboard.WorkflowStatusResumable,
+		Message:  strings.TrimSpace(message),
+	}
+	workflow.Details = map[string]any{
+		"run_id":     cleanRunID,
+		"correlation_id": buildCorrelationID(cleanRunID, ""),
+		"worker_pid": os.Getpid(),
+		"resumable":  true,
+	}
+	workflow.Normalize(cleanRunID)
+	_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
 }
 
 func (handler *CopilotDecomposeHandler) saveFailureWorkflow(ctx context.Context, runID string, message string) {
@@ -153,8 +218,14 @@ func (handler *CopilotDecomposeHandler) saveFailureWorkflow(ctx context.Context,
 	}
 	workflow := &apptaskboard.IngestionWorkflow{
 		RunID:   cleanRunID,
+		TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose,
 		Status:  apptaskboard.WorkflowStatusFailed,
 		Message: message,
+	}
+	workflow.Details = map[string]any{
+		"run_id":     cleanRunID,
+		"correlation_id": buildCorrelationID(cleanRunID, ""),
+		"worker_pid": os.Getpid(),
 	}
 	workflow.Normalize(cleanRunID)
 	_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
@@ -190,6 +261,18 @@ func isTerminalCopilotFailure(err error) bool {
 		return false
 	}
 	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	transientIndicators := []string{
+		"startup probe failed",
+		"signal: killed",
+		"context deadline exceeded",
+		"timeout",
+		"temporarily unavailable",
+	}
+	for _, indicator := range transientIndicators {
+		if strings.Contains(message, indicator) {
+			return false
+		}
+	}
 	terminalIndicators := []string{
 		"start copilot client",
 		"authentication failed",
@@ -204,4 +287,26 @@ func isTerminalCopilotFailure(err error) bool {
 		}
 	}
 	return false
+}
+
+func isInterruptionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func buildCorrelationID(runID string, queueTaskID string) string {
+	cleanRunID := strings.TrimSpace(runID)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	if cleanRunID == "" && cleanQueueTaskID == "" {
+		return ""
+	}
+	if cleanQueueTaskID == "" {
+		return cleanRunID
+	}
+	if cleanRunID == "" {
+		return cleanQueueTaskID
+	}
+	return cleanRunID + ":" + cleanQueueTaskID
 }

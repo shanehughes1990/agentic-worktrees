@@ -91,3 +91,52 @@ func TestServiceGetNextTaskRepositoryError(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestServiceCheckpointTaskResumeSessionPersistsSessionID(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &stubRepository{board: &domaintaskboard.Board{
+		BoardID: "b1", RunID: "r1", Status: domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "e1", BoardID: "b1", Title: "epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "t1", BoardID: "b1", Title: "task", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	service := NewService(repository)
+	if err := service.CheckpointTaskResumeSession(context.Background(), "b1", "t1", "session-123"); err != nil {
+		t.Fatalf("unexpected checkpoint error: %v", err)
+	}
+	if !repository.saved {
+		t.Fatalf("expected repository save on checkpoint")
+	}
+	if repository.board.Epics[0].Tasks[0].Outcome == nil || repository.board.Epics[0].Tasks[0].Outcome.ResumeSessionID != "session-123" {
+		t.Fatalf("expected resume session checkpoint to persist, got %#v", repository.board.Epics[0].Tasks[0].Outcome)
+	}
+}
+
+func TestServiceCheckpointTaskResumeSessionNoopForEmptySession(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &stubRepository{board: &domaintaskboard.Board{
+		BoardID: "b1", RunID: "r1", Status: domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "e1", BoardID: "b1", Title: "epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "t1", BoardID: "b1", Title: "task", Status: domaintaskboard.StatusInProgress},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	service := NewService(repository)
+	if err := service.CheckpointTaskResumeSession(context.Background(), "b1", "t1", ""); err != nil {
+		t.Fatalf("unexpected checkpoint error: %v", err)
+	}
+	if repository.saved {
+		t.Fatalf("expected no save for empty session checkpoint")
+	}
+}

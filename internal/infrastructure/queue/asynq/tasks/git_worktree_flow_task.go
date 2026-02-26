@@ -11,6 +11,9 @@ import (
 
 const TaskTypeGitWorktreeFlow = "git.worktree.flow"
 
+const defaultGitWorktreeFlowTimeout = 8 * time.Minute
+const defaultGitWorktreeFlowMaxRetry = 2
+
 type GitWorktreeFlowPayload struct {
 	RunID          string `json:"run_id"`
 	BoardID        string `json:"board_id,omitempty"`
@@ -44,6 +47,9 @@ func NewGitWorktreeFlowTask(payload GitWorktreeFlowPayload, options ...asynq.Opt
 	if strings.TrimSpace(payload.WorktreePath) == "" {
 		return nil, nil, fmt.Errorf("worktree_path is required")
 	}
+	if strings.TrimSpace(payload.IdempotencyKey) == "" {
+		payload.IdempotencyKey = strings.TrimSpace(payload.RunID) + ":" + strings.TrimSpace(payload.TaskID)
+	}
 	if !isWorktreePathUnderAppRoot(payload.WorktreePath) {
 		return nil, nil, fmt.Errorf("worktree_path must be under <app_root>/worktrees")
 	}
@@ -54,7 +60,14 @@ func NewGitWorktreeFlowTask(payload GitWorktreeFlowPayload, options ...asynq.Opt
 	}
 
 	task := asynq.NewTask(TaskTypeGitWorktreeFlow, body)
-	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour)}
+	opts := []asynq.Option{
+		asynq.Queue(queueAgent),
+		asynq.Retention(24 * time.Hour),
+		asynq.MaxRetry(defaultGitWorktreeFlowMaxRetry),
+		asynq.TaskID(payload.IdempotencyKey),
+		asynq.Unique(6 * time.Hour),
+		asynq.Timeout(defaultGitWorktreeFlowTimeout),
+	}
 	opts = append(opts, options...)
 	return task, opts, nil
 }

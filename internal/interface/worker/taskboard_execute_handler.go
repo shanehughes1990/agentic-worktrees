@@ -58,8 +58,8 @@ func (handler *TaskboardExecuteHandler) ProcessTask(ctx context.Context, task *a
 		return nil
 	}
 	if errors.Is(err, context.Canceled) {
-		entry.WithError(err).Warn("taskboard execution pipeline canceled")
-		return fmt.Errorf("%w: taskboard execution canceled", asynq.SkipRetry)
+		entry.WithError(err).Warn("taskboard execution pipeline interrupted; retrying for automatic resume")
+		return fmt.Errorf("taskboard execution interrupted: %w", err)
 	}
 
 	entry.WithError(err).Error("taskboard execution pipeline failed")

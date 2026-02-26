@@ -1,6 +1,9 @@
 package tasks
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestNewTaskboardExecuteTaskValidatesInput(t *testing.T) {
 	if _, _, err := NewTaskboardExecuteTask(TaskboardExecutePayload{}); err == nil {
@@ -23,6 +26,16 @@ func TestNewTaskboardExecuteTaskBuildsTask(t *testing.T) {
 	}
 	if len(options) == 0 {
 		t.Fatalf("expected default queue option")
+	}
+	payload := TaskboardExecutePayload{}
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if payload.IdempotencyKey == "" {
+		t.Fatalf("expected idempotency key fallback to be set")
+	}
+	if payload.IdempotencyKey != "board-1:revamp" {
+		t.Fatalf("expected board+source idempotency key, got %q", payload.IdempotencyKey)
 	}
 }
 

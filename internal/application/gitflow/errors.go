@@ -1,6 +1,9 @@
 package gitflow
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type FailureClass string
 
@@ -65,6 +68,15 @@ func asClassifiedError(err error, target *ClassifiedError) bool {
 			target.Err = classifiedErr.Err
 			return true
 		}
+		classProvider, ok := current.(interface{ FailureClass() string })
+		if ok {
+			class := FailureClass(strings.ToLower(strings.TrimSpace(classProvider.FailureClass())))
+			if class == FailureClassTransient || class == FailureClassTerminal {
+				target.Class = class
+				target.Err = current
+				return true
+			}
+		}
 		type unwrapper interface{ Unwrap() error }
 		wrapped, ok := current.(unwrapper)
 		if !ok {
@@ -87,4 +99,27 @@ func EnsureClassified(err error, defaultClass FailureClass) error {
 		return WrapTerminal(fmt.Errorf("%w", err))
 	}
 	return WrapTransient(fmt.Errorf("%w", err))
+}
+
+func IsTransientInfrastructureFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	if message == "" {
+		return false
+	}
+	transientIndicators := []string{
+		"startup probe failed",
+		"signal: killed",
+		"context deadline exceeded",
+		"timeout",
+		"temporarily unavailable",
+	}
+	for _, indicator := range transientIndicators {
+		if strings.Contains(message, indicator) {
+			return true
+		}
+	}
+	return false
 }

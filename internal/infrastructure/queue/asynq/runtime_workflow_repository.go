@@ -11,6 +11,7 @@ import (
 	"github.com/hibiken/asynq"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -20,6 +21,7 @@ const (
 
 type RuntimeWorkflowRepository struct {
 	inspector *asynq.Inspector
+	logger    *logrus.Logger
 }
 
 type runtimeTaskLoader struct {
@@ -34,8 +36,12 @@ type runtimeTaskSnapshot struct {
 	info  *asynq.TaskInfo
 }
 
-func NewRuntimeWorkflowRepository(cfg Config) *RuntimeWorkflowRepository {
-	return &RuntimeWorkflowRepository{inspector: asynq.NewInspector(cfg.redisConnOpt)}
+func NewRuntimeWorkflowRepository(cfg Config, loggers ...*logrus.Logger) *RuntimeWorkflowRepository {
+	var logger *logrus.Logger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
+	return &RuntimeWorkflowRepository{inspector: asynq.NewInspector(cfg.redisConnOpt), logger: logger}
 }
 
 func (repository *RuntimeWorkflowRepository) Close() error {
@@ -46,8 +52,10 @@ func (repository *RuntimeWorkflowRepository) Close() error {
 }
 
 func (repository *RuntimeWorkflowRepository) ListRuntimeWorkflows(ctx context.Context) ([]apptaskboard.IngestionWorkflow, error) {
+	entry := repository.entry().WithField("event", "queue.runtime_workflow.list")
 	snapshots, err := repository.loadRuntimeTaskSnapshots(ctx)
 	if err != nil {
+		entry.WithError(err).Error("failed to load runtime task snapshots")
 		return nil, err
 	}
 
@@ -76,32 +84,40 @@ func (repository *RuntimeWorkflowRepository) ListRuntimeWorkflows(ctx context.Co
 		}
 		return workflows[i].UpdatedAt.After(workflows[j].UpdatedAt)
 	})
+	entry.WithFields(logrus.Fields{"snapshot_count": len(snapshots), "workflow_count": len(workflows)}).Info("listed runtime workflows")
 	return workflows, nil
 }
 
 func (repository *RuntimeWorkflowRepository) GetRuntimeWorkflow(ctx context.Context, runID string) (*apptaskboard.IngestionWorkflow, error) {
+	entry := repository.entry().WithFields(logrus.Fields{"event": "queue.runtime_workflow.get", "run_id": strings.TrimSpace(runID)})
 	workflows, err := repository.ListRuntimeWorkflows(ctx)
 	if err != nil {
+		entry.WithError(err).Error("failed to list workflows while getting runtime workflow")
 		return nil, err
 	}
 	cleanRunID := strings.TrimSpace(runID)
 	for i := range workflows {
 		if workflows[i].RunID == cleanRunID {
 			workflow := workflows[i]
+			entry.WithField("status", workflow.Status).Info("loaded runtime workflow")
 			return &workflow, nil
 		}
 	}
+	entry.Warn("runtime workflow not found")
 	return nil, nil
 }
 
 func (repository *RuntimeWorkflowRepository) CancelRuntimeWorkflow(ctx context.Context, runID string) (apptaskboard.WorkflowCancelResult, error) {
 	cleanRunID := strings.TrimSpace(runID)
+	entry := repository.entry().WithFields(logrus.Fields{"event": "queue.runtime_workflow.cancel", "run_id": cleanRunID})
 	if cleanRunID == "" {
+		entry.Error("run_id is required")
 		return apptaskboard.WorkflowCancelResult{}, fmt.Errorf("run_id is required")
 	}
 
 	snapshots, err := repository.loadRuntimeTaskSnapshots(ctx)
 	if err != nil {
+		entry.WithError(err).Error("failed to load runtime task snapshots for cancel")
 		return apptaskboard.WorkflowCancelResult{}, err
 	}
 
@@ -138,6 +154,7 @@ func (repository *RuntimeWorkflowRepository) CancelRuntimeWorkflow(ctx context.C
 			result.UncancelableTasks++
 		}
 	}
+	entry.WithFields(logrus.Fields{"matched_tasks": result.MatchedTasks, "canceled_tasks": result.CanceledTasks, "signaled_active": result.SignaledActive, "uncancelable_tasks": result.UncancelableTasks}).Info("cancel runtime workflow completed")
 	return result, nil
 }
 
@@ -152,8 +169,10 @@ func (repository *RuntimeWorkflowRepository) loadRuntimeTaskSnapshots(ctx contex
 		tasksInState, err := loader.load()
 		if err != nil {
 			if isQueueNotFoundError(err) {
+				repository.entry().WithFields(logrus.Fields{"event": "queue.runtime_workflow.load_snapshots", "queue": loader.queue, "state": loader.state}).Debug("queue not found while loading runtime snapshots")
 				continue
 			}
+			repository.entry().WithError(err).WithFields(logrus.Fields{"event": "queue.runtime_workflow.load_snapshots", "queue": loader.queue, "state": loader.state}).Error("failed listing runtime tasks")
 			return nil, fmt.Errorf("list runtime workflows from asynq: %w", err)
 		}
 		for _, info := range tasksInState {
@@ -161,6 +180,13 @@ func (repository *RuntimeWorkflowRepository) loadRuntimeTaskSnapshots(ctx contex
 		}
 	}
 	return snapshots, nil
+}
+
+func (repository *RuntimeWorkflowRepository) entry() *logrus.Entry {
+	if repository == nil || repository.logger == nil {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.NewEntry(repository.logger)
 }
 
 func (repository *RuntimeWorkflowRepository) runtimeTaskLoaders() []runtimeTaskLoader {
@@ -219,20 +245,100 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 	if runID == "" {
 		runID = strings.TrimSpace(info.ID)
 	}
+	resumeSessionID := extractResumeSessionID(info)
+	correlationID := extractCorrelationID(info)
+	isOrphanedActive := info != nil && strings.EqualFold(strings.TrimSpace(info.State.String()), "active") && info.IsOrphaned
 	stream := strings.TrimSpace(string(info.Result))
 	if stream == "" {
 		stream = "(stream details not available yet in Asynq result)"
+	}
+	if correlationID != "" {
+		stream = fmt.Sprintf("correlation_id=%s\n%s", correlationID, stream)
 	}
 	return apptaskboard.IngestionWorkflow{
 		RunID:      runID,
 		TaskID:     info.ID,
 		TaskType:   strings.TrimSpace(info.Type),
-		Status:     mapTaskState(info.State),
+		Status:     mapTaskState(info),
 		Message:    mapTaskMessage(info),
 		Stream:     stream,
 		UpdatedAt:  mapTaskUpdatedAt(info),
 		CreatedAt:  time.Time{},
 		Cancelable: isCancelableTaskState(info.State),
+		Details: map[string]any{
+			"asynq_task_id":    strings.TrimSpace(info.ID),
+			"asynq_task_type":  strings.TrimSpace(info.Type),
+			"asynq_state":      strings.TrimSpace(info.State.String()),
+			"correlation_id":   correlationID,
+			"orphaned":         isOrphanedActive,
+			"resumable":        isOrphanedActive,
+			"resume_session_id": resumeSessionID,
+			"asynq_retry_count": info.Retried,
+			"asynq_max_retry":   info.MaxRetry,
+		},
+	}
+}
+
+func extractCorrelationID(info *asynq.TaskInfo) string {
+	if info == nil {
+		return ""
+	}
+	queueTaskID := strings.TrimSpace(info.ID)
+	switch strings.TrimSpace(info.Type) {
+	case tasks.TaskTypeCopilotDecompose:
+		payload := tasks.CopilotDecomposePayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		runID := strings.TrimSpace(payload.RunID)
+		if runID == "" {
+			return queueTaskID
+		}
+		if queueTaskID == "" {
+			return runID
+		}
+		return runID + ":" + queueTaskID
+	case tasks.TaskTypeGitWorktreeFlow:
+		payload := tasks.GitWorktreeFlowPayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		runID := strings.TrimSpace(payload.RunID)
+		if runID == "" {
+			return queueTaskID
+		}
+		if queueTaskID == "" {
+			return runID
+		}
+		return runID + ":" + queueTaskID
+	case tasks.TaskTypeGitConflictResolve:
+		payload := tasks.GitConflictResolvePayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		runID := strings.TrimSpace(payload.RunID)
+		if runID == "" {
+			return queueTaskID
+		}
+		if queueTaskID == "" {
+			return runID
+		}
+		return runID + ":" + queueTaskID
+	case tasks.TaskTypeTaskboardExecute:
+		payload := tasks.TaskboardExecutePayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		runID := strings.TrimSpace(payload.BoardID)
+		if runID == "" {
+			return queueTaskID
+		}
+		if queueTaskID == "" {
+			return runID
+		}
+		return runID + ":" + queueTaskID
+	default:
+		return queueTaskID
 	}
 }
 
@@ -270,9 +376,32 @@ func extractRunID(info *asynq.TaskInfo) string {
 	}
 }
 
-func mapTaskState(state asynq.TaskState) apptaskboard.WorkflowStatus {
-	switch strings.ToLower(strings.TrimSpace(state.String())) {
+func extractResumeSessionID(info *asynq.TaskInfo) string {
+	if info == nil {
+		return ""
+	}
+	switch strings.TrimSpace(info.Type) {
+	case tasks.TaskTypeGitWorktreeFlow:
+		payload := tasks.GitWorktreeFlowPayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		return strings.TrimSpace(payload.ResumeSessionID)
+	default:
+		return ""
+	}
+}
+
+func mapTaskState(info *asynq.TaskInfo) apptaskboard.WorkflowStatus {
+	if info == nil {
+		return apptaskboard.WorkflowStatusQueued
+	}
+	stateText := strings.ToLower(strings.TrimSpace(info.State.String()))
+	switch stateText {
 	case "active":
+		if info.IsOrphaned {
+			return apptaskboard.WorkflowStatusResumable
+		}
 		return apptaskboard.WorkflowStatusRunning
 	case "pending", "scheduled", "retry":
 		return apptaskboard.WorkflowStatusQueued
@@ -286,6 +415,13 @@ func mapTaskState(state asynq.TaskState) apptaskboard.WorkflowStatus {
 }
 
 func mapTaskMessage(info *asynq.TaskInfo) string {
+	if info != nil && strings.EqualFold(strings.TrimSpace(info.State.String()), "active") && info.IsOrphaned {
+		resumeSessionID := extractResumeSessionID(info)
+		if resumeSessionID != "" {
+			return fmt.Sprintf("orphaned active task recovered as resumable; resume_session_id=%s", resumeSessionID)
+		}
+		return "orphaned active task recovered as resumable; worker restart will continue processing"
+	}
 	lastErr := strings.TrimSpace(info.LastErr)
 	if lastErr != "" {
 		return lastErr

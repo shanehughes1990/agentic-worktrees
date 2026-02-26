@@ -19,22 +19,37 @@ type Client struct {
 	logger *logrus.Logger
 }
 
+const fallbackPromptTimeout = 3 * time.Minute
+
 func NewClient(config ClientConfig, logger *logrus.Logger) *Client {
 	return &Client{config: config.Normalized(), logger: logger}
 }
 
-func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resumeSessionID string, workingDirectory string, skillDirectories []string, prompt string) (string, string, string, error) {
+func (client *Client) RunPrompt(ctx context.Context, runID string, taskID string, queueTaskID string, correlationID string, requestedModel string, resumeSessionID string, workingDirectory string, skillDirectories []string, prompt string) (string, string, string, error) {
 	model := strings.TrimSpace(requestedModel)
 	if model == "" {
 		model = client.config.DefaultModel
 	}
 	cleanResumeSessionID := strings.TrimSpace(resumeSessionID)
+	cleanRunID := strings.TrimSpace(runID)
+	cleanTaskID := strings.TrimSpace(taskID)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	cleanCorrelationID := strings.TrimSpace(correlationID)
+	invocationID := buildInvocationID(cleanRunID, cleanTaskID, cleanQueueTaskID)
+	tracePathID := buildTracePathID(cleanRunID, cleanTaskID, cleanQueueTaskID, cleanCorrelationID)
 
 	entry := client.entry().WithFields(logrus.Fields{
 		"event":             "copilot.run_prompt",
+		"run_id":            cleanRunID,
+		"task_id":           cleanTaskID,
+		"queue_task_id":     cleanQueueTaskID,
+		"correlation_id":    cleanCorrelationID,
+		"trace_path_id":     tracePathID,
+		"invocation_id":     invocationID,
 		"model":             model,
 		"working_directory": strings.TrimSpace(workingDirectory),
 	})
+	entry.WithFields(logrus.Fields{"phase": "start", "resume_session_id": cleanResumeSessionID}).Info("copilot prompt state snapshot")
 	entry.WithFields(logrus.Fields{
 		"cli_path":         strings.TrimSpace(client.config.CLIPath),
 		"cli_url":          strings.TrimSpace(client.config.CLIURL),
@@ -48,12 +63,13 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resu
 	if preflightErr != nil {
 		if isSDKCLIIncompatibilityError(preflightErr) {
 			entry.WithError(preflightErr).WithField("preflight", preflight).Warn("copilot sdk/cli incompatibility detected; using direct cli fallback")
-			return client.runPromptViaCLIFallback(ctx, model, workingDirectory, prompt)
+			return client.runPromptViaCLIFallback(ctx, invocationID, cleanRunID, cleanTaskID, cleanQueueTaskID, cleanCorrelationID, model, workingDirectory, prompt)
 		}
 		entry.WithError(preflightErr).WithField("preflight", preflight).Error("copilot startup preflight failed")
 		return "", "", "", fmt.Errorf("copilot preflight failed: %w", preflightErr)
 	}
 	entry.WithField("preflight", preflight).Info("copilot startup preflight succeeded")
+	entry.WithFields(logrus.Fields{"phase": "preflight_ok"}).Info("copilot prompt state snapshot")
 
 	options := &sdk.ClientOptions{
 		GitHubToken: client.config.GitHubToken,
@@ -67,7 +83,7 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resu
 	if err := sdkClient.Start(ctx); err != nil {
 		if isSDKCLIIncompatibilityError(err) {
 			entry.WithError(err).Warn("copilot sdk start incompatible with installed cli; using direct cli fallback")
-			return client.runPromptViaCLIFallback(ctx, model, workingDirectory, prompt)
+			return client.runPromptViaCLIFallback(ctx, invocationID, cleanRunID, cleanTaskID, cleanQueueTaskID, cleanCorrelationID, model, workingDirectory, prompt)
 		}
 		friendly := explainClientStartError(err)
 		entry.WithError(err).Error("failed to start copilot client")
@@ -128,6 +144,7 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resu
 		entry.WithField("resumed_session_id", cleanResumeSessionID).Info("copilot session resumed")
 	}
 	entry = entry.WithField("session_id", session.SessionID)
+	entry.WithFields(logrus.Fields{"phase": "session_ready"}).Info("copilot prompt state snapshot")
 	entry.Info("copilot session created")
 	defer session.Destroy()
 
@@ -142,11 +159,19 @@ func (client *Client) RunPrompt(ctx context.Context, requestedModel string, resu
 		response = *responseEvent.Data.Content
 	}
 	entry.WithField("response_bytes", len(response)).Info("received copilot response")
+	entry.WithFields(logrus.Fields{"phase": "completed", "response_bytes": len(response)}).Info("copilot prompt state snapshot")
 
 	return session.SessionID, response, model, nil
 }
 
-func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string, workingDirectory string, prompt string) (string, string, string, error) {
+func (client *Client) runPromptViaCLIFallback(ctx context.Context, invocationID string, runID string, taskID string, queueTaskID string, correlationID string, model string, workingDirectory string, prompt string) (string, string, string, error) {
+	runCtx := ctx
+	cancel := func() {}
+	if deadline, hasDeadline := ctx.Deadline(); !hasDeadline || time.Until(deadline) > fallbackPromptTimeout {
+		runCtx, cancel = context.WithTimeout(ctx, fallbackPromptTimeout)
+	}
+	defer cancel()
+
 	binary := strings.TrimSpace(client.config.CLIPath)
 	if binary == "" {
 		binary = "copilot"
@@ -156,7 +181,7 @@ func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string,
 		args = append(args, "--model", strings.TrimSpace(model))
 	}
 
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := exec.CommandContext(runCtx, binary, args...)
 	if strings.TrimSpace(workingDirectory) != "" {
 		cmd.Dir = strings.TrimSpace(workingDirectory)
 	}
@@ -171,12 +196,22 @@ func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string,
 		)
 	}
 	cmd.Env = env
+	fallbackPID := 0
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
+		return "", "", "", fmt.Errorf("copilot cli fallback failed to start: %w", err)
+	}
+	if cmd.Process != nil {
+		fallbackPID = cmd.Process.Pid
+	}
+	if err := cmd.Wait(); err != nil {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			return "", "", "", fmt.Errorf("copilot cli fallback timed out after %s", fallbackPromptTimeout)
+		}
 		stderrText := strings.TrimSpace(stderr.String())
 		if stderrText == "" {
 			stderrText = strings.TrimSpace(stdout.String())
@@ -195,11 +230,57 @@ func (client *Client) runPromptViaCLIFallback(ctx context.Context, model string,
 	sessionID := fmt.Sprintf("cli-fallback-%d", time.Now().UnixNano())
 	client.entry().WithFields(logrus.Fields{
 		"event":          "copilot.run_prompt.cli_fallback",
+		"invocation_id":  strings.TrimSpace(invocationID),
+		"run_id":         strings.TrimSpace(runID),
+		"task_id":        strings.TrimSpace(taskID),
+		"queue_task_id":  strings.TrimSpace(queueTaskID),
+		"correlation_id": strings.TrimSpace(correlationID),
+		"trace_path_id":  buildTracePathID(runID, taskID, queueTaskID, correlationID),
+		"copilot_pid":    fallbackPID,
 		"session_id":     sessionID,
 		"response_bytes": len(response),
 		"binary":         binary,
+		"phase":          "cli_fallback_completed",
 	}).Info("copilot cli fallback completed")
 	return sessionID, response, model, nil
+}
+
+func buildTracePathID(runID string, taskID string, queueTaskID string, correlationID string) string {
+	cleanCorrelationID := strings.TrimSpace(correlationID)
+	if cleanCorrelationID != "" {
+		return cleanCorrelationID
+	}
+	parts := make([]string, 0, 3)
+	if cleanRunID := strings.TrimSpace(runID); cleanRunID != "" {
+		parts = append(parts, cleanRunID)
+	}
+	if cleanTaskID := strings.TrimSpace(taskID); cleanTaskID != "" {
+		parts = append(parts, cleanTaskID)
+	}
+	if cleanQueueTaskID := strings.TrimSpace(queueTaskID); cleanQueueTaskID != "" {
+		parts = append(parts, cleanQueueTaskID)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ":")
+}
+
+func buildInvocationID(runID string, taskID string, queueTaskID string) string {
+	cleanRunID := strings.TrimSpace(runID)
+	cleanTaskID := strings.TrimSpace(taskID)
+	cleanQueueTaskID := strings.TrimSpace(queueTaskID)
+	parts := []string{"invoke", fmt.Sprintf("%d", time.Now().UnixNano())}
+	if cleanRunID != "" {
+		parts = append(parts, cleanRunID)
+	}
+	if cleanTaskID != "" {
+		parts = append(parts, cleanTaskID)
+	}
+	if cleanQueueTaskID != "" {
+		parts = append(parts, cleanQueueTaskID)
+	}
+	return strings.Join(parts, ":")
 }
 
 func (client *Client) runStartupPreflight(ctx context.Context) (string, error) {

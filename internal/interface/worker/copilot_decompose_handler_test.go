@@ -198,6 +198,54 @@ func TestCopilotDecomposeHandlerProcessTaskSkipsRetryOnTerminalFailure(t *testin
 	}
 }
 
+func TestCopilotDecomposeHandlerProcessTaskRetriesOnStartupProbeKilled(t *testing.T) {
+	repo := &captureRepo{}
+	handler := NewCopilotDecomposeHandler(&failingDecomposer{err: fmt.Errorf("git worktree flow: implement task with agent: copilot preflight failed: copilot cli startup probe failed: signal: killed")}, repo, repo, nil)
+
+	taskPayload := tasks.CopilotDecomposePayload{RunID: "run-3", Prompt: "prompt", Model: "gpt-5", WorkingDirectory: "."}
+	task, _, err := tasks.NewCopilotDecomposeTask(taskPayload)
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = handler.ProcessTask(ctx, task)
+	if err == nil {
+		t.Fatalf("expected handler error")
+	}
+	if errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("expected retryable error, got skip retry: %v", err)
+	}
+	if repo.workflow == nil || repo.workflow.Status != apptaskboard.WorkflowStatusFailed {
+		t.Fatalf("expected failed workflow status, got %#v", repo.workflow)
+	}
+}
+
+func TestCopilotDecomposeHandlerProcessTaskInterruptionIsResumable(t *testing.T) {
+	repo := &captureRepo{}
+	handler := NewCopilotDecomposeHandler(&failingDecomposer{err: context.Canceled}, repo, repo, nil)
+
+	taskPayload := tasks.CopilotDecomposePayload{RunID: "run-4", Prompt: "prompt", Model: "gpt-5", WorkingDirectory: "."}
+	task, _, err := tasks.NewCopilotDecomposeTask(taskPayload)
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = handler.ProcessTask(ctx, task)
+	if err == nil {
+		t.Fatalf("expected handler error")
+	}
+	if errors.Is(err, asynq.SkipRetry) {
+		t.Fatalf("expected retryable interruption error, got skip retry: %v", err)
+	}
+	if repo.workflow == nil || repo.workflow.Status != apptaskboard.WorkflowStatusResumable {
+		t.Fatalf("expected resumable workflow status, got %#v", repo.workflow)
+	}
+}
+
 var _ appcopilot.Decomposer = (*fakeDecomposer)(nil)
 var _ appcopilot.Decomposer = (*failingDecomposer)(nil)
 var _ apptaskboard.Repository = (*captureRepo)(nil)

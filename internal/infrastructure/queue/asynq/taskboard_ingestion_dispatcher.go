@@ -33,6 +33,7 @@ func (dispatcher *TaskboardIngestionDispatcher) EnqueueIngestion(ctx context.Con
 	entry.Info("enqueueing copilot decomposition task")
 
 	taskInfo, err := dispatcher.client.EnqueueCopilotDecompose(ctx, tasks.CopilotDecomposePayload{
+		IdempotencyKey:   job.RunID,
 		RunID:            job.RunID,
 		Prompt:           job.Prompt,
 		Model:            job.Model,
@@ -43,6 +44,10 @@ func (dispatcher *TaskboardIngestionDispatcher) EnqueueIngestion(ctx context.Con
 		CLIURL:           dispatcher.config.CLIURL,
 	})
 	if err != nil {
+		if isDuplicateEnqueueError(err) {
+			entry.WithError(err).Warn("ingestion task already enqueued or running; duplicate enqueue suppressed")
+			return job.RunID, nil
+		}
 		entry.WithError(err).Error("failed to enqueue copilot decomposition task")
 		return "", err
 	}

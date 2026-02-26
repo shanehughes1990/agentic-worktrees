@@ -129,6 +129,63 @@ func TestAdapterCreateTaskWorktreeRecreatesFromExistingBranchWhenFilesystemMissi
 	}
 }
 
+func TestAdapterSyncTaskBranchWithSourceRecoversUnmergedRootIndexState(t *testing.T) {
+	tempDirectory := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	runGitCommand(t, ctx, tempDirectory, "init")
+	runGitCommand(t, ctx, tempDirectory, "config", "user.email", "test@example.com")
+	runGitCommand(t, ctx, tempDirectory, "config", "user.name", "tester")
+
+	seedFilePath := filepath.Join(tempDirectory, "main.txt")
+	if err := os.WriteFile(seedFilePath, []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("write seed file: %v", err)
+	}
+	runGitCommand(t, ctx, tempDirectory, "add", "main.txt")
+	runGitCommand(t, ctx, tempDirectory, "commit", "-m", "seed")
+	defaultBranch := strings.TrimSpace(runGitCommandOutput(t, ctx, tempDirectory, "branch", "--show-current"))
+	if defaultBranch == "" {
+		defaultBranch = "master"
+	}
+
+	adapter := NewAdapter(nil)
+	worktreeRelPath := ".worktree/worktrees/run-1-task-sync"
+	taskBranch := "task/run-1/task-sync"
+	if err := adapter.CreateTaskWorktree(ctx, tempDirectory, defaultBranch, taskBranch, worktreeRelPath); err != nil {
+		t.Fatalf("create task worktree: %v", err)
+	}
+
+	runGitCommand(t, ctx, tempDirectory, "checkout", "-b", "conflict-branch")
+	conflictFilePath := filepath.Join(tempDirectory, "conflict.txt")
+	if err := os.WriteFile(conflictFilePath, []byte("branch-value\n"), 0o644); err != nil {
+		t.Fatalf("write conflict branch file: %v", err)
+	}
+	runGitCommand(t, ctx, tempDirectory, "add", "conflict.txt")
+	runGitCommand(t, ctx, tempDirectory, "commit", "-m", "conflict branch change")
+
+	runGitCommand(t, ctx, tempDirectory, "checkout", defaultBranch)
+	if err := os.WriteFile(conflictFilePath, []byte("source-value\n"), 0o644); err != nil {
+		t.Fatalf("write source conflict file: %v", err)
+	}
+	runGitCommand(t, ctx, tempDirectory, "add", "conflict.txt")
+	runGitCommand(t, ctx, tempDirectory, "commit", "-m", "source conflict change")
+
+	mergeCmd := exec.CommandContext(ctx, "git", "-C", tempDirectory, "merge", "--no-ff", "--no-commit", "conflict-branch")
+	if output, mergeErr := mergeCmd.CombinedOutput(); mergeErr == nil {
+		t.Fatalf("expected merge conflict to create unmerged index state, got success: %s", strings.TrimSpace(string(output)))
+	}
+
+	if _, syncErr := adapter.SyncTaskBranchWithSource(ctx, tempDirectory, defaultBranch, taskBranch, worktreeRelPath); syncErr != nil {
+		t.Fatalf("expected sync to recover and proceed despite stale root merge state: %v", syncErr)
+	}
+
+	unmergedOutput := strings.TrimSpace(runGitCommandOutput(t, ctx, tempDirectory, "diff", "--name-only", "--diff-filter=U"))
+	if unmergedOutput != "" {
+		t.Fatalf("expected no unmerged files after sync recovery, got: %s", unmergedOutput)
+	}
+}
+
 func runGitCommand(t *testing.T, ctx context.Context, repositoryRoot string, args ...string) {
 	t.Helper()
 	command := exec.CommandContext(ctx, "git", append([]string{"-C", repositoryRoot}, args...)...)
