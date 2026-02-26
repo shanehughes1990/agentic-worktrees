@@ -1,6 +1,9 @@
 package gitflow
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type FailureClass string
 
@@ -64,6 +67,15 @@ func asClassifiedError(err error, target *ClassifiedError) bool {
 			target.Class = classifiedErr.Class
 			target.Err = classifiedErr.Err
 			return true
+		}
+		classProvider, ok := current.(interface{ FailureClass() string })
+		if ok {
+			class := FailureClass(strings.ToLower(strings.TrimSpace(classProvider.FailureClass())))
+			if class == FailureClassTransient || class == FailureClassTerminal {
+				target.Class = class
+				target.Err = current
+				return true
+			}
 		}
 		type unwrapper interface{ Unwrap() error }
 		wrapped, ok := current.(unwrapper)
