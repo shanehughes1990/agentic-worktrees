@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type StartRequest struct {
@@ -46,14 +47,28 @@ type Dispatcher interface {
 
 type Service struct {
 	dispatcher Dispatcher
+	logger     *logrus.Logger
 }
 
-func NewService(dispatcher Dispatcher) *Service {
-	return &Service{dispatcher: dispatcher}
+func NewService(dispatcher Dispatcher, loggers ...*logrus.Logger) *Service {
+	var logger *logrus.Logger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
+	return &Service{dispatcher: dispatcher, logger: logger}
 }
 
 func (service *Service) Start(ctx context.Context, request StartRequest) (StartResult, error) {
+	entry := service.entry().WithFields(logrus.Fields{
+		"event":           "gitflow.start",
+		"run_id":          strings.TrimSpace(request.RunID),
+		"board_id":        strings.TrimSpace(request.BoardID),
+		"task_id":         strings.TrimSpace(request.TaskID),
+		"source_branch":   strings.TrimSpace(request.SourceBranch),
+		"repository_root": strings.TrimSpace(request.RepositoryRoot),
+	})
 	if service.dispatcher == nil {
+		entry.Error("dispatcher is required")
 		return StartResult{}, fmt.Errorf("dispatcher is required")
 	}
 
@@ -64,14 +79,18 @@ func (service *Service) Start(ctx context.Context, request StartRequest) (StartR
 
 	if runID == "" {
 		runID = uuid.NewString()
+		entry = entry.WithField("run_id", runID)
 	}
 	if taskID == "" {
+		entry.Error("task_id is required")
 		return StartResult{}, fmt.Errorf("task_id is required")
 	}
 	if repositoryRoot == "" {
+		entry.Error("repository_root is required")
 		return StartResult{}, fmt.Errorf("repository_root is required")
 	}
 	if sourceBranch == "" {
+		entry.Error("source_branch is required")
 		return StartResult{}, fmt.Errorf("source_branch is required")
 	}
 
@@ -91,10 +110,20 @@ func (service *Service) Start(ctx context.Context, request StartRequest) (StartR
 		WorktreePath:   worktreePath,
 	})
 	if err != nil {
+		entry.WithError(err).WithFields(logrus.Fields{"task_branch": taskBranch, "worktree_path": worktreePath}).Error("failed to enqueue git worktree flow")
 		return StartResult{}, fmt.Errorf("enqueue worktree flow: %w", err)
 	}
 
+	entry.WithFields(logrus.Fields{"queue_task_id": queueTaskID, "task_branch": taskBranch, "worktree_path": worktreePath}).Info("enqueued git worktree flow")
+
 	return StartResult{QueueTaskID: queueTaskID, TaskBranch: taskBranch, Worktree: worktreePath}, nil
+}
+
+func (service *Service) entry() *logrus.Entry {
+	if service == nil || service.logger == nil {
+		return logrus.NewEntry(logrus.StandardLogger())
+	}
+	return logrus.NewEntry(service.logger)
 }
 
 func buildWorktreePath(worktreeRoot, runID, taskID string) string {
