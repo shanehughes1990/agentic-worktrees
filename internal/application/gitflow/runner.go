@@ -15,10 +15,17 @@ type MergeAttempt struct {
 	NoChanges     bool
 }
 
+type WorktreeSyncState struct {
+	HasUncommittedChanges bool
+	AheadFileCount        int
+	BehindFileCount       int
+}
+
 type GitPort interface {
 	CreateTaskWorktree(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) error
 	SyncTaskBranchWithSource(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) (MergeAttempt, error)
 	MergeTaskBranch(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string) (MergeAttempt, error)
+	InspectWorktreeSyncState(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) (WorktreeSyncState, error)
 	ResolveConflicts(ctx context.Context, repositoryRoot string, conflictFiles []string, copilotAdvice string) error
 	ValidateWorktree(ctx context.Context, repositoryRoot string) error
 	StageAll(ctx context.Context, repositoryRoot string) error

@@ -16,6 +16,7 @@ type TaskExecutionRequest struct {
 	BoardID         string
 	RunID           string
 	TaskID          string
+	TaskBranch      string
 	QueueTaskID     string
 	CorrelationID   string
 	TaskTitle       string
@@ -45,6 +46,79 @@ type TaskExecutor struct {
 	decomposer        appcopilot.Decomposer
 	resumeCheckpoint  ResumeSessionCheckpoint
 	logger            *logrus.Logger
+}
+
+func (executor *TaskExecutor) ReconcileCompletedTaskWorktree(ctx context.Context, request TaskExecutionRequest) error {
+	cleanRunID := strings.TrimSpace(request.RunID)
+	cleanTaskID := strings.TrimSpace(request.TaskID)
+	cleanTaskBranch := strings.TrimSpace(request.TaskBranch)
+	cleanSourceBranch := strings.TrimSpace(request.SourceBranch)
+	cleanRepositoryRoot := strings.TrimSpace(request.RepositoryRoot)
+	cleanWorktreePath := strings.TrimSpace(request.WorktreePath)
+	cleanCorrelationID := strings.TrimSpace(request.CorrelationID)
+	cleanQueueTaskID := strings.TrimSpace(request.QueueTaskID)
+
+	if cleanRunID == "" {
+		cleanRunID = strings.TrimSpace(request.BoardID)
+	}
+	if cleanTaskBranch == "" {
+		cleanTaskBranch = fmt.Sprintf("task/%s/%s", sanitizeBranchSegment(cleanRunID), sanitizeBranchSegment(cleanTaskID))
+	}
+
+	entry := executor.entry().WithFields(logrus.Fields{
+		"event":          "gitflow.task_executor.reconcile_completed_worktree",
+		"run_id":         cleanRunID,
+		"task_id":        cleanTaskID,
+		"task_branch":    cleanTaskBranch,
+		"source_branch":  cleanSourceBranch,
+		"repository_root": cleanRepositoryRoot,
+		"worktree_path":  cleanWorktreePath,
+		"queue_task_id":  cleanQueueTaskID,
+		"correlation_id": cleanCorrelationID,
+	})
+
+	if cleanTaskID == "" {
+		return WrapTerminal(fmt.Errorf("task_id is required"))
+	}
+	if cleanSourceBranch == "" {
+		return WrapTerminal(fmt.Errorf("source_branch is required"))
+	}
+	if cleanRepositoryRoot == "" {
+		return WrapTerminal(fmt.Errorf("repository_root is required"))
+	}
+	if cleanWorktreePath == "" {
+		return nil
+	}
+
+	absoluteWorktreePath := filepath.Join(cleanRepositoryRoot, filepath.FromSlash(cleanWorktreePath))
+	hasExistingWorktree, worktreeDetectErr := worktreeExistsWithGitMetadata(absoluteWorktreePath)
+	if worktreeDetectErr != nil {
+		return EnsureClassified(fmt.Errorf("detect completed worktree state: %w", worktreeDetectErr), FailureClassTerminal)
+	}
+	if !hasExistingWorktree {
+		entry.Info("completed task worktree already absent; no reconcile needed")
+		return nil
+	}
+
+	syncState, syncErr := executor.git.InspectWorktreeSyncState(ctx, cleanRepositoryRoot, cleanSourceBranch, cleanTaskBranch, cleanWorktreePath)
+	if syncErr != nil {
+		return EnsureClassified(fmt.Errorf("inspect completed worktree sync state: %w", syncErr), FailureClassTerminal)
+	}
+	entry.WithFields(logrus.Fields{
+		"has_uncommitted_changes": syncState.HasUncommittedChanges,
+		"ahead_file_count":        syncState.AheadFileCount,
+		"behind_file_count":       syncState.BehindFileCount,
+	}).Info("completed worktree sync inspection")
+
+	if syncState.HasUncommittedChanges || syncState.AheadFileCount > 0 || syncState.BehindFileCount > 0 {
+		return EnsureClassified(fmt.Errorf("completed task worktree drift detected: uncommitted=%t ahead_files=%d behind_files=%d", syncState.HasUncommittedChanges, syncState.AheadFileCount, syncState.BehindFileCount), FailureClassTerminal)
+	}
+
+	if cleanupErr := executor.git.CleanupTaskWorktree(ctx, cleanRepositoryRoot, cleanWorktreePath, cleanTaskBranch); cleanupErr != nil {
+		return EnsureClassified(fmt.Errorf("cleanup completed task worktree: %w", cleanupErr), FailureClassTerminal)
+	}
+	entry.Info("cleaned stale completed task worktree after drift-free verification")
+	return nil
 }
 
 func NewTaskExecutor(git GitPort, decomposer appcopilot.Decomposer, resumeCheckpoints ...ResumeSessionCheckpoint) *TaskExecutor {

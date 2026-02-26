@@ -65,6 +65,10 @@ func (port *integrationGitPort) MergeTaskBranch(ctx context.Context, repositoryR
 	return MergeAttempt{}, nil
 }
 
+func (port *integrationGitPort) InspectWorktreeSyncState(_ context.Context, _ string, _ string, _ string, _ string) (WorktreeSyncState, error) {
+	return WorktreeSyncState{}, nil
+}
+
 func (port *integrationGitPort) SyncTaskBranchWithSource(context.Context, string, string, string, string) (MergeAttempt, error) {
 	return MergeAttempt{NoChanges: true}, nil
 }

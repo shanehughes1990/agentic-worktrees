@@ -15,6 +15,11 @@ type resumeTestGitPort struct {
 	mergeAttempt MergeAttempt
 	syncAttempt  *MergeAttempt
 	validateCalls int
+	syncState WorktreeSyncState
+	inspectSyncErr error
+	inspectSyncCalls int
+	cleanupCalls int
+	cleanupErr error
 }
 
 func (port *resumeTestGitPort) CreateTaskWorktree(context.Context, string, string, string, string) error {
@@ -23,6 +28,14 @@ func (port *resumeTestGitPort) CreateTaskWorktree(context.Context, string, strin
 
 func (port *resumeTestGitPort) MergeTaskBranch(context.Context, string, string, string) (MergeAttempt, error) {
 	return port.mergeAttempt, nil
+}
+
+func (port *resumeTestGitPort) InspectWorktreeSyncState(context.Context, string, string, string, string) (WorktreeSyncState, error) {
+	port.inspectSyncCalls++
+	if port.inspectSyncErr != nil {
+		return WorktreeSyncState{}, port.inspectSyncErr
+	}
+	return port.syncState, nil
 }
 
 func (port *resumeTestGitPort) SyncTaskBranchWithSource(context.Context, string, string, string, string) (MergeAttempt, error) {
@@ -45,7 +58,8 @@ func (port *resumeTestGitPort) Commit(context.Context, string, string) error {
 }
 
 func (port *resumeTestGitPort) CleanupTaskWorktree(context.Context, string, string, string) error {
-	return nil
+	port.cleanupCalls++
+	return port.cleanupErr
 }
 
 func (port *resumeTestGitPort) CleanupRunArtifacts(context.Context, string, string) error {
@@ -317,5 +331,68 @@ func TestTaskExecutorUsesRetryPromptOnSecondAttempt(t *testing.T) {
 	}
 	if !strings.Contains(decomposer.requests[0].Prompt, "Previous attempt made no forward progress") {
 		t.Fatalf("expected retry prompt content, got %q", decomposer.requests[0].Prompt)
+	}
+}
+
+func TestTaskExecutorReconcileCompletedTaskWorktreeCleansOnlyWhenDriftFree(t *testing.T) {
+	tempDirectory := t.TempDir()
+	worktreePath := filepath.Join(tempDirectory, ".worktree", "run-1-task-1")
+	if err := os.MkdirAll(worktreePath, 0o755); err != nil {
+		t.Fatalf("create worktree path: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(worktreePath, ".git"), []byte("gitdir: /tmp/fake\n"), 0o644); err != nil {
+		t.Fatalf("create worktree .git marker: %v", err)
+	}
+
+	gitPort := &resumeTestGitPort{syncState: WorktreeSyncState{HasUncommittedChanges: false, AheadFileCount: 0, BehindFileCount: 0}}
+	executor := NewTaskExecutor(gitPort, nil)
+
+	err := executor.ReconcileCompletedTaskWorktree(context.Background(), TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		TaskBranch:     "task/run-1/task-1",
+		SourceBranch:   "main",
+		RepositoryRoot: tempDirectory,
+		WorktreePath:   ".worktree/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected reconcile error: %v", err)
+	}
+	if gitPort.inspectSyncCalls != 1 {
+		t.Fatalf("expected one sync inspection call, got %d", gitPort.inspectSyncCalls)
+	}
+	if gitPort.cleanupCalls != 1 {
+		t.Fatalf("expected one cleanup call, got %d", gitPort.cleanupCalls)
+	}
+}
+
+func TestTaskExecutorReconcileCompletedTaskWorktreeFailsOnDrift(t *testing.T) {
+	tempDirectory := t.TempDir()
+	worktreePath := filepath.Join(tempDirectory, ".worktree", "run-1-task-1")
+	if err := os.MkdirAll(worktreePath, 0o755); err != nil {
+		t.Fatalf("create worktree path: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(worktreePath, ".git"), []byte("gitdir: /tmp/fake\n"), 0o644); err != nil {
+		t.Fatalf("create worktree .git marker: %v", err)
+	}
+
+	gitPort := &resumeTestGitPort{syncState: WorktreeSyncState{HasUncommittedChanges: true, AheadFileCount: 1, BehindFileCount: 0}}
+	executor := NewTaskExecutor(gitPort, nil)
+
+	err := executor.ReconcileCompletedTaskWorktree(context.Background(), TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		TaskBranch:     "task/run-1/task-1",
+		SourceBranch:   "main",
+		RepositoryRoot: tempDirectory,
+		WorktreePath:   ".worktree/run-1-task-1",
+	})
+	if err == nil {
+		t.Fatalf("expected reconcile drift error")
+	}
+	if gitPort.cleanupCalls != 0 {
+		t.Fatalf("expected no cleanup on drift, got %d", gitPort.cleanupCalls)
 	}
 }

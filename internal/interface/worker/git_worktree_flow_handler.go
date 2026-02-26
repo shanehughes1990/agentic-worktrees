@@ -37,6 +37,7 @@ var readRetryContext = func(ctx context.Context) (int, int) {
 
 type taskExecutor interface {
 	ExecuteTask(ctx context.Context, request appgitflow.TaskExecutionRequest) (appgitflow.TaskExecutionResult, error)
+	ReconcileCompletedTaskWorktree(ctx context.Context, request appgitflow.TaskExecutionRequest) error
 }
 
 func NewGitWorktreeFlowHandler(executor taskExecutor, taskboardService *apptaskboard.Service, logger *logrus.Logger) *GitWorktreeFlowHandler {
@@ -92,13 +93,35 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		boardID = strings.TrimSpace(payload.RunID)
 	}
 
-	if task, getErr := handler.taskboardService.GetTaskByID(ctx, boardID, strings.TrimSpace(payload.TaskID)); getErr == nil && task != nil && task.Outcome != nil {
-		persistedResumeSessionID := strings.TrimSpace(task.Outcome.ResumeSessionID)
-		if persistedResumeSessionID != "" {
-			if strings.TrimSpace(payload.ResumeSessionID) != persistedResumeSessionID {
-				entry.WithField("resume_session_id", persistedResumeSessionID).Info("using latest persisted resume session for recovered task execution")
+	if taskState, getErr := handler.taskboardService.GetTaskByID(ctx, boardID, strings.TrimSpace(payload.TaskID)); getErr == nil && taskState != nil {
+		if taskState.Status == domaintaskboard.StatusCompleted && taskState.Outcome != nil && strings.TrimSpace(taskState.Outcome.Worktree) != "" {
+			reconcileRequest := appgitflow.TaskExecutionRequest{
+				BoardID:       boardID,
+				RunID:         payload.RunID,
+				TaskID:        payload.TaskID,
+				TaskBranch:    strings.TrimSpace(taskState.Outcome.TaskBranch),
+				QueueTaskID:   cleanQueueTaskID,
+				CorrelationID: correlationID,
+				SourceBranch:  payload.SourceBranch,
+				RepositoryRoot: payload.RepositoryRoot,
+				WorktreePath:  strings.TrimSpace(taskState.Outcome.Worktree),
 			}
-			payload.ResumeSessionID = persistedResumeSessionID
+			if reconcileErr := handler.executor.ReconcileCompletedTaskWorktree(ctx, reconcileRequest); reconcileErr != nil {
+				entry.WithError(reconcileErr).WithFields(logrus.Fields{"phase": "completed_reconcile_failed", "task_status": taskState.Status}).Error("completed task stale worktree reconcile failed")
+				return fmt.Errorf("reconcile completed task worktree: %w", reconcileErr)
+			}
+			entry.WithFields(logrus.Fields{"phase": "completed_reconcile_skipped_execution", "task_status": taskState.Status}).Info("completed task had stale worktree reconciled; skipping execution")
+			return nil
+		}
+
+		if taskState.Outcome != nil {
+			persistedResumeSessionID := strings.TrimSpace(taskState.Outcome.ResumeSessionID)
+			if persistedResumeSessionID != "" {
+				if strings.TrimSpace(payload.ResumeSessionID) != persistedResumeSessionID {
+					entry.WithField("resume_session_id", persistedResumeSessionID).Info("using latest persisted resume session for recovered task execution")
+				}
+				payload.ResumeSessionID = persistedResumeSessionID
+			}
 		}
 	}
 

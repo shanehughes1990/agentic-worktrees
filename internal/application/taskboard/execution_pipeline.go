@@ -333,6 +333,31 @@ func (service *ExecutionPipelineService) ExecuteBoard(ctx context.Context, board
 				})
 				continue
 			}
+			if strings.EqualFold(strings.TrimSpace(outcome.Status), "no_changes") {
+				if strings.TrimSpace(outcome.Reason) == "" {
+					outcome.Reason = "no forward progress detected"
+				}
+				outcome.Status = "interrupted"
+				if markErr := service.taskboardService.MarkTaskCanceledWithOutcome(ctx, cleanBoardID, taskID, domaintaskboard.TaskOutcome{
+					Status:          outcome.Status,
+					Reason:          outcome.Reason,
+					TaskBranch:      outcome.TaskBranch,
+					Worktree:        outcome.Worktree,
+					ResumeSessionID: outcome.ResumeSessionID,
+				}); markErr != nil {
+					return fmt.Errorf("mark task canceled after no-progress result: %w", markErr)
+				}
+				_ = service.appendWorkflowEvent(ctx, cleanBoardID, cleanBoardID, WorkflowStatusFailed, "task re-queued after no progress", map[string]any{
+					"event":             "task_no_progress_requeued",
+					"task_id":           taskID,
+					"status":            outcome.Status,
+					"reason":            outcome.Reason,
+					"task_branch":       outcome.TaskBranch,
+					"worktree":          outcome.Worktree,
+					"resume_session_id": outcome.ResumeSessionID,
+				})
+				return fmt.Errorf("task %s returned no progress and was re-queued", taskID)
+			}
 			if strings.TrimSpace(outcome.Status) == "" {
 				outcome.Status = "merged"
 			}

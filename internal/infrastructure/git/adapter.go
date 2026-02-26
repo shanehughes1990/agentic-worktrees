@@ -133,6 +133,43 @@ func (adapter *Adapter) SyncTaskBranchWithSource(ctx context.Context, repository
 	return appgitflow.MergeAttempt{NoChanges: true}, nil
 }
 
+func (adapter *Adapter) InspectWorktreeSyncState(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) (appgitflow.WorktreeSyncState, error) {
+	absoluteWorktreePath := filepath.Join(repositoryRoot, filepath.FromSlash(worktreePath))
+
+	if err := adapter.recoverMergeStateIfNeeded(ctx, repositoryRoot); err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+	if err := adapter.recoverMergeStateIfNeeded(ctx, absoluteWorktreePath); err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+
+	if _, err := adapter.runGit(ctx, repositoryRoot, "checkout", sourceBranch); err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+	if _, err := adapter.runGit(ctx, absoluteWorktreePath, "checkout", taskBranch); err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+
+	aheadOutput, err := adapter.runGit(ctx, repositoryRoot, "diff", "--name-only", sourceBranch+".."+taskBranch)
+	if err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+	behindOutput, err := adapter.runGit(ctx, repositoryRoot, "diff", "--name-only", taskBranch+".."+sourceBranch)
+	if err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+	statusOutput, err := adapter.runGit(ctx, absoluteWorktreePath, "status", "--porcelain")
+	if err != nil {
+		return appgitflow.WorktreeSyncState{}, err
+	}
+
+	return appgitflow.WorktreeSyncState{
+		HasUncommittedChanges: strings.TrimSpace(statusOutput) != "",
+		AheadFileCount:        countNonEmptyLines(aheadOutput),
+		BehindFileCount:       countNonEmptyLines(behindOutput),
+	}, nil
+}
+
 func (adapter *Adapter) ValidateWorktree(ctx context.Context, repositoryRoot string) error {
 	command := exec.CommandContext(ctx, "go", "test", "./...")
 	command.Dir = repositoryRoot
@@ -410,4 +447,18 @@ func (adapter *Adapter) shouldSerializeMutation(repositoryRoot string, args []st
 	default:
 		return false
 	}
+}
+
+func countNonEmptyLines(output string) int {
+	cleanOutput := strings.TrimSpace(output)
+	if cleanOutput == "" {
+		return 0
+	}
+	count := 0
+	for _, line := range strings.Split(cleanOutput, "\n") {
+		if strings.TrimSpace(line) != "" {
+			count++
+		}
+	}
+	return count
 }

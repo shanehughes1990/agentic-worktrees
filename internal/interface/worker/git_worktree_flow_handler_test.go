@@ -46,11 +46,19 @@ type fakeTaskExecutorForWorker struct {
 	result      appgitflow.TaskExecutionResult
 	err         error
 	lastRequest appgitflow.TaskExecutionRequest
+	reconcileErr error
+	reconcileCalls int
 }
 
 func (executor *fakeTaskExecutorForWorker) ExecuteTask(_ context.Context, request appgitflow.TaskExecutionRequest) (appgitflow.TaskExecutionResult, error) {
 	executor.lastRequest = request
 	return executor.result, executor.err
+}
+
+func (executor *fakeTaskExecutorForWorker) ReconcileCompletedTaskWorktree(_ context.Context, request appgitflow.TaskExecutionRequest) error {
+	executor.reconcileCalls++
+	executor.lastRequest = request
+	return executor.reconcileErr
 }
 
 type fakeGitPortForWorker struct{}
@@ -60,6 +68,9 @@ func (port *fakeGitPortForWorker) CreateTaskWorktree(context.Context, string, st
 }
 func (port *fakeGitPortForWorker) MergeTaskBranch(context.Context, string, string, string) (appgitflow.MergeAttempt, error) {
 	return appgitflow.MergeAttempt{}, nil
+}
+func (port *fakeGitPortForWorker) InspectWorktreeSyncState(context.Context, string, string, string, string) (appgitflow.WorktreeSyncState, error) {
+	return appgitflow.WorktreeSyncState{}, nil
 }
 func (port *fakeGitPortForWorker) SyncTaskBranchWithSource(context.Context, string, string, string, string) (appgitflow.MergeAttempt, error) {
 	return appgitflow.MergeAttempt{NoChanges: true}, nil
@@ -96,6 +107,9 @@ func (port *failingGitPortForWorker) CreateTaskWorktree(context.Context, string,
 }
 func (port *failingGitPortForWorker) MergeTaskBranch(context.Context, string, string, string) (appgitflow.MergeAttempt, error) {
 	return appgitflow.MergeAttempt{}, nil
+}
+func (port *failingGitPortForWorker) InspectWorktreeSyncState(context.Context, string, string, string, string) (appgitflow.WorktreeSyncState, error) {
+	return appgitflow.WorktreeSyncState{}, appgitflow.WrapTerminal(errors.New("fatal git error"))
 }
 func (port *failingGitPortForWorker) SyncTaskBranchWithSource(context.Context, string, string, string, string) (appgitflow.MergeAttempt, error) {
 	return appgitflow.MergeAttempt{}, appgitflow.WrapTerminal(errors.New("fatal git error"))
@@ -493,5 +507,87 @@ func TestGitWorktreeFlowHandlerBlocksWhenNoProgressRetriesExhausted(t *testing.T
 	}
 	if updatedTask == nil || updatedTask.Status != domaintaskboard.StatusBlocked {
 		t.Fatalf("expected no-progress exhausted task to be blocked, got %#v", updatedTask)
+	}
+}
+
+func TestGitWorktreeFlowHandlerReconcilesCompletedTaskWorktreeWithoutExecuting(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusCompleted},
+				Outcome:  &domaintaskboard.TaskOutcome{Status: "merged", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/worktrees/run-1-task-1"},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	fakeExecutor := &fakeTaskExecutorForWorker{err: errors.New("execute should not be called")}
+	handler := NewGitWorktreeFlowHandler(fakeExecutor, taskboardService, nil)
+
+	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
+		RunID:          "run-1",
+		BoardID:        "board-1",
+		TaskID:         "task-1",
+		RepositoryRoot: ".",
+		SourceBranch:   "revamp",
+		TaskBranch:     "task/run-1/task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	if err := handler.ProcessTask(context.Background(), task); err != nil {
+		t.Fatalf("unexpected handler error: %v", err)
+	}
+	if fakeExecutor.reconcileCalls != 1 {
+		t.Fatalf("expected one reconcile call, got %d", fakeExecutor.reconcileCalls)
+	}
+}
+
+func TestGitWorktreeFlowHandlerFailsWhenCompletedTaskReconcileDetectsDrift(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryBoardRepoForWorker{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Status: domaintaskboard.StatusCompleted},
+				Outcome:  &domaintaskboard.TaskOutcome{Status: "merged", TaskBranch: "task/run-1/task-1", Worktree: ".worktree/worktrees/run-1-task-1"},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+	taskboardService := apptaskboard.NewService(repository)
+	fakeExecutor := &fakeTaskExecutorForWorker{reconcileErr: appgitflow.WrapTerminal(errors.New("drift detected in completed worktree"))}
+	handler := NewGitWorktreeFlowHandler(fakeExecutor, taskboardService, nil)
+
+	task, _, err := tasks.NewGitWorktreeFlowTask(tasks.GitWorktreeFlowPayload{
+		RunID:          "run-1",
+		BoardID:        "board-1",
+		TaskID:         "task-1",
+		RepositoryRoot: ".",
+		SourceBranch:   "revamp",
+		TaskBranch:     "task/run-1/task-1",
+		WorktreePath:   ".worktree/worktrees/run-1-task-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected task build error: %v", err)
+	}
+
+	if err := handler.ProcessTask(context.Background(), task); err == nil {
+		t.Fatalf("expected reconcile failure")
+	}
+	if fakeExecutor.reconcileCalls != 1 {
+		t.Fatalf("expected one reconcile call, got %d", fakeExecutor.reconcileCalls)
 	}
 }

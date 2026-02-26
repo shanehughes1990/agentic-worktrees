@@ -400,6 +400,55 @@ func TestExecutionPipelineServiceExecuteBoardCancelsTasksAsResumable(t *testing.
 	}
 }
 
+func TestExecutionPipelineServiceExecuteBoardRequeuesNoProgressOutcomes(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &memoryRepo{board: &domaintaskboard.Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Status:  domaintaskboard.StatusInProgress,
+		Epics: []domaintaskboard.Epic{{
+			WorkItem: domaintaskboard.WorkItem{ID: "epic-1", BoardID: "board-1", Title: "Epic", Status: domaintaskboard.StatusInProgress},
+			Tasks: []domaintaskboard.Task{{
+				WorkItem: domaintaskboard.WorkItem{ID: "task-1", BoardID: "board-1", Title: "Task 1", Status: domaintaskboard.StatusNotStarted},
+			}},
+		}},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}}
+
+	taskboardService := NewService(repository)
+	executor := &fakeTaskExecutor{outcome: TaskExecutionOutcome{Status: "no_changes", Reason: "no forward progress detected", ResumeSessionID: "session-555"}}
+	pipeline := NewExecutionPipelineService(taskboardService, executor, &memoryWorkflowRepo{}, 1)
+
+	err := pipeline.ExecuteBoard(context.Background(), "board-1", "revamp", ".", 0)
+	if err == nil {
+		t.Fatalf("expected no-progress execution error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "no progress") {
+		t.Fatalf("expected no-progress error message, got %v", err)
+	}
+
+	task, taskErr := taskboardService.GetTaskByID(context.Background(), "board-1", "task-1")
+	if taskErr != nil {
+		t.Fatalf("unexpected get task error: %v", taskErr)
+	}
+	if task == nil {
+		t.Fatalf("expected task to exist")
+	}
+	if task.Status != domaintaskboard.StatusNotStarted {
+		t.Fatalf("expected no-progress task to be requeued as not-started, got %s", task.Status)
+	}
+	if task.Outcome == nil {
+		t.Fatalf("expected outcome to be recorded")
+	}
+	if task.Outcome.Status != "interrupted" {
+		t.Fatalf("expected interrupted outcome status, got %s", task.Outcome.Status)
+	}
+	if task.Outcome.ResumeSessionID != "session-555" {
+		t.Fatalf("expected resume session id session-555, got %q", task.Outcome.ResumeSessionID)
+	}
+}
+
 func TestExecutionPipelineServiceExecuteBoardStopsAtMaxTasks(t *testing.T) {
 	now := time.Now().UTC()
 	repository := &memoryRepo{board: &domaintaskboard.Board{
