@@ -124,6 +124,40 @@ func (repository *pollingRepository) SaveWorkflow(_ context.Context, workflow *I
 	return nil
 }
 
+type lifecycleTransitionRepository struct {
+	savedWorkflows []IngestionWorkflow
+	failedMessage  string
+}
+
+func (repository *lifecycleTransitionRepository) GetByBoardID(context.Context, string) (*domaintaskboard.Board, error) {
+	return nil, nil
+}
+
+func (repository *lifecycleTransitionRepository) ListBoardIDs(context.Context) ([]string, error) {
+	return []string{}, nil
+}
+
+func (repository *lifecycleTransitionRepository) Save(context.Context, *domaintaskboard.Board) error {
+	return nil
+}
+
+func (repository *lifecycleTransitionRepository) GetWorkflow(_ context.Context, runID string) (*IngestionWorkflow, error) {
+	return &IngestionWorkflow{
+		RunID:   runID,
+		Status:  WorkflowStatusFailed,
+		Message: repository.failedMessage,
+	}, nil
+}
+
+func (repository *lifecycleTransitionRepository) ListWorkflows(context.Context) ([]IngestionWorkflow, error) {
+	return []IngestionWorkflow{}, nil
+}
+
+func (repository *lifecycleTransitionRepository) SaveWorkflow(_ context.Context, workflow *IngestionWorkflow) error {
+	repository.savedWorkflows = append(repository.savedWorkflows, *workflow)
+	return nil
+}
+
 func TestIngestDirectoryReturnsBoardAndRunID(t *testing.T) {
 	repository := newPollingRepository()
 	sourceAdapter := filesystemsource.NewAdapter()
@@ -284,6 +318,78 @@ func TestIngestOrchestratesWithFakeSourceProvider(t *testing.T) {
 	}
 	if !strings.Contains(capturedJob.Prompt, "path: b.md") || !strings.Contains(capturedJob.Prompt, "content:\nsecond") {
 		t.Fatalf("expected prompt to include normalized second document, got %q", capturedJob.Prompt)
+	}
+}
+
+func TestIngestLifecycleStateTransitionParity(t *testing.T) {
+	repository := &lifecycleTransitionRepository{failedMessage: "ingestion lifecycle failed"}
+	provider := &fakeSourceProvider{
+		list: func(_ context.Context, source domaintaskboard.SourceMetadata, options domaintaskboard.SourceListOptions) ([]domaintaskboard.SourceListEntry, error) {
+			if source.Identity.Kind != domaintaskboard.SourceKindFolder || source.Identity.Locator != "provider://scope" {
+				t.Fatalf("unexpected source metadata: %#v", source)
+			}
+			if options.WalkDepth != -1 {
+				t.Fatalf("expected default walk depth, got %#v", options)
+			}
+			return []domaintaskboard.SourceListEntry{
+				{
+					Identity: domaintaskboard.SourceIdentity{
+						Kind:    domaintaskboard.SourceKindFile,
+						Locator: "provider://scope/a.md",
+					},
+					RelativePath: "a.md",
+				},
+			}, nil
+		},
+		read: func(_ context.Context, source domaintaskboard.SourceIdentity) ([]byte, error) {
+			if source.Kind != domaintaskboard.SourceKindFile || source.Locator != "provider://scope/a.md" {
+				t.Fatalf("unexpected source read: %#v", source)
+			}
+			return []byte("content"), nil
+		},
+		resolveWorkingDirectory: func(_ context.Context, source domaintaskboard.SourceIdentity) (string, error) {
+			if source.Kind != domaintaskboard.SourceKindFolder || source.Locator != "provider://scope" {
+				t.Fatalf("unexpected source identity for working directory: %#v", source)
+			}
+			return "/virtual/worktree", nil
+		},
+	}
+
+	dispatcher := &fakeDispatcher{
+		enqueue: func(_ context.Context, job IngestionJob) (string, error) {
+			if strings.TrimSpace(job.RunID) == "" {
+				t.Fatalf("expected run id to be set on ingestion job")
+			}
+			return "task-1", nil
+		},
+	}
+	service := NewIngestionService(dispatcher, repository, repository, provider, provider, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := service.IngestDirectory(ctx, "provider://scope")
+	if err == nil {
+		t.Fatalf("expected ingestion lifecycle failure")
+	}
+	if err.Error() != "ingestion lifecycle failed" {
+		t.Fatalf("expected failed workflow message to surface, got %v", err)
+	}
+	if len(repository.savedWorkflows) != 1 {
+		t.Fatalf("expected queued lifecycle state to be persisted before polling transition, got %d saves", len(repository.savedWorkflows))
+	}
+	queuedWorkflow := repository.savedWorkflows[0]
+	if queuedWorkflow.Status != WorkflowStatusQueued {
+		t.Fatalf("expected queued workflow status, got %s", queuedWorkflow.Status)
+	}
+	if queuedWorkflow.RunID == "" {
+		t.Fatalf("expected queued workflow run id to be populated")
+	}
+	if queuedWorkflow.Details["run_id"] != queuedWorkflow.RunID {
+		t.Fatalf("expected queued workflow details run_id parity, got %#v for run %q", queuedWorkflow.Details["run_id"], queuedWorkflow.RunID)
+	}
+	if queuedWorkflow.Details["queue_task_id"] != "task-1" {
+		t.Fatalf("expected queued workflow details queue_task_id parity, got %#v", queuedWorkflow.Details["queue_task_id"])
 	}
 }
 
