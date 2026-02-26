@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
+	filesystem "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystem"
 )
 
 func TestAdapterReadMissingFileIsTerminal(t *testing.T) {
@@ -191,6 +192,74 @@ func TestAdapterListFolderAppliesOptions(t *testing.T) {
 		if !ok || metadataRelativePath != entry.RelativePath {
 			t.Fatalf("expected metadata relative path %s, got %#v", entry.RelativePath, entry.Metadata.Attributes["relative_path"])
 		}
+	}
+}
+
+func TestAdapterListFolderIgnoreRuleParityWithFilesystemAdapter(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "root.md"), []byte("root"), 0o600); err != nil {
+		t.Fatalf("write root.md: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(directory, "sub"), 0o755); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "sub", "keep.txt"), []byte("keep"), 0o600); err != nil {
+		t.Fatalf("write sub/keep.txt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "sub", "skip.TMP"), []byte("skip"), 0o600); err != nil {
+		t.Fatalf("write sub/skip.TMP: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "sub", "trace.log"), []byte("trace"), 0o600); err != nil {
+		t.Fatalf("write sub/trace.log: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(directory, "ignored"), 0o755); err != nil {
+		t.Fatalf("mkdir ignored: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "ignored", "doc.md"), []byte("ignored"), 0o600); err != nil {
+		t.Fatalf("write ignored/doc.md: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(directory, "vendor"), 0o755); err != nil {
+		t.Fatalf("mkdir vendor: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "vendor", "dep.md"), []byte("vendor"), 0o600); err != nil {
+		t.Fatalf("write vendor/dep.md: %v", err)
+	}
+
+	source := domaintaskboard.SourceMetadata{
+		Identity: domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFolder,
+			Locator: directory,
+		},
+	}
+	options := domaintaskboard.SourceListOptions{
+		WalkDepth:        2,
+		IgnorePaths:      []string{" ./ignored ", "/vendor/"},
+		IgnoreExtensions: []string{"tmp", " .LoG "},
+	}
+
+	filesystemEntries, err := filesystem.NewAdapter().List(context.Background(), source, options)
+	if err != nil {
+		t.Fatalf("list source folder with filesystem adapter: %v", err)
+	}
+	sourceEntries, err := NewAdapter().List(context.Background(), source, options)
+	if err != nil {
+		t.Fatalf("list source folder with filesystem source adapter: %v", err)
+	}
+
+	filesystemPaths := make([]string, 0, len(filesystemEntries))
+	for _, entry := range filesystemEntries {
+		filesystemPaths = append(filesystemPaths, entry.RelativePath)
+	}
+	sourcePaths := make([]string, 0, len(sourceEntries))
+	for _, entry := range sourceEntries {
+		sourcePaths = append(sourcePaths, entry.RelativePath)
+	}
+
+	if !slices.Equal(filesystemPaths, sourcePaths) {
+		t.Fatalf("expected filesystem source ignore-rule parity with filesystem adapter, expected %#v, got %#v", filesystemPaths, sourcePaths)
+	}
+	if !slices.Equal(sourcePaths, []string{"root.md", "sub/keep.txt"}) {
+		t.Fatalf("unexpected listed paths: %#v", sourcePaths)
 	}
 }
 
