@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -81,6 +82,48 @@ func TestSourceReaderReadContractIsProviderAgnostic(t *testing.T) {
 	}
 	if content != nil {
 		t.Fatalf("expected nil content when read fails, got %q", content)
+	}
+}
+
+func TestSourceReaderReadContractPreservesContentInvariants(t *testing.T) {
+	providerSource := SourceIdentity{
+		Kind:    SourceKind("provider-file"),
+		Locator: "provider://docs/contract.md",
+	}
+	expectedBinaryContent := []byte{0x00, 0x01, 'A', '\n', 0xff}
+
+	reader := sourceReaderStub{
+		read: func(_ context.Context, source SourceIdentity) ([]byte, error) {
+			if source != providerSource {
+				t.Fatalf("expected source identity to be passed through unchanged, got %#v", source)
+			}
+			return expectedBinaryContent, nil
+		},
+	}
+
+	content, err := reader.Read(context.Background(), providerSource)
+	if err != nil {
+		t.Fatalf("expected successful content read, got error: %v", err)
+	}
+	if !bytes.Equal(content, expectedBinaryContent) {
+		t.Fatalf("expected exact content bytes %v, got %v", expectedBinaryContent, content)
+	}
+
+	reader = sourceReaderStub{
+		read: func(_ context.Context, _ SourceIdentity) ([]byte, error) {
+			return []byte{}, nil
+		},
+	}
+
+	content, err = reader.Read(context.Background(), providerSource)
+	if err != nil {
+		t.Fatalf("expected successful empty content read, got error: %v", err)
+	}
+	if content == nil {
+		t.Fatalf("expected empty content to be represented as non-nil slice")
+	}
+	if len(content) != 0 {
+		t.Fatalf("expected empty content, got %q", content)
 	}
 }
 
