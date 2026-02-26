@@ -21,6 +21,15 @@ func TestSourceListEntryValidateBasics(t *testing.T) {
 			Locator: "docs/overview.md",
 		},
 		RelativePath: "overview.md",
+		Metadata: &SourceMetadata{
+			Identity: SourceIdentity{
+				Kind:    SourceKindFile,
+				Locator: "docs/overview.md",
+			},
+			Attributes: map[string]any{
+				"relative_path": "overview.md",
+			},
+		},
 	}
 	if err := valid.ValidateBasics(); err != nil {
 		t.Fatalf("expected valid source list entry, got error: %v", err)
