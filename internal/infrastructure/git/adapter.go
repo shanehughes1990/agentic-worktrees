@@ -57,6 +57,9 @@ func (adapter *Adapter) CreateTaskWorktree(ctx context.Context, repositoryRoot s
 }
 
 func (adapter *Adapter) MergeTaskBranch(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string) (appgitflow.MergeAttempt, error) {
+	if err := adapter.recoverMergeStateIfNeeded(ctx, repositoryRoot); err != nil {
+		return appgitflow.MergeAttempt{}, err
+	}
 	if _, err := adapter.runGit(ctx, repositoryRoot, "checkout", sourceBranch); err != nil {
 		return appgitflow.MergeAttempt{}, err
 	}
@@ -89,6 +92,13 @@ func (adapter *Adapter) MergeTaskBranch(ctx context.Context, repositoryRoot stri
 
 func (adapter *Adapter) SyncTaskBranchWithSource(ctx context.Context, repositoryRoot string, sourceBranch string, taskBranch string, worktreePath string) (appgitflow.MergeAttempt, error) {
 	absoluteWorktreePath := filepath.Join(repositoryRoot, filepath.FromSlash(worktreePath))
+
+	if err := adapter.recoverMergeStateIfNeeded(ctx, repositoryRoot); err != nil {
+		return appgitflow.MergeAttempt{}, err
+	}
+	if err := adapter.recoverMergeStateIfNeeded(ctx, absoluteWorktreePath); err != nil {
+		return appgitflow.MergeAttempt{}, err
+	}
 
 	if _, err := adapter.runGit(ctx, repositoryRoot, "checkout", sourceBranch); err != nil {
 		return appgitflow.MergeAttempt{}, err
@@ -295,9 +305,92 @@ func (adapter *Adapter) runGit(ctx context.Context, repositoryRoot string, args 
 		if ctx.Err() != nil {
 			return "", appgitflow.WrapTransient(fmt.Errorf("git %s: %w", strings.Join(args, " "), ctx.Err()))
 		}
-		return "", appgitflow.WrapTerminal(fmt.Errorf("git %s failed: %s", strings.Join(args, " "), strings.TrimSpace(outputText)))
+		cleanOutput := strings.TrimSpace(outputText)
+		if isMissingWorktreePathError(cleanOutput) || isRetryableIndexConflictError(cleanOutput) {
+			return "", appgitflow.WrapTransient(fmt.Errorf("git %s failed: %s", strings.Join(args, " "), cleanOutput))
+		}
+		return "", appgitflow.WrapTerminal(fmt.Errorf("git %s failed: %s", strings.Join(args, " "), cleanOutput))
 	}
 	return outputText, nil
+}
+
+func isMissingWorktreePathError(outputText string) bool {
+	cleanOutput := strings.ToLower(strings.TrimSpace(outputText))
+	if cleanOutput == "" {
+		return false
+	}
+	if !strings.Contains(cleanOutput, "no such file or directory") {
+		return false
+	}
+	if !strings.Contains(cleanOutput, "cannot change to") {
+		return false
+	}
+	return strings.Contains(cleanOutput, "/.worktree/worktrees/")
+}
+
+func isRetryableIndexConflictError(outputText string) bool {
+	cleanOutput := strings.ToLower(strings.TrimSpace(outputText))
+	if cleanOutput == "" {
+		return false
+	}
+	if strings.Contains(cleanOutput, "you need to resolve your current index first") {
+		return true
+	}
+	return strings.Contains(cleanOutput, "needs merge")
+}
+
+func (adapter *Adapter) recoverMergeStateIfNeeded(ctx context.Context, repositoryRoot string) error {
+	hasUnmerged, unmergedFiles, err := adapter.hasUnmergedFiles(ctx, repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if !hasUnmerged {
+		return nil
+	}
+
+	if _, abortErr := adapter.runGit(ctx, repositoryRoot, "merge", "--abort"); abortErr != nil {
+		abortMessage := strings.ToLower(strings.TrimSpace(abortErr.Error()))
+		if !strings.Contains(abortMessage, "there is no merge to abort") && !strings.Contains(abortMessage, "no merge to abort") {
+			return appgitflow.WrapTransient(fmt.Errorf("recover merge state with git merge --abort: %w", abortErr))
+		}
+	}
+
+	hasUnmerged, unmergedFiles, err = adapter.hasUnmergedFiles(ctx, repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if !hasUnmerged {
+		return nil
+	}
+
+	if _, resetErr := adapter.runGit(ctx, repositoryRoot, "reset", "--merge"); resetErr != nil {
+		return appgitflow.WrapTransient(fmt.Errorf("recover merge state with git reset --merge: %w", resetErr))
+	}
+
+	hasUnmerged, unmergedFiles, err = adapter.hasUnmergedFiles(ctx, repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if hasUnmerged {
+		return appgitflow.WrapTransient(fmt.Errorf("unmerged index persists after merge-state recovery: %s", strings.Join(unmergedFiles, ", ")))
+	}
+	return nil
+}
+
+func (adapter *Adapter) hasUnmergedFiles(ctx context.Context, repositoryRoot string) (bool, []string, error) {
+	output, err := adapter.runGit(ctx, repositoryRoot, "diff", "--name-only", "--diff-filter=U")
+	if err != nil {
+		return false, nil, err
+	}
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	files := make([]string, 0, len(lines))
+	for _, line := range lines {
+		cleanLine := strings.TrimSpace(line)
+		if cleanLine != "" {
+			files = append(files, cleanLine)
+		}
+	}
+	return len(files) > 0, files, nil
 }
 
 func (adapter *Adapter) shouldSerializeMutation(repositoryRoot string, args []string) bool {

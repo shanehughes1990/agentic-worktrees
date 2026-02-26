@@ -1,10 +1,14 @@
 package taskboard
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
+	filesystemsource "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/taskboard/filesystemsource"
 )
 
 func TestNormalizeDirectoryDocumentsCanonicalUTF8AndStableOrder(t *testing.T) {
@@ -112,7 +116,38 @@ func TestNormalizeSourceDocumentsFromFile(t *testing.T) {
 		t.Fatalf("write single.md: %v", err)
 	}
 
-	documents, err := NormalizeSourceDocuments(filePath, IngestionSourceTypeFile, FolderTraversalOptions{WalkDepth: -1}, DefaultDocumentNormalizers())
+	sourceAdapter := filesystemsource.NewAdapter()
+	documents, err := NormalizeSourceDocuments(context.Background(), domaintaskboard.SourceMetadata{
+		Identity: domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFile,
+			Locator: filePath,
+		},
+	}, FolderTraversalOptions{WalkDepth: -1}, sourceAdapter, sourceAdapter, DefaultDocumentNormalizers())
+	if err != nil {
+		t.Fatalf("unexpected normalization error: %v", err)
+	}
+	if len(documents) != 1 {
+		t.Fatalf("expected 1 normalized document, got %d", len(documents))
+	}
+	if documents[0].RelativePath != "single.md" {
+		t.Fatalf("unexpected relative path: %s", documents[0].RelativePath)
+	}
+}
+
+func TestNormalizeSourceDocumentsWithSourcePortFromSourceObject(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "single.md")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("write single.md: %v", err)
+	}
+
+	sourceAdapter := filesystemsource.NewAdapter()
+	documents, err := NormalizeSourceDocumentsWithSourcePort(context.Background(), domaintaskboard.SourceMetadata{
+		Identity: domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFile,
+			Locator: filePath,
+		},
+	}, FolderTraversalOptions{WalkDepth: -1}, sourceAdapter, sourceAdapter, DefaultDocumentNormalizers())
 	if err != nil {
 		t.Fatalf("unexpected normalization error: %v", err)
 	}

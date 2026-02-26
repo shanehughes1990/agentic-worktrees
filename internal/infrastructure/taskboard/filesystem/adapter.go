@@ -81,14 +81,16 @@ func (adapter *Adapter) listFile(identity domaintaskboard.SourceIdentity) ([]dom
 	if info.IsDir() {
 		return nil, appgitflow.WrapTerminal(fmt.Errorf("source locator must be a file"))
 	}
+	fileIdentity := domaintaskboard.SourceIdentity{
+		Kind:    domaintaskboard.SourceKindFile,
+		Locator: cleanLocator,
+	}
 
 	return []domaintaskboard.SourceListEntry{
 		{
-			Identity: domaintaskboard.SourceIdentity{
-				Kind:    domaintaskboard.SourceKindFile,
-				Locator: cleanLocator,
-			},
+			Identity:     fileIdentity,
 			RelativePath: filepath.ToSlash(filepath.Base(cleanLocator)),
+			Metadata:     mapFilesystemObjectMetadata(fileIdentity, filepath.ToSlash(filepath.Base(cleanLocator)), info),
 		},
 	}, nil
 }
@@ -107,7 +109,7 @@ func (adapter *Adapter) listFolder(ctx context.Context, identity domaintaskboard
 	cleanIgnorePaths := normalizeIgnorePaths(options.IgnorePaths)
 	cleanIgnoreExtensions := normalizeIgnoreExtensions(options.IgnoreExtensions)
 
-	relativePaths := make([]string, 0, 32)
+	entries := make([]domaintaskboard.SourceListEntry, 0, 32)
 	if err := filepath.WalkDir(cleanLocator, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return classifyFilesystemError(walkErr)
@@ -147,26 +149,30 @@ func (adapter *Adapter) listFolder(ctx context.Context, identity domaintaskboard
 		if shouldIgnoreExtension(relativePath, cleanIgnoreExtensions) {
 			return nil
 		}
-		relativePaths = append(relativePaths, relativePath)
+		fileIdentity := domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFile,
+			Locator: filepath.Join(cleanLocator, filepath.FromSlash(relativePath)),
+		}
+		fileInfo, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("load file info for %s: %w", path, err)
+		}
+		entries = append(entries, domaintaskboard.SourceListEntry{
+			Identity:     fileIdentity,
+			RelativePath: relativePath,
+			Metadata:     mapFilesystemObjectMetadata(fileIdentity, relativePath, fileInfo),
+		})
 		return nil
 	}); err != nil {
 		return nil, classifyFilesystemError(fmt.Errorf("walk source folder %s: %w", cleanLocator, err))
 	}
 
-	sort.Strings(relativePaths)
-	entries := make([]domaintaskboard.SourceListEntry, 0, len(relativePaths))
-	for _, relativePath := range relativePaths {
-		if err := ctx.Err(); err != nil {
-			return nil, appgitflow.WrapTransient(err)
+	sort.Slice(entries, func(i int, j int) bool {
+		if entries[i].RelativePath == entries[j].RelativePath {
+			return entries[i].Identity.Locator < entries[j].Identity.Locator
 		}
-		entries = append(entries, domaintaskboard.SourceListEntry{
-			Identity: domaintaskboard.SourceIdentity{
-				Kind:    domaintaskboard.SourceKindFile,
-				Locator: filepath.Join(cleanLocator, filepath.FromSlash(relativePath)),
-			},
-			RelativePath: relativePath,
-		})
-	}
+		return entries[i].RelativePath < entries[j].RelativePath
+	})
 	return entries, nil
 }
 
@@ -248,4 +254,19 @@ func pathDepth(relativePath string) int {
 		return 0
 	}
 	return strings.Count(cleanRelativePath, "/")
+}
+
+func mapFilesystemObjectMetadata(identity domaintaskboard.SourceIdentity, relativePath string, info fs.FileInfo) *domaintaskboard.SourceMetadata {
+	attributes := map[string]any{
+		"relative_path": relativePath,
+	}
+	if info != nil {
+		attributes["size_bytes"] = info.Size()
+		attributes["mode"] = info.Mode().String()
+		attributes["mod_time_unix"] = info.ModTime().UTC().Unix()
+	}
+	return &domaintaskboard.SourceMetadata{
+		Identity:   identity,
+		Attributes: attributes,
+	}
 }

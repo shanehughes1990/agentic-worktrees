@@ -11,6 +11,8 @@ import (
 
 const TaskTypeGitWorktreeFlow = "git.worktree.flow"
 
+const defaultGitWorktreeFlowTimeout = 8 * time.Minute
+
 type GitWorktreeFlowPayload struct {
 	RunID          string `json:"run_id"`
 	BoardID        string `json:"board_id,omitempty"`
@@ -57,7 +59,13 @@ func NewGitWorktreeFlowTask(payload GitWorktreeFlowPayload, options ...asynq.Opt
 	}
 
 	task := asynq.NewTask(TaskTypeGitWorktreeFlow, body)
-	opts := []asynq.Option{asynq.Queue(queueAgent), asynq.Retention(24 * time.Hour), asynq.TaskID(payload.IdempotencyKey), asynq.Unique(6 * time.Hour)}
+	opts := []asynq.Option{
+		asynq.Queue(queueAgent),
+		asynq.Retention(24 * time.Hour),
+		asynq.TaskID(payload.IdempotencyKey),
+		asynq.Unique(6 * time.Hour),
+		asynq.Timeout(defaultGitWorktreeFlowTimeout),
+	}
 	opts = append(opts, options...)
 	return task, opts, nil
 }

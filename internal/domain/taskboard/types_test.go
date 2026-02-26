@@ -61,12 +61,49 @@ func TestBoardSetTaskStatus(t *testing.T) {
 	if board.Epics[0].Tasks[0].Status != StatusCompleted {
 		t.Fatalf("expected task status completed, got %s", board.Epics[0].Tasks[0].Status)
 	}
+	if board.Epics[0].Status != StatusCompleted {
+		t.Fatalf("expected epic status completed, got %s", board.Epics[0].Status)
+	}
+	if board.Status != StatusCompleted {
+		t.Fatalf("expected board status completed, got %s", board.Status)
+	}
 	if board.UpdatedAt.Before(before) {
 		t.Fatalf("expected board updated_at not to move backward")
 	}
 
 	if err := board.SetTaskStatus("missing", StatusCompleted); err == nil {
 		t.Fatalf("expected error for missing task")
+	}
+}
+
+func TestBoardSetTaskStatusRollsUpInProgress(t *testing.T) {
+	now := time.Now().UTC()
+	board := &Board{
+		BoardID: "board-2",
+		RunID:   "run-2",
+		Status:  StatusNotStarted,
+		Epics: []Epic{
+			{
+				WorkItem: WorkItem{ID: "e1", BoardID: "board-2", Title: "Epic 1", Status: StatusNotStarted},
+				Tasks: []Task{
+					{WorkItem: WorkItem{ID: "t1", BoardID: "board-2", Title: "Task 1", Status: StatusInProgress}},
+					{WorkItem: WorkItem{ID: "t2", BoardID: "board-2", Title: "Task 2", Status: StatusNotStarted}},
+				},
+			},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := board.SetTaskStatus("t1", StatusInProgress); err != nil {
+		t.Fatalf("expected status update, got error: %v", err)
+	}
+
+	if board.Epics[0].Status != StatusInProgress {
+		t.Fatalf("expected epic status in-progress, got %s", board.Epics[0].Status)
+	}
+	if board.Status != StatusInProgress {
+		t.Fatalf("expected board status in-progress, got %s", board.Status)
 	}
 }
 

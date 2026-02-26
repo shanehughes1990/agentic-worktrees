@@ -2,9 +2,7 @@ package asynq
 
 import (
 	"context"
-	"errors"
 
-	"github.com/hibiken/asynq"
 	apptaskboard "github.com/shanehughes1990/agentic-worktrees/internal/application/taskboard"
 	infracopilot "github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/copilot"
 	"github.com/shanehughes1990/agentic-worktrees/internal/infrastructure/queue/asynq/tasks"
@@ -46,7 +44,7 @@ func (dispatcher *TaskboardIngestionDispatcher) EnqueueIngestion(ctx context.Con
 		CLIURL:           dispatcher.config.CLIURL,
 	})
 	if err != nil {
-		if errors.Is(err, asynq.ErrDuplicateTask) {
+		if isDuplicateEnqueueError(err) {
 			entry.WithError(err).Warn("ingestion task already enqueued or running; duplicate enqueue suppressed")
 			return job.RunID, nil
 		}

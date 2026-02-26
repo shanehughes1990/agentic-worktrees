@@ -10,43 +10,11 @@ import (
 	"sort"
 	"strings"
 
+	appgitflow "github.com/shanehughes1990/agentic-worktrees/internal/application/gitflow"
 	domaintaskboard "github.com/shanehughes1990/agentic-worktrees/internal/domain/taskboard"
 )
 
 type Adapter struct{}
-
-type failureClass string
-
-const (
-	failureClassTransient failureClass = "transient"
-	failureClassTerminal  failureClass = "terminal"
-)
-
-type classifiedError struct {
-	class failureClass
-	err   error
-}
-
-func (err *classifiedError) Error() string {
-	if err == nil || err.err == nil {
-		return "classified error"
-	}
-	return err.err.Error()
-}
-
-func (err *classifiedError) Unwrap() error {
-	if err == nil {
-		return nil
-	}
-	return err.err
-}
-
-func (err *classifiedError) FailureClass() string {
-	if err == nil {
-		return ""
-	}
-	return string(err.class)
-}
 
 func NewAdapter() *Adapter {
 	return &Adapter{}
@@ -120,12 +88,18 @@ func (adapter *Adapter) List(ctx context.Context, source domaintaskboard.SourceM
 		if shouldIgnoreExtension(relativePath, cleanIgnoreExtensions) {
 			return nil
 		}
+		fileIdentity := domaintaskboard.SourceIdentity{
+			Kind:    domaintaskboard.SourceKindFile,
+			Locator: path,
+		}
+		fileInfo, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("load file info for %s: %w", path, err)
+		}
 		entries = append(entries, domaintaskboard.SourceListEntry{
-			Identity: domaintaskboard.SourceIdentity{
-				Kind:    domaintaskboard.SourceKindFile,
-				Locator: path,
-			},
+			Identity:     fileIdentity,
 			RelativePath: relativePath,
+			Metadata:     mapFilesystemObjectMetadata(fileIdentity, relativePath, fileInfo),
 		})
 		return nil
 	}); err != nil {
@@ -200,48 +174,33 @@ func classifyFilesystemError(err error) error {
 		return nil
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return ensureClassified(err, failureClassTransient)
+		return ensureClassified(err, appgitflow.FailureClassTransient)
 	}
 	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrInvalid) {
-		return ensureClassified(err, failureClassTerminal)
+		return ensureClassified(err, appgitflow.FailureClassTerminal)
 	}
-	return ensureClassified(err, failureClassTransient)
+	return ensureClassified(err, appgitflow.FailureClassTransient)
 }
 
 func wrapTerminal(err error) error {
 	if err == nil {
 		return nil
 	}
-	return &classifiedError{class: failureClassTerminal, err: err}
+	return appgitflow.WrapTerminal(err)
 }
 
 func wrapTransient(err error) error {
 	if err == nil {
 		return nil
 	}
-	return &classifiedError{class: failureClassTransient, err: err}
+	return appgitflow.WrapTransient(err)
 }
 
-func ensureClassified(err error, defaultClass failureClass) error {
+func ensureClassified(err error, defaultClass appgitflow.FailureClass) error {
 	if err == nil {
 		return nil
 	}
-	current := err
-	for current != nil {
-		_, ok := current.(*classifiedError)
-		if ok {
-			return err
-		}
-		wrapped, ok := current.(interface{ Unwrap() error })
-		if !ok {
-			break
-		}
-		current = wrapped.Unwrap()
-	}
-	if defaultClass == failureClassTerminal {
-		return wrapTerminal(fmt.Errorf("%w", err))
-	}
-	return wrapTransient(fmt.Errorf("%w", err))
+	return appgitflow.EnsureClassified(err, defaultClass)
 }
 
 func normalizeIgnorePaths(ignorePaths []string) []string {
@@ -309,4 +268,19 @@ func pathDepth(relativePath string) int {
 		return 0
 	}
 	return strings.Count(cleanRelativePath, "/")
+}
+
+func mapFilesystemObjectMetadata(identity domaintaskboard.SourceIdentity, relativePath string, info fs.FileInfo) *domaintaskboard.SourceMetadata {
+	attributes := map[string]any{
+		"relative_path": relativePath,
+	}
+	if info != nil {
+		attributes["size_bytes"] = info.Size()
+		attributes["mode"] = info.Mode().String()
+		attributes["mod_time_unix"] = info.ModTime().UTC().Unix()
+	}
+	return &domaintaskboard.SourceMetadata{
+		Identity:   identity,
+		Attributes: attributes,
+	}
 }

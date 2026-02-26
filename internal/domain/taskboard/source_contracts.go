@@ -9,8 +9,9 @@ type SourceListOptions struct {
 }
 
 type SourceListEntry struct {
-	Identity     SourceIdentity `json:"identity"`
-	RelativePath string         `json:"relative_path,omitempty"`
+	Identity     SourceIdentity  `json:"identity"`
+	RelativePath string          `json:"relative_path,omitempty"`
+	Metadata     *SourceMetadata `json:"metadata,omitempty"`
 }
 
 func (entry SourceListEntry) ValidateBasics() error {

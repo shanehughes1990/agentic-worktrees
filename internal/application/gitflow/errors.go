@@ -100,3 +100,26 @@ func EnsureClassified(err error, defaultClass FailureClass) error {
 	}
 	return WrapTransient(fmt.Errorf("%w", err))
 }
+
+func IsTransientInfrastructureFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	if message == "" {
+		return false
+	}
+	transientIndicators := []string{
+		"startup probe failed",
+		"signal: killed",
+		"context deadline exceeded",
+		"timeout",
+		"temporarily unavailable",
+	}
+	for _, indicator := range transientIndicators {
+		if strings.Contains(message, indicator) {
+			return true
+		}
+	}
+	return false
+}
