@@ -101,3 +101,60 @@ func TestSourceListEntryValidateBasicsProviderAgnosticListingSemantics(t *testin
 		t.Fatalf("expected source entry with provider locator and display path to be valid, got error: %v", err)
 	}
 }
+
+func TestSourceListAndSelectionSemanticsUseIdentityAsStableSelectionKey(t *testing.T) {
+	entries := []SourceListEntry{
+		{
+			Identity: SourceIdentity{
+				Kind:    SourceKindFile,
+				Locator: "provider://doc-1",
+			},
+		},
+		{
+			Identity: SourceIdentity{
+				Kind:    SourceKindFile,
+				Locator: "provider://doc-2",
+			},
+			RelativePath: "docs/overview.md",
+		},
+		{
+			Identity: SourceIdentity{
+				Kind:    SourceKindFile,
+				Locator: "provider://doc-3",
+			},
+			RelativePath: "docs/overview.md",
+		},
+	}
+
+	for _, entry := range entries {
+		if err := entry.ValidateBasics(); err != nil {
+			t.Fatalf("expected listed source entry to satisfy basics, got error: %v", err)
+		}
+	}
+
+	contentsByLocator := map[string][]byte{
+		"provider://doc-1": []byte("first"),
+		"provider://doc-2": []byte("second"),
+		"provider://doc-3": []byte("third"),
+	}
+	reader := sourceReaderStub{
+		read: func(_ context.Context, source SourceIdentity) ([]byte, error) {
+			content, ok := contentsByLocator[source.Locator]
+			if !ok {
+				return nil, errors.New("unknown source locator")
+			}
+			return content, nil
+		},
+	}
+
+	for _, entry := range entries {
+		content, err := reader.Read(context.Background(), entry.Identity)
+		if err != nil {
+			t.Fatalf("expected listed source identity to remain selectable, got error: %v", err)
+		}
+		expected := string(contentsByLocator[entry.Identity.Locator])
+		if string(content) != expected {
+			t.Fatalf("expected selection by locator %q to return %q, got %q", entry.Identity.Locator, expected, string(content))
+		}
+	}
+}
