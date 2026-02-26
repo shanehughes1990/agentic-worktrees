@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -130,6 +131,64 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 	}
 
 	absoluteWorktreePath := filepath.Join(cleanRepositoryRoot, filepath.FromSlash(worktreePath))
+	hasExistingWorktree, worktreeDetectErr := worktreeExistsWithGitMetadata(absoluteWorktreePath)
+	if worktreeDetectErr != nil {
+		entry.WithError(worktreeDetectErr).Error("detect existing worktree state failed")
+		return failedResult("failed", worktreeDetectErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("detect existing task worktree state: %w", worktreeDetectErr), FailureClassTerminal)
+	}
+	shouldRunResumePreflight := strings.TrimSpace(request.ResumeSessionID) != "" || hasExistingWorktree
+	if shouldRunResumePreflight {
+		entry.WithField("resume_session_id", strings.TrimSpace(request.ResumeSessionID)).Info("resumed task detected; running preflight source sync before implementation")
+		resumeSyncAttempt, resumeSyncErr := executor.git.SyncTaskBranchWithSource(ctx, cleanRepositoryRoot, cleanSourceBranch, taskBranch, worktreePath)
+		if resumeSyncErr != nil {
+			entry.WithError(resumeSyncErr).Error("resume preflight source sync failed")
+			return failedResult("failed", resumeSyncErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resume preflight source sync: %w", resumeSyncErr), FailureClassTerminal)
+		}
+
+		if len(resumeSyncAttempt.ConflictFiles) > 0 {
+			entry.WithField("sync_conflict_count", len(resumeSyncAttempt.ConflictFiles)).Warn("resume preflight source sync conflicts detected")
+			if executor.decomposer == nil {
+				return failedResult("failed", "resolve resume preflight source sync conflicts: copilot decomposer is required", request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve resume preflight source sync conflicts: copilot decomposer is required"), FailureClassTerminal)
+			}
+			resolutionResult, resolutionErr := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
+				RunID:            cleanRunID,
+				TaskID:           cleanTaskID,
+				QueueTaskID:      strings.TrimSpace(request.QueueTaskID),
+				CorrelationID:    strings.TrimSpace(request.CorrelationID),
+				ResumeSessionID:  strings.TrimSpace(request.ResumeSessionID),
+				WorkingDirectory: absoluteWorktreePath,
+				Prompt:           buildSourceSyncConflictResolutionPrompt(cleanTaskID, cleanSourceBranch, resumeSyncAttempt.ConflictFiles),
+			})
+			if resolutionErr != nil {
+				defaultClass := FailureClassTerminal
+				if IsTransientInfrastructureFailure(resolutionErr) {
+					defaultClass = FailureClassTransient
+				}
+				resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
+				if strings.TrimSpace(resolutionResult.SessionID) != "" {
+					resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+					_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
+				}
+				return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve resume preflight source sync conflicts with copilot: %w", resolutionErr), defaultClass)
+			}
+			if strings.TrimSpace(resolutionResult.SessionID) != "" {
+				request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+				if checkpointErr := executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, request.ResumeSessionID); checkpointErr != nil {
+					return failedResult("failed", checkpointErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("checkpoint resume session: %w", checkpointErr), FailureClassTransient)
+				}
+			}
+			if resolveErr := executor.git.ResolveConflicts(ctx, absoluteWorktreePath, resumeSyncAttempt.ConflictFiles, resolutionResult.Response); resolveErr != nil {
+				return failedResult("failed", resolveErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve resume preflight source sync conflicts: %w", resolveErr), FailureClassTerminal)
+			}
+			if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
+				return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage resume preflight source sync conflict resolution changes: %w", stageErr), FailureClassTerminal)
+			}
+			if commitErr := executor.git.Commit(ctx, absoluteWorktreePath, fmt.Sprintf("Resolve resume preflight source sync conflicts for task %s", cleanTaskID)); commitErr != nil {
+				return failedResult("failed", commitErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("commit resume preflight source sync conflict resolution: %w", commitErr), FailureClassTerminal)
+			}
+		}
+	}
+
 	if executor.decomposer != nil {
 		decomposeResult, err := executor.decomposer.Decompose(ctx, appcopilot.DecomposeRequest{
 			RunID:            cleanRunID,
@@ -380,6 +439,31 @@ func (executor *TaskExecutor) entry() *logrus.Entry {
 		return logrus.NewEntry(logrus.StandardLogger())
 	}
 	return logrus.NewEntry(executor.logger)
+}
+
+func worktreeExistsWithGitMetadata(absoluteWorktreePath string) (bool, error) {
+	cleanWorktreePath := strings.TrimSpace(absoluteWorktreePath)
+	if cleanWorktreePath == "" {
+		return false, nil
+	}
+	worktreeInfo, err := os.Stat(cleanWorktreePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !worktreeInfo.IsDir() {
+		return false, nil
+	}
+	_, gitErr := os.Stat(filepath.Join(cleanWorktreePath, ".git"))
+	if gitErr == nil {
+		return true, nil
+	}
+	if os.IsNotExist(gitErr) {
+		return false, nil
+	}
+	return false, gitErr
 }
 
 func buildTaskImplementationPrompt(request TaskExecutionRequest) string {
