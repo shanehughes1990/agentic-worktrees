@@ -15,3 +15,17 @@ func TestIsMissingWorktreePathErrorIgnoresGenericMissingPath(t *testing.T) {
 		t.Fatalf("expected non-worktree missing path not to be treated as transient worktree cleanup case")
 	}
 }
+
+func TestIsRetryableIndexConflictError(t *testing.T) {
+	message := "error: you need to resolve your current index first\ninternal/application/taskboard/ingestion_test.go: needs merge"
+	if !isRetryableIndexConflictError(message) {
+		t.Fatalf("expected index conflict message to be retryable")
+	}
+}
+
+func TestIsRetryableIndexConflictErrorIgnoresOtherGitErrors(t *testing.T) {
+	message := "fatal: not a git repository (or any of the parent directories): .git"
+	if isRetryableIndexConflictError(message) {
+		t.Fatalf("expected generic fatal git error not to be treated as retryable index conflict")
+	}
+}

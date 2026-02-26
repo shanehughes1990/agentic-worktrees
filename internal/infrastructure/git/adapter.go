@@ -296,7 +296,7 @@ func (adapter *Adapter) runGit(ctx context.Context, repositoryRoot string, args 
 			return "", appgitflow.WrapTransient(fmt.Errorf("git %s: %w", strings.Join(args, " "), ctx.Err()))
 		}
 		cleanOutput := strings.TrimSpace(outputText)
-		if isMissingWorktreePathError(cleanOutput) {
+		if isMissingWorktreePathError(cleanOutput) || isRetryableIndexConflictError(cleanOutput) {
 			return "", appgitflow.WrapTransient(fmt.Errorf("git %s failed: %s", strings.Join(args, " "), cleanOutput))
 		}
 		return "", appgitflow.WrapTerminal(fmt.Errorf("git %s failed: %s", strings.Join(args, " "), cleanOutput))
@@ -316,6 +316,17 @@ func isMissingWorktreePathError(outputText string) bool {
 		return false
 	}
 	return strings.Contains(cleanOutput, "/.worktree/worktrees/")
+}
+
+func isRetryableIndexConflictError(outputText string) bool {
+	cleanOutput := strings.ToLower(strings.TrimSpace(outputText))
+	if cleanOutput == "" {
+		return false
+	}
+	if strings.Contains(cleanOutput, "you need to resolve your current index first") {
+		return true
+	}
+	return strings.Contains(cleanOutput, "needs merge")
 }
 
 func (adapter *Adapter) shouldSerializeMutation(repositoryRoot string, args []string) bool {
