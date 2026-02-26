@@ -11,6 +11,7 @@ type WorkflowStatus string
 const (
 	WorkflowStatusQueued    WorkflowStatus = "queued"
 	WorkflowStatusRunning   WorkflowStatus = "running"
+	WorkflowStatusResumable WorkflowStatus = "resumable"
 	WorkflowStatusCompleted WorkflowStatus = "completed"
 	WorkflowStatusFailed    WorkflowStatus = "failed"
 	WorkflowStatusCanceled  WorkflowStatus = "canceled"

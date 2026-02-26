@@ -63,6 +63,19 @@ type resumeTestDecomposer struct {
 	sessionSecond  string
 }
 
+type resumeCheckpointRecorder struct {
+	boardID   string
+	taskID    string
+	sessions  []string
+}
+
+func (recorder *resumeCheckpointRecorder) CheckpointResumeSession(_ context.Context, boardID string, taskID string, resumeSessionID string) error {
+	recorder.boardID = boardID
+	recorder.taskID = taskID
+	recorder.sessions = append(recorder.sessions, strings.TrimSpace(resumeSessionID))
+	return nil
+}
+
 func (decomposer *resumeTestDecomposer) Decompose(_ context.Context, request appcopilot.DecomposeRequest) (appcopilot.DecomposeResult, error) {
 	decomposer.calls++
 	decomposer.requests = append(decomposer.requests, request)
@@ -147,5 +160,30 @@ func TestTaskExecutorRunsValidationWhenSourceSyncIntroducesChanges(t *testing.T)
 	}
 	if gitPort.validateCalls != 1 {
 		t.Fatalf("expected one validation run after source sync merge, got %d", gitPort.validateCalls)
+	}
+}
+
+func TestTaskExecutorCheckpointsResumeSession(t *testing.T) {
+	decomposer := &resumeTestDecomposer{sessionFirst: "session-first", sessionSecond: "session-second"}
+	checkpoint := &resumeCheckpointRecorder{}
+	executor := NewTaskExecutor(&resumeTestGitPort{mergeAttempt: MergeAttempt{NoChanges: true}}, decomposer, checkpoint)
+
+	_, err := executor.ExecuteTask(context.Background(), TaskExecutionRequest{
+		BoardID:        "board-1",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		TaskTitle:      "title",
+		TaskDetail:     "detail",
+		SourceBranch:   "main",
+		RepositoryRoot: ".",
+	})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if checkpoint.boardID != "board-1" || checkpoint.taskID != "task-1" {
+		t.Fatalf("unexpected checkpoint target board=%q task=%q", checkpoint.boardID, checkpoint.taskID)
+	}
+	if len(checkpoint.sessions) == 0 || checkpoint.sessions[0] != "session-first" {
+		t.Fatalf("expected first checkpoint session to persist, got %#v", checkpoint.sessions)
 	}
 }

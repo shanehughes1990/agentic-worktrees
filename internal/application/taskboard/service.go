@@ -68,6 +68,55 @@ func (service *Service) MarkTaskCanceledWithOutcome(ctx context.Context, boardID
 	return service.markTaskStatusAndOutcome(ctx, boardID, taskID, domaintaskboard.StatusNotStarted, &outcome)
 }
 
+func (service *Service) CheckpointTaskResumeSession(ctx context.Context, boardID string, taskID string, resumeSessionID string) error {
+	cleanSessionID := strings.TrimSpace(resumeSessionID)
+	if cleanSessionID == "" {
+		return nil
+	}
+
+	board, err := service.loadBoard(ctx, boardID)
+	if err != nil {
+		return err
+	}
+
+	cleanTaskID := strings.TrimSpace(taskID)
+	if cleanTaskID == "" {
+		return fmt.Errorf("task_id is required")
+	}
+
+	for epicIndex := range board.Epics {
+		for taskIndex := range board.Epics[epicIndex].Tasks {
+			task := &board.Epics[epicIndex].Tasks[taskIndex]
+			if task.ID != cleanTaskID {
+				continue
+			}
+			if task.Outcome != nil && strings.TrimSpace(task.Outcome.ResumeSessionID) == cleanSessionID {
+				return nil
+			}
+			outcome := domaintaskboard.TaskOutcome{}
+			if task.Outcome != nil {
+				outcome = *task.Outcome
+			}
+			if strings.TrimSpace(outcome.Status) == "" {
+				outcome.Status = string(task.Status)
+			}
+			if strings.TrimSpace(outcome.Reason) == "" {
+				outcome.Reason = "resume session checkpoint"
+			}
+			outcome.ResumeSessionID = cleanSessionID
+			if err := board.SetTaskOutcome(cleanTaskID, outcome); err != nil {
+				return err
+			}
+			if err := service.repository.Save(ctx, board); err != nil {
+				return fmt.Errorf("save board: %w", err)
+			}
+			return nil
+		}
+	}
+
+	return fmt.Errorf("task not found: %s", cleanTaskID)
+}
+
 func (service *Service) IsBoardCompleted(ctx context.Context, boardID string) (bool, error) {
 	board, err := service.loadBoard(ctx, boardID)
 	if err != nil {

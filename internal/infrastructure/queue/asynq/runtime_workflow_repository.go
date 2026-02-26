@@ -219,6 +219,8 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 	if runID == "" {
 		runID = strings.TrimSpace(info.ID)
 	}
+	resumeSessionID := extractResumeSessionID(info)
+	isOrphanedActive := info != nil && strings.EqualFold(strings.TrimSpace(info.State.String()), "active") && info.IsOrphaned
 	stream := strings.TrimSpace(string(info.Result))
 	if stream == "" {
 		stream = "(stream details not available yet in Asynq result)"
@@ -227,7 +229,7 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 		RunID:      runID,
 		TaskID:     info.ID,
 		TaskType:   strings.TrimSpace(info.Type),
-		Status:     mapTaskState(info.State),
+		Status:     mapTaskState(info),
 		Message:    mapTaskMessage(info),
 		Stream:     stream,
 		UpdatedAt:  mapTaskUpdatedAt(info),
@@ -237,6 +239,9 @@ func mapTaskToWorkflow(info *asynq.TaskInfo) apptaskboard.IngestionWorkflow {
 			"asynq_task_id":    strings.TrimSpace(info.ID),
 			"asynq_task_type":  strings.TrimSpace(info.Type),
 			"asynq_state":      strings.TrimSpace(info.State.String()),
+			"orphaned":         isOrphanedActive,
+			"resumable":        isOrphanedActive,
+			"resume_session_id": resumeSessionID,
 			"asynq_retry_count": info.Retried,
 			"asynq_max_retry":   info.MaxRetry,
 		},
@@ -277,9 +282,32 @@ func extractRunID(info *asynq.TaskInfo) string {
 	}
 }
 
-func mapTaskState(state asynq.TaskState) apptaskboard.WorkflowStatus {
-	switch strings.ToLower(strings.TrimSpace(state.String())) {
+func extractResumeSessionID(info *asynq.TaskInfo) string {
+	if info == nil {
+		return ""
+	}
+	switch strings.TrimSpace(info.Type) {
+	case tasks.TaskTypeGitWorktreeFlow:
+		payload := tasks.GitWorktreeFlowPayload{}
+		if len(info.Payload) > 0 {
+			_ = json.Unmarshal(info.Payload, &payload)
+		}
+		return strings.TrimSpace(payload.ResumeSessionID)
+	default:
+		return ""
+	}
+}
+
+func mapTaskState(info *asynq.TaskInfo) apptaskboard.WorkflowStatus {
+	if info == nil {
+		return apptaskboard.WorkflowStatusQueued
+	}
+	stateText := strings.ToLower(strings.TrimSpace(info.State.String()))
+	switch stateText {
 	case "active":
+		if info.IsOrphaned {
+			return apptaskboard.WorkflowStatusResumable
+		}
 		return apptaskboard.WorkflowStatusRunning
 	case "pending", "scheduled", "retry":
 		return apptaskboard.WorkflowStatusQueued
@@ -293,6 +321,13 @@ func mapTaskState(state asynq.TaskState) apptaskboard.WorkflowStatus {
 }
 
 func mapTaskMessage(info *asynq.TaskInfo) string {
+	if info != nil && strings.EqualFold(strings.TrimSpace(info.State.String()), "active") && info.IsOrphaned {
+		resumeSessionID := extractResumeSessionID(info)
+		if resumeSessionID != "" {
+			return fmt.Sprintf("orphaned active task recovered as resumable; resume_session_id=%s", resumeSessionID)
+		}
+		return "orphaned active task recovered as resumable; worker restart will continue processing"
+	}
 	lastErr := strings.TrimSpace(info.LastErr)
 	if lastErr != "" {
 		return lastErr

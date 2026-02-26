@@ -31,13 +31,22 @@ type TaskExecutionResult struct {
 	ResumeSessionID string
 }
 
-type TaskExecutor struct {
-	git        GitPort
-	decomposer appcopilot.Decomposer
+type ResumeSessionCheckpoint interface {
+	CheckpointResumeSession(ctx context.Context, boardID string, taskID string, resumeSessionID string) error
 }
 
-func NewTaskExecutor(git GitPort, decomposer appcopilot.Decomposer) *TaskExecutor {
-	return &TaskExecutor{git: git, decomposer: decomposer}
+type TaskExecutor struct {
+	git               GitPort
+	decomposer        appcopilot.Decomposer
+	resumeCheckpoint  ResumeSessionCheckpoint
+}
+
+func NewTaskExecutor(git GitPort, decomposer appcopilot.Decomposer, resumeCheckpoints ...ResumeSessionCheckpoint) *TaskExecutor {
+	var resumeCheckpoint ResumeSessionCheckpoint
+	if len(resumeCheckpoints) > 0 {
+		resumeCheckpoint = resumeCheckpoints[0]
+	}
+	return &TaskExecutor{git: git, decomposer: decomposer, resumeCheckpoint: resumeCheckpoint}
 }
 
 func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecutionRequest) (result TaskExecutionResult, executeErr error) {
@@ -117,6 +126,9 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		}
 		if strings.TrimSpace(decomposeResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(decomposeResult.SessionID)
+			if checkpointErr := executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, request.ResumeSessionID); checkpointErr != nil {
+				return failedResult("failed", checkpointErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("checkpoint resume session: %w", checkpointErr), FailureClassTransient)
+			}
 		}
 		if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
 			return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage task worktree changes: %w", stageErr), FailureClassTerminal)
@@ -145,11 +157,15 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
 			if strings.TrimSpace(resolutionResult.SessionID) != "" {
 				resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+				_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
 			}
 			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
 		}
 		if strings.TrimSpace(resolutionResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+			if checkpointErr := executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, request.ResumeSessionID); checkpointErr != nil {
+				return failedResult("failed", checkpointErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("checkpoint resume session: %w", checkpointErr), FailureClassTransient)
+			}
 		}
 		if resolveErr := executor.git.ResolveConflicts(ctx, absoluteWorktreePath, syncAttempt.ConflictFiles, resolutionResult.Response); resolveErr != nil {
 			return failedResult("failed", resolveErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve pre-merge sync conflicts: %w", resolveErr), FailureClassTerminal)
@@ -175,11 +191,15 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 				resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
 				if strings.TrimSpace(recheckResult.SessionID) != "" {
 					resumeSessionID = strings.TrimSpace(recheckResult.SessionID)
+					_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
 				}
 				return failedResult("failed", recheckErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("post-sync recheck with agent: %w", recheckErr), FailureClassTerminal)
 			}
 			if strings.TrimSpace(recheckResult.SessionID) != "" {
 				request.ResumeSessionID = strings.TrimSpace(recheckResult.SessionID)
+				if checkpointErr := executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, request.ResumeSessionID); checkpointErr != nil {
+					return failedResult("failed", checkpointErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("checkpoint resume session: %w", checkpointErr), FailureClassTransient)
+				}
 			}
 			if stageErr := executor.git.StageAll(ctx, absoluteWorktreePath); stageErr != nil {
 				return failedResult("failed", stageErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("stage post-sync recheck changes: %w", stageErr), FailureClassTerminal)
@@ -213,11 +233,15 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 			resumeSessionID := strings.TrimSpace(request.ResumeSessionID)
 			if strings.TrimSpace(resolutionResult.SessionID) != "" {
 				resumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+				_ = executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, resumeSessionID)
 			}
 			return failedResult("failed", resolutionErr.Error(), resumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts with copilot: %w", resolutionErr), FailureClassTerminal)
 		}
 		if strings.TrimSpace(resolutionResult.SessionID) != "" {
 			request.ResumeSessionID = strings.TrimSpace(resolutionResult.SessionID)
+			if checkpointErr := executor.checkpointResumeSession(ctx, cleanBoardID, cleanTaskID, request.ResumeSessionID); checkpointErr != nil {
+				return failedResult("failed", checkpointErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("checkpoint resume session: %w", checkpointErr), FailureClassTransient)
+			}
 		}
 		if resolveErr := executor.git.ResolveConflicts(ctx, cleanRepositoryRoot, mergeAttempt.ConflictFiles, resolutionResult.Response); resolveErr != nil {
 			return failedResult("failed", resolveErr.Error(), request.ResumeSessionID), EnsureClassified(fmt.Errorf("resolve merge conflicts: %w", resolveErr), FailureClassTerminal)
@@ -246,6 +270,17 @@ func (executor *TaskExecutor) ExecuteTask(ctx context.Context, request TaskExecu
 		return result, EnsureClassified(fmt.Errorf("cleanup task worktree: %w", cleanupErr), FailureClassTerminal)
 	}
 	return result, nil
+}
+
+func (executor *TaskExecutor) checkpointResumeSession(ctx context.Context, boardID string, taskID string, resumeSessionID string) error {
+	if executor == nil || executor.resumeCheckpoint == nil {
+		return nil
+	}
+	cleanSessionID := strings.TrimSpace(resumeSessionID)
+	if cleanSessionID == "" {
+		return nil
+	}
+	return executor.resumeCheckpoint.CheckpointResumeSession(ctx, strings.TrimSpace(boardID), strings.TrimSpace(taskID), cleanSessionID)
 }
 
 func (executor *TaskExecutor) CleanupBoardRun(ctx context.Context, boardID string, repositoryRoot string) error {

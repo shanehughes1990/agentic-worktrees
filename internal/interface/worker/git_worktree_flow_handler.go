@@ -59,6 +59,16 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 		boardID = strings.TrimSpace(payload.RunID)
 	}
 
+	if task, getErr := handler.taskboardService.GetTaskByID(ctx, boardID, strings.TrimSpace(payload.TaskID)); getErr == nil && task != nil && task.Outcome != nil {
+		persistedResumeSessionID := strings.TrimSpace(task.Outcome.ResumeSessionID)
+		if persistedResumeSessionID != "" {
+			if strings.TrimSpace(payload.ResumeSessionID) != persistedResumeSessionID {
+				entry.WithField("resume_session_id", persistedResumeSessionID).Info("using latest persisted resume session for recovered task execution")
+			}
+			payload.ResumeSessionID = persistedResumeSessionID
+		}
+	}
+
 	result, err := handler.executor.ExecuteTask(ctx, appgitflow.TaskExecutionRequest{
 		BoardID:         boardID,
 		RunID:           payload.RunID,
@@ -108,8 +118,8 @@ func (handler *GitWorktreeFlowHandler) ProcessTask(ctx context.Context, task *as
 			entry.WithError(markErr).Error("failed to mark task canceled after git worktree flow")
 			return fmt.Errorf("mark task canceled: %w", markErr)
 		}
-		entry.WithError(err).Warn("git worktree flow task canceled")
-		return fmt.Errorf("%w: git worktree flow canceled", asynq.SkipRetry)
+		entry.WithError(err).Warn("git worktree flow task interrupted; retrying for automatic resume")
+		return fmt.Errorf("git worktree flow interrupted: %w", err)
 	}
 
 	if markErr := handler.taskboardService.MarkTaskBlockedWithOutcome(ctx, boardID, strings.TrimSpace(payload.TaskID), outcome); markErr != nil {

@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -65,6 +66,11 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 		CLIURL:           payload.CLIURL,
 	})
 	if err != nil {
+		if isInterruptionError(err) {
+			handler.saveResumableWorkflow(ctx, payload.RunID, "copilot decomposition interrupted; will automatically resume")
+			entry.WithError(err).Warn("copilot decomposition interrupted; retrying for automatic resume")
+			return fmt.Errorf("copilot decompose interrupted: %w", err)
+		}
 		userMessage := formatUserFacingDecomposeError(err)
 		handler.saveFailureWorkflow(ctx, payload.RunID, userMessage)
 		entry.WithError(err).WithField("user_message", userMessage).Error("copilot decomposition failed")
@@ -164,6 +170,26 @@ func (handler *CopilotDecomposeHandler) ProcessTask(ctx context.Context, task *a
 	return nil
 }
 
+func (handler *CopilotDecomposeHandler) saveResumableWorkflow(ctx context.Context, runID string, message string) {
+	cleanRunID := strings.TrimSpace(runID)
+	if cleanRunID == "" {
+		return
+	}
+	workflow := &apptaskboard.IngestionWorkflow{
+		RunID:    cleanRunID,
+		TaskType: apptaskboard.WorkflowTaskTypeCopilotDecompose,
+		Status:   apptaskboard.WorkflowStatusResumable,
+		Message:  strings.TrimSpace(message),
+	}
+	workflow.Details = map[string]any{
+		"run_id":     cleanRunID,
+		"worker_pid": os.Getpid(),
+		"resumable":  true,
+	}
+	workflow.Normalize(cleanRunID)
+	_ = handler.workflowRepo.SaveWorkflow(ctx, workflow)
+}
+
 func (handler *CopilotDecomposeHandler) saveFailureWorkflow(ctx context.Context, runID string, message string) {
 	cleanRunID := strings.TrimSpace(runID)
 	if cleanRunID == "" {
@@ -239,4 +265,11 @@ func isTerminalCopilotFailure(err error) bool {
 		}
 	}
 	return false
+}
+
+func isInterruptionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

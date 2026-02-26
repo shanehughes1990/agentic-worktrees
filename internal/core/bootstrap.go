@@ -48,6 +48,17 @@ type taskPipelineExecutorAdapter struct {
 	pollInterval     time.Duration
 }
 
+type taskResumeCheckpointAdapter struct {
+	taskboardService *apptaskboard.Service
+}
+
+func (adapter *taskResumeCheckpointAdapter) CheckpointResumeSession(ctx context.Context, boardID string, taskID string, resumeSessionID string) error {
+	if adapter == nil || adapter.taskboardService == nil {
+		return nil
+	}
+	return adapter.taskboardService.CheckpointTaskResumeSession(ctx, boardID, taskID, resumeSessionID)
+}
+
 func (adapter *taskPipelineExecutorAdapter) ExecuteTask(ctx context.Context, request apptaskboard.TaskExecutionRequest) (apptaskboard.TaskExecutionOutcome, error) {
 	if adapter == nil || adapter.dispatcher == nil {
 		return apptaskboard.TaskExecutionOutcome{}, fmt.Errorf("task executor adapter is not configured")
@@ -179,9 +190,9 @@ func Init() (*Runtime, error) {
 	gitWorktreeDispatcher := queueasynq.NewGitWorktreeDispatcher(queueClient, logger)
 	gitflowService := appgitflow.NewService(gitWorktreeDispatcher)
 	gitflowRunner := appgitflow.NewRunner(gitAdapter, gitWorktreeDispatcher, taskboardRepository)
-	taskExecutor := appgitflow.NewTaskExecutor(gitAdapter, decomposer)
-	executionRegistry := apptaskboard.NewExecutionRegistry()
 	taskboardService := apptaskboard.NewService(taskboardRepository)
+	taskExecutor := appgitflow.NewTaskExecutor(gitAdapter, decomposer, &taskResumeCheckpointAdapter{taskboardService: taskboardService})
+	executionRegistry := apptaskboard.NewExecutionRegistry()
 	effectiveMaxAgents := queueCfg.Concurrency
 	if effectiveMaxAgents < 1 {
 		effectiveMaxAgents = 1

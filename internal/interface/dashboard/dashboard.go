@@ -771,7 +771,7 @@ func (ui *UI) buildWorkflowStatusScreen(screenID string, headerTitle string, emp
 				if strings.TrimSpace(stream) == "" {
 					stream = "(no stream details recorded yet)"
 				}
-				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), stream))
+				details.SetText(fmt.Sprintf("RunID: %s\nType: %s\nStatus: %s\nCancelable: %t\nTaskID: %s\nBoardID: %s\nMessage: %s\nUpdated: %s\nDetails: %v\n\nStream:\n%s", workflow.RunID, workflow.TaskType, workflow.Status, workflow.Cancelable, workflow.TaskID, workflow.BoardID, workflow.Message, workflow.UpdatedAt.Format(time.RFC3339), workflow.Details, stream))
 				ui.status.SetText(fmt.Sprintf("Loaded workflow %s", workflow.RunID))
 			})
 		}()

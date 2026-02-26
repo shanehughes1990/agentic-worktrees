@@ -34,6 +34,9 @@ func TestNewTaskboardExecuteTaskBuildsTask(t *testing.T) {
 	if payload.IdempotencyKey == "" {
 		t.Fatalf("expected idempotency key fallback to be set")
 	}
+	if payload.IdempotencyKey != "board-1:revamp" {
+		t.Fatalf("expected board+source idempotency key, got %q", payload.IdempotencyKey)
+	}
 }
 
 func TestNewTaskboardExecuteTaskRejectsNegativeMaxTasks(t *testing.T) {

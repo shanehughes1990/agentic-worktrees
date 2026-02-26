@@ -33,7 +33,7 @@ func NewTaskboardExecuteTask(payload TaskboardExecutePayload, options ...asynq.O
 		return nil, nil, fmt.Errorf("max_tasks cannot be negative")
 	}
 	if strings.TrimSpace(payload.IdempotencyKey) == "" {
-		payload.IdempotencyKey = fmt.Sprintf("%s:%s:%d", strings.TrimSpace(payload.BoardID), strings.TrimSpace(payload.SourceBranch), payload.MaxTasks)
+		payload.IdempotencyKey = fmt.Sprintf("%s:%s", strings.TrimSpace(payload.BoardID), strings.TrimSpace(payload.SourceBranch))
 	}
 
 	body, err := json.Marshal(payload)

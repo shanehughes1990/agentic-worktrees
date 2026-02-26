@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -73,6 +74,10 @@ func (handler *GitConflictResolveHandler) ProcessTask(ctx context.Context, task 
 	if err == nil {
 		entry.Info("git conflict resolve task completed")
 		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		entry.WithError(err).Warn("git conflict resolve task interrupted; retrying for automatic resume")
+		return fmt.Errorf("git conflict resolve interrupted: %w", err)
 	}
 	entry.WithError(err).Error("git conflict resolve task failed")
 	if appgitflow.IsTerminalFailure(err) {

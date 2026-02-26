@@ -21,7 +21,7 @@ func NewTaskboardExecutionDispatcher(client *Client, logger *logrus.Logger) *Tas
 }
 
 func (dispatcher *TaskboardExecutionDispatcher) EnqueueTaskboardExecution(ctx context.Context, request apptaskboard.StartExecutionRequest) (string, error) {
-	idempotencyKey := fmt.Sprintf("%s:%s:%d", request.BoardID, request.SourceBranch, request.MaxTasks)
+	idempotencyKey := fmt.Sprintf("%s:%s", request.BoardID, request.SourceBranch)
 	entry := dispatcher.entry().WithFields(logrus.Fields{
 		"event":           "taskboard.execute.enqueue",
 		"board_id":        request.BoardID,
