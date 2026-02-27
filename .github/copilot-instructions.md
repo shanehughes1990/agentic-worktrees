@@ -36,17 +36,17 @@
 - Any contribution containing fake-green tests is an immediate rejection and immediate revert.
 - This standard is mandatory and takes precedence over pass-rate optics.
 
-## ADK RESILIENCE ENFORCEMENT OVERRIDE
+## COPILOT SDK WORKER HANDLER ENFORCEMENT OVERRIDE
 
-- ALL ADK interactions MUST execute through Asynq task-resilience workflows.
-- Direct ADK calls from CLI handlers, MCP/API handlers, helper utilities, or ad-hoc goroutines are FORBIDDEN.
-- Interface layers may only validate, normalize, and enqueue Asynq tasks for ADK work.
-- ADK execution is allowed only inside worker task handlers with retry/backoff/dead-letter semantics.
-- Every ADK task must include deterministic payloads and idempotency keys.
-- Every ADK task must persist checkpoints around critical lifecycle transitions.
-- Every ADK task must emit audit/telemetry with correlation IDs (`run_id`, `task_id`, `job_id`).
+- ALL Copilot SDK interactions MUST execute through the `worker` handler.
+- Direct Copilot SDK calls from CLI handlers, MCP/API handlers, helper utilities, or ad-hoc goroutines are FORBIDDEN.
+- Interface layers may only validate, normalize, and enqueue work that is executed by the `worker` handler.
+- Copilot SDK execution is allowed only inside worker task handlers with retry/backoff/dead-letter semantics.
+- Every Copilot SDK task must include deterministic payloads and idempotency keys.
+- Every Copilot SDK task must persist checkpoints around critical lifecycle transitions.
+- Every Copilot SDK task must emit audit/telemetry with correlation IDs (`run_id`, `task_id`, `job_id`).
 - Failure classes MUST be typed (`transient` vs `terminal`) and mapped to queue policy.
-- Any change introducing ADK usage without Asynq resilience guarantees is non-compliant and must be rejected.
+- Any change introducing Copilot SDK usage outside the `worker` handler path is non-compliant and must be rejected.
 
 ## NO CODE-DUMP UTILS OVERRIDE
 
