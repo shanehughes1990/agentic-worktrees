@@ -43,8 +43,17 @@ type operationRuntime struct {
 }
 
 func newPlatformRuntime(ctx context.Context, config Config) (*platformRuntime, error) {
-	if strings.TrimSpace(config.ServiceName) == "" {
-		return nil, errors.New("service name is required")
+	config.ServiceName = strings.TrimSpace(config.ServiceName)
+	config.Environment = strings.TrimSpace(config.Environment)
+	config.Version = strings.TrimSpace(config.Version)
+	if config.ServiceName == "" {
+		config.ServiceName = "unknown"
+	}
+	if config.Environment == "" {
+		config.Environment = "local"
+	}
+	if config.Version == "" {
+		config.Version = "development"
 	}
 	if ctx == nil {
 		ctx = context.Background()

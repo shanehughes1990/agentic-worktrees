@@ -20,23 +20,56 @@ It does this through one exposed surface in `observability.go`.
 
 Use when a process starts (API, worker, scheduler).
 
-- call `Bootstrap(ctx, Config)`
-- keep returned `Platform` for runtime usage
-- call `Platform.Shutdown(ctx)` on process exit
+```go
+package main
 
-### 2) Emit service lifecycle logs
+import (
+ "context"
+
+ "agentic-orchestrator/internal/infrastructure/observability"
+)
+
+func bootstrapObservability(ctx context.Context) (*observability.Platform, error) {
+ platform, err := observability.Bootstrap(ctx, observability.Config{
+  LogFormat:    observability.LogFormatText,
+  LogLevel:     observability.LogLevelInfo,
+  OTLPEndpoint: "", // empty => in-memory telemetry
+ })
+ if err != nil {
+  return nil, err
+ }
+ return platform, nil
+}
+```
+
+### 2) Service-level logging
 
 Use for startup/health/infra events that are not tied to one operation.
 
-- use `Platform.ServiceEntry()`
-- log service-level messages with service identity fields attached
+```go
+func logServiceLifecycle(platform *observability.Platform) {
+ platform.ServiceEntry().Info("service starting")
+ platform.ServiceEntry().WithField("component", "http").Info("listener ready")
+}
+```
 
-### 3) Emit contextual logs
+### 3) Entry-level contextual logging
 
-Use when a context already contains correlation IDs and trace state.
+Use when a context already contains correlation IDs and/or trace state.
 
-- use `Platform.Entry(ctx)`
-- log with automatic `run_id`, `task_id`, `job_id`, `trace_id`, `span_id`
+```go
+func logWithContext(platform *observability.Platform, ctx context.Context) {
+ ctx = observability.WithCorrelationIDs(ctx, observability.CorrelationIDs{
+  RunID:  "run-123",
+  TaskID: "task-456",
+  JobID:  "job-789",
+ })
+
+ platform.Entry(ctx).
+  WithField("stage", "dispatch").
+  Info("task submitted")
+}
+```
 
 ### 4) Instrument a business operation
 
@@ -74,11 +107,15 @@ Primary exposed constructor:
 `Config` controls:
 
 - identity: `ServiceName`, `Environment`, `Version`
-- logging: `LogFormat`, `LogLevel`, `TimestampFormat`, `PrettyPrintJSON`
+- logging: `LogFormat`, `LogLevel`, `PrettyPrintJSON`
 - telemetry transport: `OTLPEndpoint`, `OTLPHeaders`
 
 Behavior:
 
+- identity defaults when omitted:
+  - `ServiceName`: `unknown`
+  - `Environment`: `local`
+  - `Version`: `development`
 - if `OTLPEndpoint` is empty, telemetry runs in-memory
 - if `OTLPEndpoint` is set, OTLP/HTTP exporters are used
 

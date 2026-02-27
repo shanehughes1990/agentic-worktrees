@@ -22,9 +22,6 @@ const (
 	LogLevelError LogLevel = "error"
 )
 
-// DefaultTimestampFormat is the shared timestamp layout used by all logger formats.
-const DefaultTimestampFormat = "2006-01-02T15:04:05.999999999Z07:00"
-
 // Config defines the external bootstrap contract for the observability platform.
 type Config struct {
 	ServiceName string
@@ -33,7 +30,6 @@ type Config struct {
 
 	LogFormat       LogFormat
 	LogLevel        LogLevel
-	TimestampFormat string
 	PrettyPrintJSON bool
 
 	OTLPEndpoint string

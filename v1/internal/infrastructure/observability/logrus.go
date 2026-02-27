@@ -8,6 +8,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const defaultTimestampFormat = "2006-01-02T15:04:05.999999999Z07:00"
+
 type loggerOptions struct {
 	format          LogFormat
 	level           logrus.Level
@@ -37,15 +39,10 @@ func loggerOptionsFromConfig(config Config) loggerOptions {
 		level = logrus.InfoLevel
 	}
 
-	timestampFormat := config.TimestampFormat
-	if timestampFormat == "" {
-		timestampFormat = DefaultTimestampFormat
-	}
-
 	return loggerOptions{
 		format:          format,
 		level:           level,
-		timestampFormat: timestampFormat,
+		timestampFormat: defaultTimestampFormat,
 		prettyPrintJSON: config.PrettyPrintJSON,
 	}
 }
