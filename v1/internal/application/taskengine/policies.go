@@ -12,5 +12,13 @@ func DefaultPolicies() map[JobKind]JobPolicy {
 			DefaultTimeout:        5 * time.Minute,
 			DefaultMaxRetry:       2,
 		},
+		JobKindSCMWorkflow: {
+			DefaultQueue:          "scm",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      2 * time.Hour,
+			DefaultTimeout:        10 * time.Minute,
+			DefaultMaxRetry:       3,
+		},
 	}
 }

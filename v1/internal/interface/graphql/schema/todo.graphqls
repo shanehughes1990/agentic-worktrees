@@ -1,24 +1,31 @@
-type Todo {
-  id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
+type EnqueueSCMWorkflowResult {
+  queueTaskID: ID!
+  duplicate: Boolean!
 }
 
-type User {
-  id: ID!
-  name: String!
-}
-
-input NewTodo {
-  text: String!
-  userId: String!
+input EnqueueSCMWorkflowInput {
+  operation: String!
+  provider: String!
+  owner: String!
+  repository: String!
+  runID: String!
+  taskID: String!
+  jobID: String!
+  idempotencyKey: String!
+  worktreePath: String
+  baseBranch: String
+  targetBranch: String
+  pullRequestNumber: Int
+  pullRequestTitle: String
+  pullRequestBody: String
+  reviewDecision: String
+  reviewBody: String
 }
 
 extend type Query {
-  todos: [Todo!]!
+  scmSupportedOperations: [String!]!
 }
 
 extend type Mutation {
-  createTodo(input: NewTodo!): Todo!
+  enqueueScmWorkflow(input: EnqueueSCMWorkflowInput!): EnqueueSCMWorkflowResult!
 }

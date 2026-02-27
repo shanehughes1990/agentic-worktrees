@@ -29,6 +29,10 @@ func bootstrapTaskEngine(config BaseConfig, observabilityPlatform *observability
 	ingestionPolicy.DefaultQueue = config.TaskEngineIngestionQueue
 	policies[taskengine.JobKindIngestionAgent] = ingestionPolicy
 
+	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
+	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
+	policies[taskengine.JobKindSCMWorkflow] = scmPolicy
+
 	scheduler, err := taskengine.NewScheduler(platform, policies)
 	if err != nil {
 		return nil, nil, fmt.Errorf("bootstrap task engine scheduler: %w", err)

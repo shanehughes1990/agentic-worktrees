@@ -9,6 +9,7 @@ type JobKind string
 
 const (
 	JobKindIngestionAgent JobKind = "ingestion.agent.run"
+	JobKindSCMWorkflow    JobKind = "scm.workflow.run"
 )
 
 type CorrelationIDs struct {

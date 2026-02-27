@@ -1,15 +1,18 @@
 package bootstrap
 
 import (
+	applicationscm "agentic-orchestrator/internal/application/scm"
 	"agentic-orchestrator/internal/application/taskengine"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
+	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
 	"context"
 	"errors"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -19,6 +22,7 @@ type WorkerApp struct {
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    *asynqengine.Platform
+	scmService            *applicationscm.Service
 }
 
 func InitWorker() (*WorkerApp, error) {
@@ -37,12 +41,26 @@ func InitWorker() (*WorkerApp, error) {
 		return nil, err
 	}
 
+	if strings.TrimSpace(config.SCMGitHubToken) == "" {
+		return nil, fmt.Errorf("worker requires SCM_GITHUB_TOKEN for github scm execution")
+	}
+
+	githubAdapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{APIBaseURL: config.SCMGitHubAPIBaseURL, RepoPath: config.SCMLocalRepositoryPath}, nil, infrascm.NewStaticTokenProvider(config.SCMGitHubToken), infrascm.NewExecGitRunner())
+	if err != nil {
+		return nil, fmt.Errorf("init github scm adapter: %w", err)
+	}
+	scmService, err := applicationscm.NewService(githubAdapter)
+	if err != nil {
+		return nil, fmt.Errorf("init scm service: %w", err)
+	}
+
 	return &WorkerApp{
 		config:                config,
 		observabilityPlatform: observabilityPlatform,
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
+		scmService:            scmService,
 	}, nil
 }
 
@@ -63,6 +81,13 @@ func (app *WorkerApp) Run() error {
 	ingestionHandler := workerinterface.NewIngestionAgentHandler()
 	if err := app.taskEnginePlatform.Register(taskengine.JobKindIngestionAgent, ingestionHandler); err != nil {
 		return fmt.Errorf("register ingestion agent handler: %w", err)
+	}
+	scmHandler, err := workerinterface.NewSCMWorkflowHandler(app.scmService)
+	if err != nil {
+		return fmt.Errorf("create scm workflow handler: %w", err)
+	}
+	if err := app.taskEnginePlatform.Register(taskengine.JobKindSCMWorkflow, scmHandler); err != nil {
+		return fmt.Errorf("register scm workflow handler: %w", err)
 	}
 	if err := app.taskEnginePlatform.Start(); err != nil {
 		if entry != nil {

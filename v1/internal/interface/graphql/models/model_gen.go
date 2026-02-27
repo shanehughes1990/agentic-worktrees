@@ -2,25 +2,32 @@
 
 package models
 
+type EnqueueSCMWorkflowInput struct {
+	Operation         string  `json:"operation"`
+	Provider          string  `json:"provider"`
+	Owner             string  `json:"owner"`
+	Repository        string  `json:"repository"`
+	RunID             string  `json:"runID"`
+	TaskID            string  `json:"taskID"`
+	JobID             string  `json:"jobID"`
+	IdempotencyKey    string  `json:"idempotencyKey"`
+	WorktreePath      *string `json:"worktreePath,omitempty"`
+	BaseBranch        *string `json:"baseBranch,omitempty"`
+	TargetBranch      *string `json:"targetBranch,omitempty"`
+	PullRequestNumber *int32  `json:"pullRequestNumber,omitempty"`
+	PullRequestTitle  *string `json:"pullRequestTitle,omitempty"`
+	PullRequestBody   *string `json:"pullRequestBody,omitempty"`
+	ReviewDecision    *string `json:"reviewDecision,omitempty"`
+	ReviewBody        *string `json:"reviewBody,omitempty"`
+}
+
+type EnqueueSCMWorkflowResult struct {
+	QueueTaskID string `json:"queueTaskID"`
+	Duplicate   bool   `json:"duplicate"`
+}
+
 type Mutation struct {
 }
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
-}
-
 type Query struct {
-}
-
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
-}
-
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
 }

@@ -8,15 +8,26 @@ package resolvers
 import (
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
-	"fmt"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input models.NewTodo) (*models.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+// EnqueueScmWorkflow is the resolver for the enqueueScmWorkflow field.
+func (r *mutationResolver) EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (*models.EnqueueSCMWorkflowResult, error) {
+	return enqueueSCMWorkflow(ctx, r.Resolver, input)
 }
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*models.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
+// ScmSupportedOperations is the resolver for the scmSupportedOperations field.
+func (r *queryResolver) ScmSupportedOperations(ctx context.Context) ([]string, error) {
+	_ = ctx
+	return []string{
+		"source_state",
+		"ensure_worktree",
+		"sync_worktree",
+		"cleanup_worktree",
+		"ensure_branch",
+		"sync_branch",
+		"upsert_pull_request",
+		"get_pull_request",
+		"submit_review",
+		"check_merge_readiness",
+	}, nil
 }

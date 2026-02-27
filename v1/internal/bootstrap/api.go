@@ -47,7 +47,8 @@ func InitAPI() (*APIApp, error) {
 		return nil, err
 	}
 
-	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &resolvers.Resolver{}}))
+	resolver := resolvers.NewResolver(taskScheduler)
+	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
 	server.AddTransport(transport.POST{})

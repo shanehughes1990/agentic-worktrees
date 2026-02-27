@@ -11,7 +11,7 @@ This ordering ensures complete SCM management capability exists first (admission
 
 ## Part 01A — SCM for GitHub (Full Vertical Slice)
 
-### Scope
+### Part 01A Scope
 
 Implement a complete GitHub-first SCM vertical slice across API, queue, worker, and infrastructure:
 
@@ -24,20 +24,20 @@ Implement a complete GitHub-first SCM vertical slice across API, queue, worker, 
 
 This includes API control-plane admission, taskengine dispatch policy, worker execution, worker-only SCM auth execution, and GitHub adapter behavior under typed failure semantics.
 
-### Task Checklist
+### Part 01A Task Checklist
 
-- [ ] Define `internal/domain/scm` contracts and invariants for source/worktree/branch/PR/review/merge-intent.
-- [ ] Implement `internal/application/scm` use-cases for full SCM management flows.
-- [ ] Add SCM API admission contract (GraphQL/control-plane) for required SCM management operations.
-- [ ] Add SCM job kind/policy wiring in taskengine for queue, idempotency, timeout, and retry defaults.
-- [ ] Implement worker SCM handler(s) that execute SCM flows through application services.
-- [ ] Implement worker-only SCM authentication contract and runtime execution path.
-- [ ] Add first concrete `internal/infrastructure/scm` GitHub adapter for full Part 01A scope.
-- [ ] Add typed failure classification (`transient` vs `terminal`) and retry-safe mapping.
+- [x] Define `internal/domain/scm` contracts and invariants for source/worktree/branch/PR/review/merge-intent.
+- [x] Implement `internal/application/scm` use-cases for full SCM management flows.
+- [x] Add SCM API admission contract (GraphQL/control-plane) for required SCM management operations.
+- [x] Add SCM job kind/policy wiring in taskengine for queue, idempotency, timeout, and retry defaults.
+- [x] Implement worker SCM handler(s) that execute SCM flows through application services.
+- [x] Implement worker-only SCM authentication contract and runtime execution path.
+- [x] Add first concrete `internal/infrastructure/scm` GitHub adapter for full Part 01A scope.
+- [x] Add typed failure classification (`transient` vs `terminal`) and retry-safe mapping.
 - [ ] Add checkpoint/resume boundaries for long-running SCM worker operations.
 - [ ] Add integration tests for API admission -> queue -> worker -> SCM adapter path.
 
-### Deliverables
+### Part 01A Deliverables
 
 - GitHub-first SCM contracts covering `source`, `worktree`, `branch`, `pull request`, `review`, and merge-intent checks.
 - SCM application orchestration services using ports only.
@@ -47,7 +47,7 @@ This includes API control-plane admission, taskengine dispatch policy, worker ex
 - Retry-safe typed failure semantics and correlation/idempotency propagation.
 - Integration coverage proving full vertical slice behavior.
 
-### Acceptance Criteria
+### Part 01A Acceptance Criteria
 
 - SCM use-cases call only SCM ports; no provider calls from application layer.
 - API layer validates/maps/admits; it does not execute SCM auth/provider logic.
@@ -58,11 +58,11 @@ This includes API control-plane admission, taskengine dispatch policy, worker ex
 
 ## Part 01B — SCM for Agents
 
-### Scope
+### Part 01B Scope
 
 Implement agent-facing SCM orchestration that consumes Part 01A SCM contracts for execution workflows.
 
-### Task Checklist
+### Part 01B Task Checklist
 
 - [ ] Define `internal/domain/agent` contracts that reference SCM capabilities through ports.
 - [ ] Implement `internal/application/agent` orchestration for SCM-driven execution/session flows.
@@ -71,14 +71,14 @@ Implement agent-facing SCM orchestration that consumes Part 01A SCM contracts fo
 - [ ] Add worker handler integration points for agent tasks that invoke SCM application services.
 - [ ] Add integration tests for agent orchestration through SCM ports (without bypassing application layer).
 
-### Deliverables
+### Part 01B Deliverables
 
 - Agent contract for SCM-aware execution and session introspection.
 - Agent application orchestration that composes SCM services via ports.
 - Shared execution semantics (correlation IDs, idempotency, typed failures) across agent+SCM.
 - Test coverage for agent-to-SCM orchestration path.
 
-### Acceptance Criteria
+### Part 01B Acceptance Criteria
 
 - Agent layer never calls SCM provider adapters directly.
 - SCM interactions in agent workflows occur only through application/domain contracts.

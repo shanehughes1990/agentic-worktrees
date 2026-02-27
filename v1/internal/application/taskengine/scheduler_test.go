@@ -69,3 +69,22 @@ func TestSchedulerEnqueueAppliesPolicyDefaults(t *testing.T) {
 		t.Fatalf("expected max retry default 2, got %d", engine.lastRequest.MaxRetry)
 	}
 }
+
+func TestSchedulerEnqueueRejectsMissingIdempotencyForSCM(t *testing.T) {
+	engine := &fakeEngine{}
+	scheduler, err := NewScheduler(engine, DefaultPolicies())
+	if err != nil {
+		t.Fatalf("new scheduler: %v", err)
+	}
+
+	_, enqueueErr := scheduler.Enqueue(context.Background(), EnqueueRequest{
+		Kind:    JobKindSCMWorkflow,
+		Payload: []byte(`{"run_id":"run-1","operation":"ensure_worktree"}`),
+	})
+	if enqueueErr == nil {
+		t.Fatalf("expected enqueue error")
+	}
+	if !errors.Is(enqueueErr, ErrInvalidEnqueueRequest) {
+		t.Fatalf("expected ErrInvalidEnqueueRequest, got %v", enqueueErr)
+	}
+}

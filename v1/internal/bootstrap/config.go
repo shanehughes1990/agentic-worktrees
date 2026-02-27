@@ -28,6 +28,12 @@ type BaseConfig struct {
 	TaskEngineRedisDatabase  int    `envconfig:"TASK_ENGINE_REDIS_DATABASE" default:"0" validate:"gte=0"`
 	TaskEngineConcurrency    int    `envconfig:"TASK_ENGINE_CONCURRENCY" default:"10" validate:"gte=1,lte=1024"`
 	TaskEngineIngestionQueue string `envconfig:"TASK_ENGINE_INGESTION_QUEUE" default:"ingestion" validate:"required"`
+	TaskEngineSCMQueue       string `envconfig:"TASK_ENGINE_SCM_QUEUE" default:"scm" validate:"required"`
+
+	SCMProvider          string `envconfig:"SCM_PROVIDER" default:"github" validate:"required,oneof=github"`
+	SCMGitHubToken       string `envconfig:"SCM_GITHUB_TOKEN"`
+	SCMGitHubAPIBaseURL  string `envconfig:"SCM_GITHUB_API_BASE_URL" default:"https://api.github.com" validate:"required,url"`
+	SCMLocalRepositoryPath string `envconfig:"SCM_LOCAL_REPOSITORY_PATH" default:"." validate:"required"`
 }
 
 type APIConfig struct {
