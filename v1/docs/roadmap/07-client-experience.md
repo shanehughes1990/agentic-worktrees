@@ -4,6 +4,15 @@
 
 Ship a cross-platform client that operates the system through GraphQL without terminal-first UX.
 
+## Task Checklist
+
+- [ ] Implement runtime-configurable GraphQL endpoint setup flow.
+- [ ] Implement multi-session status board and attention zones.
+- [ ] Implement session detail stream view.
+- [ ] Implement control actions wired to GraphQL mutations.
+- [ ] Add reconnect/resilience behavior for stream disruptions.
+- [ ] Add cross-platform packaging + smoke test coverage.
+
 ## Deliverables
 
 - Runtime-configurable backend endpoint management.

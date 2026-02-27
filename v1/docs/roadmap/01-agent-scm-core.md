@@ -4,6 +4,17 @@
 
 Define and implement `agent` and `scm` slot contracts with initial provider adapters under strict DDD boundaries.
 
+## Task Checklist
+
+- [ ] Define `internal/domain/agent` core contracts and invariants.
+- [ ] Define `internal/domain/scm` core contracts and invariants.
+- [ ] Implement `internal/application/agent` orchestration ports/use-cases.
+- [ ] Implement `internal/application/scm` orchestration ports/use-cases.
+- [ ] Create first concrete `infrastructure/agent` adapter.
+- [ ] Create first concrete `infrastructure/scm` adapter.
+- [ ] Add typed error taxonomy (`transient` vs `terminal`) for agent/scm operations.
+- [ ] Add integration tests that execute through ports (not concrete SDK calls from application).
+
 ## Deliverables
 
 - `agent` contract for execution requests, status, and session introspection.

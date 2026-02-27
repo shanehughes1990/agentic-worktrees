@@ -4,6 +4,19 @@
 
 Deliver one execution plane that supports local and remote workers with shared dispatch, lease, and resume semantics.
 
+## Task Checklist
+
+- [x] Introduce queue/task-engine abstraction in application layer.
+- [x] Add first concrete queue adapter (`asynq`) in infrastructure layer.
+- [x] Wire worker runtime bootstrap to start queue consumer.
+- [x] Register at least one worker handler through the task engine path.
+- [ ] Define worker capability advertisement contract.
+- [ ] Implement lease ownership/renewal model.
+- [ ] Implement checkpoint/resume contract across retries and worker boundaries.
+- [ ] Define and implement remote worker adapter contract.
+- [ ] Implement SCM-backed remote bootstrap sequence.
+- [ ] Add end-to-end local+remote parity integration tests.
+
 ## Deliverables
 
 - Worker registration and capability advertisement contracts.

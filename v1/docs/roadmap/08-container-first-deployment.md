@@ -4,6 +4,15 @@
 
 Make containerized runtime the default deployment contract for API and worker components.
 
+## Task Checklist
+
+- [ ] Add first-class Dockerfiles for API and worker runtimes.
+- [ ] Define compose topology for local integration parity.
+- [ ] Externalize env/secrets contract for both services.
+- [ ] Add health/startup/shutdown checks for orchestrated runtime.
+- [ ] Add containerized integration checks for key execution paths.
+- [ ] Define versioned image artifact/release process.
+
 ## Deliverables
 
 - First-class container images for API/control plane and worker runtime.

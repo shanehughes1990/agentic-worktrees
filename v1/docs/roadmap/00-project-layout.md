@@ -4,6 +4,14 @@
 
 Establish canonical V1 structure and documentation governance so all implementation work follows consistent boundaries.
 
+## Task Checklist
+
+- [x] Publish V1-local scope documentation (`SCOPE.md`).
+- [x] Publish V1 placement/dependency rules (`PLACEMENT_RULES.md`).
+- [x] Establish canonical `v1/internal/{domain,application,infrastructure,interface}` layout.
+- [x] Document high-level vs detailed roadmap hierarchy (`VERSION_1_ROADMAP.md` vs `docs/roadmap/*`).
+- [x] Reorder roadmap slices to follow integration-first execution order.
+
 ## Deliverables
 
 - V1-local scope documentation (`SCOPE.md`) and placement rules (`PLACEMENT_RULES.md`).

@@ -4,6 +4,15 @@
 
 Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orchestrator operations.
 
+## Task Checklist
+
+- [x] Initialize `gqlgen` project structure and schema/resolver scaffolding.
+- [x] Place GraphQL files under DDD-aligned interface paths.
+- [ ] Implement session/workflow/worker queries against application services.
+- [ ] Implement core control mutations (spawn/send/cancel/restore/assign/merge).
+- [ ] Implement subscriptions for session + orchestrator events.
+- [ ] Add contract/integration tests for GraphQL operations.
+
 ## Deliverables
 
 - Schema for sessions, workers, workflows, and events.

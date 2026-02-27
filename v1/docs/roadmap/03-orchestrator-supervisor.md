@@ -4,6 +4,15 @@
 
 Implement the central orchestration supervisor responsible for policy decisions, global lifecycle tracking, and escalation triggers.
 
+## Task Checklist
+
+- [ ] Define supervisor domain model (states, transitions, invariants).
+- [ ] Define supervisor event taxonomy with typed reason codes.
+- [ ] Implement application-layer policy engine for attention-zone transitions.
+- [ ] Implement correlation-ID propagation across supervisor decisions.
+- [ ] Add deterministic transition tests over real worker/scm signal fixtures.
+- [ ] Expose supervisor decision history for query/subscription layers.
+
 ## Deliverables
 
 - Supervisor state model for sessions/workflows.

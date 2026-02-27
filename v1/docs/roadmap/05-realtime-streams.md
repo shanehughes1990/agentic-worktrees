@@ -4,6 +4,14 @@
 
 Provide reliable real-time event streams for session activity, agent output, and orchestrator decisions.
 
+## Task Checklist
+
+- [ ] Define stream event schemas for session, agent output, and supervisor decisions.
+- [ ] Implement stream publication pipeline with correlation IDs.
+- [ ] Implement stream persistence/replay model for reconnect and diagnostics.
+- [ ] Implement ordering guarantees and backpressure handling strategy.
+- [ ] Add integration tests for publish/subscribe + replay behavior.
+
 ## Deliverables
 
 - Session activity stream contract.
