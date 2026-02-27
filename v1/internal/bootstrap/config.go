@@ -1,0 +1,80 @@
+package bootstrap
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/kelseyhightower/envconfig"
+)
+
+type BaseConfig struct {
+	ServiceName     string        `envconfig:"SERVICE_NAME" default:"agentic-orchestrator" validate:"required"`
+	Environment     string        `envconfig:"APP_ENV" default:"local" validate:"required,oneof=local development test staging production"`
+	ServiceVersion  string        `envconfig:"SERVICE_VERSION" default:"development" validate:"required"`
+	LogFormat       string        `envconfig:"LOG_FORMAT" default:"text" validate:"required,oneof=text json"`
+	LogLevel        string        `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error"`
+	LogPrettyJSON   bool          `envconfig:"LOG_PRETTY_JSON" default:"false"`
+	OTLPEndpoint    string        `envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTLPHeaders     string        `envconfig:"OTEL_EXPORTER_OTLP_HEADERS"`
+	HealthLivePath  string        `envconfig:"HEALTH_LIVE_PATH" default:"/live" validate:"required,startswith=/"`
+	HealthReadyPath string        `envconfig:"HEALTH_READY_PATH" default:"/ready" validate:"required,startswith=/"`
+	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
+}
+
+type APIConfig struct {
+	BaseConfig
+	APIPort          int    `envconfig:"API_PORT" default:"8080" validate:"required,min=1,max=65535"`
+	GraphQLPath      string `envconfig:"API_GRAPHQL_PATH" default:"/query" validate:"required,startswith=/"`
+	PlaygroundPath   string `envconfig:"API_PLAYGROUND_PATH" default:"/" validate:"required,startswith=/"`
+	EnablePlayground bool   `envconfig:"API_ENABLE_PLAYGROUND" default:"true"`
+}
+
+type WorkerConfig struct {
+	BaseConfig
+	WorkerPort int `envconfig:"WORKER_PORT" default:"8081" validate:"required,min=1,max=65535"`
+}
+
+func LoadAPIConfigFromEnv() (APIConfig, error) {
+	var config APIConfig
+	if err := envconfig.Process("", &config); err != nil {
+		return APIConfig{}, fmt.Errorf("load api env config: %w", err)
+	}
+	if err := validator.New().Struct(config); err != nil {
+		return APIConfig{}, fmt.Errorf("validate api env config: %w", err)
+	}
+	return config, nil
+}
+
+func LoadWorkerConfigFromEnv() (WorkerConfig, error) {
+	var config WorkerConfig
+	if err := envconfig.Process("", &config); err != nil {
+		return WorkerConfig{}, fmt.Errorf("load worker env config: %w", err)
+	}
+	if err := validator.New().Struct(config); err != nil {
+		return WorkerConfig{}, fmt.Errorf("validate worker env config: %w", err)
+	}
+	return config, nil
+}
+
+func parseOTLPHeaders(raw string) map[string]string {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]string{}
+	}
+	headers := map[string]string{}
+	parts := strings.Split(raw, ",")
+	for _, part := range parts {
+		pair := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(pair[0])
+		value := strings.TrimSpace(pair[1])
+		if key == "" {
+			continue
+		}
+		headers[key] = value
+	}
+	return headers
+}
