@@ -1,266 +1,100 @@
-# Agent Orchestrator Analysis
+# Agent Orchestrator Reference Analysis
 
-This document captures findings from the local reference project at `.docs/agent-orchestrator` and keeps those findings separate from the V1 implementation roadmap.
+This document captures architecture highlights extracted from `.docs/agent-orchestrator` and maps them to this repo’s V1 target shape.
 
-## Scope of Analysis
+## Scope and Separation
 
-Reference analyzed:
+- This is reference analysis only.
+- V1 implementation direction is defined in `docs/VERSION_1_ROADMAP.md`.
+- V1 remains a ground-up rewrite; reference patterns are inspiration, not import/migration targets.
 
-- `.docs/agent-orchestrator`
+## Reference Signals Worth Carrying Forward
 
-Primary focus:
+From the reference project, the strongest reusable ideas are:
 
-- Plugin slot architecture and contract boundaries
-- Core orchestrator stability points
-- Session lifecycle and reaction model
-- Real-time state propagation patterns
-- Mapping to V1 slot strategy
+- Plugin-oriented capability boundaries with registry-driven composition.
+- Clear orchestration lifecycle management (task/session state transitions).
+- Streaming-first operator visibility (events/output flow to UI/API).
+- Worker-style execution abstraction where orchestration is decoupled from runtime location.
 
-## Key Architecture Signals
+These signals align with our V1 goals for remote/local worker parity, GraphQL control-plane, and runtime event streaming.
 
-### 1) Plugin-first orchestration model
+## Mapping to Our V1 Agnostic Layers
 
-Observed in reference:
+Canonical V1 slots are:
 
-- Strong slot-based model with swappable implementations (`Runtime`, `Agent`, `Workspace`, `Tracker`, `SCM`, `Notifier`, `Terminal`).
-- Core services orchestrate flow while plugins encapsulate provider/runtime specifics.
+- `agent`
+- `scm`
+- `tracker`
+- `notifier`
+- `client`
 
-Implication:
-
-- This pattern scales orchestration across providers without rewriting core logic.
-
-### 2) Stable core orchestration services
-
-Observed in reference:
-
-- Session manager coordinates session CRUD and plugin usage.
-- Lifecycle manager runs status polling, transition detection, reaction triggering, and escalation.
-
-Implication:
-
-- Core orchestration remains stable while plugin implementations vary.
-
-### 3) Orchestrator-brain behavior is explicit
-
-Observed in reference:
-
-- Dedicated orchestrator prompt and supervisor behavior for coordinating worker sessions.
-- Monitoring and intervention are treated as first-class behavior.
-
-Implication:
-
-- “Coordinator over workers” is an explicit architectural role, not an emergent side effect.
-
-### 4) Real-time UX through event snapshots and polling
-
-Observed in reference:
-
-- Event stream endpoint (`/api/events`) uses SSE semantics with periodic snapshots.
-- Session detail/dashboard endpoints refresh and enrich state with SCM/tracker data.
-
-Implication:
-
-- Real-time operator UX is feasible with incremental snapshots even before full push-native event buses.
-
-### 5) SCM and tracker abstractions are critical
-
-Observed in reference:
-
-- SCM contract centralizes PR/CI/review state.
-- Tracker contract centralizes issue/task context.
-
-Implication:
-
-- Provider neutrality depends on strict SCM/tracker contracts.
-
-## Plugin Slot Responsibilities in Reference Repo
-
-### Runtime
+### 1) `agent`
 
 Responsibility:
 
-- Owns execution substrate lifecycle for sessions (for example tmux/process implementations).
-- Creates session runtime environments from workspace + launch config.
-- Destroys/cleans runtime environments when sessions terminate.
-- Provides runtime control primitives used by orchestration:
-  - liveness checks
-  - output capture
-  - message injection
-  - attach metadata for operator access
+- AI execution adapter and session interaction boundary.
+- Tool/use-cycle execution semantics and model-provider abstraction.
+- Session introspection surfaces for orchestrator policy decisions.
 
-Key inputs:
-
-- Session runtime configuration (session id, cwd/workspace path, launch command, env).
-
-Key outputs:
-
-- Runtime handle (id/type/data) and execution telemetry primitives (alive/output/attach info).
-
-What it does not own:
-
-- Workflow policy decisions, issue semantics, SCM/PR logic, or notification policy.
-
-### Agent
+### 2) `scm`
 
 Responsibility:
 
-- Owns AI-tool adapter behavior (Claude/Codex/Aider/etc).
-- Produces agent-specific launch command + environment contract.
-- Implements activity/state detection from agent-native artifacts.
-- Extracts agent session metadata for orchestration UX:
-  - summary
-  - session id
-  - cost/usage where available
-- Optionally provides restore/resume command behavior and workspace hook setup.
+- Source branch/commit context, PR lifecycle, CI/review metadata.
+- Provider abstraction for GitHub now, alternatives later.
+- Required support for remote worker bootstrap from `origin` using credentials.
 
-Key inputs:
-
-- Session context + project config + runtime handle/workspace path.
-
-Key outputs:
-
-- Agent launch contract and interpreted activity/session information.
-
-What it does not own:
-
-- Runtime lifecycle itself, tracker issue truth, or SCM review/CI state.
-
-### Workspace
+### 3) `tracker`
 
 Responsibility:
 
-- Owns per-session isolated code context strategy (worktree/clone).
-- Creates workspace from project + branch/session inputs.
-- Restores workspace for resumed sessions.
-- Destroys workspace on cleanup.
-- Runs post-create preparation hooks where needed.
+- Work-item and board/task lifecycle ingestion and synchronization.
+- Canonical internal taskboard domain independent from external schemas.
+- Provider adapters including local JSON board source and external systems.
 
-Key inputs:
+Placement note:
 
-- Project repository configuration, session id, branch naming decisions.
+- Board/task provider behavior is part of `tracker`; no separate board layer is used.
 
-Key outputs:
-
-- Workspace info (path, branch, session linkage) consumed by runtime/agent layers.
-
-What it does not own:
-
-- Agent reasoning, lifecycle policy, PR/CI state, or notification behavior.
-
-### Tracker
+### 4) `notifier`
 
 Responsibility:
 
-- Owns issue/work-item provider integration.
-- Fetches issue/task details and lifecycle state.
-- Generates issue-driven prompt context for worker sessions.
-- Provides branch naming/context hints derived from issue identity.
+- Human escalation and delivery fanout.
+- Routing by attention/urgency policy from orchestrator decisions.
 
-Key inputs:
-
-- Provider credentials/config + issue identifiers + project mapping.
-
-Key outputs:
-
-- Canonicalized issue/task context for session spawning and orchestration.
-
-What it does not own:
-
-- PR state machine, CI checks, review decisions, merge semantics.
-
-### SCM
+### 5) `client`
 
 Responsibility:
 
-- Owns source-control platform truth for PR lifecycle.
-- Detects/loads PR state for active sessions.
-- Exposes CI status/checks and review decision data.
-- Exposes mergeability and blockers.
-- Executes merge/close operations.
+- Cross-platform user control surface over GraphQL.
+- Live status and stream rendering, including action invocation UX.
+- Runtime-configured backend endpoint support.
 
-Key inputs:
+## Runtime and Terminal Positioning (Not Canonical Slots)
 
-- Repository/project identity + branch/session association + provider credentials.
+The reference project includes runtime/terminal-style concerns, but in our V1 architecture these are **execution-plane capabilities**, not top-level agnostic slots.
 
-Key outputs:
+- Runtime concerns belong to worker infrastructure and dispatch/lease orchestration.
+- Terminal/PTY concerns stay internal to execution adapters and are not an end-user operating surface.
+- End-user operations are performed through the cross-platform client only.
+- Keeping these out of canonical slots preserves strict DDD boundaries and avoids mixing platform mechanics with domain/provider contracts.
 
-- Canonical PR/CI/review/mergeability signals used by lifecycle manager reactions.
+## Architectural Fit With V1 Roadmap
 
-What it does not own:
+This mapping is consistent with V1 non-negotiables in `docs/VERSION_1_ROADMAP.md`:
 
-- Session scheduling policy, escalation policy, agent launch behavior.
+- Five-slot agnostic model.
+- SCM-backed remote worker self-bootstrap from origin.
+- Real-time stream surfaces.
+- GraphQL-first control plane (`gqlgen`).
+- Container-first deployment baseline.
+- No terminal/tmux/CLI user operation mode.
 
-### Notifier
+## Practical Implication for Build Order
 
-Responsibility:
-
-- Owns event delivery to humans/channels (desktop/slack/webhook/etc).
-- Emits informational, warning, action-required, and urgent notifications.
-- Optionally supports actionable notifications.
-
-Key inputs:
-
-- Orchestrator events and priority/context payloads.
-
-Key outputs:
-
-- Delivered messages/alerts to configured channels.
-
-What it does not own:
-
-- Event classification rules and reaction trigger policy.
-
-### Terminal
-
-Responsibility:
-
-- Owns operator interaction surface behavior (open/attach flows).
-- Bridges runtime attach metadata into usable human workflows.
-- Supports opening one/all sessions based on orchestration state.
-
-Key inputs:
-
-- Session metadata + runtime attach information.
-
-Key outputs:
-
-- Human-accessible session interaction endpoint/window/tab.
-
-What it does not own:
-
-- Automated orchestration, tracker/SCM state transitions, or policy decisions.
-
-## Mapping to V1 Slot Strategy
-
-Reference has 7 visible slots above, while V1 will standardize around 6 canonical slots:
-
-- `agent`, `scm`, `tracker`, `notifier`, `client`, `kanban`
-
-Practical mapping:
-
-- Reference `Runtime` and `Workspace` concerns are absorbed into V1 execution/worker and infrastructure design.
-- Reference `Terminal` concern is absorbed into V1 `client` responsibility.
-- V1 introduces `kanban` as a first-class slot not present as an explicit slot in the reference.
-
-## Relevant Reference Files
-
-Core contracts and plugin model:
-
-- `.docs/agent-orchestrator/packages/core/src/types.ts`
-- `.docs/agent-orchestrator/packages/core/src/plugin-registry.ts`
-
-Core orchestration stability points:
-
-- `.docs/agent-orchestrator/packages/core/src/session-manager.ts`
-- `.docs/agent-orchestrator/packages/core/src/lifecycle-manager.ts`
-- `.docs/agent-orchestrator/packages/core/src/orchestrator-prompt.ts`
-
-Dashboard/API/service composition:
-
-- `.docs/agent-orchestrator/packages/web/src/lib/services.ts`
-- `.docs/agent-orchestrator/packages/web/src/app/api/events/route.ts`
-- `.docs/agent-orchestrator/packages/web/src/app/api/sessions/route.ts`
-
-Plugin implementations:
-
-- `.docs/agent-orchestrator/packages/plugins/*`
+- Define slot contracts first (`agent`, `scm`, `tracker`, `notifier`, `client`).
+- Implement worker/runtime contracts under execution plane (local + remote parity).
+- Add tracker adapters in this order: local JSON board source, then external providers.
+- Expose orchestration and stream state through GraphQL and client surfaces.

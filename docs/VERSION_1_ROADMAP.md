@@ -108,6 +108,16 @@ V1 task planning/execution must be board-provider agnostic:
 - Treat board providers as part of the `tracker` slot so orchestration logic stays unchanged.
 - Allow project-level board source selection (local JSON vs external provider).
 
+### G) Container-first deployment
+
+V1 deployment and runtime packaging must be container-first:
+
+- All core runtime components (API/control plane, worker runtime, and supporting services) must have first-class container images.
+- Local development and integration execution should run from container orchestration (`docker compose`) before host-native shortcuts.
+- Environment/configuration contracts must be externalized (env/secrets) so the same images run in local and remote environments.
+- Health checks, startup/shutdown behavior, and observability hooks must be defined for container orchestration.
+- Release readiness requires versioned container artifacts as the primary deployable output.
+
 ## Proposed V1 Shape
 
 1. `v1` becomes an API/control-plane first system (GraphQL).
@@ -115,6 +125,7 @@ V1 task planning/execution must be board-provider agnostic:
 3. Worker subsystem supports both local and remote executors.
 4. Plugin contracts are formalized around the five agnostic slots with inward dependencies respected.
 5. UI is a thin client over GraphQL + subscriptions.
+6. Deployment baseline is container-first, with parity between local orchestration and remote runtime.
 
 ## Milestones
 
@@ -123,6 +134,7 @@ V1 task planning/execution must be board-provider agnostic:
 - [x] `v1` module initialized.
 - [x] Roadmap linked in root README.
 - [ ] Define initial `gqlgen` schema (sessions, workers, workflows, events).
+- [ ] Define container-first bootstrap artifacts for V1 (initial `Dockerfile` set and `docker compose` topology).
 
 ### Milestone 1 — Core contracts
 
@@ -130,6 +142,7 @@ V1 task planning/execution must be board-provider agnostic:
 - [ ] Implement plugin registry + configuration loading.
 - [ ] Add orchestrator supervisor domain/application skeleton.
 - [ ] Define canonical taskboard domain + provider adapter contract (JSON first).
+- [ ] Define runtime env/secrets contract for containerized API and worker components.
 
 ### Milestone 2 — Execution plane
 
@@ -137,6 +150,7 @@ V1 task planning/execution must be board-provider agnostic:
 - [ ] Implement remote worker adapter contract + dispatcher.
 - [ ] Add SCM-backed work execution flow.
 - [ ] Implement first board adapters: local JSON + external provider abstraction entrypoint.
+- [ ] Run worker execution paths through containerized runtime profiles (local and remote parity).
 
 ### Milestone 3 — Realtime control plane
 
@@ -155,3 +169,15 @@ V1 task planning/execution must be board-provider agnostic:
 1. Create the initial `gqlgen` schema + resolver stubs in `v1`.
 2. Define worker capability and lease contracts (local/remote parity).
 3. Draft orchestrator supervisor state model and event taxonomy.
+4. Author the first V1 container bootstrap (`Dockerfile` + `docker compose`) for API and worker startup parity.
+
+## V1 Interface Stance (Explicit)
+
+V1 does not support terminal-app operation as product UX.
+
+- No tmux UX.
+- No CLI UX.
+- No terminal-first user interaction mode.
+- Cross-platform client is the primary and immediate user surface for operating the system.
+
+Terminal/process capabilities remain internal execution-plane mechanics only and are not exposed as end-user operating surfaces.
