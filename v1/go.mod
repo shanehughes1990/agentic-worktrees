@@ -4,6 +4,7 @@ go 1.25.3
 
 require (
 	github.com/99designs/gqlgen v0.17.87
+	github.com/hellofresh/health-go/v5 v5.5.5
 	github.com/sirupsen/logrus v1.9.4
 	github.com/vektah/gqlparser/v2 v2.5.32
 	go.opentelemetry.io/otel v1.40.0
