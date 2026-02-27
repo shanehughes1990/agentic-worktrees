@@ -1,94 +1,84 @@
-# Slice 01 — Agent and SCM Core (Two-Part Delivery)
+# Slice 01 — SCM Core (GitHub First, Agents Second)
 
 ## Objective
 
-Deliver Slice 01 in two explicit parts:
+Deliver Slice 01 in two SCM-specific parts, in this order:
 
-1. **Part 01A — Core Contracts and Foundations**
-2. **Part 01B — GitHub-First Vertical Slice (API + Worker Execution + Worker-Only SCM Auth)**
+1. **Part 01A — SCM for GitHub**
+2. **Part 01B — SCM for Agents**
 
-This keeps DDD boundaries strict while enabling immediate end-to-end SCM execution.
+This ordering ensures provider-safe SCM primitives exist first, then agent execution can consume them through strict DDD ports.
 
-## Part 01A — Core Contracts and Foundations
-
-### Scope
-
-Define native V1 `agent` and `scm` contracts and orchestration boundaries, plus typed failures and correlation/idempotency primitives.
-
-### Task Checklist
-
-- [ ] Define `internal/domain/agent` contracts and invariants.
-- [ ] Define `internal/domain/scm` contracts and invariants.
-- [ ] Implement `internal/application/agent` orchestration ports/use-cases.
-- [ ] Implement `internal/application/scm` orchestration ports/use-cases.
-- [ ] Add typed failure taxonomy (`transient` vs `terminal`) for agent/scm operations.
-- [ ] Define shared correlation/idempotency contract used by agent + scm workflows.
-- [ ] Add integration tests through application ports (no direct SDK/provider calls in application).
-
-### Deliverables
-
-- `agent` contract for execution requests, status, and session introspection.
-- `scm` contract for source/branch/PR/review operations.
-- Correlation and idempotency contract shared across long-running flows.
-- Initial adapter seams ready for provider wiring.
-
-### Acceptance Criteria
-
-- Application flows call only slot contracts, not concrete providers.
-- Failure typing is explicit and consumable by retry policy.
-- Contracts are sufficient to support worker execution-plane integration.
-- DDD dependency direction is preserved (`interface -> application -> domain`).
-
-## Part 01B — GitHub-First Vertical Slice
+## Part 01A — SCM for GitHub
 
 ### Scope
 
-Implement a full end-to-end GitHub-first SCM slice:
-
-- **Configured from API/control-plane entry points**
-- **Executed only on worker handlers**
-- **SCM authentication performed only on worker**
-
-This includes PR management operations required by initial workflow logic.
+Implement the GitHub-first SCM foundation and vertical path for source, branch, PR, and review operations.
 
 ### Task Checklist
 
-- [ ] Add API-facing SCM control surface to enqueue SCM workflows (GraphQL/control-plane admission).
-- [ ] Add SCM job kind/policy wiring for queue dispatch and idempotent scheduling.
-- [ ] Implement worker SCM handler(s) that execute SCM workflows through application services.
-- [ ] Implement GitHub-first SCM infrastructure adapter for source/branch/PR/review operations.
-- [ ] Implement worker-side SCM auth flow (credential validation/bootstrap/usage) with no API-side auth execution.
-- [ ] Propagate and emit `run_id`, `task_id`, `job_id` for all SCM jobs.
-- [ ] Add checkpoint/resume boundaries for long-running SCM execution.
-- [ ] Add integration tests covering API enqueue -> worker execution -> SCM adapter path.
+- [ ] Define `internal/domain/scm` GitHub-first contracts and invariants.
+- [ ] Implement `internal/application/scm` use-cases for source-state, branch, PR, and review flows.
+- [ ] Add first concrete `internal/infrastructure/scm` GitHub adapter seam.
+- [ ] Add SCM job policy/wiring needed for API admission and worker execution readiness.
+- [ ] Enforce worker-only SCM authentication boundaries (no API-side SCM auth execution).
+- [ ] Add typed failure classification (`transient` vs `terminal`) for SCM operations.
+- [ ] Add integration tests through SCM application ports/adapters.
 
 ### Deliverables
 
-- API-admitted SCM workflow requests mapped to application use-cases.
-- Worker-registered SCM handlers executing deterministic SCM tasks.
-- GitHub-first adapter for branch/PR/review primitives.
-- Worker-owned SCM auth contract + implementation.
-- End-to-end observability and retry-safe execution semantics.
+- GitHub-first SCM contracts (`source`, `branch`, `pull request`, `review`).
+- SCM orchestration service in application layer using ports only.
+- Initial GitHub adapter implementation/seam in infrastructure layer.
+- Retry-safe failure semantics and idempotency/correlation alignment.
 
 ### Acceptance Criteria
 
-- API layer validates/maps/enqueues only; it does not execute SCM auth or provider SDK logic.
-- Worker handlers own SCM execution and authentication lifecycle.
-- SCM workflows execute through ports/adapters under DDD boundaries.
-- Retry behavior is safe via idempotency, checkpoints, and typed failures.
-- Vertical slice supports practical PR-management workflow for GitHub baseline.
+- SCM use-cases call only SCM ports; no provider calls from application layer.
+- Worker is the only runtime that executes SCM auth logic.
+- GitHub baseline branch/PR/review primitives are functional through contracts.
+- DDD boundaries remain strict (`interface -> application -> domain`; infrastructure implements ports).
+
+## Part 01B — SCM for Agents
+
+### Scope
+
+Implement agent-facing SCM orchestration that consumes Part 01A SCM contracts for execution workflows.
+
+### Task Checklist
+
+- [ ] Define `internal/domain/agent` contracts that reference SCM capabilities through ports.
+- [ ] Implement `internal/application/agent` orchestration for SCM-driven execution/session flows.
+- [ ] Add correlation and idempotency contract alignment between agent workflows and SCM operations.
+- [ ] Add checkpoint/resume boundaries for long-running agent+SCM orchestration.
+- [ ] Add worker handler integration points for agent tasks that invoke SCM application services.
+- [ ] Add integration tests for agent orchestration through SCM ports (without bypassing application layer).
+
+### Deliverables
+
+- Agent contract for SCM-aware execution and session introspection.
+- Agent application orchestration that composes SCM services via ports.
+- Shared execution semantics (correlation IDs, idempotency, typed failures) across agent+SCM.
+- Test coverage for agent-to-SCM orchestration path.
+
+### Acceptance Criteria
+
+- Agent layer never calls SCM provider adapters directly.
+- SCM interactions in agent workflows occur only through application/domain contracts.
+- Retry, checkpoint, and correlation behavior is deterministic and test-covered.
+- No Copilot/SCM SDK execution occurs outside worker handler paths.
 
 ## In Scope (Slice 01)
 
-- Part 01A and Part 01B as defined above.
-- GitHub-first provider baseline only.
-- API configuration/admission path + worker execution path for SCM workflows.
+- Part 01A GitHub-first SCM foundations and provider baseline.
+- Part 01B agent orchestration that consumes SCM contracts.
+- API admission/configuration and worker execution readiness needed to support these two parts.
 
 ## Out of Scope (Slice 01)
 
 - Multi-provider parity beyond GitHub baseline.
-- UI/client experience beyond required API control-plane admission.
-- Non-worker SCM authentication execution paths.
+- UI/client product flows beyond required control-plane admission.
+- Non-worker authentication execution paths.
 
 ## Dependencies
 
@@ -99,5 +89,5 @@ This includes PR management operations required by initial workflow logic.
 
 Slice 01 is complete when:
 
-1. Core `agent` + `scm` contracts are implemented and application-orchestrated.
-2. A GitHub-first SCM workflow can be admitted via API, executed/authenticated on worker, and run end-to-end under typed failures, idempotency, and checkpoint semantics.
+1. GitHub-first SCM primitives (source/branch/PR/review) are contract-defined, application-orchestrated, and infrastructure-backed.
+2. Agent execution flows consume SCM through ports with typed failures, correlation/idempotency, and checkpoint/resume semantics under strict DDD boundaries.
