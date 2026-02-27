@@ -10,30 +10,30 @@ This directory contains detailed execution plans for V1 delivery slices.
 ## Slice Files
 
 0. `00-project-layout.md`
-1. `01-orchestrator-supervisor.md`
-2. `02-agent-scm-core.md`
-3. `03-tracker-taskboard.md`
-4. `04-worker-execution-plane.md`
+1. `01-agent-scm-core.md`
+2. `02-worker-execution-plane.md`
+3. `03-orchestrator-supervisor.md`
+4. `04-tracker-taskboard.md`
 5. `05-realtime-streams.md`
 6. `06-graphql-control-plane.md`
 7. `07-client-experience.md`
 8. `08-container-first-deployment.md`
 
-## Recommended Execution Order
+## Execution Order
 
-The file numbering is topic-based; implementation order should follow dependencies:
+File numbering now matches recommended implementation order to maximize integration confidence at each step:
 
 1. `00-project-layout.md`
-2. `02-agent-scm-core.md`
-3. `04-worker-execution-plane.md`
-4. `01-orchestrator-supervisor.md`
-5. `03-tracker-taskboard.md`
+2. `01-agent-scm-core.md`
+3. `02-worker-execution-plane.md`
+4. `03-orchestrator-supervisor.md`
+5. `04-tracker-taskboard.md`
 6. `05-realtime-streams.md`
 7. `06-graphql-control-plane.md`
 8. `07-client-experience.md`
 9. `08-container-first-deployment.md`
 
-This order ensures supervisor behavior is tested against real SCM-backed execution context.
+This order ensures supervisor policy and control-plane behavior are validated against real SCM-backed execution flows.
 
 ## Common Rules for All Slices
 
@@ -45,6 +45,6 @@ This order ensures supervisor behavior is tested against real SCM-backed executi
 ## How to Use
 
 1. Read the high-level roadmap first.
-2. Execute slices in dependency order.
-3. Validate acceptance criteria before marking slice complete.
+2. Execute slices in numbered order unless an explicit dependency update is approved.
+3. Validate acceptance criteria before marking a slice complete.
 4. Update docs when scope or sequencing changes.

@@ -1,4 +1,4 @@
-# Slice 02 — Agent and SCM Core Contracts
+# Slice 01 — Agent and SCM Core Contracts
 
 ## Objective
 

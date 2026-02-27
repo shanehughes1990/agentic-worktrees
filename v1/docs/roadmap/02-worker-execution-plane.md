@@ -1,4 +1,4 @@
-# Slice 04 — Worker Execution Plane
+# Slice 02 — Worker Execution Plane
 
 ## Objective
 
@@ -32,7 +32,8 @@ Deliver one execution plane that supports local and remote workers with shared d
 
 ## Dependencies
 
-- Slices 00 and 02.
+- Slice 00 complete.
+- Slice 01 complete.
 - Container runtime alignment with slice 08.
 
 ## Exit Check

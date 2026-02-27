@@ -1,4 +1,4 @@
-# Slice 01 — Orchestrator Supervisor
+# Slice 03 — Orchestrator Supervisor
 
 ## Objective
 
@@ -33,8 +33,8 @@ Implement the central orchestration supervisor responsible for policy decisions,
 ## Dependencies
 
 - Slice 00 complete.
-- Slice 02 (`agent` + `scm` core) complete.
-- Slice 04 (worker execution plane) baseline complete.
+- Slice 01 (`agent` + `scm` core) complete.
+- Slice 02 (worker execution plane) baseline complete.
 - Stream contract alignment from slice 05.
 
 ## Exit Check

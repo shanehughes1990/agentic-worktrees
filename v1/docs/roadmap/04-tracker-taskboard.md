@@ -1,4 +1,4 @@
-# Slice 03 — Tracker and Taskboard Model
+# Slice 04 — Tracker and Taskboard Model
 
 ## Objective
 
@@ -30,7 +30,9 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 
 ## Dependencies
 
-- Slices 00, 01, and 02.
+- Slice 00 complete.
+- Slice 01 contracts available for integration.
+- Slice 03 supervisor model available for orchestration alignment.
 
 ## Exit Check
 
