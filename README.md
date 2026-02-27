@@ -4,6 +4,8 @@ Welcome! 🎉 `agentic-worktrees` is a Go-powered orchestration system that turn
 
 Think of it as: **ingest docs ➜ generate board ➜ execute safely in parallel ➜ track workflow status** ✨
 
+> The Go application codebase is isolated under `v1/`.
+
 ---
 
 ## ✅ Project Status
@@ -56,13 +58,14 @@ This starts:
 3. Run the app:
 
 ```bash
+cd v1
 task
 ```
 
 or
 
 ```bash
-go run ./cmd/main.go
+go run ./v1/cmd/main.go
 ```
 
 ---
@@ -134,10 +137,10 @@ REDIS_URI=redis://localhost:6379/0
 
 Project layers follow strict DDD boundaries:
 
-- `internal/interface` → terminal/dashboard + worker handlers
-- `internal/application` → orchestration/use-cases
-- `internal/domain` → business rules and invariants
-- `internal/infrastructure` → adapters (redis, git, persistence, logging)
+- `v1/internal/interface` → terminal/dashboard + worker handlers
+- `v1/internal/application` → orchestration/use-cases
+- `v1/internal/domain` → business rules and invariants
+- `v1/internal/infrastructure` → adapters (redis, git, persistence, logging)
 
 Dependency direction is inward: `interface -> application -> domain`, with infrastructure implementing required ports.
 

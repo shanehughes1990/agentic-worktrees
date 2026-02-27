@@ -1,0 +1,30 @@
+# Task (go-task)
+.task/
+
+# GoReleaser artifacts
+dist/
+artifacts/
+checksums.txt
+
+# Air hot-reload artifacts
+tmp/
+
+# SQLite / local database files
+*.db
+**/*.db
+
+# Runtime application artifacts
+.worktree/
+*.log
+
+# Local docs and working scopes
+.docs/
+
+# Keep environment sample tracked
+!.env
+
+# OS-specific files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini
