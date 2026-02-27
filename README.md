@@ -6,6 +6,8 @@ Think of it as: **ingest docs ➜ generate board ➜ execute safely in parallel 
 
 > The Go application codebase is isolated under `mvp/`.
 
+Road to V1: see [`docs/VERSION_1_ROADMAP.md`](docs/VERSION_1_ROADMAP.md).
+
 ---
 
 ## ✅ Project Status
