@@ -2,24 +2,38 @@
 
 ## Objective
 
-Make containerized runtime the default and primary deployment contract for V1.
+Make containerized runtime the default deployment contract for API and worker components.
 
-## Scope
+## Deliverables
 
-- First-class images for API/control plane and worker runtime.
-- `docker compose` topology for local development and integration parity.
-- Env/secrets contract externalization for image portability.
-- Health checks and lifecycle hooks for orchestrated runtime.
-- Versioned container artifacts as release outputs.
+- First-class container images for API/control plane and worker runtime.
+- Compose topology for local integration parity.
+- Externalized env/secrets runtime contract.
+- Health/lifecycle wiring for orchestrated startup and shutdown.
+- Versioned image artifact flow for release.
+
+## In Scope
+
+- Runtime packaging and orchestration baseline.
+- Local/remote environment parity through configuration-only differences.
+- Containerized validation for key execution paths.
+
+## Out of Scope
+
+- Environment-specific infrastructure provisioning templates beyond baseline requirements.
+- Non-container primary deployment targets.
 
 ## Acceptance Criteria
 
-- Local integration runs from compose baseline, not host-only scripts.
-- Same image set works in local and remote environments via config only.
-- Worker execution paths validate in containerized profiles.
+- Local integration uses compose as default path.
+- Same images run across local and remote contexts with config changes only.
+- Worker + API startup/shutdown and health checks behave consistently in containers.
 
 ## Dependencies
 
-- Worker execution plane.
-- GraphQL control plane service startup.
-- Observability and runtime lifecycle conventions.
+- Slices 04 and 06.
+- Observability and health platform integration.
+
+## Exit Check
+
+This slice is complete when container artifacts are the primary release vehicle and validated runtime path.

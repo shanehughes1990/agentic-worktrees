@@ -1,100 +1,43 @@
-# Agent Orchestrator Reference Analysis
+# Agent Orchestrator Reference Analysis (Informational)
 
-This document captures architecture highlights extracted from `.docs/agent-orchestrator` and maps them to this repo’s V1 target shape.
+## Purpose
 
-## Scope and Separation
+Summarize useful architectural signals from reference projects and map them to V1 without implying source migration.
 
-- This is reference analysis only.
-- V1 implementation direction is defined in `docs/VERSION_1_ROADMAP.md`.
-- V1 remains a ground-up rewrite; reference patterns are inspiration, not import/migration targets.
+## Usage Rules
 
-## Reference Signals Worth Carrying Forward
+- This document is informational only.
+- `mvp/` and other references are inspiration, not implementation source.
+- V1 code and contracts must be authored natively in `v1/`.
 
-From the reference project, the strongest reusable ideas are:
+## Key Signals Worth Reusing Conceptually
 
-- Plugin-oriented capability boundaries with registry-driven composition.
-- Clear orchestration lifecycle management (task/session state transitions).
-- Streaming-first operator visibility (events/output flow to UI/API).
-- Worker-style execution abstraction where orchestration is decoupled from runtime location.
+- Plugin-capability boundaries with explicit contracts.
+- Orchestration lifecycle/state-machine discipline.
+- Streaming-first operational visibility.
+- Worker abstraction decoupled from runtime location.
 
-These signals align with our V1 goals for remote/local worker parity, GraphQL control-plane, and runtime event streaming.
-
-## Mapping to Our V1 Agnostic Layers
-
-Canonical V1 slots are:
+## Mapping to V1 Canonical Slots
 
 - `agent`
+  - AI execution adapter and session introspection boundary.
 - `scm`
+  - Source/branch/PR/review integration and remote bootstrap context.
 - `tracker`
+  - Work-item + taskboard ingestion/sync under one canonical internal model.
 - `notifier`
+  - Human escalation and notification routing.
 - `client`
+  - Cross-platform GraphQL control surface for operators.
 
-### 1) `agent`
+## Important V1 Interpretation
 
-Responsibility:
+- Runtime/terminal process mechanics are execution-plane internals, not canonical top-level slots.
+- End-user operation is client-driven; terminal tooling is internal/developer-only.
+- All decisions must respect DDD boundaries and container-first runtime parity.
 
-- AI execution adapter and session interaction boundary.
-- Tool/use-cycle execution semantics and model-provider abstraction.
-- Session introspection surfaces for orchestrator policy decisions.
+## Practical Outcome for Planning
 
-### 2) `scm`
-
-Responsibility:
-
-- Source branch/commit context, PR lifecycle, CI/review metadata.
-- Provider abstraction for GitHub now, alternatives later.
-- Required support for remote worker bootstrap from `origin` using credentials.
-
-### 3) `tracker`
-
-Responsibility:
-
-- Work-item and board/task lifecycle ingestion and synchronization.
-- Canonical internal taskboard domain independent from external schemas.
-- Provider adapters including local JSON board source and external systems.
-
-Placement note:
-
-- Board/task provider behavior is part of `tracker`; no separate board layer is used.
-
-### 4) `notifier`
-
-Responsibility:
-
-- Human escalation and delivery fanout.
-- Routing by attention/urgency policy from orchestrator decisions.
-
-### 5) `client`
-
-Responsibility:
-
-- Cross-platform user control surface over GraphQL.
-- Live status and stream rendering, including action invocation UX.
-- Runtime-configured backend endpoint support.
-
-## Runtime and Terminal Positioning (Not Canonical Slots)
-
-The reference project includes runtime/terminal-style concerns, but in our V1 architecture these are **execution-plane capabilities**, not top-level agnostic slots.
-
-- Runtime concerns belong to worker infrastructure and dispatch/lease orchestration.
-- Terminal/PTY concerns stay internal to execution adapters and are not an end-user operating surface.
-- End-user operations are performed through the cross-platform client only.
-- Keeping these out of canonical slots preserves strict DDD boundaries and avoids mixing platform mechanics with domain/provider contracts.
-
-## Architectural Fit With V1 Roadmap
-
-This mapping is consistent with V1 non-negotiables in `docs/VERSION_1_ROADMAP.md`:
-
-- Five-slot agnostic model.
-- SCM-backed remote worker self-bootstrap from origin.
-- Real-time stream surfaces.
-- GraphQL-first control plane (`gqlgen`).
-- Container-first deployment baseline.
-- No terminal/tmux/CLI user operation mode.
-
-## Practical Implication for Build Order
-
-- Define slot contracts first (`agent`, `scm`, `tracker`, `notifier`, `client`).
-- Implement worker/runtime contracts under execution plane (local + remote parity).
-- Add tracker adapters in this order: local JSON board source, then external providers.
-- Expose orchestration and stream state through GraphQL and client surfaces.
+- Define contracts first, adapters second, UI flows third.
+- Keep orchestration logic provider-agnostic and contract-driven.
+- Require correlation IDs and resumable checkpoints across long-running flows.

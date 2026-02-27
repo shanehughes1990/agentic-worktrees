@@ -2,23 +2,36 @@
 
 ## Objective
 
-Implement a GraphQL-first control plane using `gqlgen` as the primary contract.
+Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orchestrator operations.
 
-## Scope
+## Deliverables
 
-- Initial schema for sessions, workers, workflows, and events.
-- Core mutations: spawn/send/cancel/restore/assign/merge.
-- Queries for operational state and worker fleet visibility.
-- Subscriptions for session and orchestrator events.
+- Schema for sessions, workers, workflows, and events.
+- Mutations for core operator actions (spawn/send/cancel/restore/assign/merge).
+- Queries for system state and fleet visibility.
+- Subscriptions for realtime session and orchestrator updates.
+
+## In Scope
+
+- Contract-first schema evolution with resolver boundaries.
+- Mapping between application use cases and GraphQL operations.
+- Error and status models suitable for operator clients.
+
+## Out of Scope
+
+- Non-GraphQL control-plane alternatives.
+- Client-only UX decisions.
 
 ## Acceptance Criteria
 
-- All control actions are available through GraphQL contracts.
-- Read models expose orchestrator, worker, and tracker state coherently.
-- Subscription pathways deliver realtime updates to clients.
+- Core control-plane actions are available via GraphQL.
+- Read models reflect orchestrator, worker, and tracker state coherently.
+- Subscriptions deliver production-usable update streams.
 
 ## Dependencies
 
-- Orchestrator supervisor.
-- Worker execution plane.
-- Realtime event streams.
+- Slices 01, 03, 04, and 05.
+
+## Exit Check
+
+This slice is complete when operator workflows can be executed entirely through GraphQL contracts.

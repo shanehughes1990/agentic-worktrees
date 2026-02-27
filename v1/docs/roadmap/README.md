@@ -1,10 +1,13 @@
-# V1 Vertical Slice Roadmaps
+# V1 Roadmap Slices (Detailed Plans)
 
-This directory breaks V1 delivery into vertical slices.
+## Purpose
 
-Use `docs/VERSION_1_ROADMAP.md` as the canonical source of truth for global requirements and milestone intent.
+This directory contains detailed execution plans for V1 delivery slices.
 
-## Slices
+- `../VERSION_1_ROADMAP.md` is the high-level release roadmap.
+- Files here are implementation-level plans, scope details, and acceptance criteria by slice.
+
+## Slice Files
 
 0. `00-project-layout.md`
 1. `01-orchestrator-supervisor.md`
@@ -16,9 +19,32 @@ Use `docs/VERSION_1_ROADMAP.md` as the canonical source of truth for global requ
 7. `07-client-experience.md`
 8. `08-container-first-deployment.md`
 
-## Shared Constraints
+## Recommended Execution Order
 
-- V1 is a ground-up rewrite in `v1/`.
-- No code import/reuse/migration from `mvp/`.
-- DDD dependency direction remains mandatory: interface -> application -> domain, with infrastructure implementing ports.
-- Runtime and terminal capabilities are execution-plane concerns, not canonical agnostic slots.
+The file numbering is topic-based; implementation order should follow dependencies:
+
+1. `00-project-layout.md`
+2. `02-agent-scm-core.md`
+3. `04-worker-execution-plane.md`
+4. `01-orchestrator-supervisor.md`
+5. `03-tracker-taskboard.md`
+6. `05-realtime-streams.md`
+7. `06-graphql-control-plane.md`
+8. `07-client-experience.md`
+9. `08-container-first-deployment.md`
+
+This order ensures supervisor behavior is tested against real SCM-backed execution context.
+
+## Common Rules for All Slices
+
+- V1 rewrite policy is mandatory (no source migration from `mvp/`).
+- Placement and dependency rules from `../PLACEMENT_RULES.md` are mandatory.
+- User-facing operation is client-first; terminal-first UX is out of scope.
+- Each slice must define clear acceptance criteria and dependencies.
+
+## How to Use
+
+1. Read the high-level roadmap first.
+2. Execute slices in dependency order.
+3. Validate acceptance criteria before marking slice complete.
+4. Update docs when scope or sequencing changes.

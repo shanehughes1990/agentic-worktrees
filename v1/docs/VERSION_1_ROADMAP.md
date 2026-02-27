@@ -1,183 +1,105 @@
-# Version 1 Roadmap
+# Version 1 Roadmap (High-Level)
 
-This document defines the V1 target architecture for this repository.
+## Purpose
 
-Reference-project analysis is kept separate in `docs/AGENT_ORCHESTRATOR_ANALYSIS.md`.
+Define the high-level path to V1 release and the release-level outcomes that must be achieved.
 
-## Context
+Detailed execution plans belong in `docs/roadmap/*`.
 
-- Current production-style baseline remains in `mvp/`.
-- New implementation workspace is `v1/` (`module agentic-orchestrator`).
+## V1 Mission
 
-## Ground-Up Rewrite Policy
+Ship a GraphQL-first orchestrator platform with local + remote workers, real-time operational streams, tracker-agnostic planning, and a cross-platform client experience, all under strict DDD boundaries and container-first runtime parity.
 
-V1 is a full rewrite.
+## Non-Negotiable Constraints
 
-- `mvp/` is inspiration and behavioral reference only.
-- No source import, package reuse, file copy, or code migration from `mvp/` into `v1/`.
-- All V1 code, contracts, schemas, and adapters must be newly authored in `v1/`.
-- Similar outcomes are allowed; implementation must be original to V1.
+- V1 is a ground-up rewrite in `v1/`.
+- `mvp/` is inspiration only; no copy/migrate/reuse of source.
+- Canonical slots: `agent`, `scm`, `tracker`, `notifier`, `client`.
+- Dependency direction: `interface -> application -> domain`.
+- End-user product UX is client-first (not terminal/tmux/CLI).
+- Containerized runtime is the default deployable contract.
 
-## V1 Non-Negotiable Requirements
+## Release Pillars
 
-### A) Agnostic slot model (V1 canonical)
+1. **Architecture Foundation**
+   - Enforced placement rules and slot boundaries.
+   - Stable composition roots and runtime contracts.
 
-V1 pluggability is defined by these five slots:
+2. **Execution Plane**
+   - Local and remote worker parity.
+   - SCM-backed remote bootstrap and resumable checkpoints.
 
-- `agent`
-  - AI worker implementation and session introspection.
-  - Examples: Claude Code, Codex, Aider-style adapters.
+3. **Control Plane**
+   - GraphQL schema as primary contract.
+   - Queries, mutations, and subscriptions for orchestrator operations.
 
-- `scm`
-  - Source control and PR/CI/review provider integration.
-  - Examples: GitHub now, GitLab/others later.
+4. **Tracker-Agnostic Planning**
+   - Canonical taskboard domain model.
+   - Local JSON adapter + external provider extension boundary.
 
-- `tracker`
-  - Issue/work-item + board/task source and lifecycle integration.
-  - Examples: GitHub Issues now; local JSON board model, Jira, Linear later.
+5. **Realtime Observability and Streams**
+   - Session activity, agent output, and orchestrator decision streams.
+   - Correlation IDs through execution and events.
 
-- `notifier`
-  - Human escalation and delivery channel.
-  - Examples: desktop, Slack, webhook.
+6. **Cross-Platform Client**
+   - Runtime-configurable GraphQL endpoint.
+   - Operational dashboard + session detail/controls.
 
-- `client` (cross-platform GraphQL client)
-  - User-facing control surface connecting to the GraphQL API at runtime-configured server addresses.
-  - Examples: desktop/web cross-platform client surfaces.
+7. **Container-First Delivery**
+   - API and worker container images.
+   - Compose-based local parity and release-ready artifact flow.
 
-Note: These slots are implemented with strict DDD boundaries in this repo; slots are contracts, while implementations live in the correct layer.
+## High-Level Delivery Phases
 
-### B) Real-time agent streams
+### Phase 0 — Foundation
 
-V1 should support:
+- Finalize scope and placement governance.
+- Establish baseline project layout and startup lifecycle contracts.
 
-- Session activity stream (state transitions, liveness, attention level).
-- Agent output/log stream (tail-style, structured where possible).
-- Orchestrator decision stream (why a reaction/escalation happened).
+### Phase 1 — Core Runtime Contracts (SCM/Agent/Worker First)
 
-Source candidates:
+- Define `agent` and `scm` slot interfaces with initial adapters.
+- Define worker lease/capability and execution contracts.
+- Validate SCM-backed execution baseline before supervisor policy depth.
 
-- Runtime output capture.
-- Agent session artifacts/log files.
-- Orchestrator lifecycle events.
+### Phase 2 — Orchestrator + GraphQL Core
 
-### C) Remote + local workers
+- Implement supervisor state/event taxonomy over real execution context.
+- Establish GraphQL contract surface and core control actions.
 
-V1 execution model:
+### Phase 3 — Tracker + Realtime + Client Surface
 
-- Local worker mode: same-host execution (like MVP simplicity).
-- Remote worker mode: distributed workers over network, not tied to same filesystem, and able to bootstrap directly from SCM origin.
+- Deliver canonical tracker/taskboard ingestion flows.
+- Deliver subscription/event stream pathways.
+- Deliver first usable cross-platform client flows.
 
-Required properties:
+### Phase 4 — Release Hardening
 
-- SCM-backed task context instead of local-path-only assumptions.
-- Remote worker self-bootstrap flow:
-  - authenticate with SCM credentials
-  - pull/clone from `origin`
-  - checkout/pull the source branch
-  - start execution pipeline from that fetched source state
-- No requirement that workers are launched from an already-present local source checkout.
-- Worker registration/capability advertisement.
-- Dispatch and lease model for jobs.
-- Correlation IDs and resumable checkpoints across worker boundaries.
+- Container/runtime parity validation.
+- Reliability, operability, and release criteria closure.
 
-### D) API-driven backend with gqlgen
+## V1 Release Exit Criteria
 
-V1 control plane must be GraphQL-first:
+V1 is release-ready only when all are true:
 
-- `gqlgen` schema as primary contract.
-- Mutations for spawn/send/cancel/restore/assign/merge actions.
-- Queries for sessions, tasks, workflows, worker fleet status.
-- Subscriptions for real-time session + orchestrator events.
+1. GraphQL control plane supports core orchestrator workflows.
+2. Local and remote worker modes both execute via shared orchestration contracts.
+3. Realtime session/agent/orchestrator streams are available to clients.
+4. Tracker flows operate on canonical internal model with adapter boundaries.
+5. Cross-platform client can operate the system without terminal-first UX.
+6. API and worker are containerized and validated under compose-based runtime profiles.
+7. DDD boundary and placement constraints are maintained across implementation.
 
-### E) Cross-platform UI
+## Risks to Track
 
-V1 UI requirements:
+- Slot-boundary leakage under delivery pressure.
+- Remote worker bootstrap complexity (SCM auth, checkout, resume fidelity).
+- Stream volume/performance under concurrent sessions.
+- Drift between API contract and client expectations.
+- Host-native shortcuts eroding container-first parity.
 
-- Works across macOS/Linux/Windows.
-- Runtime-configurable GraphQL endpoint (server address entered/updated at runtime).
-- Live status board for all sessions + orchestrator attention zones.
-- Session detail view with stream output and control actions.
+## Immediate Priority Focus
 
-### F) Tracker-agnostic taskboard model
-
-V1 task planning/execution must be board-provider agnostic:
-
-- Implement local JSON taskboard support as a newly authored V1 adapter (MVP behavior-compatible, not code-shared).
-- Add a canonical internal taskboard domain model independent of vendor schemas.
-- Support adapter-based ingestion/sync for external systems over time (e.g., Jira, Linear).
-- Treat board providers as part of the `tracker` slot so orchestration logic stays unchanged.
-- Allow project-level board source selection (local JSON vs external provider).
-
-### G) Container-first deployment
-
-V1 deployment and runtime packaging must be container-first:
-
-- All core runtime components (API/control plane, worker runtime, and supporting services) must have first-class container images.
-- Local development and integration execution should run from container orchestration (`docker compose`) before host-native shortcuts.
-- Environment/configuration contracts must be externalized (env/secrets) so the same images run in local and remote environments.
-- Health checks, startup/shutdown behavior, and observability hooks must be defined for container orchestration.
-- Release readiness requires versioned container artifacts as the primary deployable output.
-
-## Proposed V1 Shape
-
-1. `v1` becomes an API/control-plane first system (GraphQL).
-2. Orchestrator supervisor owns global monitoring and policy decisions.
-3. Worker subsystem supports both local and remote executors.
-4. Plugin contracts are formalized around the five agnostic slots with inward dependencies respected.
-5. UI is a thin client over GraphQL + subscriptions.
-6. Deployment baseline is container-first, with parity between local orchestration and remote runtime.
-
-## Milestones
-
-### Milestone 0 — Foundation (now)
-
-- [x] `v1` module initialized.
-- [x] Roadmap linked in root README.
-- [ ] Define initial `gqlgen` schema (sessions, workers, workflows, events).
-- [ ] Define container-first bootstrap artifacts for V1 (initial `Dockerfile` set and `docker compose` topology).
-
-### Milestone 1 — Core contracts
-
-- [ ] Define five-slot plugin interfaces in `v1` (`agent`, `scm`, `tracker`, `notifier`, `client`).
-- [ ] Implement plugin registry + configuration loading.
-- [ ] Add orchestrator supervisor domain/application skeleton.
-- [ ] Define canonical taskboard domain + provider adapter contract (JSON first).
-- [ ] Define runtime env/secrets contract for containerized API and worker components.
-
-### Milestone 2 — Execution plane
-
-- [ ] Implement local worker adapter.
-- [ ] Implement remote worker adapter contract + dispatcher.
-- [ ] Add SCM-backed work execution flow.
-- [ ] Implement first board adapters: local JSON + external provider abstraction entrypoint.
-- [ ] Run worker execution paths through containerized runtime profiles (local and remote parity).
-
-### Milestone 3 — Realtime control plane
-
-- [ ] Implement GraphQL queries/mutations.
-- [ ] Implement GraphQL subscriptions for session/orchestrator events.
-- [ ] Persist and expose session/event streams.
-
-### Milestone 4 — Cross-platform UI
-
-- [ ] Build UI with runtime GraphQL endpoint configuration.
-- [ ] Implement dashboard zones (merge/respond/review/working/done).
-- [ ] Implement session stream and action console.
-
-## Immediate Next Actions
-
-1. Create the initial `gqlgen` schema + resolver stubs in `v1`.
-2. Define worker capability and lease contracts (local/remote parity).
-3. Draft orchestrator supervisor state model and event taxonomy.
-4. Author the first V1 container bootstrap (`Dockerfile` + `docker compose`) for API and worker startup parity.
-
-## V1 Interface Stance (Explicit)
-
-V1 does not support terminal-app operation as product UX.
-
-- No tmux UX.
-- No CLI UX.
-- No terminal-first user interaction mode.
-- Cross-platform client is the primary and immediate user surface for operating the system.
-
-Terminal/process capabilities remain internal execution-plane mechanics only and are not exposed as end-user operating surfaces.
+1. Land SCM/agent/worker runtime contracts before supervisor policy depth.
+2. Keep roadmap slices aligned to this dependency order.
+3. Validate runtime parity early via containerized integration paths.

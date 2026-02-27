@@ -2,22 +2,37 @@
 
 ## Objective
 
-Expose live operational telemetry for sessions, agent output, and orchestrator decisions.
+Provide reliable real-time event streams for session activity, agent output, and orchestrator decisions.
 
-## Scope
+## Deliverables
 
-- Session activity stream.
-- Agent output/log stream.
-- Orchestrator decision stream.
-- Persistence model for stream replay and inspection.
+- Session activity stream contract.
+- Agent output/log stream contract.
+- Orchestrator decision stream contract.
+- Stream persistence/replay model for diagnostics and client reconnects.
+
+## In Scope
+
+- Event schemas with timestamps and correlation IDs.
+- Ordering, durability, and replay semantics for operational visibility.
+- Integration points for GraphQL subscriptions.
+
+## Out of Scope
+
+- Final client UI presentation details.
+- Non-essential stream channels not tied to V1 operations.
 
 ## Acceptance Criteria
 
-- Streams are consumable in near-real-time by API and client layers.
-- Events include correlation IDs and timestamped lifecycle context.
-- Operators can trace decision rationale from stream data.
+- Streams are consumable in near-real-time.
+- Operators can trace end-to-end flow from correlation IDs.
+- Reconnect/replay paths work for active sessions.
 
 ## Dependencies
 
-- Orchestrator supervisor event taxonomy.
-- GraphQL subscription layer.
+- Slices 01 and 04.
+- Slice 06 subscription layer.
+
+## Exit Check
+
+This slice is complete when operational decisions and agent activity are inspectable live and after-the-fact.

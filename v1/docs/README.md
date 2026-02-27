@@ -1,14 +1,31 @@
-# V1 Technical Docs
+# V1 Documentation Index
 
-This folder contains V1-local technical documentation for implementation details tied directly to the `v1/` codebase.
+This folder contains V1-local technical and delivery documentation for the `v1/` rewrite.
 
-## Documents
+## Document Roles
 
-- `SCOPE.md` — V1 scope boundaries, rewrite policy, and non-goals.
-- `PLACEMENT_RULES.md` — package/layer placement rules and dependency direction.
+- `VERSION_1_ROADMAP.md`
+  - High-level release roadmap and V1 release criteria.
+  - Executive summary of what must be true at V1 release.
+- `SCOPE.md`
+  - Scope boundaries, non-goals, and rewrite constraints.
+- `PLACEMENT_RULES.md`
+  - Architecture and package placement rules for implementation.
+- `AGENT_ORCHESTRATOR_ANALYSIS.md`
+  - Reference analysis from external inspiration projects.
+  - Informational only; not a source migration plan.
 
-## Relationship to Root Docs
+## Detailed Plans
 
-- Global roadmap and planning live in `docs/` at repository root.
-- Vertical slices live in `docs/roadmap/` at repository root.
-- This `v1/docs/` folder is for implementation-facing technical documentation specific to V1 code.
+Detailed implementation plans live in `roadmap/`.
+
+- `roadmap/README.md` explains how slice docs are used.
+- `roadmap/00-08-*.md` define detailed objectives, deliverables, and acceptance criteria by slice.
+
+## Source of Truth Hierarchy
+
+1. `SCOPE.md` and `PLACEMENT_RULES.md` define constraints.
+2. `VERSION_1_ROADMAP.md` defines release-level outcomes.
+3. `roadmap/*.md` define detailed execution plans under those constraints.
+
+If a detailed slice conflicts with scope or placement rules, scope and placement rules win.

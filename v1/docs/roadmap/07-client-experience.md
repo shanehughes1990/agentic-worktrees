@@ -1,23 +1,38 @@
-# Slice 07 — Client Experience
+# Slice 07 — Cross-Platform Client Experience
 
 ## Objective
 
-Deliver a cross-platform runtime client consuming the GraphQL control plane.
+Ship a cross-platform client that operates the system through GraphQL without terminal-first UX.
 
-## Scope
+## Deliverables
 
-- Runtime-configurable GraphQL endpoint.
-- Live status board with attention zones.
-- Session detail stream view + control actions.
-- UX flows for operator intervention and escalation visibility.
+- Runtime-configurable backend endpoint management.
+- Multi-session status board with attention zones.
+- Session detail view with live stream output and control actions.
+- Operator-oriented interaction model for escalation and intervention.
+
+## In Scope
+
+- Client flows required for day-1 V1 operation.
+- Integration with GraphQL queries/mutations/subscriptions.
+- Basic resiliency for reconnect and stream continuity.
+
+## Out of Scope
+
+- Advanced visual polish not needed for operational readiness.
+- Terminal-based fallback UX.
 
 ## Acceptance Criteria
 
-- Client runs across macOS/Linux/Windows target environments.
-- Operators can inspect and control sessions from one unified UI.
-- Realtime stream rendering is stable under active multi-session usage.
+- Client runs across supported OS targets.
+- Operators can monitor and control workflows from one interface.
+- Session activity and decision streams are visible in near-real-time.
 
 ## Dependencies
 
-- GraphQL control plane.
-- Realtime streams.
+- Slice 06 control plane.
+- Slice 05 stream layer.
+
+## Exit Check
+
+This slice is complete when core orchestration operations can be run from the client alone.

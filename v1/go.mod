@@ -6,6 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.87
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/hellofresh/health-go/v5 v5.5.5
+	github.com/hibiken/asynq v0.25.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/vektah/gqlparser/v2 v2.5.32
@@ -33,7 +34,6 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/hibiken/asynq v0.25.1 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
