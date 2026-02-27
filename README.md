@@ -4,7 +4,7 @@ Welcome! 🎉 `agentic-worktrees` is a Go-powered orchestration system that turn
 
 Think of it as: **ingest docs ➜ generate board ➜ execute safely in parallel ➜ track workflow status** ✨
 
-> The Go application codebase is isolated under `v1/`.
+> The Go application codebase is isolated under `mvp/`.
 
 ---
 
