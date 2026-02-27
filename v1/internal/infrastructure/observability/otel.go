@@ -3,237 +3,282 @@ package observability
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otelmetric "go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	tracetest "go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Config configures the observability bundle for service-level runtime behavior.
-type Config struct {
-	ServiceName     string
-	Environment     string
-	Version         string
-	LoggerType      LoggerType
-	LoggerLevel     logrus.Level
-	TimestampFormat string
-	PrettyPrintJSON bool
+type platformRuntime struct {
+	serviceEntry      *entryRuntime
+	tracer            trace.Tracer
+	traceProvider     *sdktrace.TracerProvider
+	metricProvider    *sdkmetric.MeterProvider
+	operationCounter  otelmetric.Int64Counter
+	durationHistogram otelmetric.Float64Histogram
+	serviceName       string
+	environment       string
+	version           string
 }
 
-// Bundle groups logger, wrapped entry, and internal OpenTelemetry handles.
-//
-// OpenTelemetry internals are intentionally hidden behind this type so callers
-// interact through observability-native APIs only.
-type Bundle struct {
-	serviceName        string
-	environment        string
-	version            string
-	loggerType         LoggerType
-	loggerLevel        logrus.Level
-	Logger             *logrus.Logger
-	baseEntry          *Entry
-	tracer             trace.Tracer
-	meter              metric.Meter
-	operationCounter   metric.Int64Counter
-	operationDurations metric.Float64Histogram
+type operationRuntime struct {
+	ctx         context.Context
+	entry       *entryRuntime
+	span        trace.Span
+	startedAt   time.Time
+	platform    *platformRuntime
+	name        string
+	correlation CorrelationIDs
 }
 
-// Operation represents one started operation scope.
-//
-// It carries the context, wrapped logger entry, and internal span handle until End is called.
-type Operation struct {
-	ctx       context.Context
-	entry     *Entry
-	span      trace.Span
-	bundle    *Bundle
-	name      string
-	ids       CorrelationIDs
-	startedAt time.Time
-	ended     bool
-}
-
-// NewBundle builds a service-scoped observability bundle.
-func NewBundle(config Config) (*Bundle, error) {
-	if config.ServiceName == "" {
+func newPlatformRuntime(ctx context.Context, config Config) (*platformRuntime, error) {
+	if strings.TrimSpace(config.ServiceName) == "" {
 		return nil, errors.New("service name is required")
 	}
-	if config.Environment == "" {
-		config.Environment = "unknown"
-	}
-	if config.Version == "" {
-		config.Version = "dev"
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	loggerOptions := LoggerOptions{
-		Type:            config.LoggerType,
-		Level:           config.LoggerLevel,
-		TimestampFormat: config.TimestampFormat,
-		PrettyPrintJSON: config.PrettyPrintJSON,
-	}.withDefaults()
+	providers, err := newProviders(config)
+	if err != nil {
+		return nil, err
+	}
 
-	tracer := otel.Tracer(config.ServiceName)
-	meter := otel.Meter(config.ServiceName)
+	logger := buildLogger(loggerOptionsFromConfig(config))
+	serviceEntry := buildServiceEntry(logger, config.ServiceName, config.Environment, config.Version)
+	if serviceEntry == nil {
+		_ = providers.TraceProvider.Shutdown(ctx)
+		_ = providers.MetricProvider.Shutdown(ctx)
+		return nil, errors.New("create service log entry")
+	}
+
+	tracer := providers.TraceProvider.Tracer(config.ServiceName)
+	meter := providers.MetricProvider.Meter(config.ServiceName)
 
 	operationCounter, err := meter.Int64Counter(
-		"agentic_orchestrator_operations_total",
-		metric.WithDescription("total operation executions"),
+		"taskboard.operation.count",
+		otelmetric.WithDescription("Counts taskboard operations"),
 	)
 	if err != nil {
-		return nil, err
+		_ = providers.TraceProvider.Shutdown(ctx)
+		_ = providers.MetricProvider.Shutdown(ctx)
+		return nil, fmt.Errorf("create operation counter: %w", err)
 	}
 
-	operationDurations, err := meter.Float64Histogram(
-		"agentic_orchestrator_operation_duration_seconds",
-		metric.WithUnit("s"),
-		metric.WithDescription("operation execution duration in seconds"),
+	durationHistogram, err := meter.Float64Histogram(
+		"taskboard.operation.duration_ms",
+		otelmetric.WithDescription("Records taskboard operation duration in milliseconds"),
+		otelmetric.WithUnit("ms"),
 	)
 	if err != nil {
-		return nil, err
+		_ = providers.TraceProvider.Shutdown(ctx)
+		_ = providers.MetricProvider.Shutdown(ctx)
+		return nil, fmt.Errorf("create duration histogram: %w", err)
 	}
 
-	logger := NewLogrusLogger(loggerOptions)
-	baseEntry := NewServiceEntry(logger, config.ServiceName, config.Environment, config.Version)
-	if baseEntry == nil {
-		return nil, errors.New("failed to create service log entry")
-	}
-
-	return &Bundle{
-		serviceName:        config.ServiceName,
-		environment:        config.Environment,
-		version:            config.Version,
-		loggerType:         loggerOptions.Type,
-		loggerLevel:        loggerOptions.Level,
-		Logger:             logger,
-		baseEntry:          baseEntry,
-		tracer:             tracer,
-		meter:              meter,
-		operationCounter:   operationCounter,
-		operationDurations: operationDurations,
+	return &platformRuntime{
+		serviceEntry:      serviceEntry,
+		tracer:            tracer,
+		traceProvider:     providers.TraceProvider,
+		metricProvider:    providers.MetricProvider,
+		operationCounter:  operationCounter,
+		durationHistogram: durationHistogram,
+		serviceName:       config.ServiceName,
+		environment:       config.Environment,
+		version:           config.Version,
 	}, nil
 }
 
-// LoggerType returns the configured logger output type for the bundle.
-func (bundle *Bundle) LoggerType() LoggerType {
-	return bundle.loggerType
-}
-
-// LoggerLevel returns the configured logrus level for the bundle.
-func (bundle *Bundle) LoggerLevel() logrus.Level {
-	return bundle.loggerLevel
-}
-
-// ServiceEntry returns the base service-scoped entry.
-func (bundle *Bundle) ServiceEntry() *Entry {
-	return bundle.baseEntry
-}
-
-// Entry returns a context-bound entry enriched with correlation and trace fields.
-func (bundle *Bundle) Entry(ctx context.Context) *Entry {
-	if bundle.baseEntry == nil {
+func (platform *platformRuntime) startOperation(ctx context.Context, name string) *operationRuntime {
+	if platform == nil {
 		return nil
 	}
-	return bundle.baseEntry.WithContext(ctx)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	correlation := CorrelationIDsFromContext(ctx)
+	ctx = WithCorrelationIDs(ctx, correlation)
+	ctx, span := platform.tracer.Start(ctx, name)
+
+	entry := platform.serviceEntry.withContext(ctx)
+	if entry != nil {
+		entry = entry.withField("operation", name)
+	}
+
+	return &operationRuntime{
+		ctx:         ctx,
+		entry:       entry,
+		span:        span,
+		startedAt:   time.Now(),
+		platform:    platform,
+		name:        name,
+		correlation: correlation,
+	}
 }
 
-// StartOperation begins an operation scope and returns an observability-native wrapper.
-//
-// Call End on the returned operation to close span scope and emit metrics.
-func (bundle *Bundle) StartOperation(
-	ctx context.Context,
-	operation string,
-	ids CorrelationIDs,
-	extraFields logrus.Fields,
-) *Operation {
-	ctx = WithCorrelationIDs(ctx, ids)
-	attrs := bundle.attrs(operation, ids, "started")
-	ctx, span := bundle.tracer.Start(ctx, operation, trace.WithAttributes(attrs...))
+func (platform *platformRuntime) shutdown(ctx context.Context) error {
+	if platform == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	entry := bundle.Entry(ctx)
-	if entry != nil {
-		entry = entry.WithField("operation", operation)
-		if len(extraFields) > 0 {
-			entry = entry.WithFields(extraFields)
+	var shutdownErr error
+	if platform.metricProvider != nil {
+		if err := platform.metricProvider.Shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown metric provider: %w", err))
 		}
 	}
-
-	return &Operation{
-		ctx:       ctx,
-		entry:     entry,
-		span:      span,
-		bundle:    bundle,
-		name:      operation,
-		ids:       ids,
-		startedAt: time.Now(),
+	if platform.traceProvider != nil {
+		if err := platform.traceProvider.Shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown trace provider: %w", err))
+		}
 	}
+	return shutdownErr
 }
 
-// Context returns the operation context containing correlation and span scope.
-func (operation *Operation) Context() context.Context {
-	if operation == nil {
-		return context.Background()
-	}
-	return operation.ctx
-}
-
-// Entry returns the wrapped logger entry for this operation scope.
-func (operation *Operation) Entry() *Entry {
-	if operation == nil {
-		return nil
-	}
-	return operation.entry
-}
-
-// End closes the operation scope, emits metrics, and ends the internal span.
-func (operation *Operation) End(err error) {
-	if operation == nil || operation.ended {
+func (operation *operationRuntime) end(err error) {
+	if operation == nil || operation.span == nil || operation.platform == nil {
 		return
 	}
-	operation.ended = true
 
 	status := "ok"
 	if err != nil {
 		status = "error"
+		operation.span.RecordError(err)
+		operation.span.SetStatus(codes.Error, err.Error())
 	}
 
-	attrs := operation.bundle.attrs(operation.name, operation.ids, status)
-	operation.bundle.operationCounter.Add(operation.ctx, 1, metric.WithAttributes(attrs...))
-	operation.bundle.operationDurations.Record(
-		operation.ctx,
-		time.Since(operation.startedAt).Seconds(),
-		metric.WithAttributes(attrs...),
-	)
+	attributes := operation.platform.attributes(operation.name, operation.correlation, status)
+	operation.span.SetAttributes(attributes...)
 
-	if operation.span != nil {
-		if err != nil {
-			operation.span.RecordError(err)
-			operation.span.SetStatus(codes.Error, err.Error())
-		} else {
-			operation.span.SetStatus(codes.Ok, "ok")
-		}
-		operation.span.End()
-	}
+	duration := float64(time.Since(operation.startedAt).Milliseconds())
+	operation.platform.recordMetrics(operation.ctx, duration, attributes)
+	operation.span.End()
 }
 
-func (bundle *Bundle) attrs(operation string, ids CorrelationIDs, status string) []attribute.KeyValue {
+func (platform *platformRuntime) attributes(operation string, correlation CorrelationIDs, status string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.String("service.name", bundle.serviceName),
-		attribute.String("deployment.environment", bundle.environment),
-		attribute.String("service.version", bundle.version),
 		attribute.String("operation", operation),
 		attribute.String("status", status),
 	}
-	if ids.RunID != "" {
-		attrs = append(attrs, attribute.String("run_id", ids.RunID))
+	if correlation.RunID != "" {
+		attrs = append(attrs, attribute.String("run_id", correlation.RunID))
 	}
-	if ids.TaskID != "" {
-		attrs = append(attrs, attribute.String("task_id", ids.TaskID))
+	if correlation.TaskID != "" {
+		attrs = append(attrs, attribute.String("task_id", correlation.TaskID))
 	}
-	if ids.JobID != "" {
-		attrs = append(attrs, attribute.String("job_id", ids.JobID))
+	if correlation.JobID != "" {
+		attrs = append(attrs, attribute.String("job_id", correlation.JobID))
+	}
+	if platform != nil {
+		if platform.serviceName != "" {
+			attrs = append(attrs, semconv.ServiceName(platform.serviceName))
+		}
+		if platform.environment != "" {
+			attrs = append(attrs, semconv.DeploymentEnvironment(platform.environment))
+		}
+		if platform.version != "" {
+			attrs = append(attrs, semconv.ServiceVersion(platform.version))
+		}
 	}
 	return attrs
+}
+
+func (platform *platformRuntime) recordMetrics(ctx context.Context, durationMs float64, attributes []attribute.KeyValue) {
+	if platform == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if platform.operationCounter != nil {
+		platform.operationCounter.Add(ctx, 1, otelmetric.WithAttributes(attributes...))
+	}
+	if platform.durationHistogram != nil {
+		platform.durationHistogram.Record(ctx, durationMs, otelmetric.WithAttributes(attributes...))
+	}
+}
+
+type providers struct {
+	TraceProvider  *sdktrace.TracerProvider
+	MetricProvider *sdkmetric.MeterProvider
+}
+
+func newProviders(cfg Config) (*providers, error) {
+	resAttrs := []attribute.KeyValue{semconv.ServiceName(cfg.ServiceName)}
+	if cfg.Environment != "" {
+		resAttrs = append(resAttrs, semconv.DeploymentEnvironment(cfg.Environment))
+	}
+	if cfg.Version != "" {
+		resAttrs = append(resAttrs, semconv.ServiceVersion(cfg.Version))
+	}
+
+	res, err := resource.New(
+		context.Background(),
+		resource.WithSchemaURL(semconv.SchemaURL),
+		resource.WithAttributes(resAttrs...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create resource: %w", err)
+	}
+
+	endpoint := strings.TrimSpace(cfg.OTLPEndpoint)
+	if endpoint == "" {
+		traceExporter := tracetest.NewInMemoryExporter()
+		traceProvider := sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			sdktrace.WithResource(res),
+			sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(traceExporter)),
+		)
+
+		metricReader := sdkmetric.NewManualReader()
+		metricProvider := sdkmetric.NewMeterProvider(
+			sdkmetric.WithResource(res),
+			sdkmetric.WithReader(metricReader),
+		)
+
+		return &providers{TraceProvider: traceProvider, MetricProvider: metricProvider}, nil
+	}
+
+	traceOptions := []otlptracehttp.Option{otlptracehttp.WithEndpoint(endpoint), otlptracehttp.WithInsecure()}
+	metricOptions := []otlpmetrichttp.Option{otlpmetrichttp.WithEndpoint(endpoint), otlpmetrichttp.WithInsecure()}
+	if len(cfg.OTLPHeaders) > 0 {
+		traceOptions = append(traceOptions, otlptracehttp.WithHeaders(cfg.OTLPHeaders))
+		metricOptions = append(metricOptions, otlpmetrichttp.WithHeaders(cfg.OTLPHeaders))
+	}
+
+	traceExporter, err := otlptracehttp.New(context.Background(), traceOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("create otlp trace exporter: %w", err)
+	}
+	metricExporter, err := otlpmetrichttp.New(context.Background(), metricOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("create otlp metric exporter: %w", err)
+	}
+
+	traceProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(traceExporter),
+		sdktrace.WithResource(res),
+	)
+	metricProvider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithResource(res),
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(2*time.Second), sdkmetric.WithTimeout(5*time.Second))),
+	)
+
+	return &providers{TraceProvider: traceProvider, MetricProvider: metricProvider}, nil
 }

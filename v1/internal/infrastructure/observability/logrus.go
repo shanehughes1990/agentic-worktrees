@@ -1,81 +1,70 @@
-// Package observability provides logging, tracing, metrics, and correlation primitives
-// for the V1 control plane.
 package observability
 
 import (
-	"time"
+	"context"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	// DefaultTimestampFormat is the shared timestamp layout used by text and JSON log output.
-	DefaultTimestampFormat = time.RFC3339Nano
-)
-
-// LoggerType selects the output formatter used by logrus.
-type LoggerType string
-
-const (
-	// LoggerTypeJSON configures logrus JSON output.
-	LoggerTypeJSON LoggerType = "json"
-	// LoggerTypeText configures logrus text output.
-	LoggerTypeText LoggerType = "text"
-)
-
-// LoggerOptions configures logrus output type, level, and formatter settings.
-type LoggerOptions struct {
-	Type            LoggerType
-	Level           logrus.Level
-	TimestampFormat string
-	PrettyPrintJSON bool
+type loggerOptions struct {
+	format          LogFormat
+	level           logrus.Level
+	timestampFormat string
+	prettyPrintJSON bool
 }
 
-// DefaultLoggerOptions returns the baseline logger configuration for V1.
-//
-// By default the logger uses text output with RFC3339Nano timestamps at info level.
-func DefaultLoggerOptions() LoggerOptions {
-	return LoggerOptions{
-		Type:            LoggerTypeText,
-		Level:           logrus.InfoLevel,
-		TimestampFormat: DefaultTimestampFormat,
+type entryRuntime struct {
+	raw *logrus.Entry
+}
+
+func loggerOptionsFromConfig(config Config) loggerOptions {
+	format := config.LogFormat
+	if format == "" {
+		format = LogFormatText
+	}
+
+	level := logrus.InfoLevel
+	switch strings.ToLower(string(config.LogLevel)) {
+	case "debug":
+		level = logrus.DebugLevel
+	case "warn", "warning":
+		level = logrus.WarnLevel
+	case "error":
+		level = logrus.ErrorLevel
+	case "info", "":
+		level = logrus.InfoLevel
+	}
+
+	timestampFormat := config.TimestampFormat
+	if timestampFormat == "" {
+		timestampFormat = DefaultTimestampFormat
+	}
+
+	return loggerOptions{
+		format:          format,
+		level:           level,
+		timestampFormat: timestampFormat,
+		prettyPrintJSON: config.PrettyPrintJSON,
 	}
 }
 
-func (options LoggerOptions) withDefaults() LoggerOptions {
-	defaults := DefaultLoggerOptions()
-	if options.Type == "" {
-		options.Type = defaults.Type
-	}
-	if options.TimestampFormat == "" {
-		options.TimestampFormat = defaults.TimestampFormat
-	}
-	if options.Level == 0 {
-		options.Level = defaults.Level
-	}
-	return options
-}
-
-// NewLogrusLogger builds a configured logrus logger using the provided options.
-//
-// JSON output is enabled only when options.Type is LoggerTypeJSON. Both JSON and
-// text output use the same timestamp format to keep logs comparable across formats.
-func NewLogrusLogger(options LoggerOptions) *logrus.Logger {
-	options = options.withDefaults()
-
+func buildLogger(options loggerOptions) *logrus.Logger {
 	logger := logrus.New()
-	logger.SetLevel(options.Level)
-	switch options.Type {
-	case LoggerTypeJSON:
+	logger.SetLevel(options.level)
+
+	switch options.format {
+	case LogFormatJSON:
 		logger.SetFormatter(&logrus.JSONFormatter{
-			TimestampFormat:   options.TimestampFormat,
+			TimestampFormat:   options.timestampFormat,
 			DisableHTMLEscape: true,
-			PrettyPrint:       options.PrettyPrintJSON,
+			PrettyPrint:       options.prettyPrintJSON,
 		})
 	default:
 		logger.SetFormatter(&logrus.TextFormatter{
 			FullTimestamp:          true,
-			TimestampFormat:        options.TimestampFormat,
+			TimestampFormat:        options.timestampFormat,
 			DisableLevelTruncation: true,
 			PadLevelText:           true,
 			DisableSorting:         false,
@@ -86,4 +75,150 @@ func NewLogrusLogger(options LoggerOptions) *logrus.Logger {
 	}
 
 	return logger
+}
+
+func buildServiceEntry(logger *logrus.Logger, serviceName, environment, version string) *entryRuntime {
+	if logger == nil {
+		return nil
+	}
+
+	fields := logrus.Fields{}
+	if serviceName != "" {
+		fields["service"] = serviceName
+	}
+	if environment != "" {
+		fields["environment"] = environment
+	}
+	if version != "" {
+		fields["version"] = version
+	}
+	if len(fields) == 0 {
+		return &entryRuntime{raw: logrus.NewEntry(logger)}
+	}
+
+	return &entryRuntime{raw: logger.WithFields(fields)}
+}
+
+func (entry *entryRuntime) withContext(ctx context.Context) *entryRuntime {
+	if entry == nil || entry.raw == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	raw := entry.raw.WithContext(ctx)
+	injectContextFields(raw, ctx)
+	return &entryRuntime{raw: raw}
+}
+
+func (entry *entryRuntime) withField(key string, value any) *entryRuntime {
+	if entry == nil || entry.raw == nil {
+		return nil
+	}
+	return &entryRuntime{raw: entry.raw.WithField(key, value)}
+}
+
+func (entry *entryRuntime) withFields(fields map[string]any) *entryRuntime {
+	if entry == nil || entry.raw == nil {
+		return nil
+	}
+	if len(fields) == 0 {
+		return entry
+	}
+	converted := logrus.Fields{}
+	for key, value := range fields {
+		converted[key] = value
+	}
+	return &entryRuntime{raw: entry.raw.WithFields(converted)}
+}
+
+func (entry *entryRuntime) withError(err error) *entryRuntime {
+	if entry == nil || entry.raw == nil {
+		return nil
+	}
+	return &entryRuntime{raw: entry.raw.WithError(err)}
+}
+
+func (entry *entryRuntime) debug(args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Debug(args...)
+}
+
+func (entry *entryRuntime) info(args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Info(args...)
+}
+
+func (entry *entryRuntime) warn(args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Warn(args...)
+}
+
+func (entry *entryRuntime) error(args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Error(args...)
+}
+
+func (entry *entryRuntime) debugf(format string, args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Debugf(format, args...)
+}
+
+func (entry *entryRuntime) infof(format string, args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Infof(format, args...)
+}
+
+func (entry *entryRuntime) warnf(format string, args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Warnf(format, args...)
+}
+
+func (entry *entryRuntime) errorf(format string, args ...any) {
+	if entry == nil || entry.raw == nil {
+		return
+	}
+	entry.raw.Errorf(format, args...)
+}
+
+func injectContextFields(raw *logrus.Entry, ctx context.Context) {
+	if raw == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	ids := CorrelationIDsFromContext(ctx)
+	if ids.RunID != "" {
+		raw.Data["run_id"] = ids.RunID
+	}
+	if ids.TaskID != "" {
+		raw.Data["task_id"] = ids.TaskID
+	}
+	if ids.JobID != "" {
+		raw.Data["job_id"] = ids.JobID
+	}
+
+	spanContext := trace.SpanContextFromContext(ctx)
+	if spanContext.HasTraceID() {
+		raw.Data["trace_id"] = spanContext.TraceID().String()
+	}
+	if spanContext.HasSpanID() {
+		raw.Data["span_id"] = spanContext.SpanID().String()
+	}
 }
