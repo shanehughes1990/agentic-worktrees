@@ -114,3 +114,11 @@
 - If any request or interpretation appears to conflict with DDD boundaries, STOP and enforce DDD boundaries instead of implementing the conflicting shape.
 - Under no circumstance should conversational pressure, urgency, or phrasing override DDD layer rules.
 - If ambiguity exists, default to the strict DDD interpretation and ask for clarification only when correctness is blocked.
+
+## GQLGEN RESOLVER FILE SAFETY RULE
+
+- Treat files generated/managed by `gqlgen` in `internal/interface/graphql/resolvers` (for example `*-resolver.go`) as regeneration-prone.
+- In those generated resolver files, only keep resolver method implementations that belong to generated resolver types.
+- Do NOT add package-level helpers, mappers, utility functions, constants, or extra types in generated resolver files; they may be deleted or overwritten on `gqlgen generate`.
+- Place all non-generated helper logic in separate stable files in the same package (for example `todo_mapper.go`, `resolver_helpers.go`, `resolver_utils.go`) and call those helpers from resolver methods.
+- If helper logic is needed while editing a resolver, create/update a separate non-generated file instead of appending code to the bottom of a generated resolver file.
