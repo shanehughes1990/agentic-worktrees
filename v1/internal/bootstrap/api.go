@@ -1,8 +1,10 @@
 package bootstrap
 
 import (
+	"agentic-orchestrator/internal/application/taskengine"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
+	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	"agentic-orchestrator/internal/interface/graphql/graph"
 	"agentic-orchestrator/internal/interface/graphql/resolvers"
 	"context"
@@ -25,6 +27,8 @@ type APIApp struct {
 	httpServer            *http.Server
 	observabilityPlatform *observability.Platform
 	healthPlatform        *healthcheck.Platform
+	taskScheduler         *taskengine.Scheduler
+	taskEnginePlatform    *asynqengine.Platform
 }
 
 func InitAPI() (*APIApp, error) {
@@ -34,6 +38,11 @@ func InitAPI() (*APIApp, error) {
 	}
 
 	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config.BaseConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	taskScheduler, taskEnginePlatform, err := bootstrapTaskEngine(config.BaseConfig, observabilityPlatform)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +67,8 @@ func InitAPI() (*APIApp, error) {
 		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.APIPort), Handler: mux},
 		observabilityPlatform: observabilityPlatform,
 		healthPlatform:        healthPlatform,
+		taskScheduler:         taskScheduler,
+		taskEnginePlatform:    taskEnginePlatform,
 	}, nil
 }
 
@@ -69,9 +80,10 @@ func (app *APIApp) Run() error {
 	entry := app.observabilityPlatform.ServiceEntry()
 	if entry != nil {
 		entry.WithFields(map[string]any{
-			"runtime": "api",
-			"addr":    app.httpServer.Addr,
-			"env":     app.config.Environment,
+			"runtime":             "api",
+			"addr":                app.httpServer.Addr,
+			"env":                 app.config.Environment,
+			"task_engine_backend": app.config.TaskEngineBackend,
 		}).Info("runtime starting")
 	}
 
@@ -112,6 +124,14 @@ func (app *APIApp) Run() error {
 			entry.WithError(err).WithField("runtime", "api").Error("shutdown http server failed")
 		}
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown http server: %w", err))
+	}
+	if app.taskEnginePlatform != nil {
+		if err := app.taskEnginePlatform.Shutdown(shutdownCtx); err != nil {
+			if entry != nil {
+				entry.WithError(err).WithField("runtime", "api").Error("shutdown task engine platform failed")
+			}
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown task engine platform: %w", err))
+		}
 	}
 	if err := app.healthPlatform.Shutdown(shutdownCtx); err != nil {
 		if entry != nil {

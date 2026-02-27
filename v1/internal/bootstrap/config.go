@@ -21,6 +21,13 @@ type BaseConfig struct {
 	HealthLivePath  string        `envconfig:"HEALTH_LIVE_PATH" default:"/live" validate:"required,startswith=/"`
 	HealthReadyPath string        `envconfig:"HEALTH_READY_PATH" default:"/ready" validate:"required,startswith=/"`
 	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
+
+	TaskEngineBackend        string `envconfig:"TASK_ENGINE_BACKEND" default:"asynq" validate:"required,oneof=asynq"`
+	TaskEngineRedisAddress   string `envconfig:"TASK_ENGINE_REDIS_ADDRESS" default:"127.0.0.1:6379" validate:"required"`
+	TaskEngineRedisPassword  string `envconfig:"TASK_ENGINE_REDIS_PASSWORD"`
+	TaskEngineRedisDatabase  int    `envconfig:"TASK_ENGINE_REDIS_DATABASE" default:"0" validate:"gte=0"`
+	TaskEngineConcurrency    int    `envconfig:"TASK_ENGINE_CONCURRENCY" default:"10" validate:"gte=1,lte=1024"`
+	TaskEngineIngestionQueue string `envconfig:"TASK_ENGINE_INGESTION_QUEUE" default:"ingestion" validate:"required"`
 }
 
 type APIConfig struct {
