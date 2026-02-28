@@ -6,12 +6,12 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 
 ## Task Checklist
 
-- [ ] Define canonical tracker/taskboard domain model in `internal/domain/tracker`.
-- [ ] Define tracker provider port contracts in application layer.
-- [ ] Implement local JSON tracker/taskboard adapter in infrastructure.
-- [ ] Add board-source selection at project/workflow boundary.
-- [ ] Define external provider adapter boundary (Jira/Linear-ready contract).
-- [ ] Add ingestion/sync integration tests against canonical model.
+- [x] Define canonical tracker/taskboard domain model in `internal/domain/tracker`. — **Completed**
+- [x] Define tracker provider port contracts in application layer. — **Completed**
+- [x] Implement local JSON tracker/taskboard adapter in infrastructure. — **Completed**
+- [x] Add board-source selection at project/workflow boundary. — **Completed**
+- [x] Define external provider adapter boundary (Jira/Linear-ready contract). — **Completed**
+- [x] Add ingestion/sync integration tests against canonical model. — **Completed**
 
 ## Deliverables
 

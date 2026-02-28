@@ -2,34 +2,64 @@ package worker
 
 import (
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationtracker "agentic-orchestrator/internal/application/tracker"
+	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-type IngestionAgentPayload struct {
-	RunID  string `json:"run_id"`
-	Prompt string `json:"prompt"`
+type IngestionBoardSourcePayload struct {
+	Kind     string         `json:"kind"`
+	Location string         `json:"location,omitempty"`
+	BoardID  string         `json:"board_id,omitempty"`
+	Config   map[string]any `json:"config,omitempty"`
 }
 
-type IngestionAgentHandler struct{}
+type IngestionAgentPayload struct {
+	RunID          string                      `json:"run_id"`
+	TaskID         string                      `json:"task_id"`
+	JobID          string                      `json:"job_id"`
+	IdempotencyKey string                      `json:"idempotency_key"`
+	Prompt         string                      `json:"prompt"`
+	ProjectID      string                      `json:"project_id"`
+	WorkflowID     string                      `json:"workflow_id"`
+	BoardSource    IngestionBoardSourcePayload `json:"board_source"`
+}
 
-func NewIngestionAgentHandler() *IngestionAgentHandler {
-	return &IngestionAgentHandler{}
+type trackerService interface {
+	SyncBoard(ctx context.Context, request applicationtracker.SyncBoardRequest) (domaintracker.Board, error)
+}
+
+type IngestionAgentHandler struct {
+	service trackerService
+}
+
+func NewIngestionAgentHandler(service trackerService) (*IngestionAgentHandler, error) {
+	if service == nil {
+		return nil, fmt.Errorf("tracker service is required")
+	}
+	return &IngestionAgentHandler{service: service}, nil
 }
 
 func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine.Job) error {
-	_ = ctx
 	var payload IngestionAgentPayload
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode ingestion agent payload: %w", err)
 	}
-	if strings.TrimSpace(payload.RunID) == "" {
-		return fmt.Errorf("run_id is required")
+	request := applicationtracker.SyncBoardRequest{
+		RunID:      strings.TrimSpace(payload.RunID),
+		Prompt:     strings.TrimSpace(payload.Prompt),
+		ProjectID:  strings.TrimSpace(payload.ProjectID),
+		WorkflowID: strings.TrimSpace(payload.WorkflowID),
+		Source: domaintracker.SourceRef{
+			Kind:     domaintracker.SourceKind(strings.TrimSpace(payload.BoardSource.Kind)),
+			Location: strings.TrimSpace(payload.BoardSource.Location),
+			BoardID:  strings.TrimSpace(payload.BoardSource.BoardID),
+			Config:   payload.BoardSource.Config,
+		},
 	}
-	if strings.TrimSpace(payload.Prompt) == "" {
-		return fmt.Errorf("prompt is required")
-	}
-	return nil
+	_, err := handler.service.SyncBoard(ctx, request)
+	return err
 }

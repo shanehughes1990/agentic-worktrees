@@ -4,9 +4,12 @@ import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationtracker "agentic-orchestrator/internal/application/tracker"
+	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
+	infratracker "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
 	"context"
 	"errors"
@@ -24,6 +27,7 @@ type WorkerApp struct {
 	taskEnginePlatform    taskengine.Consumer
 	agentService          *applicationagent.Service
 	scmService            *applicationscm.Service
+	trackerService        *applicationtracker.Service
 }
 
 type workerJobRegistration struct {
@@ -64,6 +68,22 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init agent service: %w", err)
 	}
+	localTrackerProvider, err := infratracker.NewLocalJSONProvider(config.TrackerLocalJSONBasePath)
+	if err != nil {
+		return nil, fmt.Errorf("init local tracker provider: %w", err)
+	}
+	trackerProviderRegistry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
+		domaintracker.SourceKindLocalJSON: localTrackerProvider,
+		domaintracker.SourceKindJira:      infratracker.NewJiraProvider(),
+		domaintracker.SourceKindLinear:    infratracker.NewLinearProvider(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init tracker provider registry: %w", err)
+	}
+	trackerService, err := applicationtracker.NewService(trackerProviderRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("init tracker service: %w", err)
+	}
 
 	return &WorkerApp{
 		config:                config,
@@ -73,6 +93,7 @@ func InitWorker() (*WorkerApp, error) {
 		taskEnginePlatform:    taskEnginePlatform,
 		agentService:          agentService,
 		scmService:            scmService,
+		trackerService:        trackerService,
 	}, nil
 }
 
@@ -90,7 +111,10 @@ func (app *WorkerApp) Run() error {
 		}).Info("worker runtime starting")
 	}
 
-	ingestionHandler := workerinterface.NewIngestionAgentHandler()
+	ingestionHandler, err := workerinterface.NewIngestionAgentHandler(app.trackerService)
+	if err != nil {
+		return fmt.Errorf("create ingestion agent handler: %w", err)
+	}
 	agentHandler, err := workerinterface.NewAgentWorkflowHandler(app.agentService)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)

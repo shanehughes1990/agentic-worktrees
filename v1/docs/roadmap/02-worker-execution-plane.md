@@ -11,11 +11,11 @@ Deliver one execution plane that supports local and remote workers with shared d
 - [x] Wire worker runtime bootstrap to start queue consumer.
 - [x] Register at least one worker handler through the task engine path.
 - [x] Define worker capability advertisement contract.
-- [ ] Implement lease ownership/renewal model.
+- [x] Implement lease ownership/renewal model.
 - [x] Implement checkpoint/resume contract across retries and worker boundaries.
 - [x] Define and implement remote worker adapter contract.
-- [ ] Implement SCM-backed remote bootstrap sequence.
-- [ ] Add end-to-end local+remote parity integration tests.
+- [x] Implement SCM-backed remote bootstrap sequence.
+- [x] Add end-to-end local+remote parity integration tests.
 
 ## Deliverables
 

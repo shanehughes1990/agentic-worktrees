@@ -34,8 +34,8 @@ This includes API control-plane admission, taskengine dispatch policy, worker ex
 - [x] Implement worker-only SCM authentication contract and runtime execution path.
 - [x] Add first concrete `internal/infrastructure/scm` GitHub adapter for full Part 01A scope.
 - [x] Add typed failure classification (`transient` vs `terminal`) and retry-safe mapping.
-- [ ] Add checkpoint/resume boundaries for long-running SCM worker operations.
-- [ ] Add integration tests for API admission -> queue -> worker -> SCM adapter path.
+- [x] Add checkpoint/resume boundaries for long-running SCM worker operations.
+- [x] Add integration tests for API admission -> queue -> worker -> SCM adapter path.
 
 ### Part 01A Deliverables
 
@@ -66,10 +66,10 @@ Implement agent-facing SCM orchestration that consumes Part 01A SCM contracts fo
 
 - [x] Define `internal/domain/agent` contracts that reference SCM capabilities through ports.
 - [x] Implement `internal/application/agent` orchestration for SCM-driven execution/session flows.
-- [ ] Add correlation and idempotency contract alignment between agent workflows and SCM operations.
-- [ ] Add checkpoint/resume boundaries for long-running agent+SCM orchestration.
-- [ ] Add worker handler integration points for agent tasks that invoke SCM application services.
-- [ ] Add integration tests for agent orchestration through SCM ports (without bypassing application layer).
+- [x] Add correlation and idempotency contract alignment between agent workflows and SCM operations.
+- [x] Add checkpoint/resume boundaries for long-running agent+SCM orchestration.
+- [x] Add worker handler integration points for agent tasks that invoke SCM application services.
+- [x] Add integration tests for agent orchestration through SCM ports (without bypassing application layer).
 
 ### Part 01B Deliverables
 
