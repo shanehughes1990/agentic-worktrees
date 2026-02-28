@@ -3,6 +3,7 @@ package taskengine
 import "errors"
 
 var (
-	ErrInvalidEnqueueRequest         = errors.New("taskengine: invalid enqueue request")
-	ErrInvalidRemoteExecutionRequest = errors.New("taskengine: invalid remote execution request")
+	ErrInvalidEnqueueRequest                = errors.New("taskengine: invalid enqueue request")
+	ErrInvalidRemoteExecutionRequest        = errors.New("taskengine: invalid remote execution request")
+	ErrInvalidWorkerCapabilityAdvertisement = errors.New("taskengine: invalid worker capability advertisement")
 )
