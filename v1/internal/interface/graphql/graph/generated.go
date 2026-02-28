@@ -190,7 +190,7 @@ var sources = []*ast.Source{
 
 type Mutation
 `, BuiltIn: false},
-	{Name: "../schema/todo.graphqls", Input: `type EnqueueSCMWorkflowResult {
+	{Name: "../schema/scm.graphqls", Input: `type EnqueueSCMWorkflowResult {
   queueTaskID: ID!
   duplicate: Boolean!
 }

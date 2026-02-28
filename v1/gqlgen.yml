@@ -1,5 +1,5 @@
 schema:
-  - internal/interface/graphql/schema/**/*.graphqls
+- internal/interface/graphql/schema/**/*.graphqls
 
 exec:
   package: graph
@@ -14,7 +14,7 @@ resolver:
   package: resolvers
   layout: follow-schema
   dir: internal/interface/graphql/resolvers
-  filename_template: "{name}-resolver.go"
+  filename_template: "{name}_resolver.go"
 
 call_argument_directives_with_null: true
 
@@ -23,17 +23,17 @@ autobind: []
 models:
   ID:
     model:
-      - github.com/99designs/gqlgen/graphql.ID
-      - github.com/99designs/gqlgen/graphql.Int
-      - github.com/99designs/gqlgen/graphql.Int64
-      - github.com/99designs/gqlgen/graphql.Int32
+    - github.com/99designs/gqlgen/graphql.ID
+    - github.com/99designs/gqlgen/graphql.Int
+    - github.com/99designs/gqlgen/graphql.Int64
+    - github.com/99designs/gqlgen/graphql.Int32
   UUID:
     model:
-      - github.com/99designs/gqlgen/graphql.UUID
+    - github.com/99designs/gqlgen/graphql.UUID
   Int:
     model:
-      - github.com/99designs/gqlgen/graphql.Int32
+    - github.com/99designs/gqlgen/graphql.Int32
   Int64:
     model:
-      - github.com/99designs/gqlgen/graphql.Int
-      - github.com/99designs/gqlgen/graphql.Int64
+    - github.com/99designs/gqlgen/graphql.Int
+    - github.com/99designs/gqlgen/graphql.Int64
