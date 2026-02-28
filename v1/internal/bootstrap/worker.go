@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	applicationagent "agentic-orchestrator/internal/application/agent"
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	"agentic-orchestrator/internal/application/taskengine"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
@@ -22,6 +23,7 @@ type WorkerApp struct {
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    *asynqengine.Platform
+	agentService          *applicationagent.Service
 	scmService            *applicationscm.Service
 }
 
@@ -53,6 +55,10 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init scm service: %w", err)
 	}
+	agentService, err := applicationagent.NewService(githubAdapter)
+	if err != nil {
+		return nil, fmt.Errorf("init agent service: %w", err)
+	}
 
 	return &WorkerApp{
 		config:                config,
@@ -60,6 +66,7 @@ func InitWorker() (*WorkerApp, error) {
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
+		agentService:          agentService,
 		scmService:            scmService,
 	}, nil
 }
@@ -81,6 +88,13 @@ func (app *WorkerApp) Run() error {
 	ingestionHandler := workerinterface.NewIngestionAgentHandler()
 	if err := app.taskEnginePlatform.Register(taskengine.JobKindIngestionAgent, ingestionHandler); err != nil {
 		return fmt.Errorf("register ingestion agent handler: %w", err)
+	}
+	agentHandler, err := workerinterface.NewAgentWorkflowHandler(app.agentService)
+	if err != nil {
+		return fmt.Errorf("create agent workflow handler: %w", err)
+	}
+	if err := app.taskEnginePlatform.Register(taskengine.JobKindAgentWorkflow, agentHandler); err != nil {
+		return fmt.Errorf("register agent workflow handler: %w", err)
 	}
 	scmHandler, err := workerinterface.NewSCMWorkflowHandler(app.scmService)
 	if err != nil {

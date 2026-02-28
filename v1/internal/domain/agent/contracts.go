@@ -55,9 +55,13 @@ func (session SessionRef) Validate() error {
 }
 
 type ExecutionRequest struct {
-	Session  SessionRef
-	Prompt   string
-	Metadata Metadata
+	Session          SessionRef
+	Prompt           string
+	Metadata         Metadata
+	// ResumeCheckpoint, when set, lets the service skip steps that were already
+	// completed in a previous (interrupted) execution. The orchestrator sets this
+	// field on retry using the last recorded checkpoint.
+	ResumeCheckpoint *Checkpoint
 }
 
 func (request ExecutionRequest) Validate() error {

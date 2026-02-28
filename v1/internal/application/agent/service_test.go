@@ -141,3 +141,74 @@ func TestIntrospectSessionBuildsValidatedState(t *testing.T) {
 		t.Fatalf("expected source state head sha abc123, got %q", state.SourceState.HeadSHA)
 	}
 }
+
+// TestExecuteOnlyUsesPortInterface verifies that the agent service is constructed
+// with a domainagent.SCMPort interface and never holds a concrete adapter reference,
+// enforcing the no-provider-bypass invariant through the type system.
+func TestExecuteOnlyUsesPortInterface(t *testing.T) {
+	scm := &fakeSCMPort{sourceState: domainscm.SourceState{DefaultBranch: "main", HeadSHA: "sha1"}}
+	service, err := NewService(scm)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	if err := service.Execute(context.Background(), validExecutionRequest()); err != nil {
+		t.Fatalf("execute via port double: %v", err)
+	}
+	if scm.sourceStateCalls != 1 {
+		t.Fatalf("expected exactly one source state call through port, got %d", scm.sourceStateCalls)
+	}
+}
+
+func TestExecuteRequiresNonEmptyIdempotencyKey(t *testing.T) {
+	scm := &fakeSCMPort{}
+	service, err := NewService(scm)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	req := validExecutionRequest()
+	req.Metadata.IdempotencyKey = ""
+	if executeErr := service.Execute(context.Background(), req); !failures.IsClass(executeErr, failures.ClassTerminal) {
+		t.Fatalf("expected terminal error for empty idempotency key, got %v", executeErr)
+	}
+}
+
+func TestExecuteRequiresCorrelationRunID(t *testing.T) {
+	scm := &fakeSCMPort{}
+	service, err := NewService(scm)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	req := validExecutionRequest()
+	req.Metadata.CorrelationIDs.RunID = ""
+	if executeErr := service.Execute(context.Background(), req); !failures.IsClass(executeErr, failures.ClassTerminal) {
+		t.Fatalf("expected terminal error for empty run_id, got %v", executeErr)
+	}
+}
+
+func TestExecuteWithCheckpointSkipsSourceState(t *testing.T) {
+	scm := &fakeSCMPort{sourceState: domainscm.SourceState{DefaultBranch: "main", HeadSHA: "sha1"}}
+	service, err := NewService(scm)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	req := validExecutionRequest()
+	req.ResumeCheckpoint = &domainagent.Checkpoint{Step: "source_state", Token: "id-1"}
+	if executeErr := service.Execute(context.Background(), req); executeErr != nil {
+		t.Fatalf("execute with checkpoint: %v", executeErr)
+	}
+	if scm.sourceStateCalls != 0 {
+		t.Fatalf("expected source_state to be skipped when checkpoint matches, got %d calls", scm.sourceStateCalls)
+	}
+}
+
+func TestExecutePreservesTerminalClassification(t *testing.T) {
+	terminalErr := failures.WrapTerminal(errors.New("auth token revoked"))
+	scm := &fakeSCMPort{sourceStateErr: terminalErr}
+	service, err := NewService(scm)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	if executeErr := service.Execute(context.Background(), validExecutionRequest()); !failures.IsClass(executeErr, failures.ClassTerminal) {
+		t.Fatalf("expected terminal classification preserved, got %q (%v)", failures.ClassOf(executeErr), executeErr)
+	}
+}

@@ -11,12 +11,14 @@ import (
 )
 
 type fakeSCMService struct {
-	called string
-	err    error
+	called       string
+	err          error
+	lastMetadata applicationscm.Metadata
 }
 
 func (fake *fakeSCMService) SourceState(ctx context.Context, request applicationscm.SourceStateRequest) (domainscm.SourceState, error) {
 	fake.called = "source_state"
+	fake.lastMetadata = request.Metadata
 	return domainscm.SourceState{DefaultBranch: "main", HeadSHA: "abc"}, fake.err
 }
 func (fake *fakeSCMService) EnsureWorktree(ctx context.Context, request applicationscm.EnsureWorktreeRequest) (domainscm.WorktreeState, error) {
@@ -83,5 +85,64 @@ func TestSCMWorkflowHandlerReturnsServiceError(t *testing.T) {
 	err = handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload})
 	if err == nil {
 		t.Fatalf("expected service error")
+	}
+}
+
+func TestSCMWorkflowHandlerPropagatesCorrelationIDs(t *testing.T) {
+	service := &fakeSCMService{}
+	handler, err := NewSCMWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-x", TaskID: "task-x", JobID: "job-x", IdempotencyKey: "id-x"})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.lastMetadata.CorrelationIDs.RunID != "run-x" {
+		t.Fatalf("expected run_id run-x, got %q", service.lastMetadata.CorrelationIDs.RunID)
+	}
+	if service.lastMetadata.CorrelationIDs.TaskID != "task-x" {
+		t.Fatalf("expected task_id task-x, got %q", service.lastMetadata.CorrelationIDs.TaskID)
+	}
+	if service.lastMetadata.CorrelationIDs.JobID != "job-x" {
+		t.Fatalf("expected job_id job-x, got %q", service.lastMetadata.CorrelationIDs.JobID)
+	}
+}
+
+func TestSCMWorkflowHandlerSkipsOperationWhenCheckpointMatches(t *testing.T) {
+	service := &fakeSCMService{}
+	handler, err := NewSCMWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{
+		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
+		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
+		CompletedCheckpoint: &SCMWorkflowCheckpoint{Step: "source_state", Token: "id-1"},
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.called != "" {
+		t.Fatalf("expected no service call when checkpoint matches, got %q", service.called)
+	}
+}
+
+func TestSCMWorkflowHandlerExecutesWhenCheckpointStepDiffers(t *testing.T) {
+	service := &fakeSCMService{}
+	handler, err := NewSCMWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{
+		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
+		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
+		CompletedCheckpoint: &SCMWorkflowCheckpoint{Step: "ensure_worktree", Token: "id-1"},
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.called != "source_state" {
+		t.Fatalf("expected source_state call when checkpoint step differs, got %q", service.called)
 	}
 }

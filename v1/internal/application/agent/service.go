@@ -25,12 +25,15 @@ func (service *Service) Execute(ctx context.Context, request domainagent.Executi
 	if err := request.Validate(); err != nil {
 		return err
 	}
-	sourceState, err := service.scm.SourceState(ctx, request.Session.Repository)
-	if err != nil {
-		return ensureClassified(err)
-	}
-	if err := sourceState.Validate(); err != nil {
-		return err
+	// checkpoint resume: skip source_state if a prior run already completed it.
+	if request.ResumeCheckpoint == nil || request.ResumeCheckpoint.Step != "source_state" {
+		sourceState, err := service.scm.SourceState(ctx, request.Session.Repository)
+		if err != nil {
+			return ensureClassified(err)
+		}
+		if err := sourceState.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
