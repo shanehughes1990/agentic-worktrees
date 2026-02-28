@@ -10,32 +10,27 @@ import (
 	"strings"
 )
 
-// SCMWorkflowCheckpoint carries the step name and idempotency token of a previously
-// completed SCM operation. When present in the payload, the handler skips re-executing
-// the matching operation, enabling safe resume after a transient failure.
-type SCMWorkflowCheckpoint struct {
-	Step  string `json:"step"`
-	Token string `json:"token"`
-}
-
 type SCMWorkflowPayload struct {
-	Operation           string                 `json:"operation"`
-	Provider            string                 `json:"provider"`
-	Owner               string                 `json:"owner"`
-	Repository          string                 `json:"repository"`
-	RunID               string                 `json:"run_id"`
-	TaskID              string                 `json:"task_id"`
-	JobID               string                 `json:"job_id"`
-	IdempotencyKey      string                 `json:"idempotency_key"`
-	WorktreePath        string                 `json:"worktree_path,omitempty"`
-	BaseBranch          string                 `json:"base_branch,omitempty"`
-	TargetBranch        string                 `json:"target_branch,omitempty"`
-	PullRequestID       int                    `json:"pull_request_number,omitempty"`
-	PullRequestTitle    string                 `json:"pull_request_title,omitempty"`
-	PullRequestBody     string                 `json:"pull_request_body,omitempty"`
-	ReviewDecision      string                 `json:"review_decision,omitempty"`
-	ReviewBody          string                 `json:"review_body,omitempty"`
-	CompletedCheckpoint *SCMWorkflowCheckpoint `json:"completed_checkpoint,omitempty"`
+	Operation             string                 `json:"operation"`
+	Provider              string                 `json:"provider"`
+	Owner                 string                 `json:"owner"`
+	Repository            string                 `json:"repository"`
+	RunID                 string                 `json:"run_id"`
+	TaskID                string                 `json:"task_id"`
+	JobID                 string                 `json:"job_id"`
+	IdempotencyKey        string                 `json:"idempotency_key"`
+	WorktreePath          string                 `json:"worktree_path,omitempty"`
+	BaseBranch            string                 `json:"base_branch,omitempty"`
+	TargetBranch          string                 `json:"target_branch,omitempty"`
+	PullRequestID         int                    `json:"pull_request_number,omitempty"`
+	PullRequestTitle      string                 `json:"pull_request_title,omitempty"`
+	PullRequestBody       string                 `json:"pull_request_body,omitempty"`
+	ReviewDecision        string                 `json:"review_decision,omitempty"`
+	ReviewBody            string                 `json:"review_body,omitempty"`
+	ResumeCheckpoint      *taskengine.Checkpoint `json:"resume_checkpoint,omitempty"`
+	ResumeCheckpointStep  string                 `json:"resume_checkpoint_step,omitempty"`
+	ResumeCheckpointToken string                 `json:"resume_checkpoint_token,omitempty"`
+	CompletedCheckpoint   *taskengine.Checkpoint `json:"completed_checkpoint,omitempty"`
 }
 
 type scmService interface {
@@ -70,7 +65,13 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	// checkpoint resume: if the orchestrator recorded a completed checkpoint for this exact
 	// operation (same step + token), the step was already done — skip re-execution safely.
 	operation := strings.TrimSpace(payload.Operation)
-	if cp := payload.CompletedCheckpoint; cp != nil && cp.Step == operation && cp.Token == payload.IdempotencyKey {
+	retryCheckpoint := taskengine.RetryCheckpointContract{
+		ResumeCheckpoint:      payload.ResumeCheckpoint,
+		CompletedCheckpoint:   payload.CompletedCheckpoint,
+		ResumeCheckpointStep:  payload.ResumeCheckpointStep,
+		ResumeCheckpointToken: payload.ResumeCheckpointToken,
+	}
+	if retryCheckpoint.Matches(operation, payload.IdempotencyKey) {
 		return nil
 	}
 	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}
