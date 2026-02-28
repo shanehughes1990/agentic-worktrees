@@ -68,21 +68,51 @@ func (source SourceRef) Validate() error {
 	return nil
 }
 
+type WorkItemID string
+
+func (id WorkItemID) Validate() error {
+	if strings.TrimSpace(string(id)) == "" {
+		return failures.WrapTerminal(errors.New("id is required"))
+	}
+	return nil
+}
+
+type Priority string
+
+const (
+	PriorityP0 Priority = "p0"
+	PriorityP1 Priority = "p1"
+	PriorityP2 Priority = "p2"
+	PriorityP3 Priority = "p3"
+)
+
+func (priority Priority) Validate() error {
+	if strings.TrimSpace(string(priority)) == "" {
+		return nil
+	}
+	switch priority {
+	case PriorityP0, PriorityP1, PriorityP2, PriorityP3:
+		return nil
+	default:
+		return failures.WrapTerminal(fmt.Errorf("unsupported priority %q", priority))
+	}
+}
+
 type WorkItem struct {
-	ID          string         `json:"id"`
-	BoardID     string         `json:"board_id"`
-	Title       string         `json:"title"`
-	Description string         `json:"description,omitempty"`
-	Status      Status         `json:"status"`
-	Priority    string         `json:"priority,omitempty"`
+	ID          WorkItemID    `json:"id"`
+	BoardID     string        `json:"board_id"`
+	Title       string        `json:"title"`
+	Description string        `json:"description,omitempty"`
+	Status      Status        `json:"status"`
+	Priority    Priority      `json:"priority,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-	CreatedAt   time.Time      `json:"created_at,omitempty"`
-	UpdatedAt   time.Time      `json:"updated_at,omitempty"`
+	CreatedAt   time.Time     `json:"created_at,omitempty"`
+	UpdatedAt   time.Time     `json:"updated_at,omitempty"`
 }
 
 func (item WorkItem) Validate() error {
-	if strings.TrimSpace(item.ID) == "" {
-		return failures.WrapTerminal(errors.New("id is required"))
+	if err := item.ID.Validate(); err != nil {
+		return err
 	}
 	if strings.TrimSpace(item.BoardID) == "" {
 		return failures.WrapTerminal(errors.New("board_id is required"))
@@ -90,7 +120,13 @@ func (item WorkItem) Validate() error {
 	if strings.TrimSpace(item.Title) == "" {
 		return failures.WrapTerminal(errors.New("title is required"))
 	}
-	return item.Status.Validate()
+	if err := item.Status.Validate(); err != nil {
+		return err
+	}
+	if err := item.Priority.Validate(); err != nil {
+		return err
+	}
+	return nil
 }
 
 type TaskOutcome struct {
@@ -111,7 +147,7 @@ func (outcome TaskOutcome) Validate() error {
 
 type Task struct {
 	WorkItem
-	DependsOn []string     `json:"depends_on,omitempty"`
+	DependsOn []WorkItemID `json:"depends_on,omitempty"`
 	Outcome   *TaskOutcome `json:"outcome,omitempty"`
 }
 
@@ -129,8 +165,8 @@ func (task Task) Validate() error {
 
 type Epic struct {
 	WorkItem
-	DependsOn []string `json:"depends_on,omitempty"`
-	Tasks     []Task   `json:"tasks"`
+	DependsOn []WorkItemID `json:"depends_on,omitempty"`
+	Tasks     []Task       `json:"tasks"`
 }
 
 func (epic Epic) Validate() error {
@@ -178,8 +214,8 @@ func (board Board) Validate() error {
 		return failures.WrapTerminal(errors.New("epics are required"))
 	}
 
-	epicIDs := make(map[string]struct{}, len(board.Epics))
-	taskIDs := map[string]struct{}{}
+	epicIDs := make(map[WorkItemID]struct{}, len(board.Epics))
+	taskIDs := map[WorkItemID]struct{}{}
 	for _, epic := range board.Epics {
 		if err := epic.Validate(); err != nil {
 			return err
@@ -204,13 +240,13 @@ func (board Board) Validate() error {
 
 	for _, epic := range board.Epics {
 		for _, dependencyEpicID := range epic.DependsOn {
-			if _, exists := epicIDs[strings.TrimSpace(dependencyEpicID)]; !exists {
+			if _, exists := epicIDs[WorkItemID(strings.TrimSpace(string(dependencyEpicID)))]; !exists {
 				return failures.WrapTerminal(fmt.Errorf("epic %s depends on missing epic %s", epic.ID, dependencyEpicID))
 			}
 		}
 		for _, task := range epic.Tasks {
 			for _, dependencyTaskID := range task.DependsOn {
-				if _, exists := taskIDs[strings.TrimSpace(dependencyTaskID)]; !exists {
+				if _, exists := taskIDs[WorkItemID(strings.TrimSpace(string(dependencyTaskID)))]; !exists {
 					return failures.WrapTerminal(fmt.Errorf("task %s depends on missing task %s", task.ID, dependencyTaskID))
 				}
 			}

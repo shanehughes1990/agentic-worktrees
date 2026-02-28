@@ -22,16 +22,18 @@ func TestBoardValidateAcceptsCanonicalBoard(t *testing.T) {
 					BoardID:   "board-1",
 					Title:     "Bootstrap",
 					Status:    StatusCompleted,
+					Priority:  PriorityP1,
 					CreatedAt: time.Now().UTC(),
 					UpdatedAt: time.Now().UTC(),
 				},
 				Tasks: []Task{
 					{
 						WorkItem: WorkItem{
-							ID:      "task-1",
-							BoardID: "board-1",
-							Title:   "Read board",
-							Status:  StatusCompleted,
+							ID:       "task-1",
+							BoardID:  "board-1",
+							Title:    "Read board",
+							Status:   StatusCompleted,
+							Priority: PriorityP2,
 						},
 					},
 				},
@@ -70,7 +72,7 @@ func TestBoardValidateRejectsMissingDependency(t *testing.T) {
 							Title:   "Read board",
 							Status:  StatusInProgress,
 						},
-						DependsOn: []string{"task-missing"},
+						DependsOn: []WorkItemID{"task-missing"},
 					},
 				},
 			},
@@ -79,6 +81,14 @@ func TestBoardValidateRejectsMissingDependency(t *testing.T) {
 	err := board.Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
+func TestWorkItemValidateRejectsUnsupportedPriority(t *testing.T) {
+	item := WorkItem{ID: "task-1", BoardID: "board-1", Title: "Task", Status: StatusInProgress, Priority: Priority("urgent")}
+	err := item.Validate()
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal priority validation error, got %q (%v)", failures.ClassOf(err), err)
 	}
 }
 
