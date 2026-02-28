@@ -38,6 +38,19 @@ func TestExecutionRequestValidateRequiresPrompt(t *testing.T) {
 	}
 }
 
+func TestExecutionRequestValidateRequiresMetadata(t *testing.T) {
+	err := (ExecutionRequest{
+		Session: SessionRef{
+			SessionID:  "session-1",
+			Repository: validRepository(),
+		},
+		Prompt: "do work",
+	}).Validate()
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
 func TestSessionIntrospectionRequestValidateRequiresMetadata(t *testing.T) {
 	err := (SessionIntrospectionRequest{
 		SessionID: "session-1",

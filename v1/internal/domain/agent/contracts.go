@@ -153,6 +153,10 @@ type SCMPort interface {
 	CheckMergeReadiness(ctx context.Context, repository domainscm.Repository, pullRequestNumber int) (domainscm.MergeReadiness, error)
 }
 
+type ExecutionPort interface {
+	Execute(ctx context.Context, request ExecutionRequest) error
+}
+
 type SessionIntrospectionPort interface {
 	IntrospectSession(ctx context.Context, request SessionIntrospectionRequest) (SessionState, error)
 }
