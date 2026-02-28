@@ -63,6 +63,18 @@ type RemoteExecutionResult struct {
 	CompletedCheckpoint *RemoteCheckpoint
 }
 
+func (result RemoteExecutionResult) Validate() error {
+	if strings.TrimSpace(result.WorkerID) == "" {
+		return fmt.Errorf("%w: worker_id is required", ErrInvalidRemoteExecutionRequest)
+	}
+	if result.CompletedCheckpoint != nil {
+		if err := result.CompletedCheckpoint.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type RemoteWorkerAdapter interface {
 	Execute(ctx context.Context, request RemoteExecutionRequest) (RemoteExecutionResult, error)
 }
