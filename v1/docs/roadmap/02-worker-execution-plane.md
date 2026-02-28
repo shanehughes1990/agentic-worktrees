@@ -10,7 +10,7 @@ Deliver one execution plane that supports local and remote workers with shared d
 - [x] Add first concrete queue adapter (`asynq`) in infrastructure layer.
 - [x] Wire worker runtime bootstrap to start queue consumer.
 - [x] Register at least one worker handler through the task engine path.
-- [ ] Define worker capability advertisement contract.
+- [x] Define worker capability advertisement contract.
 - [ ] Implement lease ownership/renewal model.
 - [ ] Implement checkpoint/resume contract across retries and worker boundaries.
 - [ ] Define and implement remote worker adapter contract.
