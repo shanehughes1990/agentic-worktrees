@@ -150,3 +150,33 @@ func TestAgentWorkflowHandlerPropagatesResumeCheckpointObject(t *testing.T) {
 		t.Fatalf("expected checkpoint token id-1, got %q", service.request.ResumeCheckpoint.Token)
 	}
 }
+
+func TestAgentWorkflowHandlerTrimsLegacyResumeCheckpointFields(t *testing.T) {
+	service := &fakeAgentService{}
+	handler, err := NewAgentWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(AgentWorkflowPayload{
+		SessionID:             "session-1",
+		Prompt:                "run analysis",
+		Provider:              "github",
+		Owner:                 "acme",
+		Repository:            "repo",
+		RunID:                 "run-1",
+		TaskID:                "task-1",
+		JobID:                 "job-1",
+		IdempotencyKey:        "id-1",
+		ResumeCheckpointStep:  " source_state ",
+		ResumeCheckpointToken: " id-1 ",
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindAgentWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.request.ResumeCheckpoint == nil {
+		t.Fatalf("expected resume checkpoint to be populated")
+	}
+	if service.request.ResumeCheckpoint.Step != "source_state" || service.request.ResumeCheckpoint.Token != "id-1" {
+		t.Fatalf("expected trimmed checkpoint values, got %+v", service.request.ResumeCheckpoint)
+	}
+}

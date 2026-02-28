@@ -66,13 +66,11 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 			IdempotencyKey: payload.IdempotencyKey,
 		},
 	}
-	resumeCheckpoint := payload.ResumeCheckpoint
-	if resumeCheckpoint == nil && payload.ResumeCheckpointStep != "" && payload.ResumeCheckpointToken != "" {
-		resumeCheckpoint = &taskengine.Checkpoint{
-			Step:  payload.ResumeCheckpointStep,
-			Token: payload.ResumeCheckpointToken,
-		}
-	}
+	resumeCheckpoint := (taskengine.RetryCheckpointContract{
+		ResumeCheckpoint:      payload.ResumeCheckpoint,
+		ResumeCheckpointStep:  payload.ResumeCheckpointStep,
+		ResumeCheckpointToken: payload.ResumeCheckpointToken,
+	}).Checkpoint()
 	if resumeCheckpoint != nil {
 		request.ResumeCheckpoint = &domainagent.Checkpoint{
 			Step:  resumeCheckpoint.Step,
