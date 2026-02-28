@@ -2,5 +2,8 @@
 .env
 .env.*
 
+# Ignore runtime filesystem rooted by APPLICATION_ROOT_DIRECTORY default
+.agentic-orchestrator/
+
 # Keep committed env template
 !.example.env

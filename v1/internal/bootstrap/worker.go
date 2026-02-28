@@ -41,6 +41,9 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ensureRuntimeFilesystem(config.BaseConfig); err != nil {
+		return nil, err
+	}
 
 	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config.BaseConfig)
 	if err != nil {
@@ -56,7 +59,11 @@ func InitWorker() (*WorkerApp, error) {
 		return nil, fmt.Errorf("worker requires SCM_GITHUB_TOKEN for github scm execution")
 	}
 
-	githubAdapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{APIBaseURL: config.SCMGitHubAPIBaseURL, RepoPath: config.SCMLocalRepositoryPath}, nil, infrascm.NewStaticTokenProvider(config.SCMGitHubToken), infrascm.NewExecGitRunner())
+	githubAdapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
+		APIBaseURL:      config.SCMGitHubAPIBaseURL,
+		RepoPath:        config.RepositorySourcePath(),
+		WorktreeRootPath: config.WorktreesPath(),
+	}, nil, infrascm.NewStaticTokenProvider(config.SCMGitHubToken), infrascm.NewExecGitRunner())
 	if err != nil {
 		return nil, fmt.Errorf("init github scm adapter: %w", err)
 	}
@@ -69,7 +76,7 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init agent service: %w", err)
 	}
-	localTrackerProvider, err := infratracker.NewLocalJSONProvider(config.TrackerLocalJSONBasePath)
+	localTrackerProvider, err := infratracker.NewLocalJSONProvider(config.TrackerPath())
 	if err != nil {
 		return nil, fmt.Errorf("init local tracker provider: %w", err)
 	}

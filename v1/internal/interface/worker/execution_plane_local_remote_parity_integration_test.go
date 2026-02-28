@@ -41,12 +41,17 @@ func (engine *parityQueueEngine) dispatchNext(ctx context.Context, handler appli
 type parityGitRunner struct {
 	worktreeAddCalls int
 	revParseCalls    int
+	fetchCalls       int
 }
 
 func (runner *parityGitRunner) Run(ctx context.Context, directory string, arguments ...string) (string, error) {
 	_ = ctx
 	if len(arguments) == 0 {
 		return "", fmt.Errorf("git arguments are required")
+	}
+	if arguments[0] == "fetch" {
+		runner.fetchCalls++
+		return "", nil
 	}
 	if arguments[0] == "worktree" && len(arguments) >= 6 && arguments[1] == "add" {
 		runner.worktreeAddCalls++
@@ -93,7 +98,7 @@ func TestExecutionPlaneLocalAndRemotePathsShareSCMJobContract(t *testing.T) {
 
 	gitRunner := &parityGitRunner{}
 	githubAdapter, err := infrascm.NewGitHubAdapter(
-		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo"},
+		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktree"},
 		server.Client(),
 		infrascm.NewStaticTokenProvider("token"),
 		gitRunner,
@@ -176,8 +181,8 @@ func TestExecutionPlaneLocalAndRemotePathsShareSCMJobContract(t *testing.T) {
 	if remoteResult.CompletedCheckpoint == nil || remoteResult.CompletedCheckpoint.Step != "ensure_worktree" {
 		t.Fatalf("expected ensure_worktree completed checkpoint, got %+v", remoteResult.CompletedCheckpoint)
 	}
-	if gitRunner.worktreeAddCalls == 0 || gitRunner.revParseCalls == 0 {
-		t.Fatalf("expected remote bootstrap to perform SCM-backed worktree bootstrap, got add=%d rev-parse=%d", gitRunner.worktreeAddCalls, gitRunner.revParseCalls)
+	if gitRunner.worktreeAddCalls == 0 || gitRunner.revParseCalls == 0 || gitRunner.fetchCalls == 0 {
+		t.Fatalf("expected remote bootstrap to perform SCM-backed worktree bootstrap, got fetch=%d add=%d rev-parse=%d", gitRunner.fetchCalls, gitRunner.worktreeAddCalls, gitRunner.revParseCalls)
 	}
 	if repositoryEndpointCalls < 2 || commitEndpointCalls < 2 {
 		t.Fatalf("expected source-state SCM endpoints to be called by both local and remote paths, got repos=%d commits=%d", repositoryEndpointCalls, commitEndpointCalls)

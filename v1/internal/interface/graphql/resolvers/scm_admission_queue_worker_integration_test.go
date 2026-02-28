@@ -87,7 +87,7 @@ func newSCMAdmissionQueueWorkerAdapterFixture(t *testing.T) *scmAdmissionQueueWo
 	fixture.close = server.Close
 
 	adapter, err := infrascm.NewGitHubAdapter(
-		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo"},
+		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"},
 		server.Client(),
 		infrascm.NewStaticTokenProvider("token"),
 		&failIfCalledIntegrationGitRunner{},

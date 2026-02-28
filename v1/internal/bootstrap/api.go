@@ -36,6 +36,9 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ensureRuntimeFilesystem(config.BaseConfig); err != nil {
+		return nil, err
+	}
 
 	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config.BaseConfig)
 	if err != nil {

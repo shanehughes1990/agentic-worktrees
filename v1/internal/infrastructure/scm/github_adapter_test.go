@@ -53,7 +53,7 @@ func TestSourceStateReadsDefaultBranchAndHead(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
+	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
 	if err != nil {
 		t.Fatalf("new adapter: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestSourceStateReadsDefaultBranchAndHead(t *testing.T) {
 func TestEnsureWorktreeFetchesOriginBeforeWorktreeAdd(t *testing.T) {
 	runner := &recordingGitRunner{}
 	adapter, err := NewGitHubAdapter(
-		GitHubAdapterConfig{APIBaseURL: "https://api.github.com", RepoPath: "/tmp/repo"},
+		GitHubAdapterConfig{APIBaseURL: "https://api.github.com", RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktree"},
 		nil,
 		NewStaticTokenProvider("token"),
 		runner,
@@ -96,6 +96,47 @@ func TestEnsureWorktreeFetchesOriginBeforeWorktreeAdd(t *testing.T) {
 	}
 }
 
+func TestEnsureWorktreeRejectsPathOutsideConfiguredWorktreeRoot(t *testing.T) {
+	adapter, err := NewGitHubAdapter(
+		GitHubAdapterConfig{APIBaseURL: "https://api.github.com", RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"},
+		nil,
+		NewStaticTokenProvider("token"),
+		&fakeGitRunner{},
+	)
+	if err != nil {
+		t.Fatalf("new adapter: %v", err)
+	}
+
+	_, ensureErr := adapter.EnsureWorktree(context.Background(), domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"}, domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/other/worktree"})
+	if !failures.IsClass(ensureErr, failures.ClassTerminal) {
+		t.Fatalf("expected terminal path validation error, got %q (%v)", failures.ClassOf(ensureErr), ensureErr)
+	}
+}
+
+func TestSyncWorktreeResolvesRelativePathInsideRoot(t *testing.T) {
+	runner := &recordingGitRunner{}
+	adapter, err := NewGitHubAdapter(
+		GitHubAdapterConfig{APIBaseURL: "https://api.github.com", RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"},
+		nil,
+		NewStaticTokenProvider("token"),
+		runner,
+	)
+	if err != nil {
+		t.Fatalf("new adapter: %v", err)
+	}
+
+	_, syncErr := adapter.SyncWorktree(context.Background(), domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"}, "feature-one")
+	if syncErr != nil {
+		t.Fatalf("sync worktree: %v", syncErr)
+	}
+	if len(runner.calls) == 0 {
+		t.Fatalf("expected git calls")
+	}
+	if runner.calls[0] != "/tmp/worktrees/feature-one::[rev-parse --abbrev-ref HEAD]" {
+		t.Fatalf("expected worktree path under root, got %q", runner.calls[0])
+	}
+}
+
 func TestCreateOrUpdatePullRequestCreatesWhenNoOpenPullRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
@@ -110,7 +151,7 @@ func TestCreateOrUpdatePullRequestCreatesWhenNoOpenPullRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
+	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
 	if err != nil {
 		t.Fatalf("new adapter: %v", err)
 	}
@@ -143,7 +184,7 @@ func TestSubmitReviewUsesGitHubReviewEndpoint(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
+	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
 	if err != nil {
 		t.Fatalf("new adapter: %v", err)
 	}
@@ -172,7 +213,7 @@ func TestDoJSONClassifiesRateLimitAsTransient(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
+	adapter, err := NewGitHubAdapter(GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"}, server.Client(), NewStaticTokenProvider("token"), &fakeGitRunner{})
 	if err != nil {
 		t.Fatalf("new adapter: %v", err)
 	}

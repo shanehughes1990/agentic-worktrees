@@ -11,21 +11,24 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 type GitHubAdapterConfig struct {
-	APIBaseURL string
-	RepoPath   string
+	APIBaseURL       string
+	RepoPath         string
+	WorktreeRootPath string
 }
 
 type GitHubAdapter struct {
-	baseURL       string
-	repoPath      string
-	httpClient    *http.Client
-	tokenProvider TokenProvider
-	gitRunner     GitRunner
+	baseURL          string
+	repoPath         string
+	worktreeRootPath string
+	httpClient       *http.Client
+	tokenProvider    TokenProvider
+	gitRunner        GitRunner
 }
 
 func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, tokenProvider TokenProvider, gitRunner GitRunner) (*GitHubAdapter, error) {
@@ -36,8 +39,13 @@ func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, token
 	if _, err := url.Parse(baseURL); err != nil {
 		return nil, fmt.Errorf("parse github api base url: %w", err)
 	}
-	if strings.TrimSpace(config.RepoPath) == "" {
+	repoPath := strings.TrimSpace(config.RepoPath)
+	if repoPath == "" {
 		return nil, failures.WrapTerminal(fmt.Errorf("repo path is required"))
+	}
+	worktreeRootPath := strings.TrimSpace(config.WorktreeRootPath)
+	if worktreeRootPath == "" {
+		return nil, failures.WrapTerminal(fmt.Errorf("worktree root path is required"))
 	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -49,11 +57,12 @@ func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, token
 		gitRunner = NewExecGitRunner()
 	}
 	return &GitHubAdapter{
-		baseURL:       strings.TrimRight(baseURL, "/"),
-		repoPath:      config.RepoPath,
-		httpClient:    httpClient,
-		tokenProvider: tokenProvider,
-		gitRunner:     gitRunner,
+		baseURL:          strings.TrimRight(baseURL, "/"),
+		repoPath:         filepath.Clean(repoPath),
+		worktreeRootPath: filepath.Clean(worktreeRootPath),
+		httpClient:       httpClient,
+		tokenProvider:    tokenProvider,
+		gitRunner:        gitRunner,
 	}, nil
 }
 
@@ -90,17 +99,21 @@ func (adapter *GitHubAdapter) EnsureWorktree(ctx context.Context, repository dom
 	if err := spec.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "fetch", "origin", spec.BaseBranch); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTransient(err)
-	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "add", "-B", spec.TargetBranch, spec.Path, "origin/"+spec.BaseBranch); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
-	}
-	headSHA, err := adapter.worktreeHeadSHA(ctx, spec.Path)
+	worktreePath, err := adapter.resolveWorktreePath(spec.Path)
 	if err != nil {
 		return domainscm.WorktreeState{}, err
 	}
-	state := domainscm.WorktreeState{Path: spec.Path, Branch: spec.TargetBranch, Base: spec.BaseBranch, HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "fetch", "origin", spec.BaseBranch); err != nil {
+		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+	}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "add", "-B", spec.TargetBranch, worktreePath, "origin/"+spec.BaseBranch); err != nil {
+		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
+	}
+	headSHA, err := adapter.worktreeHeadSHA(ctx, worktreePath)
+	if err != nil {
+		return domainscm.WorktreeState{}, err
+	}
+	state := domainscm.WorktreeState{Path: worktreePath, Branch: spec.TargetBranch, Base: spec.BaseBranch, HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
 	if err := state.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
@@ -111,24 +124,25 @@ func (adapter *GitHubAdapter) SyncWorktree(ctx context.Context, repository domai
 	if err := repository.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
-	if strings.TrimSpace(worktreePath) == "" {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(fmt.Errorf("worktree path is required"))
-	}
-	branchName, err := adapter.gitRunner.Run(ctx, worktreePath, "rev-parse", "--abbrev-ref", "HEAD")
-	if err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
-	}
-	if _, err := adapter.gitRunner.Run(ctx, worktreePath, "fetch", "origin", strings.TrimSpace(branchName)); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTransient(err)
-	}
-	if _, err := adapter.gitRunner.Run(ctx, worktreePath, "reset", "--hard", "origin/"+strings.TrimSpace(branchName)); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTransient(err)
-	}
-	headSHA, err := adapter.worktreeHeadSHA(ctx, worktreePath)
+	resolvedWorktreePath, err := adapter.resolveWorktreePath(worktreePath)
 	if err != nil {
 		return domainscm.WorktreeState{}, err
 	}
-	state := domainscm.WorktreeState{Path: worktreePath, Branch: strings.TrimSpace(branchName), Base: strings.TrimSpace(branchName), HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
+	branchName, err := adapter.gitRunner.Run(ctx, resolvedWorktreePath, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
+	}
+	if _, err := adapter.gitRunner.Run(ctx, resolvedWorktreePath, "fetch", "origin", strings.TrimSpace(branchName)); err != nil {
+		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+	}
+	if _, err := adapter.gitRunner.Run(ctx, resolvedWorktreePath, "reset", "--hard", "origin/"+strings.TrimSpace(branchName)); err != nil {
+		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+	}
+	headSHA, err := adapter.worktreeHeadSHA(ctx, resolvedWorktreePath)
+	if err != nil {
+		return domainscm.WorktreeState{}, err
+	}
+	state := domainscm.WorktreeState{Path: resolvedWorktreePath, Branch: strings.TrimSpace(branchName), Base: strings.TrimSpace(branchName), HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
 	if err := state.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
@@ -139,10 +153,11 @@ func (adapter *GitHubAdapter) CleanupWorktree(ctx context.Context, repository do
 	if err := repository.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(worktreePath) == "" {
-		return failures.WrapTerminal(fmt.Errorf("worktree path is required"))
+	resolvedWorktreePath, err := adapter.resolveWorktreePath(worktreePath)
+	if err != nil {
+		return err
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "remove", "--force", worktreePath); err != nil {
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "remove", "--force", resolvedWorktreePath); err != nil {
 		return failures.WrapTransient(err)
 	}
 	return nil
@@ -343,6 +358,27 @@ func (adapter *GitHubAdapter) worktreeHeadSHA(ctx context.Context, worktreePath 
 		return "", failures.WrapTerminal(fmt.Errorf("empty worktree head sha for %q", worktreePath))
 	}
 	return strings.TrimSpace(sha), nil
+}
+
+func (adapter *GitHubAdapter) resolveWorktreePath(requestedPath string) (string, error) {
+	cleanPath := strings.TrimSpace(requestedPath)
+	if cleanPath == "" {
+		return "", failures.WrapTerminal(fmt.Errorf("worktree path is required"))
+	}
+	var candidate string
+	if filepath.IsAbs(cleanPath) {
+		candidate = filepath.Clean(cleanPath)
+	} else {
+		candidate = filepath.Clean(filepath.Join(adapter.worktreeRootPath, cleanPath))
+	}
+	relativePath, err := filepath.Rel(adapter.worktreeRootPath, candidate)
+	if err != nil {
+		return "", failures.WrapTerminal(fmt.Errorf("resolve worktree path: %w", err))
+	}
+	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", failures.WrapTerminal(fmt.Errorf("worktree path %q escapes configured worktree root", requestedPath))
+	}
+	return candidate, nil
 }
 
 func (adapter *GitHubAdapter) repoPathURL(repository domainscm.Repository, suffix string) string {

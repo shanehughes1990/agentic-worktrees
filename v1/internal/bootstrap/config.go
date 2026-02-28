@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,17 +11,18 @@ import (
 )
 
 type BaseConfig struct {
-	ServiceName     string        `envconfig:"SERVICE_NAME" default:"agentic-orchestrator" validate:"required"`
-	Environment     string        `envconfig:"APP_ENV" default:"local" validate:"required,oneof=local development test staging production"`
-	ServiceVersion  string        `envconfig:"SERVICE_VERSION" default:"development" validate:"required"`
-	LogFormat       string        `envconfig:"LOG_FORMAT" default:"text" validate:"required,oneof=text json"`
-	LogLevel        string        `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error"`
-	LogPrettyJSON   bool          `envconfig:"LOG_PRETTY_JSON" default:"false"`
-	OTLPEndpoint    string        `envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	OTLPHeaders     string        `envconfig:"OTEL_EXPORTER_OTLP_HEADERS"`
-	HealthLivePath  string        `envconfig:"HEALTH_LIVE_PATH" default:"/live" validate:"required,startswith=/"`
-	HealthReadyPath string        `envconfig:"HEALTH_READY_PATH" default:"/ready" validate:"required,startswith=/"`
-	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
+	ServiceName              string        `envconfig:"SERVICE_NAME" default:"agentic-orchestrator" validate:"required"`
+	Environment              string        `envconfig:"APP_ENV" default:"local" validate:"required,oneof=local development test staging production"`
+	ServiceVersion           string        `envconfig:"SERVICE_VERSION" default:"development" validate:"required"`
+	ApplicationRootDirectory string        `envconfig:"APPLICATION_ROOT_DIRECTORY" default:".agentic-orchestrator" validate:"required"`
+	LogFormat                string        `envconfig:"LOG_FORMAT" default:"text" validate:"required,oneof=text json"`
+	LogLevel                 string        `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error"`
+	LogPrettyJSON            bool          `envconfig:"LOG_PRETTY_JSON" default:"false"`
+	OTLPEndpoint             string        `envconfig:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTLPHeaders              string        `envconfig:"OTEL_EXPORTER_OTLP_HEADERS"`
+	HealthLivePath           string        `envconfig:"HEALTH_LIVE_PATH" default:"/live" validate:"required,startswith=/"`
+	HealthReadyPath          string        `envconfig:"HEALTH_READY_PATH" default:"/ready" validate:"required,startswith=/"`
+	ShutdownTimeout          time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
 
 	TaskEngineBackend        string `envconfig:"TASK_ENGINE_BACKEND" default:"asynq" validate:"required,oneof=asynq"`
 	TaskEngineRedisAddress   string `envconfig:"TASK_ENGINE_REDIS_ADDRESS" default:"127.0.0.1:6379" validate:"required"`
@@ -29,12 +31,38 @@ type BaseConfig struct {
 	TaskEngineConcurrency    int    `envconfig:"TASK_ENGINE_CONCURRENCY" default:"10" validate:"gte=1,lte=1024"`
 	TaskEngineIngestionQueue string `envconfig:"TASK_ENGINE_INGESTION_QUEUE" default:"ingestion" validate:"required"`
 	TaskEngineSCMQueue       string `envconfig:"TASK_ENGINE_SCM_QUEUE" default:"scm" validate:"required"`
-	TrackerLocalJSONBasePath string `envconfig:"TRACKER_LOCAL_JSON_BASE_PATH" default:"." validate:"required"`
 
-	SCMProvider            string `envconfig:"SCM_PROVIDER" default:"github" validate:"required,oneof=github"`
-	SCMGitHubToken         string `envconfig:"SCM_GITHUB_TOKEN"`
-	SCMGitHubAPIBaseURL    string `envconfig:"SCM_GITHUB_API_BASE_URL" default:"https://api.github.com" validate:"required,url"`
-	SCMLocalRepositoryPath string `envconfig:"SCM_LOCAL_REPOSITORY_PATH" validate:"required"`
+	SCMProvider         string `envconfig:"SCM_PROVIDER" default:"github" validate:"required,oneof=github"`
+	SCMGitHubToken      string `envconfig:"SCM_GITHUB_TOKEN"`
+	SCMGitHubAPIBaseURL string `envconfig:"SCM_GITHUB_API_BASE_URL" default:"https://api.github.com" validate:"required,url"`
+}
+
+func (config BaseConfig) ApplicationRootPath() string {
+	cleanPath := filepath.Clean(strings.TrimSpace(config.ApplicationRootDirectory))
+	if cleanPath == "." || cleanPath == "" {
+		return ".agentic-orchestrator"
+	}
+	return cleanPath
+}
+
+func (config BaseConfig) RepositoriesPath() string {
+	return filepath.Join(config.ApplicationRootPath(), "repositories")
+}
+
+func (config BaseConfig) RepositorySourcePath() string {
+	return filepath.Join(config.RepositoriesPath(), "source")
+}
+
+func (config BaseConfig) WorktreesPath() string {
+	return filepath.Join(config.ApplicationRootPath(), "worktrees")
+}
+
+func (config BaseConfig) LogsPath() string {
+	return filepath.Join(config.ApplicationRootPath(), "logs")
+}
+
+func (config BaseConfig) TrackerPath() string {
+	return filepath.Join(config.ApplicationRootPath(), "tracker")
 }
 
 type APIConfig struct {
