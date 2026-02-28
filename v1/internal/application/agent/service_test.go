@@ -201,6 +201,22 @@ func TestExecuteWithCheckpointSkipsSourceState(t *testing.T) {
 	}
 }
 
+func TestExecuteWithCheckpointTokenMismatchQueriesSourceState(t *testing.T) {
+	scm := &fakeSCMPort{sourceState: domainscm.SourceState{DefaultBranch: "main", HeadSHA: "sha1"}}
+	service, err := NewService(scm)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	req := validExecutionRequest()
+	req.ResumeCheckpoint = &domainagent.Checkpoint{Step: "source_state", Token: "id-other"}
+	if executeErr := service.Execute(context.Background(), req); executeErr != nil {
+		t.Fatalf("execute with mismatched checkpoint token: %v", executeErr)
+	}
+	if scm.sourceStateCalls != 1 {
+		t.Fatalf("expected source_state call when checkpoint token mismatches, got %d calls", scm.sourceStateCalls)
+	}
+}
+
 func TestExecutePreservesTerminalClassification(t *testing.T) {
 	terminalErr := failures.WrapTerminal(errors.New("auth token revoked"))
 	scm := &fakeSCMPort{sourceStateErr: terminalErr}
