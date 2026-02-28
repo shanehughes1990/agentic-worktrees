@@ -90,7 +90,10 @@ func (adapter *GitHubAdapter) EnsureWorktree(ctx context.Context, repository dom
 	if err := spec.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "add", "-B", spec.TargetBranch, spec.Path, spec.BaseBranch); err != nil {
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "fetch", "origin", spec.BaseBranch); err != nil {
+		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+	}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "add", "-B", spec.TargetBranch, spec.Path, "origin/"+spec.BaseBranch); err != nil {
 		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
 	}
 	headSHA, err := adapter.worktreeHeadSHA(ctx, spec.Path)
@@ -216,10 +219,10 @@ func (adapter *GitHubAdapter) CreateOrUpdatePullRequest(ctx context.Context, spe
 		"base":  spec.TargetBranch,
 	}
 	var response struct {
-		Number int    `json:"number"`
+		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
-		State string `json:"state"`
-		Head struct {
+		State   string `json:"state"`
+		Head    struct {
 			SHA string `json:"sha"`
 		} `json:"head"`
 	}
@@ -241,11 +244,11 @@ func (adapter *GitHubAdapter) GetPullRequest(ctx context.Context, repository dom
 		return domainscm.PullRequestState{}, failures.WrapTerminal(fmt.Errorf("pull_request_number is required"))
 	}
 	var response struct {
-		Number int    `json:"number"`
+		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
-		State string `json:"state"`
-		Merged bool `json:"merged"`
-		Head struct {
+		State   string `json:"state"`
+		Merged  bool   `json:"merged"`
+		Head    struct {
 			SHA string `json:"sha"`
 		} `json:"head"`
 	}
@@ -296,10 +299,10 @@ func (adapter *GitHubAdapter) findOpenPullRequest(ctx context.Context, repositor
 
 	endpoint := adapter.repoPathURL(repository, "pulls") + "?" + query.Encode()
 	var response []struct {
-		Number int `json:"number"`
+		Number  int    `json:"number"`
 		HTMLURL string `json:"html_url"`
-		State string `json:"state"`
-		Head struct {
+		State   string `json:"state"`
+		Head    struct {
 			SHA string `json:"sha"`
 		} `json:"head"`
 	}

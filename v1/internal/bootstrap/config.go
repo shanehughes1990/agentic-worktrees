@@ -34,7 +34,7 @@ type BaseConfig struct {
 	SCMProvider            string `envconfig:"SCM_PROVIDER" default:"github" validate:"required,oneof=github"`
 	SCMGitHubToken         string `envconfig:"SCM_GITHUB_TOKEN"`
 	SCMGitHubAPIBaseURL    string `envconfig:"SCM_GITHUB_API_BASE_URL" default:"https://api.github.com" validate:"required,url"`
-	SCMLocalRepositoryPath string `envconfig:"SCM_LOCAL_REPOSITORY_PATH" default:"." validate:"required"`
+	SCMLocalRepositoryPath string `envconfig:"SCM_LOCAL_REPOSITORY_PATH" validate:"required"`
 }
 
 type APIConfig struct {
