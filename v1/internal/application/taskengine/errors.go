@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrInvalidEnqueueRequest                = errors.New("taskengine: invalid enqueue request")
+	ErrInvalidRemoteExecutionRequest        = errors.New("taskengine: invalid remote execution request")
 	ErrInvalidWorkerCapabilityAdvertisement = errors.New("taskengine: invalid worker capability advertisement")
 	ErrInvalidLeaseContract                 = errors.New("taskengine: invalid lease contract")
 	ErrInvalidLeaseRenewal                  = errors.New("taskengine: invalid lease renewal")
