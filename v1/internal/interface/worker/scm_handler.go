@@ -22,6 +22,7 @@ type SCMWorkflowPayload struct {
 	WorktreePath          string                 `json:"worktree_path,omitempty"`
 	BaseBranch            string                 `json:"base_branch,omitempty"`
 	TargetBranch          string                 `json:"target_branch,omitempty"`
+	SyncStrategy          string                 `json:"sync_strategy,omitempty"`
 	PullRequestID         int                    `json:"pull_request_number,omitempty"`
 	PullRequestTitle      string                 `json:"pull_request_title,omitempty"`
 	PullRequestBody       string                 `json:"pull_request_body,omitempty"`
@@ -62,8 +63,6 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode scm workflow payload: %w", err)
 	}
-	// checkpoint resume: if the orchestrator recorded a completed checkpoint for this exact
-	// operation (same step + token), the step was already done — skip re-execution safely.
 	operation := strings.TrimSpace(payload.Operation)
 	retryCheckpoint := taskengine.RetryCheckpointContract{
 		ResumeCheckpoint:      payload.ResumeCheckpoint,
@@ -82,7 +81,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 		_, err := handler.service.SourceState(ctx, applicationscm.SourceStateRequest{Repository: repository, Metadata: metadata})
 		return err
 	case "ensure_worktree":
-		_, err := handler.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: domainscm.WorktreeSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch, Path: payload.WorktreePath}, Metadata: metadata})
+		_, err := handler.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: domainscm.WorktreeSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch, Path: payload.WorktreePath, SyncStrategy: domainscm.SyncStrategy(payload.SyncStrategy)}, Metadata: metadata})
 		return err
 	case "sync_worktree":
 		_, err := handler.service.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})

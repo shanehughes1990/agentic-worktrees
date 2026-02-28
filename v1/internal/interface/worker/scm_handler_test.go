@@ -11,9 +11,10 @@ import (
 )
 
 type fakeSCMService struct {
-	called       string
-	err          error
-	lastMetadata applicationscm.Metadata
+	called                  string
+	err                     error
+	lastMetadata            applicationscm.Metadata
+	lastEnsureWorktreeSpec  domainscm.WorktreeSpec
 }
 
 func (fake *fakeSCMService) SourceState(ctx context.Context, request applicationscm.SourceStateRequest) (domainscm.SourceState, error) {
@@ -23,6 +24,7 @@ func (fake *fakeSCMService) SourceState(ctx context.Context, request application
 }
 func (fake *fakeSCMService) EnsureWorktree(ctx context.Context, request applicationscm.EnsureWorktreeRequest) (domainscm.WorktreeState, error) {
 	fake.called = "ensure_worktree"
+	fake.lastEnsureWorktreeSpec = request.Spec
 	return domainscm.WorktreeState{Path: request.Spec.Path, Branch: request.Spec.TargetBranch, Base: request.Spec.BaseBranch, HeadSHA: "abc"}, fake.err
 }
 func (fake *fakeSCMService) SyncWorktree(ctx context.Context, request applicationscm.SyncWorktreeRequest) (domainscm.WorktreeState, error) {
@@ -65,13 +67,16 @@ func TestSCMWorkflowHandlerDispatchesEnsureWorktree(t *testing.T) {
 		t.Fatalf("new handler: %v", err)
 	}
 
-	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "ensure_worktree", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1", BaseBranch: "main", TargetBranch: "feature", WorktreePath: "/tmp/worktree"})
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "ensure_worktree", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1", BaseBranch: "main", TargetBranch: "feature", WorktreePath: "/tmp/worktree", SyncStrategy: "merge"})
 	err = handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
 	if service.called != "ensure_worktree" {
 		t.Fatalf("expected ensure_worktree call, got %q", service.called)
+	}
+	if service.lastEnsureWorktreeSpec.SyncStrategy != domainscm.SyncStrategyMerge {
+		t.Fatalf("expected merge sync strategy, got %q", service.lastEnsureWorktreeSpec.SyncStrategy)
 	}
 }
 

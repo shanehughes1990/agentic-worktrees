@@ -12,10 +12,38 @@ func TestRepositoryValidateRequiresFields(t *testing.T) {
 	}
 }
 
+func TestRepoCacheKeyFromRepositoryBuildsNormalizedKey(t *testing.T) {
+	key := RepoCacheKeyFromRepository(Repository{Provider: "GitHub", Owner: "Acme", Name: "Repo"})
+	if key != RepoCacheKey("github/acme/repo") {
+		t.Fatalf("expected github/acme/repo, got %q", key)
+	}
+}
+
+func TestRepoLeaseValidateRequiresFields(t *testing.T) {
+	err := (RepoLease{}).Validate()
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
 func TestWorktreeSpecValidateRequiresFields(t *testing.T) {
 	err := (WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one"}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
+func TestWorktreeSpecValidateRejectsUnsupportedSyncStrategy(t *testing.T) {
+	err := (WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree", SyncStrategy: SyncStrategy("cherry-pick")}).Validate()
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
+func TestWorktreeSpecEffectiveSyncStrategyDefaultsToMerge(t *testing.T) {
+	spec := WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"}
+	if spec.EffectiveSyncStrategy() != SyncStrategyMerge {
+		t.Fatalf("expected merge default strategy, got %q", spec.EffectiveSyncStrategy())
 	}
 }
 

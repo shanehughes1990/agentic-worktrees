@@ -178,15 +178,28 @@ func (request CheckMergeReadinessRequest) Validate() error {
 	return request.Metadata.Validate()
 }
 
+type ensureWorktreeExecutor interface {
+	Ensure(ctx context.Context, request EnsureWorktreeRequest) (domainscm.WorktreeState, error)
+}
+
 type Service struct {
-	orchestrator domainscm.Orchestrator
+	orchestrator      domainscm.Orchestrator
+	ensureCoordinator ensureWorktreeExecutor
 }
 
 func NewService(orchestrator domainscm.Orchestrator) (*Service, error) {
+	return NewServiceWithLeaseManager(orchestrator, nil)
+}
+
+func NewServiceWithLeaseManager(orchestrator domainscm.Orchestrator, leaseManager RepoLeaseManager) (*Service, error) {
 	if orchestrator == nil {
 		return nil, failures.WrapTerminal(errors.New("scm orchestrator is required"))
 	}
-	return &Service{orchestrator: orchestrator}, nil
+	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, leaseManager)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{orchestrator: orchestrator, ensureCoordinator: coordinator}, nil
 }
 
 func (service *Service) SourceState(ctx context.Context, request SourceStateRequest) (domainscm.SourceState, error) {
@@ -207,7 +220,10 @@ func (service *Service) EnsureWorktree(ctx context.Context, request EnsureWorktr
 	if err := request.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
-	state, err := service.orchestrator.EnsureWorktree(ctx, request.Repository, request.Spec)
+	if service.ensureCoordinator == nil {
+		return domainscm.WorktreeState{}, failures.WrapTerminal(errors.New("ensure worktree coordinator is required"))
+	}
+	state, err := service.ensureCoordinator.Ensure(ctx, request)
 	if err != nil {
 		return domainscm.WorktreeState{}, ensureClassified(err)
 	}

@@ -27,6 +27,38 @@ func (repository Repository) Validate() error {
 	return nil
 }
 
+type RepoCacheKey string
+
+func RepoCacheKeyFromRepository(repository Repository) RepoCacheKey {
+	return RepoCacheKey(strings.ToLower(strings.TrimSpace(repository.Provider) + "/" + strings.TrimSpace(repository.Owner) + "/" + strings.TrimSpace(repository.Name)))
+}
+
+func (key RepoCacheKey) Validate() error {
+	if strings.TrimSpace(string(key)) == "" {
+		return failures.WrapTerminal(errors.New("repo_cache_key is required"))
+	}
+	return nil
+}
+
+type RepoLease struct {
+	CacheKey RepoCacheKey
+	OwnerID  string
+	Token    string
+}
+
+func (lease RepoLease) Validate() error {
+	if err := lease.CacheKey.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(lease.OwnerID) == "" {
+		return failures.WrapTerminal(errors.New("owner_id is required"))
+	}
+	if strings.TrimSpace(lease.Token) == "" {
+		return failures.WrapTerminal(errors.New("token is required"))
+	}
+	return nil
+}
+
 type SourceState struct {
 	DefaultBranch string
 	HeadSHA       string
@@ -42,10 +74,30 @@ func (state SourceState) Validate() error {
 	return nil
 }
 
+type SyncStrategy string
+
+const (
+	SyncStrategyMerge  SyncStrategy = "merge"
+	SyncStrategyRebase SyncStrategy = "rebase"
+)
+
+func (strategy SyncStrategy) Canonical() SyncStrategy {
+	normalized := strings.ToLower(strings.TrimSpace(string(strategy)))
+	if normalized == "" {
+		return SyncStrategyMerge
+	}
+	return SyncStrategy(normalized)
+}
+
 type WorktreeSpec struct {
 	BaseBranch   string
 	TargetBranch string
 	Path         string
+	SyncStrategy SyncStrategy
+}
+
+func (spec WorktreeSpec) EffectiveSyncStrategy() SyncStrategy {
+	return spec.SyncStrategy.Canonical()
 }
 
 func (spec WorktreeSpec) Validate() error {
@@ -57,6 +109,11 @@ func (spec WorktreeSpec) Validate() error {
 	}
 	if strings.TrimSpace(spec.Path) == "" {
 		return failures.WrapTerminal(errors.New("path is required"))
+	}
+	switch spec.EffectiveSyncStrategy() {
+	case SyncStrategyMerge, SyncStrategyRebase:
+	default:
+		return failures.WrapTerminal(fmt.Errorf("unsupported sync strategy %q", spec.SyncStrategy))
 	}
 	return nil
 }

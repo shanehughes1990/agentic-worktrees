@@ -10,24 +10,26 @@ import (
 )
 
 type fakeOrchestrator struct {
-	sourceStateResult     domainscm.SourceState
-	worktreeStateResult   domainscm.WorktreeState
-	branchStateResult     domainscm.BranchState
-	pullRequestState      domainscm.PullRequestState
-	reviewDecision        domainscm.ReviewDecision
-	mergeReadiness        domainscm.MergeReadiness
-	sourceStateErr        error
-	ensureWorktreeErr     error
-	cleanupWorktreeErr    error
-	createPullRequestErr  error
+	sourceStateResult      domainscm.SourceState
+	worktreeStateResult    domainscm.WorktreeState
+	branchStateResult      domainscm.BranchState
+	pullRequestState       domainscm.PullRequestState
+	reviewDecision         domainscm.ReviewDecision
+	mergeReadiness         domainscm.MergeReadiness
+	sourceStateErr         error
+	ensureWorktreeErr      error
+	cleanupWorktreeErr     error
+	createPullRequestErr   error
 	checkMergeReadinessErr error
+	capturedWorktreeSpec   domainscm.WorktreeSpec
 }
 
 func (fake *fakeOrchestrator) SourceState(_ context.Context, _ domainscm.Repository) (domainscm.SourceState, error) {
 	return fake.sourceStateResult, fake.sourceStateErr
 }
 
-func (fake *fakeOrchestrator) EnsureWorktree(_ context.Context, _ domainscm.Repository, _ domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
+func (fake *fakeOrchestrator) EnsureWorktree(_ context.Context, _ domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
+	fake.capturedWorktreeSpec = spec
 	return fake.worktreeStateResult, fake.ensureWorktreeErr
 }
 
@@ -108,6 +110,59 @@ func TestEnsureWorktreeClassifiesUnknownErrorsAsTransient(t *testing.T) {
 	if !failures.IsClass(ensureErr, failures.ClassTransient) {
 		t.Fatalf("expected transient error, got %q (%v)", failures.ClassOf(ensureErr), ensureErr)
 	}
+}
+
+func TestEnsureWorktreeDefaultsSyncStrategyToMerge(t *testing.T) {
+	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{
+		Path:    "/tmp/worktrees/run-1-task-1",
+		Branch:  "feature/one",
+		Base:    "main",
+		HeadSHA: "abc123",
+	}}
+	service, err := NewService(orchestrator)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, ensureErr := service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
+		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktrees/run-1-task-1"},
+		Metadata:   validMetadata(),
+	})
+	if ensureErr != nil {
+		t.Fatalf("ensure worktree: %v", ensureErr)
+	}
+	if orchestrator.capturedWorktreeSpec.SyncStrategy != domainscm.SyncStrategyMerge {
+		t.Fatalf("expected sync strategy merge, got %q", orchestrator.capturedWorktreeSpec.SyncStrategy)
+	}
+}
+
+func TestEnsureWorktreePanicsWhenRebaseStrategyIsSelected(t *testing.T) {
+	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{
+		Path:    "/tmp/worktrees/run-1-task-1",
+		Branch:  "feature/one",
+		Base:    "main",
+		HeadSHA: "abc123",
+	}}
+	service, err := NewService(orchestrator)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic for rebase sync strategy")
+		}
+	}()
+	_, _ = service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
+		Spec: domainscm.WorktreeSpec{
+			BaseBranch:   "main",
+			TargetBranch: "feature/one",
+			Path:         "/tmp/worktrees/run-1-task-1",
+			SyncStrategy: domainscm.SyncStrategyRebase,
+		},
+		Metadata: validMetadata(),
+	})
 }
 
 func TestCreateOrUpdatePullRequestReturnsState(t *testing.T) {

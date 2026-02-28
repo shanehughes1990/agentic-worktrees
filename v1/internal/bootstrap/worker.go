@@ -60,7 +60,8 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init github scm adapter: %w", err)
 	}
-	scmService, err := applicationscm.NewService(githubAdapter)
+	repoLeaseManager := infrascm.NewInMemoryRepoLeaseManager()
+	scmService, err := applicationscm.NewServiceWithLeaseManager(githubAdapter, repoLeaseManager)
 	if err != nil {
 		return nil, fmt.Errorf("init scm service: %w", err)
 	}
