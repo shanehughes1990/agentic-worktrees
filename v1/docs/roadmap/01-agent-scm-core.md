@@ -64,7 +64,7 @@ Implement agent-facing SCM orchestration that consumes Part 01A SCM contracts fo
 
 ### Part 01B Task Checklist
 
-- [ ] Define `internal/domain/agent` contracts that reference SCM capabilities through ports.
+- [x] Define `internal/domain/agent` contracts that reference SCM capabilities through ports.
 - [ ] Implement `internal/application/agent` orchestration for SCM-driven execution/session flows.
 - [ ] Add correlation and idempotency contract alignment between agent workflows and SCM operations.
 - [ ] Add checkpoint/resume boundaries for long-running agent+SCM orchestration.
