@@ -53,8 +53,11 @@ func TestExecutionRequestValidateRequiresMetadata(t *testing.T) {
 
 func TestSessionIntrospectionRequestValidateRequiresMetadata(t *testing.T) {
 	err := (SessionIntrospectionRequest{
-		SessionID: "session-1",
-		Metadata:  Metadata{},
+		Session: SessionRef{
+			SessionID:  "session-1",
+			Repository: validRepository(),
+		},
+		Metadata: Metadata{},
 	}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)

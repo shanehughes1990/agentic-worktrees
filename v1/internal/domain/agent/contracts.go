@@ -71,13 +71,13 @@ func (request ExecutionRequest) Validate() error {
 }
 
 type SessionIntrospectionRequest struct {
-	SessionID string
-	Metadata  Metadata
+	Session  SessionRef
+	Metadata Metadata
 }
 
 func (request SessionIntrospectionRequest) Validate() error {
-	if strings.TrimSpace(request.SessionID) == "" {
-		return failures.WrapTerminal(errors.New("session_id is required"))
+	if err := request.Session.Validate(); err != nil {
+		return err
 	}
 	return request.Metadata.Validate()
 }
