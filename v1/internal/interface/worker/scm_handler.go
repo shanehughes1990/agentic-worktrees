@@ -10,14 +10,6 @@ import (
 	"strings"
 )
 
-// SCMWorkflowCheckpoint carries the step name and idempotency token of a previously
-// completed SCM operation. When present in the payload, the handler skips re-executing
-// the matching operation, enabling safe resume after a transient failure.
-type SCMWorkflowCheckpoint struct {
-	Step  string `json:"step"`
-	Token string `json:"token"`
-}
-
 type SCMWorkflowPayload struct {
 	Operation           string                 `json:"operation"`
 	Provider            string                 `json:"provider"`
@@ -35,7 +27,7 @@ type SCMWorkflowPayload struct {
 	PullRequestBody     string                 `json:"pull_request_body,omitempty"`
 	ReviewDecision      string                 `json:"review_decision,omitempty"`
 	ReviewBody          string                 `json:"review_body,omitempty"`
-	CompletedCheckpoint *SCMWorkflowCheckpoint `json:"completed_checkpoint,omitempty"`
+	CompletedCheckpoint *taskengine.Checkpoint `json:"completed_checkpoint,omitempty"`
 }
 
 type scmService interface {
@@ -70,7 +62,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	// checkpoint resume: if the orchestrator recorded a completed checkpoint for this exact
 	// operation (same step + token), the step was already done — skip re-execution safely.
 	operation := strings.TrimSpace(payload.Operation)
-	if cp := payload.CompletedCheckpoint; cp != nil && cp.Step == operation && cp.Token == payload.IdempotencyKey {
+	if taskengine.CheckpointMatches(payload.CompletedCheckpoint, operation, payload.IdempotencyKey) {
 		return nil
 	}
 	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}

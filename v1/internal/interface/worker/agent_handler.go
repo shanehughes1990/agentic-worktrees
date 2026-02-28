@@ -11,17 +11,18 @@ import (
 )
 
 type AgentWorkflowPayload struct {
-	SessionID             string `json:"session_id"`
-	Prompt                string `json:"prompt"`
-	Provider              string `json:"provider"`
-	Owner                 string `json:"owner"`
-	Repository            string `json:"repository"`
-	RunID                 string `json:"run_id"`
-	TaskID                string `json:"task_id"`
-	JobID                 string `json:"job_id"`
-	IdempotencyKey        string `json:"idempotency_key"`
-	ResumeCheckpointStep  string `json:"resume_checkpoint_step,omitempty"`
-	ResumeCheckpointToken string `json:"resume_checkpoint_token,omitempty"`
+	SessionID             string                 `json:"session_id"`
+	Prompt                string                 `json:"prompt"`
+	Provider              string                 `json:"provider"`
+	Owner                 string                 `json:"owner"`
+	Repository            string                 `json:"repository"`
+	RunID                 string                 `json:"run_id"`
+	TaskID                string                 `json:"task_id"`
+	JobID                 string                 `json:"job_id"`
+	IdempotencyKey        string                 `json:"idempotency_key"`
+	ResumeCheckpoint      *taskengine.Checkpoint `json:"resume_checkpoint,omitempty"`
+	ResumeCheckpointStep  string                 `json:"resume_checkpoint_step,omitempty"`
+	ResumeCheckpointToken string                 `json:"resume_checkpoint_token,omitempty"`
 }
 
 type agentService interface {
@@ -65,10 +66,17 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 			IdempotencyKey: payload.IdempotencyKey,
 		},
 	}
-	if payload.ResumeCheckpointStep != "" && payload.ResumeCheckpointToken != "" {
-		request.ResumeCheckpoint = &domainagent.Checkpoint{
+	resumeCheckpoint := payload.ResumeCheckpoint
+	if resumeCheckpoint == nil && payload.ResumeCheckpointStep != "" && payload.ResumeCheckpointToken != "" {
+		resumeCheckpoint = &taskengine.Checkpoint{
 			Step:  payload.ResumeCheckpointStep,
 			Token: payload.ResumeCheckpointToken,
+		}
+	}
+	if resumeCheckpoint != nil {
+		request.ResumeCheckpoint = &domainagent.Checkpoint{
+			Step:  resumeCheckpoint.Step,
+			Token: resumeCheckpoint.Token,
 		}
 	}
 	return handler.service.Execute(ctx, request)

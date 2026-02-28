@@ -118,7 +118,7 @@ func TestSCMWorkflowHandlerSkipsOperationWhenCheckpointMatches(t *testing.T) {
 	payload, _ := json.Marshal(SCMWorkflowPayload{
 		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
 		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
-		CompletedCheckpoint: &SCMWorkflowCheckpoint{Step: "source_state", Token: "id-1"},
+		CompletedCheckpoint: &taskengine.Checkpoint{Step: "source_state", Token: "id-1"},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
 		t.Fatalf("handle: %v", err)
@@ -137,7 +137,7 @@ func TestSCMWorkflowHandlerExecutesWhenCheckpointStepDiffers(t *testing.T) {
 	payload, _ := json.Marshal(SCMWorkflowPayload{
 		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
 		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
-		CompletedCheckpoint: &SCMWorkflowCheckpoint{Step: "ensure_worktree", Token: "id-1"},
+		CompletedCheckpoint: &taskengine.Checkpoint{Step: "ensure_worktree", Token: "id-1"},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
 		t.Fatalf("handle: %v", err)

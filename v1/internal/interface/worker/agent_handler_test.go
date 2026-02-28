@@ -115,3 +115,38 @@ func TestAgentWorkflowHandlerPropagatesResumeCheckpoint(t *testing.T) {
 		t.Fatalf("expected checkpoint token id-1, got %q", service.request.ResumeCheckpoint.Token)
 	}
 }
+
+func TestAgentWorkflowHandlerPropagatesResumeCheckpointObject(t *testing.T) {
+	service := &fakeAgentService{}
+	handler, err := NewAgentWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(AgentWorkflowPayload{
+		SessionID:      "session-1",
+		Prompt:         "run analysis",
+		Provider:       "github",
+		Owner:          "acme",
+		Repository:     "repo",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		JobID:          "job-1",
+		IdempotencyKey: "id-1",
+		ResumeCheckpoint: &taskengine.Checkpoint{
+			Step:  "source_state",
+			Token: "id-1",
+		},
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindAgentWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.request.ResumeCheckpoint == nil {
+		t.Fatalf("expected resume checkpoint to be populated")
+	}
+	if service.request.ResumeCheckpoint.Step != "source_state" {
+		t.Fatalf("expected checkpoint step source_state, got %q", service.request.ResumeCheckpoint.Step)
+	}
+	if service.request.ResumeCheckpoint.Token != "id-1" {
+		t.Fatalf("expected checkpoint token id-1, got %q", service.request.ResumeCheckpoint.Token)
+	}
+}
