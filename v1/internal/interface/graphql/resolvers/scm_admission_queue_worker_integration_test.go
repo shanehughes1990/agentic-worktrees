@@ -14,13 +14,27 @@ import (
 )
 
 type integrationQueueEngine struct {
-	requests []taskengine.EnqueueRequest
+	requests            []taskengine.EnqueueRequest
+	seenIdempotencyKeys map[string]struct{}
 }
 
 func (engine *integrationQueueEngine) Enqueue(ctx context.Context, request taskengine.EnqueueRequest) (taskengine.EnqueueResult, error) {
 	_ = ctx
+	if request.IdempotencyKey != "" {
+		if engine.seenIdempotencyKeys == nil {
+			engine.seenIdempotencyKeys = make(map[string]struct{})
+		}
+		if _, exists := engine.seenIdempotencyKeys[request.IdempotencyKey]; exists {
+			return taskengine.EnqueueResult{QueueTaskID: request.IdempotencyKey, Duplicate: true}, nil
+		}
+		engine.seenIdempotencyKeys[request.IdempotencyKey] = struct{}{}
+	}
 	engine.requests = append(engine.requests, request)
-	return taskengine.EnqueueResult{QueueTaskID: fmt.Sprintf("queue-task-%d", len(engine.requests))}, nil
+	queueTaskID := fmt.Sprintf("queue-task-%d", len(engine.requests))
+	if request.IdempotencyKey != "" {
+		queueTaskID = request.IdempotencyKey
+	}
+	return taskengine.EnqueueResult{QueueTaskID: queueTaskID}, nil
 }
 
 func (engine *integrationQueueEngine) dispatchNext(ctx context.Context, handler taskengine.Handler) error {
@@ -116,8 +130,8 @@ func TestSCMAdmissionQueueWorkerAdapterFixtureSourceStatePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("enqueue scm workflow: %v", err)
 	}
-	if result.QueueTaskID != "queue-task-1" {
-		t.Fatalf("expected queue task id queue-task-1, got %q", result.QueueTaskID)
+	if result.QueueTaskID != "id-1" {
+		t.Fatalf("expected queue task id id-1, got %q", result.QueueTaskID)
 	}
 	if len(fixture.queue.requests) != 1 {
 		t.Fatalf("expected one queued request, got %d", len(fixture.queue.requests))
@@ -125,11 +139,58 @@ func TestSCMAdmissionQueueWorkerAdapterFixtureSourceStatePath(t *testing.T) {
 	if fixture.queue.requests[0].Queue != "scm" {
 		t.Fatalf("expected scm queue, got %q", fixture.queue.requests[0].Queue)
 	}
+	if fixture.queue.requests[0].IdempotencyKey != "id-1" {
+		t.Fatalf("expected deterministic idempotency key id-1, got %q", fixture.queue.requests[0].IdempotencyKey)
+	}
 
 	if err := fixture.queue.dispatchNext(context.Background(), fixture.handler); err != nil {
 		t.Fatalf("dispatch queued scm workflow: %v", err)
 	}
 	if !fixture.repositoryEndpointCalled || !fixture.commitEndpointCalled {
 		t.Fatalf("expected API admission -> queue -> worker -> scm adapter path to call repository and commit endpoints")
+	}
+}
+
+func TestSCMAdmissionEnqueuesExactlyOneJobForDeterministicIdempotencyKey(t *testing.T) {
+	fixture := newSCMAdmissionQueueWorkerAdapterFixture(t)
+	defer fixture.close()
+
+	input := models.EnqueueSCMWorkflowInput{
+		Operation:      "source_state",
+		Provider:       "github",
+		Owner:          "acme",
+		Repository:     "repo",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		JobID:          "job-1",
+		IdempotencyKey: "id-deterministic",
+	}
+
+	first, firstErr := fixture.resolver.Mutation().EnqueueScmWorkflow(context.Background(), input)
+	if firstErr != nil {
+		t.Fatalf("first enqueue scm workflow: %v", firstErr)
+	}
+	if first.QueueTaskID != "id-deterministic" {
+		t.Fatalf("expected first queue task id id-deterministic, got %q", first.QueueTaskID)
+	}
+	if first.Duplicate {
+		t.Fatalf("expected first enqueue to not be duplicate")
+	}
+
+	second, secondErr := fixture.resolver.Mutation().EnqueueScmWorkflow(context.Background(), input)
+	if secondErr != nil {
+		t.Fatalf("second enqueue scm workflow: %v", secondErr)
+	}
+	if second.QueueTaskID != "id-deterministic" {
+		t.Fatalf("expected second queue task id id-deterministic, got %q", second.QueueTaskID)
+	}
+	if !second.Duplicate {
+		t.Fatalf("expected second enqueue to be marked duplicate")
+	}
+	if len(fixture.queue.requests) != 1 {
+		t.Fatalf("expected exactly one queued request, got %d", len(fixture.queue.requests))
+	}
+	if fixture.queue.requests[0].IdempotencyKey != "id-deterministic" {
+		t.Fatalf("expected queued idempotency key id-deterministic, got %q", fixture.queue.requests[0].IdempotencyKey)
 	}
 }
