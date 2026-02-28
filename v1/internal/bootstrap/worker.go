@@ -6,7 +6,6 @@ import (
 	"agentic-orchestrator/internal/application/taskengine"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
-	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
 	"context"
@@ -22,9 +21,15 @@ type WorkerApp struct {
 	observabilityPlatform *observability.Platform
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
-	taskEnginePlatform    *asynqengine.Platform
+	taskEnginePlatform    taskengine.Consumer
 	agentService          *applicationagent.Service
 	scmService            *applicationscm.Service
+}
+
+type workerJobRegistration struct {
+	kind    taskengine.JobKind
+	handler taskengine.Handler
+	label   string
 }
 
 func InitWorker() (*WorkerApp, error) {
@@ -86,22 +91,25 @@ func (app *WorkerApp) Run() error {
 	}
 
 	ingestionHandler := workerinterface.NewIngestionAgentHandler()
-	if err := app.taskEnginePlatform.Register(taskengine.JobKindIngestionAgent, ingestionHandler); err != nil {
-		return fmt.Errorf("register ingestion agent handler: %w", err)
-	}
 	agentHandler, err := workerinterface.NewAgentWorkflowHandler(app.agentService)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)
-	}
-	if err := app.taskEnginePlatform.Register(taskengine.JobKindAgentWorkflow, agentHandler); err != nil {
-		return fmt.Errorf("register agent workflow handler: %w", err)
 	}
 	scmHandler, err := workerinterface.NewSCMWorkflowHandler(app.scmService)
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}
-	if err := app.taskEnginePlatform.Register(taskengine.JobKindSCMWorkflow, scmHandler); err != nil {
-		return fmt.Errorf("register scm workflow handler: %w", err)
+	if err := registerWorkerJobs(
+		context.Background(),
+		app.taskEnginePlatform,
+		fmt.Sprintf("%s-worker-%d", strings.TrimSpace(app.config.ServiceName), app.config.WorkerPort),
+		[]workerJobRegistration{
+			{kind: taskengine.JobKindIngestionAgent, handler: ingestionHandler, label: "ingestion agent"},
+			{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
+			{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
+		},
+	); err != nil {
+		return err
 	}
 	if err := app.taskEnginePlatform.Start(); err != nil {
 		if entry != nil {
@@ -143,4 +151,35 @@ func (app *WorkerApp) Run() error {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
 	return shutdownErr
+}
+
+func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, registrations []workerJobRegistration) error {
+	if consumer == nil {
+		return fmt.Errorf("task engine platform is not initialized")
+	}
+
+	capabilities := make([]taskengine.WorkerCapability, 0, len(registrations))
+	for _, registration := range registrations {
+		if err := consumer.Register(registration.kind, registration.handler); err != nil {
+			return fmt.Errorf("register %s handler: %w", registration.label, err)
+		}
+		capabilities = append(capabilities, taskengine.WorkerCapability{Kind: registration.kind})
+	}
+
+	advertiser, ok := consumer.(taskengine.WorkerCapabilityAdvertiser)
+	if !ok {
+		return nil
+	}
+
+	advertisement := taskengine.WorkerCapabilityAdvertisement{
+		WorkerID:     workerID,
+		Capabilities: capabilities,
+	}
+	if err := advertisement.Validate(); err != nil {
+		return fmt.Errorf("advertise worker capabilities: %w", err)
+	}
+	if err := advertiser.Advertise(ctx, advertisement); err != nil {
+		return fmt.Errorf("advertise worker capabilities: %w", err)
+	}
+	return nil
 }
