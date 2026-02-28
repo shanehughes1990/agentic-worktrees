@@ -20,7 +20,30 @@ func (runner *failIfCalledGitRunner) Run(ctx context.Context, directory string, 
 	return "", fmt.Errorf("unexpected git runner call: %v", arguments)
 }
 
-func TestSCMWorkflowHandlerSourceStateIntegration(t *testing.T) {
+type queuedSCMEngine struct {
+	requests []taskengine.EnqueueRequest
+}
+
+func (engine *queuedSCMEngine) Enqueue(ctx context.Context, request taskengine.EnqueueRequest) (taskengine.EnqueueResult, error) {
+	_ = ctx
+	engine.requests = append(engine.requests, request)
+	return taskengine.EnqueueResult{QueueTaskID: fmt.Sprintf("queue-task-%d", len(engine.requests))}, nil
+}
+
+func (engine *queuedSCMEngine) dispatchNext(ctx context.Context, handler taskengine.Handler) error {
+	if len(engine.requests) == 0 {
+		return fmt.Errorf("no queued requests")
+	}
+	request := engine.requests[0]
+	engine.requests = engine.requests[1:]
+	return handler.Handle(ctx, taskengine.Job{
+		Kind:        request.Kind,
+		QueueTaskID: request.IdempotencyKey,
+		Payload:     request.Payload,
+	})
+}
+
+func TestSCMWorkflowHandlerExecutesQueuedSourceStateJobViaGitHubAdapter(t *testing.T) {
 	repositoryEndpointCalled := false
 	commitEndpointCalled := false
 
@@ -53,6 +76,12 @@ func TestSCMWorkflowHandlerSourceStateIntegration(t *testing.T) {
 		t.Fatalf("new scm service: %v", err)
 	}
 
+	queueEngine := &queuedSCMEngine{}
+	scheduler, err := taskengine.NewScheduler(queueEngine, taskengine.DefaultPolicies())
+	if err != nil {
+		t.Fatalf("new scheduler: %v", err)
+	}
+
 	handler, err := NewSCMWorkflowHandler(scmService)
 	if err != nil {
 		t.Fatalf("new scm workflow handler: %v", err)
@@ -72,14 +101,28 @@ func TestSCMWorkflowHandlerSourceStateIntegration(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	handleErr := handler.Handle(context.Background(), taskengine.Job{
-		Kind:    taskengine.JobKindSCMWorkflow,
-		Payload: payload,
+	enqueueResult, err := scheduler.Enqueue(context.Background(), taskengine.EnqueueRequest{
+		Kind:           taskengine.JobKindSCMWorkflow,
+		Payload:        payload,
+		IdempotencyKey: "id-1",
 	})
-	if handleErr != nil {
-		t.Fatalf("handle scm workflow job: %v", handleErr)
+	if err != nil {
+		t.Fatalf("enqueue scm workflow job: %v", err)
+	}
+	if enqueueResult.QueueTaskID != "queue-task-1" {
+		t.Fatalf("expected queue task id queue-task-1, got %q", enqueueResult.QueueTaskID)
+	}
+	if len(queueEngine.requests) != 1 {
+		t.Fatalf("expected one queued request, got %d", len(queueEngine.requests))
+	}
+	if queueEngine.requests[0].Queue != "scm" {
+		t.Fatalf("expected scm queue, got %q", queueEngine.requests[0].Queue)
+	}
+
+	if err := queueEngine.dispatchNext(context.Background(), handler); err != nil {
+		t.Fatalf("dispatch scm workflow job: %v", err)
 	}
 	if !repositoryEndpointCalled || !commitEndpointCalled {
-		t.Fatalf("expected source_state integration to call both repository and commit endpoints")
+		t.Fatalf("expected queued scm workflow to call repository and commit endpoints")
 	}
 }
