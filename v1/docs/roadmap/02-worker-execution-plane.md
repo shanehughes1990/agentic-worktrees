@@ -12,7 +12,7 @@ Deliver one execution plane that supports local and remote workers with shared d
 - [x] Register at least one worker handler through the task engine path.
 - [x] Define worker capability advertisement contract.
 - [ ] Implement lease ownership/renewal model.
-- [ ] Implement checkpoint/resume contract across retries and worker boundaries.
+- [x] Implement checkpoint/resume contract across retries and worker boundaries.
 - [x] Define and implement remote worker adapter contract.
 - [ ] Implement SCM-backed remote bootstrap sequence.
 - [ ] Add end-to-end local+remote parity integration tests.

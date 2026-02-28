@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"agentic-orchestrator/internal/application/taskengine"
 	domainagent "agentic-orchestrator/internal/domain/agent"
 	"agentic-orchestrator/internal/domain/failures"
 	"context"
@@ -25,8 +26,12 @@ func (service *Service) Execute(ctx context.Context, request domainagent.Executi
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	var checkpoint *taskengine.Checkpoint
+	if request.ResumeCheckpoint != nil {
+		checkpoint = &taskengine.Checkpoint{Step: request.ResumeCheckpoint.Step, Token: request.ResumeCheckpoint.Token}
+	}
 	// checkpoint resume: skip source_state if a prior run already completed it.
-	if request.ResumeCheckpoint == nil || request.ResumeCheckpoint.Step != "source_state" {
+	if !taskengine.CheckpointMatches(checkpoint, "source_state", request.Metadata.IdempotencyKey) {
 		sourceState, err := service.scm.SourceState(ctx, request.Session.Repository)
 		if err != nil {
 			return ensureClassified(err)

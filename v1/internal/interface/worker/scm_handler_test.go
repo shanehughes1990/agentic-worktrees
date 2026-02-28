@@ -118,7 +118,7 @@ func TestSCMWorkflowHandlerSkipsOperationWhenCheckpointMatches(t *testing.T) {
 	payload, _ := json.Marshal(SCMWorkflowPayload{
 		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
 		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
-		CompletedCheckpoint: &SCMWorkflowCheckpoint{Step: "source_state", Token: "id-1"},
+		CompletedCheckpoint: &taskengine.Checkpoint{Step: "source_state", Token: "id-1"},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
 		t.Fatalf("handle: %v", err)
@@ -137,12 +137,31 @@ func TestSCMWorkflowHandlerExecutesWhenCheckpointStepDiffers(t *testing.T) {
 	payload, _ := json.Marshal(SCMWorkflowPayload{
 		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
 		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
-		CompletedCheckpoint: &SCMWorkflowCheckpoint{Step: "ensure_worktree", Token: "id-1"},
+		CompletedCheckpoint: &taskengine.Checkpoint{Step: "ensure_worktree", Token: "id-1"},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
 	if service.called != "source_state" {
 		t.Fatalf("expected source_state call when checkpoint step differs, got %q", service.called)
+	}
+}
+
+func TestSCMWorkflowHandlerSkipsOperationWhenResumeCheckpointMatches(t *testing.T) {
+	service := &fakeSCMService{}
+	handler, err := NewSCMWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{
+		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
+		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
+		ResumeCheckpoint: &taskengine.Checkpoint{Step: "source_state", Token: "id-1"},
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.called != "" {
+		t.Fatalf("expected no service call when resume checkpoint matches, got %q", service.called)
 	}
 }
