@@ -64,6 +64,27 @@ func TestEnsureWorktreeCoordinatorAcquiresAndReleasesLease(t *testing.T) {
 	}
 }
 
+func TestEnsureWorktreeCoordinatorReleasesLeaseWhenEnsureFails(t *testing.T) {
+	orchestrator := &fakeOrchestrator{ensureWorktreeErr: errors.New("git fetch failed")}
+	leaseManager := &fakeLeaseManager{}
+	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, leaseManager)
+	if err != nil {
+		t.Fatalf("new coordinator: %v", err)
+	}
+
+	_, ensureErr := coordinator.Ensure(context.Background(), EnsureWorktreeRequest{
+		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
+		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"},
+		Metadata: Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, IdempotencyKey: "id-1"},
+	})
+	if ensureErr == nil {
+		t.Fatalf("expected ensure error")
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("expected release call on ensure failure, got %d", leaseManager.releaseCalls)
+	}
+}
+
 func TestEnsureWorktreeCoordinatorPropagatesAcquireError(t *testing.T) {
 	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{Path: "/tmp/worktree", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
 	leaseManager := &fakeLeaseManager{acquireErr: errors.New("lease busy")}

@@ -65,6 +65,21 @@ func (fake *fakeOrchestrator) CheckMergeReadiness(_ context.Context, _ domainscm
 	return fake.mergeReadiness, fake.checkMergeReadinessErr
 }
 
+type fakeLeaseManagerForService struct {
+	acquireErr error
+}
+
+func (fake *fakeLeaseManagerForService) Acquire(_ context.Context, request RepoLeaseAcquireRequest) (domainscm.RepoLease, error) {
+	if fake.acquireErr != nil {
+		return domainscm.RepoLease{}, fake.acquireErr
+	}
+	return domainscm.RepoLease{CacheKey: request.CacheKey, OwnerID: request.OwnerID, Token: request.Token}, nil
+}
+
+func (fake *fakeLeaseManagerForService) Release(_ context.Context, _ domainscm.RepoLease) error {
+	return nil
+}
+
 func validMetadata() Metadata {
 	return Metadata{
 		CorrelationIDs: taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"},
@@ -109,6 +124,23 @@ func TestEnsureWorktreeClassifiesUnknownErrorsAsTransient(t *testing.T) {
 	})
 	if !failures.IsClass(ensureErr, failures.ClassTransient) {
 		t.Fatalf("expected transient error, got %q (%v)", failures.ClassOf(ensureErr), ensureErr)
+	}
+}
+
+func TestEnsureWorktreeClassifiesLeaseAcquireUnknownErrorAsTransient(t *testing.T) {
+	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{Path: "/tmp/worktree", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
+	service, err := NewServiceWithLeaseManager(orchestrator, &fakeLeaseManagerForService{acquireErr: errors.New("lease backend unavailable")})
+	if err != nil {
+		t.Fatalf("new service with lease manager: %v", err)
+	}
+
+	_, ensureErr := service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
+		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"},
+		Metadata:   validMetadata(),
+	})
+	if !failures.IsClass(ensureErr, failures.ClassTransient) {
+		t.Fatalf("expected transient lease acquire error, got %q (%v)", failures.ClassOf(ensureErr), ensureErr)
 	}
 }
 
