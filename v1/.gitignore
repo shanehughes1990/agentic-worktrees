@@ -1,0 +1,6 @@
+# Ignore local environment files in v1 only
+.env
+.env.*
+
+# Keep committed env template
+!.example.env
