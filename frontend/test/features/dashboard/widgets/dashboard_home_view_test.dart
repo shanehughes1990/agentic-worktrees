@@ -30,36 +30,14 @@ void main() {
     scmRepoController = TextEditingController(text: 'repo');
 
     when(api.sessions(limit: anyNamed('limit'))).thenAnswer(
-      (_) async => ApiResult<List<SessionSummary>>.success(
-        <SessionSummary>[sampleSession()],
-      ),
+      (_) async => ApiResult<List<SessionSummary>>.success(<SessionSummary>[
+        sampleSession(),
+      ]),
     );
     when(api.workers(limit: anyNamed('limit'))).thenAnswer(
-      (_) async => ApiResult<List<WorkerSummary>>.success(
-        <WorkerSummary>[sampleWorkerSummary()],
-      ),
-    );
-    when(
-      api.workflowJobs(
-        runID: anyNamed('runID'),
-        taskID: anyNamed('taskID'),
-        limit: anyNamed('limit'),
-      ),
-    ).thenAnswer(
-      (_) async => ApiResult<List<WorkflowJob>>.success(
-        <WorkflowJob>[sampleWorkflowJob()],
-      ),
-    );
-    when(
-      api.supervisorHistory(
-        runID: anyNamed('runID'),
-        taskID: anyNamed('taskID'),
-        jobID: anyNamed('jobID'),
-      ),
-    ).thenAnswer(
-      (_) async => ApiResult<List<SupervisorDecision>>.success(
-        <SupervisorDecision>[sampleSupervisorDecision()],
-      ),
+      (_) async => ApiResult<List<WorkerSummary>>.success(<WorkerSummary>[
+        sampleWorkerSummary(),
+      ]),
     );
   });
 
@@ -78,10 +56,6 @@ void main() {
     WidgetTester tester, {
     SessionSummary? selectedSession,
     required ValueChanged<SessionSummary> onSessionSelected,
-    required ValueChanged<WorkflowJob> onJobSelected,
-    required VoidCallback onEnqueueIngestion,
-    required VoidCallback onApproveIssue,
-    required VoidCallback onEnqueueScm,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -106,34 +80,32 @@ void main() {
             scmOwnerController: scmOwnerController,
             scmRepoController: scmRepoController,
             isRunningAction: false,
-            onJobSelected: onJobSelected,
-            onEnqueueIngestion: onEnqueueIngestion,
-            onApproveIssue: onApproveIssue,
-            onEnqueueScm: onEnqueueScm,
+            onJobSelected: (_) {},
+            onEnqueueIngestion: () {},
+            onApproveIssue: () {},
+            onEnqueueScm: () {},
           ),
         ),
       ),
     );
   }
 
-  testWidgets('shows prompt when no selected session', (WidgetTester tester) async {
-    await pumpSubject(
-      tester,
-      selectedSession: null,
-      onSessionSelected: (_) {},
-      onJobSelected: (_) {},
-      onEnqueueIngestion: () {},
-      onApproveIssue: () {},
-      onEnqueueScm: () {},
-    );
+  testWidgets('renders stat cards and configured projects list', (
+    WidgetTester tester,
+  ) async {
+    await pumpSubject(tester, selectedSession: null, onSessionSelected: (_) {});
 
     await tester.pumpAndSettle();
 
+    expect(find.text('Summary'), findsOneWidget);
+    expect(find.text('Sessions'), findsOneWidget);
+    expect(find.text('Workers'), findsOneWidget);
+    expect(find.text('Jobs'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
     expect(find.text('Configured Projects'), findsOneWidget);
-    expect(find.text('Select a session to view details.'), findsOneWidget);
   });
 
-  testWidgets('calls onSessionSelected when a session row is tapped', (
+  testWidgets('traverses into sessions card and selects a session', (
     WidgetTester tester,
   ) async {
     SessionSummary? selected;
@@ -142,15 +114,15 @@ void main() {
       tester,
       selectedSession: sampleSession(),
       onSessionSelected: (SessionSummary s) => selected = s,
-      onJobSelected: (_) {},
-      onEnqueueIngestion: () {},
-      onApproveIssue: () {},
-      onEnqueueScm: () {},
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.text('run-1').first);
-    await tester.pump();
+
+    await tester.tap(find.text('Sessions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('run-1').last);
+    await tester.pumpAndSettle();
 
     expect(selected?.runID, 'run-1');
   });

@@ -397,26 +397,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _statusMessage = 'Selected session ${session.runID}';
     });
     _streamSubscription?.cancel();
-    _streamSubscription = api
-        .sessionActivityStream(runID: session.runID)
-        .listen((ApiResult<StreamEvent> eventResult) {
-          if (!mounted) {
-            return;
-          }
-          if (!eventResult.isSuccess || eventResult.data == null) {
-            setState(
-              () =>
-                  _statusMessage = 'Stream error: ${DashboardWorkflowLogic.compactError(eventResult.errorMessage)}',
-            );
-            return;
-          }
-          setState(() {
-            DashboardWorkflowLogic.appendStreamEvent(
-              _streamEvents,
-              eventResult.data!,
-            );
-          });
-        });
+    _streamSubscription = api.sessionActivityStream(runID: session.runID).listen((
+      ApiResult<StreamEvent> eventResult,
+    ) {
+      if (!mounted) {
+        return;
+      }
+      if (!eventResult.isSuccess || eventResult.data == null) {
+        setState(
+          () => _statusMessage =
+              'Stream error: ${DashboardWorkflowLogic.compactError(eventResult.errorMessage)}',
+        );
+        return;
+      }
+      setState(() {
+        DashboardWorkflowLogic.appendStreamEvent(
+          _streamEvents,
+          eventResult.data!,
+        );
+      });
+    });
   }
 
   @override
@@ -427,7 +427,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final isDashboard = _activeView == _DashboardView.dashboard;
     final isProjectSetup = _activeView == _DashboardView.projectSetup;
     final title = isDashboard
-        ? 'Agentic Worktrees Desktop Control Plane'
+        ? 'Dashboard'
         : isProjectSetup
         ? 'New Project Setup'
         : 'Settings';
