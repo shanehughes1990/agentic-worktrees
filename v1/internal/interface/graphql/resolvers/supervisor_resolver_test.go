@@ -47,18 +47,22 @@ func newSupervisorServiceForResolverTests(t *testing.T) *applicationsupervisor.S
 func TestSupervisorDecisionHistoryResolver(t *testing.T) {
 	service := newSupervisorServiceForResolverTests(t)
 	resolver := &Resolver{SupervisorService: service}
-	results, err := (&queryResolver{resolver}).SupervisorDecisionHistory(context.Background(), models.SupervisorCorrelationInput{RunID: "run-1", TaskID: "task-1", JobID: "job-1"})
+	result, err := (&queryResolver{resolver}).SupervisorDecisionHistory(context.Background(), models.SupervisorCorrelationInput{RunID: "run-1", TaskID: "task-1", JobID: "job-1"})
 	if err != nil {
 		t.Fatalf("SupervisorDecisionHistory() error = %v", err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("expected two supervisor decisions, got %d", len(results))
+	success, ok := result.(models.SupervisorDecisionHistorySuccess)
+	if !ok {
+		t.Fatalf("expected SupervisorDecisionHistorySuccess, got %T", result)
 	}
-	if results[0].Reason != string(domainsupervisor.ReasonIssueAwaitingApproval) {
-		t.Fatalf("expected first reason %q, got %q", domainsupervisor.ReasonIssueAwaitingApproval, results[0].Reason)
+	if len(success.Decisions) != 2 {
+		t.Fatalf("expected two supervisor decisions, got %d", len(success.Decisions))
 	}
-	if results[1].Reason != string(domainsupervisor.ReasonIssueTaskKickoff) {
-		t.Fatalf("expected second reason %q, got %q", domainsupervisor.ReasonIssueTaskKickoff, results[1].Reason)
+	if success.Decisions[0].Reason != models.SupervisorReasonCodeIssueAwaitingApproval {
+		t.Fatalf("expected first reason %q, got %q", models.SupervisorReasonCodeIssueAwaitingApproval, success.Decisions[0].Reason)
+	}
+	if success.Decisions[1].Reason != models.SupervisorReasonCodeIssueTaskKickoff {
+		t.Fatalf("expected second reason %q, got %q", models.SupervisorReasonCodeIssueTaskKickoff, success.Decisions[1].Reason)
 	}
 }
 
@@ -76,8 +80,12 @@ func TestSupervisorDecisionHistoryStreamResolver(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected open stream")
 	}
-	if len(first) != 2 {
-		t.Fatalf("expected first stream payload with two decisions, got %d", len(first))
+	success, successOK := first.(models.SupervisorDecisionHistorySuccess)
+	if !successOK {
+		t.Fatalf("expected SupervisorDecisionHistorySuccess, got %T", first)
+	}
+	if len(success.Decisions) != 2 {
+		t.Fatalf("expected first stream payload with two decisions, got %d", len(success.Decisions))
 	}
 	cancel()
 }

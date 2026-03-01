@@ -11,24 +11,12 @@ import (
 )
 
 // EnqueueScmWorkflow is the resolver for the enqueueScmWorkflow field.
-func (r *mutationResolver) EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (*models.EnqueueSCMWorkflowResult, error) {
+func (r *mutationResolver) EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (models.EnqueueSCMWorkflowResult, error) {
 	return enqueueSCMWorkflow(ctx, r.Resolver, input)
 }
 
 // ScmSupportedOperations is the resolver for the scmSupportedOperations field.
-func (r *queryResolver) ScmSupportedOperations(ctx context.Context) ([]string, error) {
+func (r *queryResolver) ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error) {
 	_ = ctx
-	return []string{
-		"source_state",
-		"ensure_worktree",
-		"sync_worktree",
-		"cleanup_worktree",
-		"ensure_branch",
-		"sync_branch",
-		"upsert_pull_request",
-		"get_pull_request",
-		"submit_review",
-		"check_merge_readiness",
-		"merge_pull_request",
-	}, nil
+	return models.ScmSupportedOperationsSuccess{Operations: allSupportedSCMOperations()}, nil
 }

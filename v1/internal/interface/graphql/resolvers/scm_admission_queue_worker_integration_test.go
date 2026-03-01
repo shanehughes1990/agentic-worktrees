@@ -118,8 +118,8 @@ func TestSCMAdmissionQueueWorkerAdapterFixtureSourceStatePath(t *testing.T) {
 	defer fixture.close()
 
 	result, err := fixture.resolver.Mutation().EnqueueScmWorkflow(context.Background(), models.EnqueueSCMWorkflowInput{
-		Operation:      "source_state",
-		Provider:       "github",
+		Operation:      models.SCMOperationSourceState,
+		Provider:       models.SCMProviderGithub,
 		Owner:          "acme",
 		Repository:     "repo",
 		RunID:          "run-1",
@@ -130,8 +130,12 @@ func TestSCMAdmissionQueueWorkerAdapterFixtureSourceStatePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("enqueue scm workflow: %v", err)
 	}
-	if result.QueueTaskID != "id-1" {
-		t.Fatalf("expected queue task id id-1, got %q", result.QueueTaskID)
+	success, ok := result.(models.EnqueueSCMWorkflowSuccess)
+	if !ok {
+		t.Fatalf("expected enqueue success result, got %T", result)
+	}
+	if success.QueueTaskID != "id-1" {
+		t.Fatalf("expected queue task id id-1, got %q", success.QueueTaskID)
 	}
 	if len(fixture.queue.requests) != 1 {
 		t.Fatalf("expected one queued request, got %d", len(fixture.queue.requests))
@@ -156,8 +160,8 @@ func TestSCMAdmissionEnqueuesExactlyOneJobForDeterministicIdempotencyKey(t *test
 	defer fixture.close()
 
 	input := models.EnqueueSCMWorkflowInput{
-		Operation:      "source_state",
-		Provider:       "github",
+		Operation:      models.SCMOperationSourceState,
+		Provider:       models.SCMProviderGithub,
 		Owner:          "acme",
 		Repository:     "repo",
 		RunID:          "run-1",
@@ -170,10 +174,14 @@ func TestSCMAdmissionEnqueuesExactlyOneJobForDeterministicIdempotencyKey(t *test
 	if firstErr != nil {
 		t.Fatalf("first enqueue scm workflow: %v", firstErr)
 	}
-	if first.QueueTaskID != "id-deterministic" {
-		t.Fatalf("expected first queue task id id-deterministic, got %q", first.QueueTaskID)
+	firstSuccess, ok := first.(models.EnqueueSCMWorkflowSuccess)
+	if !ok {
+		t.Fatalf("expected first enqueue success result, got %T", first)
 	}
-	if first.Duplicate {
+	if firstSuccess.QueueTaskID != "id-deterministic" {
+		t.Fatalf("expected first queue task id id-deterministic, got %q", firstSuccess.QueueTaskID)
+	}
+	if firstSuccess.Duplicate {
 		t.Fatalf("expected first enqueue to not be duplicate")
 	}
 
@@ -181,10 +189,14 @@ func TestSCMAdmissionEnqueuesExactlyOneJobForDeterministicIdempotencyKey(t *test
 	if secondErr != nil {
 		t.Fatalf("second enqueue scm workflow: %v", secondErr)
 	}
-	if second.QueueTaskID != "id-deterministic" {
-		t.Fatalf("expected second queue task id id-deterministic, got %q", second.QueueTaskID)
+	secondSuccess, ok := second.(models.EnqueueSCMWorkflowSuccess)
+	if !ok {
+		t.Fatalf("expected second enqueue success result, got %T", second)
 	}
-	if !second.Duplicate {
+	if secondSuccess.QueueTaskID != "id-deterministic" {
+		t.Fatalf("expected second queue task id id-deterministic, got %q", secondSuccess.QueueTaskID)
+	}
+	if !secondSuccess.Duplicate {
 		t.Fatalf("expected second enqueue to be marked duplicate")
 	}
 	if len(fixture.queue.requests) != 1 {

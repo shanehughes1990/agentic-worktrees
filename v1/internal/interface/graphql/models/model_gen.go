@@ -2,36 +2,76 @@
 
 package models
 
-type EnqueueSCMWorkflowInput struct {
-	Operation         string  `json:"operation"`
-	Provider          string  `json:"provider"`
-	Owner             string  `json:"owner"`
-	Repository        string  `json:"repository"`
-	RunID             string  `json:"runID"`
-	TaskID            string  `json:"taskID"`
-	JobID             string  `json:"jobID"`
-	IdempotencyKey    string  `json:"idempotencyKey"`
-	WorktreePath      *string `json:"worktreePath,omitempty"`
-	BaseBranch        *string `json:"baseBranch,omitempty"`
-	TargetBranch      *string `json:"targetBranch,omitempty"`
-	PullRequestNumber *int32  `json:"pullRequestNumber,omitempty"`
-	MergeMethod       *string `json:"mergeMethod,omitempty"`
-	PullRequestTitle  *string `json:"pullRequestTitle,omitempty"`
-	PullRequestBody   *string `json:"pullRequestBody,omitempty"`
-	ReviewDecision    *string `json:"reviewDecision,omitempty"`
-	ReviewBody        *string `json:"reviewBody,omitempty"`
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
+	"time"
+)
+
+type EnqueueSCMWorkflowResult interface {
+	IsEnqueueSCMWorkflowResult()
 }
 
-type EnqueueSCMWorkflowResult struct {
+type ScmSupportedOperationsResult interface {
+	IsScmSupportedOperationsResult()
+}
+
+type SupervisorDecisionHistoryResult interface {
+	IsSupervisorDecisionHistoryResult()
+}
+
+type EnqueueSCMWorkflowInput struct {
+	Operation         SCMOperation       `json:"operation"`
+	Provider          SCMProvider        `json:"provider"`
+	Owner             string             `json:"owner"`
+	Repository        string             `json:"repository"`
+	RunID             string             `json:"runID"`
+	TaskID            string             `json:"taskID"`
+	JobID             string             `json:"jobID"`
+	IdempotencyKey    string             `json:"idempotencyKey"`
+	WorktreePath      *string            `json:"worktreePath,omitempty"`
+	BaseBranch        *string            `json:"baseBranch,omitempty"`
+	TargetBranch      *string            `json:"targetBranch,omitempty"`
+	PullRequestNumber *int32             `json:"pullRequestNumber,omitempty"`
+	MergeMethod       *SCMMergeMethod    `json:"mergeMethod,omitempty"`
+	PullRequestTitle  *string            `json:"pullRequestTitle,omitempty"`
+	PullRequestBody   *string            `json:"pullRequestBody,omitempty"`
+	ReviewDecision    *SCMReviewDecision `json:"reviewDecision,omitempty"`
+	ReviewBody        *string            `json:"reviewBody,omitempty"`
+}
+
+type EnqueueSCMWorkflowSuccess struct {
 	QueueTaskID string `json:"queueTaskID"`
 	Duplicate   bool   `json:"duplicate"`
 }
+
+func (EnqueueSCMWorkflowSuccess) IsEnqueueSCMWorkflowResult() {}
+
+type GraphError struct {
+	Code    GraphErrorCode `json:"code"`
+	Message string         `json:"message"`
+	Field   *string        `json:"field,omitempty"`
+}
+
+func (GraphError) IsEnqueueSCMWorkflowResult() {}
+
+func (GraphError) IsScmSupportedOperationsResult() {}
+
+func (GraphError) IsSupervisorDecisionHistoryResult() {}
 
 type Mutation struct {
 }
 
 type Query struct {
 }
+
+type ScmSupportedOperationsSuccess struct {
+	Operations []SCMOperation `json:"operations"`
+}
+
+func (ScmSupportedOperationsSuccess) IsScmSupportedOperationsResult() {}
 
 type Subscription struct {
 }
@@ -46,22 +86,763 @@ type SupervisorDecision struct {
 	RunID         string                             `json:"runID"`
 	TaskID        string                             `json:"taskID"`
 	JobID         string                             `json:"jobID"`
-	SignalType    string                             `json:"signalType"`
-	FromState     string                             `json:"fromState"`
-	ToState       string                             `json:"toState"`
-	Action        string                             `json:"action"`
-	Reason        string                             `json:"reason"`
+	SignalType    SupervisorSignalType               `json:"signalType"`
+	FromState     SupervisorState                    `json:"fromState"`
+	ToState       SupervisorState                    `json:"toState"`
+	Action        SupervisorActionCode               `json:"action"`
+	Reason        SupervisorReasonCode               `json:"reason"`
 	RuleName      string                             `json:"ruleName"`
 	RulePriority  int32                              `json:"rulePriority"`
-	OccurredAt    string                             `json:"occurredAt"`
-	AttentionZone string                             `json:"attentionZone"`
+	OccurredAt    time.Time                          `json:"occurredAt"`
+	AttentionZone SupervisorAttentionZone            `json:"attentionZone"`
 	Attempt       int32                              `json:"attempt"`
 	MaxRetry      int32                              `json:"maxRetry"`
-	FailureClass  string                             `json:"failureClass"`
+	FailureClass  FailureClass                       `json:"failureClass"`
 	Metadata      []*SupervisorDecisionMetadataEntry `json:"metadata"`
 }
+
+type SupervisorDecisionHistorySuccess struct {
+	Decisions []*SupervisorDecision `json:"decisions"`
+}
+
+func (SupervisorDecisionHistorySuccess) IsSupervisorDecisionHistoryResult() {}
 
 type SupervisorDecisionMetadataEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type FailureClass string
+
+const (
+	FailureClassUnknown   FailureClass = "UNKNOWN"
+	FailureClassTransient FailureClass = "TRANSIENT"
+	FailureClassTerminal  FailureClass = "TERMINAL"
+)
+
+var AllFailureClass = []FailureClass{
+	FailureClassUnknown,
+	FailureClassTransient,
+	FailureClassTerminal,
+}
+
+func (e FailureClass) IsValid() bool {
+	switch e {
+	case FailureClassUnknown, FailureClassTransient, FailureClassTerminal:
+		return true
+	}
+	return false
+}
+
+func (e FailureClass) String() string {
+	return string(e)
+}
+
+func (e *FailureClass) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FailureClass(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FailureClass", str)
+	}
+	return nil
+}
+
+func (e FailureClass) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FailureClass) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FailureClass) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type GraphErrorCode string
+
+const (
+	GraphErrorCodeInternal     GraphErrorCode = "INTERNAL"
+	GraphErrorCodeValidation   GraphErrorCode = "VALIDATION"
+	GraphErrorCodeConflict     GraphErrorCode = "CONFLICT"
+	GraphErrorCodeNotFound     GraphErrorCode = "NOT_FOUND"
+	GraphErrorCodeUnauthorized GraphErrorCode = "UNAUTHORIZED"
+	GraphErrorCodeForbidden    GraphErrorCode = "FORBIDDEN"
+	GraphErrorCodeUnavailable  GraphErrorCode = "UNAVAILABLE"
+)
+
+var AllGraphErrorCode = []GraphErrorCode{
+	GraphErrorCodeInternal,
+	GraphErrorCodeValidation,
+	GraphErrorCodeConflict,
+	GraphErrorCodeNotFound,
+	GraphErrorCodeUnauthorized,
+	GraphErrorCodeForbidden,
+	GraphErrorCodeUnavailable,
+}
+
+func (e GraphErrorCode) IsValid() bool {
+	switch e {
+	case GraphErrorCodeInternal, GraphErrorCodeValidation, GraphErrorCodeConflict, GraphErrorCodeNotFound, GraphErrorCodeUnauthorized, GraphErrorCodeForbidden, GraphErrorCodeUnavailable:
+		return true
+	}
+	return false
+}
+
+func (e GraphErrorCode) String() string {
+	return string(e)
+}
+
+func (e *GraphErrorCode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GraphErrorCode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GraphErrorCode", str)
+	}
+	return nil
+}
+
+func (e GraphErrorCode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GraphErrorCode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GraphErrorCode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SCMMergeMethod string
+
+const (
+	SCMMergeMethodMerge  SCMMergeMethod = "MERGE"
+	SCMMergeMethodSquash SCMMergeMethod = "SQUASH"
+	SCMMergeMethodRebase SCMMergeMethod = "REBASE"
+)
+
+var AllSCMMergeMethod = []SCMMergeMethod{
+	SCMMergeMethodMerge,
+	SCMMergeMethodSquash,
+	SCMMergeMethodRebase,
+}
+
+func (e SCMMergeMethod) IsValid() bool {
+	switch e {
+	case SCMMergeMethodMerge, SCMMergeMethodSquash, SCMMergeMethodRebase:
+		return true
+	}
+	return false
+}
+
+func (e SCMMergeMethod) String() string {
+	return string(e)
+}
+
+func (e *SCMMergeMethod) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SCMMergeMethod(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SCMMergeMethod", str)
+	}
+	return nil
+}
+
+func (e SCMMergeMethod) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SCMMergeMethod) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SCMMergeMethod) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SCMOperation string
+
+const (
+	SCMOperationSourceState         SCMOperation = "SOURCE_STATE"
+	SCMOperationEnsureWorktree      SCMOperation = "ENSURE_WORKTREE"
+	SCMOperationSyncWorktree        SCMOperation = "SYNC_WORKTREE"
+	SCMOperationCleanupWorktree     SCMOperation = "CLEANUP_WORKTREE"
+	SCMOperationEnsureBranch        SCMOperation = "ENSURE_BRANCH"
+	SCMOperationSyncBranch          SCMOperation = "SYNC_BRANCH"
+	SCMOperationUpsertPullRequest   SCMOperation = "UPSERT_PULL_REQUEST"
+	SCMOperationGetPullRequest      SCMOperation = "GET_PULL_REQUEST"
+	SCMOperationSubmitReview        SCMOperation = "SUBMIT_REVIEW"
+	SCMOperationCheckMergeReadiness SCMOperation = "CHECK_MERGE_READINESS"
+	SCMOperationMergePullRequest    SCMOperation = "MERGE_PULL_REQUEST"
+)
+
+var AllSCMOperation = []SCMOperation{
+	SCMOperationSourceState,
+	SCMOperationEnsureWorktree,
+	SCMOperationSyncWorktree,
+	SCMOperationCleanupWorktree,
+	SCMOperationEnsureBranch,
+	SCMOperationSyncBranch,
+	SCMOperationUpsertPullRequest,
+	SCMOperationGetPullRequest,
+	SCMOperationSubmitReview,
+	SCMOperationCheckMergeReadiness,
+	SCMOperationMergePullRequest,
+}
+
+func (e SCMOperation) IsValid() bool {
+	switch e {
+	case SCMOperationSourceState, SCMOperationEnsureWorktree, SCMOperationSyncWorktree, SCMOperationCleanupWorktree, SCMOperationEnsureBranch, SCMOperationSyncBranch, SCMOperationUpsertPullRequest, SCMOperationGetPullRequest, SCMOperationSubmitReview, SCMOperationCheckMergeReadiness, SCMOperationMergePullRequest:
+		return true
+	}
+	return false
+}
+
+func (e SCMOperation) String() string {
+	return string(e)
+}
+
+func (e *SCMOperation) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SCMOperation(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SCMOperation", str)
+	}
+	return nil
+}
+
+func (e SCMOperation) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SCMOperation) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SCMOperation) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SCMProvider string
+
+const (
+	SCMProviderGithub SCMProvider = "GITHUB"
+)
+
+var AllSCMProvider = []SCMProvider{
+	SCMProviderGithub,
+}
+
+func (e SCMProvider) IsValid() bool {
+	switch e {
+	case SCMProviderGithub:
+		return true
+	}
+	return false
+}
+
+func (e SCMProvider) String() string {
+	return string(e)
+}
+
+func (e *SCMProvider) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SCMProvider(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SCMProvider", str)
+	}
+	return nil
+}
+
+func (e SCMProvider) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SCMProvider) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SCMProvider) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SCMReviewDecision string
+
+const (
+	SCMReviewDecisionApprove        SCMReviewDecision = "APPROVE"
+	SCMReviewDecisionRequestChanges SCMReviewDecision = "REQUEST_CHANGES"
+	SCMReviewDecisionComment        SCMReviewDecision = "COMMENT"
+)
+
+var AllSCMReviewDecision = []SCMReviewDecision{
+	SCMReviewDecisionApprove,
+	SCMReviewDecisionRequestChanges,
+	SCMReviewDecisionComment,
+}
+
+func (e SCMReviewDecision) IsValid() bool {
+	switch e {
+	case SCMReviewDecisionApprove, SCMReviewDecisionRequestChanges, SCMReviewDecisionComment:
+		return true
+	}
+	return false
+}
+
+func (e SCMReviewDecision) String() string {
+	return string(e)
+}
+
+func (e *SCMReviewDecision) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SCMReviewDecision(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SCMReviewDecision", str)
+	}
+	return nil
+}
+
+func (e SCMReviewDecision) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SCMReviewDecision) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SCMReviewDecision) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SupervisorActionCode string
+
+const (
+	SupervisorActionCodeContinue      SupervisorActionCode = "CONTINUE"
+	SupervisorActionCodeRetry         SupervisorActionCode = "RETRY"
+	SupervisorActionCodeBlock         SupervisorActionCode = "BLOCK"
+	SupervisorActionCodeEscalate      SupervisorActionCode = "ESCALATE"
+	SupervisorActionCodeRequestRework SupervisorActionCode = "REQUEST_REWORK"
+	SupervisorActionCodeMerge         SupervisorActionCode = "MERGE"
+	SupervisorActionCodeRefuse        SupervisorActionCode = "REFUSE"
+	SupervisorActionCodeStartTask     SupervisorActionCode = "START_TASK"
+)
+
+var AllSupervisorActionCode = []SupervisorActionCode{
+	SupervisorActionCodeContinue,
+	SupervisorActionCodeRetry,
+	SupervisorActionCodeBlock,
+	SupervisorActionCodeEscalate,
+	SupervisorActionCodeRequestRework,
+	SupervisorActionCodeMerge,
+	SupervisorActionCodeRefuse,
+	SupervisorActionCodeStartTask,
+}
+
+func (e SupervisorActionCode) IsValid() bool {
+	switch e {
+	case SupervisorActionCodeContinue, SupervisorActionCodeRetry, SupervisorActionCodeBlock, SupervisorActionCodeEscalate, SupervisorActionCodeRequestRework, SupervisorActionCodeMerge, SupervisorActionCodeRefuse, SupervisorActionCodeStartTask:
+		return true
+	}
+	return false
+}
+
+func (e SupervisorActionCode) String() string {
+	return string(e)
+}
+
+func (e *SupervisorActionCode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SupervisorActionCode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SupervisorActionCode", str)
+	}
+	return nil
+}
+
+func (e SupervisorActionCode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SupervisorActionCode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SupervisorActionCode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SupervisorAttentionZone string
+
+const (
+	SupervisorAttentionZoneNone      SupervisorAttentionZone = "NONE"
+	SupervisorAttentionZoneTracker   SupervisorAttentionZone = "TRACKER"
+	SupervisorAttentionZoneScm       SupervisorAttentionZone = "SCM"
+	SupervisorAttentionZoneExecution SupervisorAttentionZone = "EXECUTION"
+)
+
+var AllSupervisorAttentionZone = []SupervisorAttentionZone{
+	SupervisorAttentionZoneNone,
+	SupervisorAttentionZoneTracker,
+	SupervisorAttentionZoneScm,
+	SupervisorAttentionZoneExecution,
+}
+
+func (e SupervisorAttentionZone) IsValid() bool {
+	switch e {
+	case SupervisorAttentionZoneNone, SupervisorAttentionZoneTracker, SupervisorAttentionZoneScm, SupervisorAttentionZoneExecution:
+		return true
+	}
+	return false
+}
+
+func (e SupervisorAttentionZone) String() string {
+	return string(e)
+}
+
+func (e *SupervisorAttentionZone) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SupervisorAttentionZone(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SupervisorAttentionZone", str)
+	}
+	return nil
+}
+
+func (e SupervisorAttentionZone) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SupervisorAttentionZone) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SupervisorAttentionZone) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SupervisorReasonCode string
+
+const (
+	SupervisorReasonCodeJobAdmitted               SupervisorReasonCode = "JOB_ADMITTED"
+	SupervisorReasonCodeExecutionProgressed       SupervisorReasonCode = "EXECUTION_PROGRESSED"
+	SupervisorReasonCodeExecutionSucceeded        SupervisorReasonCode = "EXECUTION_SUCCEEDED"
+	SupervisorReasonCodeExecutionFailedRetry      SupervisorReasonCode = "EXECUTION_FAILED_RETRY"
+	SupervisorReasonCodeExecutionFailedMaxRetries SupervisorReasonCode = "EXECUTION_FAILED_MAX_RETRIES"
+	SupervisorReasonCodeExecutionFailedTerminal   SupervisorReasonCode = "EXECUTION_FAILED_TERMINAL"
+	SupervisorReasonCodeTrackerAttentionRequired  SupervisorReasonCode = "TRACKER_ATTENTION_REQUIRED"
+	SupervisorReasonCodeTrackerAttentionCleared   SupervisorReasonCode = "TRACKER_ATTENTION_CLEARED"
+	SupervisorReasonCodeScmAttentionRequired      SupervisorReasonCode = "SCM_ATTENTION_REQUIRED"
+	SupervisorReasonCodeScmAttentionCleared       SupervisorReasonCode = "SCM_ATTENTION_CLEARED"
+	SupervisorReasonCodePrConflictDetected        SupervisorReasonCode = "PR_CONFLICT_DETECTED"
+	SupervisorReasonCodePrReviewChangesRequested  SupervisorReasonCode = "PR_REVIEW_CHANGES_REQUESTED"
+	SupervisorReasonCodePrChecksFailed            SupervisorReasonCode = "PR_CHECKS_FAILED"
+	SupervisorReasonCodePrChecksPassed            SupervisorReasonCode = "PR_CHECKS_PASSED"
+	SupervisorReasonCodePrMergeApproved           SupervisorReasonCode = "PR_MERGE_APPROVED"
+	SupervisorReasonCodePrMergeRefused            SupervisorReasonCode = "PR_MERGE_REFUSED"
+	SupervisorReasonCodeIssueAwaitingApproval     SupervisorReasonCode = "ISSUE_AWAITING_APPROVAL"
+	SupervisorReasonCodeIssueTaskKickoff          SupervisorReasonCode = "ISSUE_TASK_KICKOFF"
+	SupervisorReasonCodeManualOverride            SupervisorReasonCode = "MANUAL_OVERRIDE"
+	SupervisorReasonCodePolicyDefaultContinue     SupervisorReasonCode = "POLICY_DEFAULT_CONTINUE"
+)
+
+var AllSupervisorReasonCode = []SupervisorReasonCode{
+	SupervisorReasonCodeJobAdmitted,
+	SupervisorReasonCodeExecutionProgressed,
+	SupervisorReasonCodeExecutionSucceeded,
+	SupervisorReasonCodeExecutionFailedRetry,
+	SupervisorReasonCodeExecutionFailedMaxRetries,
+	SupervisorReasonCodeExecutionFailedTerminal,
+	SupervisorReasonCodeTrackerAttentionRequired,
+	SupervisorReasonCodeTrackerAttentionCleared,
+	SupervisorReasonCodeScmAttentionRequired,
+	SupervisorReasonCodeScmAttentionCleared,
+	SupervisorReasonCodePrConflictDetected,
+	SupervisorReasonCodePrReviewChangesRequested,
+	SupervisorReasonCodePrChecksFailed,
+	SupervisorReasonCodePrChecksPassed,
+	SupervisorReasonCodePrMergeApproved,
+	SupervisorReasonCodePrMergeRefused,
+	SupervisorReasonCodeIssueAwaitingApproval,
+	SupervisorReasonCodeIssueTaskKickoff,
+	SupervisorReasonCodeManualOverride,
+	SupervisorReasonCodePolicyDefaultContinue,
+}
+
+func (e SupervisorReasonCode) IsValid() bool {
+	switch e {
+	case SupervisorReasonCodeJobAdmitted, SupervisorReasonCodeExecutionProgressed, SupervisorReasonCodeExecutionSucceeded, SupervisorReasonCodeExecutionFailedRetry, SupervisorReasonCodeExecutionFailedMaxRetries, SupervisorReasonCodeExecutionFailedTerminal, SupervisorReasonCodeTrackerAttentionRequired, SupervisorReasonCodeTrackerAttentionCleared, SupervisorReasonCodeScmAttentionRequired, SupervisorReasonCodeScmAttentionCleared, SupervisorReasonCodePrConflictDetected, SupervisorReasonCodePrReviewChangesRequested, SupervisorReasonCodePrChecksFailed, SupervisorReasonCodePrChecksPassed, SupervisorReasonCodePrMergeApproved, SupervisorReasonCodePrMergeRefused, SupervisorReasonCodeIssueAwaitingApproval, SupervisorReasonCodeIssueTaskKickoff, SupervisorReasonCodeManualOverride, SupervisorReasonCodePolicyDefaultContinue:
+		return true
+	}
+	return false
+}
+
+func (e SupervisorReasonCode) String() string {
+	return string(e)
+}
+
+func (e *SupervisorReasonCode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SupervisorReasonCode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SupervisorReasonCode", str)
+	}
+	return nil
+}
+
+func (e SupervisorReasonCode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SupervisorReasonCode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SupervisorReasonCode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SupervisorSignalType string
+
+const (
+	SupervisorSignalTypeJobAdmitted              SupervisorSignalType = "JOB_ADMITTED"
+	SupervisorSignalTypeExecutionProgressed      SupervisorSignalType = "EXECUTION_PROGRESSED"
+	SupervisorSignalTypeExecutionFailed          SupervisorSignalType = "EXECUTION_FAILED"
+	SupervisorSignalTypeExecutionSucceeded       SupervisorSignalType = "EXECUTION_SUCCEEDED"
+	SupervisorSignalTypeCheckpointSaved          SupervisorSignalType = "CHECKPOINT_SAVED"
+	SupervisorSignalTypeTrackerAttentionNeeded   SupervisorSignalType = "TRACKER_ATTENTION_NEEDED"
+	SupervisorSignalTypeTrackerAttentionCleared  SupervisorSignalType = "TRACKER_ATTENTION_CLEARED"
+	SupervisorSignalTypeScmAttentionNeeded       SupervisorSignalType = "SCM_ATTENTION_NEEDED"
+	SupervisorSignalTypeScmAttentionCleared      SupervisorSignalType = "SCM_ATTENTION_CLEARED"
+	SupervisorSignalTypePrConflictDetected       SupervisorSignalType = "PR_CONFLICT_DETECTED"
+	SupervisorSignalTypePrReviewChangesRequested SupervisorSignalType = "PR_REVIEW_CHANGES_REQUESTED"
+	SupervisorSignalTypePrChecksFailed           SupervisorSignalType = "PR_CHECKS_FAILED"
+	SupervisorSignalTypePrChecksPassed           SupervisorSignalType = "PR_CHECKS_PASSED"
+	SupervisorSignalTypePrMergeRequested         SupervisorSignalType = "PR_MERGE_REQUESTED"
+	SupervisorSignalTypeIssueOpened              SupervisorSignalType = "ISSUE_OPENED"
+	SupervisorSignalTypeIssueApproved            SupervisorSignalType = "ISSUE_APPROVED"
+	SupervisorSignalTypeManualOverride           SupervisorSignalType = "MANUAL_OVERRIDE"
+)
+
+var AllSupervisorSignalType = []SupervisorSignalType{
+	SupervisorSignalTypeJobAdmitted,
+	SupervisorSignalTypeExecutionProgressed,
+	SupervisorSignalTypeExecutionFailed,
+	SupervisorSignalTypeExecutionSucceeded,
+	SupervisorSignalTypeCheckpointSaved,
+	SupervisorSignalTypeTrackerAttentionNeeded,
+	SupervisorSignalTypeTrackerAttentionCleared,
+	SupervisorSignalTypeScmAttentionNeeded,
+	SupervisorSignalTypeScmAttentionCleared,
+	SupervisorSignalTypePrConflictDetected,
+	SupervisorSignalTypePrReviewChangesRequested,
+	SupervisorSignalTypePrChecksFailed,
+	SupervisorSignalTypePrChecksPassed,
+	SupervisorSignalTypePrMergeRequested,
+	SupervisorSignalTypeIssueOpened,
+	SupervisorSignalTypeIssueApproved,
+	SupervisorSignalTypeManualOverride,
+}
+
+func (e SupervisorSignalType) IsValid() bool {
+	switch e {
+	case SupervisorSignalTypeJobAdmitted, SupervisorSignalTypeExecutionProgressed, SupervisorSignalTypeExecutionFailed, SupervisorSignalTypeExecutionSucceeded, SupervisorSignalTypeCheckpointSaved, SupervisorSignalTypeTrackerAttentionNeeded, SupervisorSignalTypeTrackerAttentionCleared, SupervisorSignalTypeScmAttentionNeeded, SupervisorSignalTypeScmAttentionCleared, SupervisorSignalTypePrConflictDetected, SupervisorSignalTypePrReviewChangesRequested, SupervisorSignalTypePrChecksFailed, SupervisorSignalTypePrChecksPassed, SupervisorSignalTypePrMergeRequested, SupervisorSignalTypeIssueOpened, SupervisorSignalTypeIssueApproved, SupervisorSignalTypeManualOverride:
+		return true
+	}
+	return false
+}
+
+func (e SupervisorSignalType) String() string {
+	return string(e)
+}
+
+func (e *SupervisorSignalType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SupervisorSignalType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SupervisorSignalType", str)
+	}
+	return nil
+}
+
+func (e SupervisorSignalType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SupervisorSignalType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SupervisorSignalType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SupervisorState string
+
+const (
+	SupervisorStateIdle       SupervisorState = "IDLE"
+	SupervisorStateExecuting  SupervisorState = "EXECUTING"
+	SupervisorStateReviewing  SupervisorState = "REVIEWING"
+	SupervisorStateRework     SupervisorState = "REWORK"
+	SupervisorStateMergeReady SupervisorState = "MERGE_READY"
+	SupervisorStateBlocked    SupervisorState = "BLOCKED"
+	SupervisorStateEscalated  SupervisorState = "ESCALATED"
+	SupervisorStateMerged     SupervisorState = "MERGED"
+	SupervisorStateRefused    SupervisorState = "REFUSED"
+	SupervisorStateCompleted  SupervisorState = "COMPLETED"
+)
+
+var AllSupervisorState = []SupervisorState{
+	SupervisorStateIdle,
+	SupervisorStateExecuting,
+	SupervisorStateReviewing,
+	SupervisorStateRework,
+	SupervisorStateMergeReady,
+	SupervisorStateBlocked,
+	SupervisorStateEscalated,
+	SupervisorStateMerged,
+	SupervisorStateRefused,
+	SupervisorStateCompleted,
+}
+
+func (e SupervisorState) IsValid() bool {
+	switch e {
+	case SupervisorStateIdle, SupervisorStateExecuting, SupervisorStateReviewing, SupervisorStateRework, SupervisorStateMergeReady, SupervisorStateBlocked, SupervisorStateEscalated, SupervisorStateMerged, SupervisorStateRefused, SupervisorStateCompleted:
+		return true
+	}
+	return false
+}
+
+func (e SupervisorState) String() string {
+	return string(e)
+}
+
+func (e *SupervisorState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SupervisorState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SupervisorState", str)
+	}
+	return nil
+}
+
+func (e SupervisorState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SupervisorState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SupervisorState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

@@ -1,5 +1,11 @@
 # Slice 06 — GraphQL Control Plane
 
+## Status
+
+- Violation Remediation: **Completed**
+- Slice Completion: **In Progress**
+- Reviewed At: **2026-03-01T00:00:00Z**
+
 ## Objective
 
 Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orchestrator operations, backed by Postgres read models for durable queryability.
@@ -15,6 +21,15 @@ Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orc
 - Forward-facing errors must be typed and returned as explicit union outputs (or equivalent typed schema patterns) so clients can deterministically handle failures.
 - Additional REST endpoints are prohibited for control-plane features.
 - Exception: a REST endpoint may be added only when strictly required for third-party integration ingress/configuration (for example webhook ingestion), and must be justified by that requirement.
+
+## Violation Remediation Checklist
+
+- [x] Restrict API runtime surface to GraphQL + playground + health only.
+- [x] Remove control-plane REST route mounts for supervisor/stream operations.
+- [x] Remove dead bootstrap REST stream handler file after route removal.
+- [x] Convert GraphQL control-plane outputs to typed union success/error results.
+- [x] Implement typed GraphQL error conversion (`GraphError`) for resolver failure paths.
+- [x] Validate with GraphQL codegen and package-level tests.
 
 ## Task Checklist
 

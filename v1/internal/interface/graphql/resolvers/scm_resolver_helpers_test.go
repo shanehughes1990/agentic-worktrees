@@ -26,8 +26,8 @@ func TestEnqueueSCMWorkflow(t *testing.T) {
 	resolver := NewResolver(scheduler, nil)
 
 	result, enqueueErr := enqueueSCMWorkflow(context.Background(), resolver, models.EnqueueSCMWorkflowInput{
-		Operation:      "ensure_worktree",
-		Provider:       "github",
+		Operation:      models.SCMOperationEnsureWorktree,
+		Provider:       models.SCMProviderGithub,
 		Owner:          "acme",
 		Repository:     "repo",
 		RunID:          "run-1",
@@ -38,7 +38,11 @@ func TestEnqueueSCMWorkflow(t *testing.T) {
 	if enqueueErr != nil {
 		t.Fatalf("enqueue scm workflow: %v", enqueueErr)
 	}
-	if result.QueueTaskID != "q-1" {
-		t.Fatalf("expected queue task id q-1, got %q", result.QueueTaskID)
+	success, ok := result.(models.EnqueueSCMWorkflowSuccess)
+	if !ok {
+		t.Fatalf("expected EnqueueSCMWorkflowSuccess, got %T", result)
+	}
+	if success.QueueTaskID != "q-1" {
+		t.Fatalf("expected queue task id q-1, got %q", success.QueueTaskID)
 	}
 }
