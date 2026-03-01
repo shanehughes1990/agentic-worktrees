@@ -1,5 +1,10 @@
 # Slice 05 — Realtime Streams
 
+## Status
+
+- Completed: **Completed**
+- Reviewed At: **2026-03-01T00:00:00Z**
+
 ## Objective
 
 Provide reliable real-time event streams for session activity, agent output, and orchestrator decisions, with Postgres-backed persistence for replay and diagnostics.
@@ -67,15 +72,15 @@ Required envelope fields:
 
 ## Task Checklist
 
-- [ ] Define stream event schemas for session, agent output, workflow execution, and supervisor decisions.
-- [ ] Implement ACP stream publication pipeline with correlation IDs.
-- [ ] Implement session-state recovery reader for `~/.copilot/session-state/*/events.jsonl`.
-- [ ] Persist stream events in Postgres (`stream_events`) with replay cursor semantics.
-- [ ] Implement reconnect replay protocol from persisted offsets.
-- [ ] Implement ordering guarantees and backpressure handling strategy.
-- [ ] Implement healthcheck evaluator for agent process + event freshness.
-- [ ] Implement in-session prompt injection command path (ACP session prompt enqueue).
-- [ ] Add integration tests for publish/subscribe + replay behavior.
+- [x] Define stream event schemas for session, agent output, workflow execution, and supervisor decisions.
+- [x] Implement ACP stream publication pipeline with correlation IDs.
+- [x] Implement session-state recovery reader for `~/.copilot/session-state/*/events.jsonl`.
+- [x] Persist stream events in Postgres (`stream_events`) with replay cursor semantics.
+- [x] Implement reconnect replay protocol from persisted offsets.
+- [x] Implement ordering guarantees and backpressure handling strategy.
+- [x] Implement healthcheck evaluator for agent process + event freshness.
+- [x] Implement in-session prompt injection command path (ACP session prompt enqueue).
+- [x] Add integration tests for publish/subscribe + replay behavior.
 
 ## Deliverables
 

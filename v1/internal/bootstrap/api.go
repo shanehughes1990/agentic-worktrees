@@ -1,13 +1,17 @@
 package bootstrap
 
 import (
+	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
+	domainstream "agentic-orchestrator/internal/domain/stream"
 	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
+	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
+	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	"agentic-orchestrator/internal/interface/graphql/graph"
@@ -17,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -37,6 +42,9 @@ type APIApp struct {
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    *asynqengine.Platform
 	databaseClient        *postgresdb.Client
+	streamService         *applicationstream.Service
+	sessionStateReader    *infraagent.SessionStateReader
+	acpClient             *infraagent.ACPClient
 }
 
 func InitAPI() (*APIApp, error) {
@@ -79,6 +87,27 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init supervisor service: %w", err)
 	}
+	streamEventStore, err := infrastreampostgres.NewEventStore(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres stream event store: %w", err)
+	}
+	streamService, err := applicationstream.NewService(streamEventStore)
+	if err != nil {
+		return nil, fmt.Errorf("init stream service: %w", err)
+	}
+	sessionStateReader, err := infraagent.NewSessionStateReader(strings.TrimSpace(os.Getenv("API_COPILOT_SESSION_STATE_DIR")))
+	if err != nil {
+		return nil, fmt.Errorf("init session state reader: %w", err)
+	}
+	var acpClient *infraagent.ACPClient
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("API_COPILOT_ACP_ENABLED")), "true") {
+		acpClient, err = infraagent.NewACPClient(strings.TrimSpace(os.Getenv("API_COPILOT_CLI_BINARY")), strings.TrimSpace(os.Getenv("API_COPILOT_ACP_WORKING_DIR")))
+		if err != nil {
+			return nil, fmt.Errorf("init acp client: %w", err)
+		}
+		streamService.SetPromptInjector(acpClient)
+		streamService.SetHealthEvaluator(acpClient)
+	}
 
 	resolver := resolvers.NewResolver(taskScheduler, supervisorService)
 	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
@@ -96,6 +125,11 @@ func InitAPI() (*APIApp, error) {
 	mux.Handle(config.GraphQLPath, server)
 	mux.HandleFunc("/supervisor/history", supervisorHistoryHandler(supervisorService))
 	mux.HandleFunc("/supervisor/issue-approval", supervisorIssueApprovalHandler(supervisorService))
+	mux.HandleFunc("/streams/replay", streamReplayHandler(streamService))
+	mux.HandleFunc("/streams/live", streamLiveHandler(streamService))
+	mux.HandleFunc("/streams/inject", streamInjectHandler(streamService))
+	mux.HandleFunc("/streams/recover", streamRecoverHandler(streamService, sessionStateReader))
+	mux.HandleFunc("/streams/health", streamHealthHandler(streamService))
 	healthPlatform.Mount(mux)
 
 	return &APIApp{
@@ -106,6 +140,9 @@ func InitAPI() (*APIApp, error) {
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
 		databaseClient:        databaseClient,
+		streamService:         streamService,
+		sessionStateReader:    sessionStateReader,
+		acpClient:             acpClient,
 	}, nil
 }
 
@@ -201,6 +238,14 @@ func (app *APIApp) Run() error {
 			"task_engine_backend": app.config.TaskEngineBackend,
 		}).Info("runtime starting")
 	}
+	if app.acpClient != nil && app.streamService != nil {
+		if err := app.acpClient.Start(context.Background(), func(ctx context.Context, event domainstream.Event) error {
+			_, appendErr := app.streamService.AppendAndPublish(ctx, event)
+			return appendErr
+		}); err != nil {
+			return fmt.Errorf("start copilot acp client: %w", err)
+		}
+	}
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -246,6 +291,11 @@ func (app *APIApp) Run() error {
 				entry.WithError(err).WithField("runtime", "api").Error("shutdown task engine platform failed")
 			}
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown task engine platform: %w", err))
+		}
+	}
+	if app.acpClient != nil {
+		if err := app.acpClient.Shutdown(); err != nil {
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown acp client: %w", err))
 		}
 	}
 	if app.databaseClient != nil {

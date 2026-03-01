@@ -4,6 +4,18 @@
 
 Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orchestrator operations, backed by Postgres read models for durable queryability.
 
+## Control-Plane Mandate
+
+- API runtime REST surface is restricted to:
+  - GraphQL playground endpoint.
+  - GraphQL handler endpoint.
+  - Health endpoints (liveness/readiness).
+- All client-facing communication must be GraphQL, with type-safe contracts mapped to internal typed application/domain contracts.
+- GraphQL contracts must remove guesswork by using explicit required/optional fields and typed payloads for both inputs and outputs.
+- Forward-facing errors must be typed and returned as explicit union outputs (or equivalent typed schema patterns) so clients can deterministically handle failures.
+- Additional REST endpoints are prohibited for control-plane features.
+- Exception: a REST endpoint may be added only when strictly required for third-party integration ingress/configuration (for example webhook ingestion), and must be justified by that requirement.
+
 ## Task Checklist
 
 - [x] Initialize `gqlgen` project structure and schema/resolver scaffolding.
