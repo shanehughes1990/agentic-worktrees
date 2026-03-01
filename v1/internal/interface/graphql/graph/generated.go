@@ -37,9 +37,49 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ApproveIssueIntakeSuccess struct {
+		Decision func(childComplexity int) int
+	}
+
+	DeadLetterHistoryRecord struct {
+		Action     func(childComplexity int) int
+		Actor      func(childComplexity int) int
+		JobKind    func(childComplexity int) int
+		LastError  func(childComplexity int) int
+		OccurredAt func(childComplexity int) int
+		Queue      func(childComplexity int) int
+		Reason     func(childComplexity int) int
+		TaskID     func(childComplexity int) int
+	}
+
+	DeadLetterHistorySuccess struct {
+		Records func(childComplexity int) int
+	}
+
+	EnqueueIngestionWorkflowSuccess struct {
+		Duplicate   func(childComplexity int) int
+		QueueTaskID func(childComplexity int) int
+	}
+
 	EnqueueSCMWorkflowSuccess struct {
 		Duplicate   func(childComplexity int) int
 		QueueTaskID func(childComplexity int) int
+	}
+
+	ExecutionHistoryRecord struct {
+		ErrorMessage   func(childComplexity int) int
+		IdempotencyKey func(childComplexity int) int
+		JobID          func(childComplexity int) int
+		JobKind        func(childComplexity int) int
+		RunID          func(childComplexity int) int
+		Status         func(childComplexity int) int
+		Step           func(childComplexity int) int
+		TaskID         func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
+	}
+
+	ExecutionHistorySuccess struct {
+		Records func(childComplexity int) int
 	}
 
 	GraphError struct {
@@ -49,20 +89,69 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		EnqueueScmWorkflow func(childComplexity int, input models.EnqueueSCMWorkflowInput) int
+		ApproveIssueIntake       func(childComplexity int, input models.ApproveIssueIntakeInput) int
+		EnqueueIngestionWorkflow func(childComplexity int, input models.EnqueueIngestionWorkflowInput) int
+		EnqueueScmWorkflow       func(childComplexity int, input models.EnqueueSCMWorkflowInput) int
+		RequeueDeadLetter        func(childComplexity int, input models.RequeueDeadLetterInput) int
 	}
 
 	Query struct {
+		DeadLetterHistory         func(childComplexity int, queue *string, limit *int32) int
+		ExecutionHistory          func(childComplexity int, correlation models.SupervisorCorrelationInput, limit *int32) int
 		ScmSupportedOperations    func(childComplexity int) int
+		Session                   func(childComplexity int, runID string) int
+		Sessions                  func(childComplexity int, limit *int32) int
 		SupervisorDecisionHistory func(childComplexity int, correlation models.SupervisorCorrelationInput) int
+		Workers                   func(childComplexity int, limit *int32) int
+		WorkflowJobs              func(childComplexity int, runID string, taskID *string, limit *int32) int
+	}
+
+	RequeueDeadLetterSuccess struct {
+		Ok func(childComplexity int) int
 	}
 
 	ScmSupportedOperationsSuccess struct {
 		Operations func(childComplexity int) int
 	}
 
+	SessionSuccess struct {
+		Session func(childComplexity int) int
+	}
+
+	SessionSummary struct {
+		JobCount  func(childComplexity int) int
+		RunID     func(childComplexity int) int
+		TaskCount func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
+	SessionsSuccess struct {
+		Sessions func(childComplexity int) int
+	}
+
+	StreamEvent struct {
+		CorrelationID func(childComplexity int) int
+		EventID       func(childComplexity int) int
+		EventType     func(childComplexity int) int
+		JobID         func(childComplexity int) int
+		OccurredAt    func(childComplexity int) int
+		Payload       func(childComplexity int) int
+		RunID         func(childComplexity int) int
+		SessionID     func(childComplexity int) int
+		Source        func(childComplexity int) int
+		StreamOffset  func(childComplexity int) int
+		TaskID        func(childComplexity int) int
+	}
+
+	StreamEventSuccess struct {
+		Event func(childComplexity int) int
+	}
+
 	Subscription struct {
+		AgentOutputStream               func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
+		SessionActivityStream           func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		SupervisorDecisionHistoryStream func(childComplexity int, correlation models.SupervisorCorrelationInput, intervalMs *int32) int
+		WorkflowExecutionStream         func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 	}
 
 	SupervisorDecision struct {
@@ -92,16 +181,56 @@ type ComplexityRoot struct {
 		Key   func(childComplexity int) int
 		Value func(childComplexity int) int
 	}
+
+	WorkerSummary struct {
+		Capabilities  func(childComplexity int) int
+		LastHeartbeat func(childComplexity int) int
+		WorkerID      func(childComplexity int) int
+	}
+
+	WorkersSuccess struct {
+		Workers func(childComplexity int) int
+	}
+
+	WorkflowJob struct {
+		Duplicate      func(childComplexity int) int
+		EnqueuedAt     func(childComplexity int) int
+		IdempotencyKey func(childComplexity int) int
+		JobID          func(childComplexity int) int
+		JobKind        func(childComplexity int) int
+		Queue          func(childComplexity int) int
+		QueueTaskID    func(childComplexity int) int
+		RunID          func(childComplexity int) int
+		Status         func(childComplexity int) int
+		TaskID         func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
+	}
+
+	WorkflowJobsSuccess struct {
+		Jobs func(childComplexity int) int
+	}
 }
 
 type MutationResolver interface {
+	EnqueueIngestionWorkflow(ctx context.Context, input models.EnqueueIngestionWorkflowInput) (models.EnqueueIngestionWorkflowResult, error)
+	ApproveIssueIntake(ctx context.Context, input models.ApproveIssueIntakeInput) (models.ApproveIssueIntakeResult, error)
+	RequeueDeadLetter(ctx context.Context, input models.RequeueDeadLetterInput) (models.RequeueDeadLetterResult, error)
 	EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (models.EnqueueSCMWorkflowResult, error)
 }
 type QueryResolver interface {
+	Sessions(ctx context.Context, limit *int32) (models.SessionsResult, error)
+	Session(ctx context.Context, runID string) (models.SessionResult, error)
+	Workers(ctx context.Context, limit *int32) (models.WorkersResult, error)
+	WorkflowJobs(ctx context.Context, runID string, taskID *string, limit *int32) (models.WorkflowJobsResult, error)
+	ExecutionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput, limit *int32) (models.ExecutionHistoryResult, error)
+	DeadLetterHistory(ctx context.Context, queue *string, limit *int32) (models.DeadLetterHistoryResult, error)
 	ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error)
 	SupervisorDecisionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput) (models.SupervisorDecisionHistoryResult, error)
 }
 type SubscriptionResolver interface {
+	SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
+	WorkflowExecutionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
+	AgentOutputStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	SupervisorDecisionHistoryStream(ctx context.Context, correlation models.SupervisorCorrelationInput, intervalMs *int32) (<-chan models.SupervisorDecisionHistoryResult, error)
 }
 
@@ -119,6 +248,82 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
+	case "ApproveIssueIntakeSuccess.decision":
+		if e.ComplexityRoot.ApproveIssueIntakeSuccess.Decision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApproveIssueIntakeSuccess.Decision(childComplexity), true
+
+	case "DeadLetterHistoryRecord.action":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.Action(childComplexity), true
+	case "DeadLetterHistoryRecord.actor":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.Actor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.Actor(childComplexity), true
+	case "DeadLetterHistoryRecord.jobKind":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.JobKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.JobKind(childComplexity), true
+	case "DeadLetterHistoryRecord.lastError":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.LastError == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.LastError(childComplexity), true
+	case "DeadLetterHistoryRecord.occurredAt":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.OccurredAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.OccurredAt(childComplexity), true
+	case "DeadLetterHistoryRecord.queue":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.Queue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.Queue(childComplexity), true
+	case "DeadLetterHistoryRecord.reason":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.Reason(childComplexity), true
+	case "DeadLetterHistoryRecord.taskID":
+		if e.ComplexityRoot.DeadLetterHistoryRecord.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistoryRecord.TaskID(childComplexity), true
+
+	case "DeadLetterHistorySuccess.records":
+		if e.ComplexityRoot.DeadLetterHistorySuccess.Records == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeadLetterHistorySuccess.Records(childComplexity), true
+
+	case "EnqueueIngestionWorkflowSuccess.duplicate":
+		if e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.Duplicate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.Duplicate(childComplexity), true
+	case "EnqueueIngestionWorkflowSuccess.queueTaskID":
+		if e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.QueueTaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.QueueTaskID(childComplexity), true
+
 	case "EnqueueSCMWorkflowSuccess.duplicate":
 		if e.ComplexityRoot.EnqueueSCMWorkflowSuccess.Duplicate == nil {
 			break
@@ -131,6 +336,68 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.EnqueueSCMWorkflowSuccess.QueueTaskID(childComplexity), true
+
+	case "ExecutionHistoryRecord.errorMessage":
+		if e.ComplexityRoot.ExecutionHistoryRecord.ErrorMessage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.ErrorMessage(childComplexity), true
+	case "ExecutionHistoryRecord.idempotencyKey":
+		if e.ComplexityRoot.ExecutionHistoryRecord.IdempotencyKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.IdempotencyKey(childComplexity), true
+	case "ExecutionHistoryRecord.jobID":
+		if e.ComplexityRoot.ExecutionHistoryRecord.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.JobID(childComplexity), true
+	case "ExecutionHistoryRecord.jobKind":
+		if e.ComplexityRoot.ExecutionHistoryRecord.JobKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.JobKind(childComplexity), true
+	case "ExecutionHistoryRecord.runID":
+		if e.ComplexityRoot.ExecutionHistoryRecord.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.RunID(childComplexity), true
+	case "ExecutionHistoryRecord.status":
+		if e.ComplexityRoot.ExecutionHistoryRecord.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.Status(childComplexity), true
+	case "ExecutionHistoryRecord.step":
+		if e.ComplexityRoot.ExecutionHistoryRecord.Step == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.Step(childComplexity), true
+	case "ExecutionHistoryRecord.taskID":
+		if e.ComplexityRoot.ExecutionHistoryRecord.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.TaskID(childComplexity), true
+	case "ExecutionHistoryRecord.updatedAt":
+		if e.ComplexityRoot.ExecutionHistoryRecord.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistoryRecord.UpdatedAt(childComplexity), true
+
+	case "ExecutionHistorySuccess.records":
+		if e.ComplexityRoot.ExecutionHistorySuccess.Records == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExecutionHistorySuccess.Records(childComplexity), true
 
 	case "GraphError.code":
 		if e.ComplexityRoot.GraphError.Code == nil {
@@ -151,6 +418,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.GraphError.Message(childComplexity), true
 
+	case "Mutation.approveIssueIntake":
+		if e.ComplexityRoot.Mutation.ApproveIssueIntake == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_approveIssueIntake_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ApproveIssueIntake(childComplexity, args["input"].(models.ApproveIssueIntakeInput)), true
+	case "Mutation.enqueueIngestionWorkflow":
+		if e.ComplexityRoot.Mutation.EnqueueIngestionWorkflow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_enqueueIngestionWorkflow_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EnqueueIngestionWorkflow(childComplexity, args["input"].(models.EnqueueIngestionWorkflowInput)), true
 	case "Mutation.enqueueScmWorkflow":
 		if e.ComplexityRoot.Mutation.EnqueueScmWorkflow == nil {
 			break
@@ -162,6 +451,40 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnqueueScmWorkflow(childComplexity, args["input"].(models.EnqueueSCMWorkflowInput)), true
+	case "Mutation.requeueDeadLetter":
+		if e.ComplexityRoot.Mutation.RequeueDeadLetter == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_requeueDeadLetter_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RequeueDeadLetter(childComplexity, args["input"].(models.RequeueDeadLetterInput)), true
+
+	case "Query.deadLetterHistory":
+		if e.ComplexityRoot.Query.DeadLetterHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_deadLetterHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.DeadLetterHistory(childComplexity, args["queue"].(*string), args["limit"].(*int32)), true
+	case "Query.executionHistory":
+		if e.ComplexityRoot.Query.ExecutionHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_executionHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ExecutionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["limit"].(*int32)), true
 
 	case "Query.scmSupportedOperations":
 		if e.ComplexityRoot.Query.ScmSupportedOperations == nil {
@@ -169,6 +492,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ScmSupportedOperations(childComplexity), true
+	case "Query.session":
+		if e.ComplexityRoot.Query.Session == nil {
+			break
+		}
+
+		args, err := ec.field_Query_session_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Session(childComplexity, args["runID"].(string)), true
+	case "Query.sessions":
+		if e.ComplexityRoot.Query.Sessions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_sessions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Sessions(childComplexity, args["limit"].(*int32)), true
 	case "Query.supervisorDecisionHistory":
 		if e.ComplexityRoot.Query.SupervisorDecisionHistory == nil {
 			break
@@ -180,6 +525,35 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SupervisorDecisionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput)), true
+	case "Query.workers":
+		if e.ComplexityRoot.Query.Workers == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workers_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Workers(childComplexity, args["limit"].(*int32)), true
+	case "Query.workflowJobs":
+		if e.ComplexityRoot.Query.WorkflowJobs == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workflowJobs_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.WorkflowJobs(childComplexity, args["runID"].(string), args["taskID"].(*string), args["limit"].(*int32)), true
+
+	case "RequeueDeadLetterSuccess.ok":
+		if e.ComplexityRoot.RequeueDeadLetterSuccess.Ok == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequeueDeadLetterSuccess.Ok(childComplexity), true
 
 	case "ScmSupportedOperationsSuccess.operations":
 		if e.ComplexityRoot.ScmSupportedOperationsSuccess.Operations == nil {
@@ -188,6 +562,141 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ScmSupportedOperationsSuccess.Operations(childComplexity), true
 
+	case "SessionSuccess.session":
+		if e.ComplexityRoot.SessionSuccess.Session == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionSuccess.Session(childComplexity), true
+
+	case "SessionSummary.jobCount":
+		if e.ComplexityRoot.SessionSummary.JobCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionSummary.JobCount(childComplexity), true
+	case "SessionSummary.runID":
+		if e.ComplexityRoot.SessionSummary.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionSummary.RunID(childComplexity), true
+	case "SessionSummary.taskCount":
+		if e.ComplexityRoot.SessionSummary.TaskCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionSummary.TaskCount(childComplexity), true
+	case "SessionSummary.updatedAt":
+		if e.ComplexityRoot.SessionSummary.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionSummary.UpdatedAt(childComplexity), true
+
+	case "SessionsSuccess.sessions":
+		if e.ComplexityRoot.SessionsSuccess.Sessions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionsSuccess.Sessions(childComplexity), true
+
+	case "StreamEvent.correlationID":
+		if e.ComplexityRoot.StreamEvent.CorrelationID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.CorrelationID(childComplexity), true
+	case "StreamEvent.eventID":
+		if e.ComplexityRoot.StreamEvent.EventID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.EventID(childComplexity), true
+	case "StreamEvent.eventType":
+		if e.ComplexityRoot.StreamEvent.EventType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.EventType(childComplexity), true
+	case "StreamEvent.jobID":
+		if e.ComplexityRoot.StreamEvent.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.JobID(childComplexity), true
+	case "StreamEvent.occurredAt":
+		if e.ComplexityRoot.StreamEvent.OccurredAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.OccurredAt(childComplexity), true
+	case "StreamEvent.payload":
+		if e.ComplexityRoot.StreamEvent.Payload == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.Payload(childComplexity), true
+	case "StreamEvent.runID":
+		if e.ComplexityRoot.StreamEvent.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.RunID(childComplexity), true
+	case "StreamEvent.sessionID":
+		if e.ComplexityRoot.StreamEvent.SessionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.SessionID(childComplexity), true
+	case "StreamEvent.source":
+		if e.ComplexityRoot.StreamEvent.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.Source(childComplexity), true
+	case "StreamEvent.streamOffset":
+		if e.ComplexityRoot.StreamEvent.StreamOffset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.StreamOffset(childComplexity), true
+	case "StreamEvent.taskID":
+		if e.ComplexityRoot.StreamEvent.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.TaskID(childComplexity), true
+
+	case "StreamEventSuccess.event":
+		if e.ComplexityRoot.StreamEventSuccess.Event == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEventSuccess.Event(childComplexity), true
+
+	case "Subscription.agentOutputStream":
+		if e.ComplexityRoot.Subscription.AgentOutputStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_agentOutputStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.AgentOutputStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["fromOffset"].(*int32)), true
+	case "Subscription.sessionActivityStream":
+		if e.ComplexityRoot.Subscription.SessionActivityStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_sessionActivityStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.SessionActivityStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["fromOffset"].(*int32)), true
 	case "Subscription.supervisorDecisionHistoryStream":
 		if e.ComplexityRoot.Subscription.SupervisorDecisionHistoryStream == nil {
 			break
@@ -199,6 +708,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.SupervisorDecisionHistoryStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["intervalMS"].(*int32)), true
+	case "Subscription.workflowExecutionStream":
+		if e.ComplexityRoot.Subscription.WorkflowExecutionStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_workflowExecutionStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.WorkflowExecutionStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["fromOffset"].(*int32)), true
 
 	case "SupervisorDecision.action":
 		if e.ComplexityRoot.SupervisorDecision.Action == nil {
@@ -317,6 +837,106 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SupervisorDecisionMetadataEntry.Value(childComplexity), true
 
+	case "WorkerSummary.capabilities":
+		if e.ComplexityRoot.WorkerSummary.Capabilities == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkerSummary.Capabilities(childComplexity), true
+	case "WorkerSummary.lastHeartbeat":
+		if e.ComplexityRoot.WorkerSummary.LastHeartbeat == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkerSummary.LastHeartbeat(childComplexity), true
+	case "WorkerSummary.workerID":
+		if e.ComplexityRoot.WorkerSummary.WorkerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkerSummary.WorkerID(childComplexity), true
+
+	case "WorkersSuccess.workers":
+		if e.ComplexityRoot.WorkersSuccess.Workers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkersSuccess.Workers(childComplexity), true
+
+	case "WorkflowJob.duplicate":
+		if e.ComplexityRoot.WorkflowJob.Duplicate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.Duplicate(childComplexity), true
+	case "WorkflowJob.enqueuedAt":
+		if e.ComplexityRoot.WorkflowJob.EnqueuedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.EnqueuedAt(childComplexity), true
+	case "WorkflowJob.idempotencyKey":
+		if e.ComplexityRoot.WorkflowJob.IdempotencyKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.IdempotencyKey(childComplexity), true
+	case "WorkflowJob.jobID":
+		if e.ComplexityRoot.WorkflowJob.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.JobID(childComplexity), true
+	case "WorkflowJob.jobKind":
+		if e.ComplexityRoot.WorkflowJob.JobKind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.JobKind(childComplexity), true
+	case "WorkflowJob.queue":
+		if e.ComplexityRoot.WorkflowJob.Queue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.Queue(childComplexity), true
+	case "WorkflowJob.queueTaskID":
+		if e.ComplexityRoot.WorkflowJob.QueueTaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.QueueTaskID(childComplexity), true
+	case "WorkflowJob.runID":
+		if e.ComplexityRoot.WorkflowJob.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.RunID(childComplexity), true
+	case "WorkflowJob.status":
+		if e.ComplexityRoot.WorkflowJob.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.Status(childComplexity), true
+	case "WorkflowJob.taskID":
+		if e.ComplexityRoot.WorkflowJob.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.TaskID(childComplexity), true
+	case "WorkflowJob.updatedAt":
+		if e.ComplexityRoot.WorkflowJob.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJob.UpdatedAt(childComplexity), true
+
+	case "WorkflowJobsSuccess.jobs":
+		if e.ComplexityRoot.WorkflowJobsSuccess.Jobs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WorkflowJobsSuccess.Jobs(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -325,7 +945,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputApproveIssueIntakeInput,
+		ec.unmarshalInputEnqueueIngestionWorkflowInput,
 		ec.unmarshalInputEnqueueSCMWorkflowInput,
+		ec.unmarshalInputIngestionBoardSourceInput,
+		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
 	)
 	first := true
@@ -419,6 +1043,202 @@ func newExecutionContext(
 }
 
 var sources = []*ast.Source{
+	{Name: "../schema/control_plane.graphqls", Input: `enum JobKind {
+  INGESTION_AGENT_RUN
+  AGENT_WORKFLOW_RUN
+  SCM_WORKFLOW_RUN
+}
+
+type SessionSummary {
+  runID: String!
+  taskCount: Int!
+  jobCount: Int!
+  updatedAt: Time!
+}
+
+type SessionsSuccess {
+  sessions: [SessionSummary!]!
+}
+
+union SessionsResult = SessionsSuccess | GraphError
+
+type SessionSuccess {
+  session: SessionSummary!
+}
+
+union SessionResult = SessionSuccess | GraphError
+
+type WorkflowJob {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  jobKind: JobKind!
+  idempotencyKey: String!
+  queueTaskID: String!
+  queue: String!
+  status: String!
+  duplicate: Boolean!
+  enqueuedAt: Time!
+  updatedAt: Time!
+}
+
+type WorkflowJobsSuccess {
+  jobs: [WorkflowJob!]!
+}
+
+union WorkflowJobsResult = WorkflowJobsSuccess | GraphError
+
+type WorkerSummary {
+  workerID: String!
+  capabilities: [JobKind!]!
+  lastHeartbeat: Time!
+}
+
+type WorkersSuccess {
+  workers: [WorkerSummary!]!
+}
+
+union WorkersResult = WorkersSuccess | GraphError
+
+type ExecutionHistoryRecord {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  jobKind: JobKind!
+  idempotencyKey: String!
+  step: String!
+  status: String!
+  errorMessage: String
+  updatedAt: Time!
+}
+
+type ExecutionHistorySuccess {
+  records: [ExecutionHistoryRecord!]!
+}
+
+union ExecutionHistoryResult = ExecutionHistorySuccess | GraphError
+
+type DeadLetterHistoryRecord {
+  queue: String!
+  taskID: String!
+  jobKind: JobKind!
+  action: String!
+  lastError: String
+  reason: String
+  actor: String
+  occurredAt: Time!
+}
+
+type DeadLetterHistorySuccess {
+  records: [DeadLetterHistoryRecord!]!
+}
+
+union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
+
+enum TrackerSourceKind {
+  LOCAL_JSON
+  GITHUB_ISSUES
+  JIRA
+  LINEAR
+}
+
+input IngestionBoardSourceInput {
+  kind: TrackerSourceKind!
+  location: String
+  boardID: String
+}
+
+input EnqueueIngestionWorkflowInput {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  idempotencyKey: String!
+  prompt: String!
+  projectID: String!
+  workflowID: String!
+  boardSource: IngestionBoardSourceInput!
+}
+
+type EnqueueIngestionWorkflowSuccess {
+  queueTaskID: ID!
+  duplicate: Boolean!
+}
+
+union EnqueueIngestionWorkflowResult = EnqueueIngestionWorkflowSuccess | GraphError
+
+input ApproveIssueIntakeInput {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  source: String!
+  issueReference: String!
+  approvedBy: String!
+}
+
+type ApproveIssueIntakeSuccess {
+  decision: SupervisorDecision!
+}
+
+union ApproveIssueIntakeResult = ApproveIssueIntakeSuccess | GraphError
+
+input RequeueDeadLetterInput {
+  queue: String!
+  taskID: String!
+}
+
+type RequeueDeadLetterSuccess {
+  ok: Boolean!
+}
+
+union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
+
+enum StreamEventSource {
+  ACP
+  SESSION_FILE
+  WORKER
+}
+
+type StreamEvent {
+  eventID: ID!
+  streamOffset: Int!
+  occurredAt: Time!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String
+  correlationID: String!
+  source: StreamEventSource!
+  eventType: String!
+  payload: String!
+}
+
+type StreamEventSuccess {
+  event: StreamEvent!
+}
+
+union StreamEventResult = StreamEventSuccess | GraphError
+
+extend type Query {
+  sessions(limit: Int = 50): SessionsResult!
+  session(runID: String!): SessionResult!
+  workers(limit: Int = 50): WorkersResult!
+  workflowJobs(runID: String!, taskID: String, limit: Int = 100): WorkflowJobsResult!
+  executionHistory(correlation: SupervisorCorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
+  deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
+}
+
+extend type Mutation {
+  enqueueIngestionWorkflow(input: EnqueueIngestionWorkflowInput!): EnqueueIngestionWorkflowResult!
+  approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
+  requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
+}
+
+extend type Subscription {
+  sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+}
+`, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `scalar Time
 
 enum GraphErrorCode {
@@ -645,10 +1465,43 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_approveIssueIntake_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNApproveIssueIntakeInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐApproveIssueIntakeInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_enqueueIngestionWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNEnqueueIngestionWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_enqueueScmWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNEnqueueSCMWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueSCMWorkflowInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_requeueDeadLetter_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRequeueDeadLetterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterInput)
 	if err != nil {
 		return nil, err
 	}
@@ -667,6 +1520,60 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_deadLetterHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "queue", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["queue"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_executionHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_session_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["runID"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_sessions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_supervisorDecisionHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -675,6 +1582,70 @@ func (ec *executionContext) field_Query_supervisorDecisionHistory_args(ctx conte
 		return nil, err
 	}
 	args["correlation"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workflowJobs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "runID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["runID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "taskID", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["taskID"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_agentOutputStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_sessionActivityStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
 	return args, nil
 }
 
@@ -691,6 +1662,22 @@ func (ec *executionContext) field_Subscription_supervisorDecisionHistoryStream_a
 		return nil, err
 	}
 	args["intervalMS"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_workflowExecutionStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
 	return args, nil
 }
 
@@ -746,6 +1733,406 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _ApproveIssueIntakeSuccess_decision(ctx context.Context, field graphql.CollectedField, obj *models.ApproveIssueIntakeSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ApproveIssueIntakeSuccess_decision,
+		func(ctx context.Context) (any, error) {
+			return obj.Decision, nil
+		},
+		nil,
+		ec.marshalNSupervisorDecision2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ApproveIssueIntakeSuccess_decision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ApproveIssueIntakeSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_SupervisorDecision_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_SupervisorDecision_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_SupervisorDecision_jobID(ctx, field)
+			case "signalType":
+				return ec.fieldContext_SupervisorDecision_signalType(ctx, field)
+			case "fromState":
+				return ec.fieldContext_SupervisorDecision_fromState(ctx, field)
+			case "toState":
+				return ec.fieldContext_SupervisorDecision_toState(ctx, field)
+			case "action":
+				return ec.fieldContext_SupervisorDecision_action(ctx, field)
+			case "reason":
+				return ec.fieldContext_SupervisorDecision_reason(ctx, field)
+			case "ruleName":
+				return ec.fieldContext_SupervisorDecision_ruleName(ctx, field)
+			case "rulePriority":
+				return ec.fieldContext_SupervisorDecision_rulePriority(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_SupervisorDecision_occurredAt(ctx, field)
+			case "attentionZone":
+				return ec.fieldContext_SupervisorDecision_attentionZone(ctx, field)
+			case "attempt":
+				return ec.fieldContext_SupervisorDecision_attempt(ctx, field)
+			case "maxRetry":
+				return ec.fieldContext_SupervisorDecision_maxRetry(ctx, field)
+			case "failureClass":
+				return ec.fieldContext_SupervisorDecision_failureClass(ctx, field)
+			case "metadata":
+				return ec.fieldContext_SupervisorDecision_metadata(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SupervisorDecision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_queue(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_queue,
+		func(ctx context.Context) (any, error) {
+			return obj.Queue, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_queue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_taskID(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_jobKind(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_jobKind,
+		func(ctx context.Context) (any, error) {
+			return obj.JobKind, nil
+		},
+		nil,
+		ec.marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_jobKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JobKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_action(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_action,
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_lastError(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_lastError,
+		func(ctx context.Context) (any, error) {
+			return obj.LastError, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_reason(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_actor(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistoryRecord_occurredAt(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistoryRecord_occurredAt,
+		func(ctx context.Context) (any, error) {
+			return obj.OccurredAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistoryRecord_occurredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeadLetterHistorySuccess_records(ctx context.Context, field graphql.CollectedField, obj *models.DeadLetterHistorySuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeadLetterHistorySuccess_records,
+		func(ctx context.Context) (any, error) {
+			return obj.Records, nil
+		},
+		nil,
+		ec.marshalNDeadLetterHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryRecordᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeadLetterHistorySuccess_records(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeadLetterHistorySuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "queue":
+				return ec.fieldContext_DeadLetterHistoryRecord_queue(ctx, field)
+			case "taskID":
+				return ec.fieldContext_DeadLetterHistoryRecord_taskID(ctx, field)
+			case "jobKind":
+				return ec.fieldContext_DeadLetterHistoryRecord_jobKind(ctx, field)
+			case "action":
+				return ec.fieldContext_DeadLetterHistoryRecord_action(ctx, field)
+			case "lastError":
+				return ec.fieldContext_DeadLetterHistoryRecord_lastError(ctx, field)
+			case "reason":
+				return ec.fieldContext_DeadLetterHistoryRecord_reason(ctx, field)
+			case "actor":
+				return ec.fieldContext_DeadLetterHistoryRecord_actor(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_DeadLetterHistoryRecord_occurredAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DeadLetterHistoryRecord", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EnqueueIngestionWorkflowSuccess_queueTaskID(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueIngestionWorkflowSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EnqueueIngestionWorkflowSuccess_queueTaskID,
+		func(ctx context.Context) (any, error) {
+			return obj.QueueTaskID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EnqueueIngestionWorkflowSuccess_queueTaskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EnqueueIngestionWorkflowSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EnqueueIngestionWorkflowSuccess_duplicate(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueIngestionWorkflowSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EnqueueIngestionWorkflowSuccess_duplicate,
+		func(ctx context.Context) (any, error) {
+			return obj.Duplicate, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EnqueueIngestionWorkflowSuccess_duplicate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EnqueueIngestionWorkflowSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EnqueueSCMWorkflowSuccess_queueTaskID(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueSCMWorkflowSuccess) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -799,6 +2186,316 @@ func (ec *executionContext) fieldContext_EnqueueSCMWorkflowSuccess_duplicate(_ c
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_runID(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_taskID(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_jobID(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_jobKind(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_jobKind,
+		func(ctx context.Context) (any, error) {
+			return obj.JobKind, nil
+		},
+		nil,
+		ec.marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_jobKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JobKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_idempotencyKey(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_idempotencyKey,
+		func(ctx context.Context) (any, error) {
+			return obj.IdempotencyKey, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_idempotencyKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_step(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_step,
+		func(ctx context.Context) (any, error) {
+			return obj.Step, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_step(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_status(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_errorMessage(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_errorMessage,
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorMessage, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_errorMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistoryRecord_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistoryRecord_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistoryRecord_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistoryRecord",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExecutionHistorySuccess_records(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistorySuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ExecutionHistorySuccess_records,
+		func(ctx context.Context) (any, error) {
+			return obj.Records, nil
+		},
+		nil,
+		ec.marshalNExecutionHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryRecordᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ExecutionHistorySuccess_records(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExecutionHistorySuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_ExecutionHistoryRecord_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_ExecutionHistoryRecord_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_ExecutionHistoryRecord_jobID(ctx, field)
+			case "jobKind":
+				return ec.fieldContext_ExecutionHistoryRecord_jobKind(ctx, field)
+			case "idempotencyKey":
+				return ec.fieldContext_ExecutionHistoryRecord_idempotencyKey(ctx, field)
+			case "step":
+				return ec.fieldContext_ExecutionHistoryRecord_step(ctx, field)
+			case "status":
+				return ec.fieldContext_ExecutionHistoryRecord_status(ctx, field)
+			case "errorMessage":
+				return ec.fieldContext_ExecutionHistoryRecord_errorMessage(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ExecutionHistoryRecord_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ExecutionHistoryRecord", field.Name)
 		},
 	}
 	return fc, nil
@@ -891,6 +2588,129 @@ func (ec *executionContext) fieldContext_GraphError_field(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_enqueueIngestionWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_enqueueIngestionWorkflow,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EnqueueIngestionWorkflow(ctx, fc.Args["input"].(models.EnqueueIngestionWorkflowInput))
+		},
+		nil,
+		ec.marshalNEnqueueIngestionWorkflowResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_enqueueIngestionWorkflow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type EnqueueIngestionWorkflowResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_enqueueIngestionWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_approveIssueIntake(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_approveIssueIntake,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ApproveIssueIntake(ctx, fc.Args["input"].(models.ApproveIssueIntakeInput))
+		},
+		nil,
+		ec.marshalNApproveIssueIntakeResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐApproveIssueIntakeResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_approveIssueIntake(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ApproveIssueIntakeResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_approveIssueIntake_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_requeueDeadLetter(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_requeueDeadLetter,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RequeueDeadLetter(ctx, fc.Args["input"].(models.RequeueDeadLetterInput))
+		},
+		nil,
+		ec.marshalNRequeueDeadLetterResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_requeueDeadLetter(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type RequeueDeadLetterResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_requeueDeadLetter_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_enqueueScmWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -926,6 +2746,252 @@ func (ec *executionContext) fieldContext_Mutation_enqueueScmWorkflow(ctx context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_enqueueScmWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_sessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_sessions,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Sessions(ctx, fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNSessionsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_sessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type SessionsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_sessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_session(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_session,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Session(ctx, fc.Args["runID"].(string))
+		},
+		nil,
+		ec.marshalNSessionResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_session(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type SessionResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_session_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workers,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Workers(ctx, fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNWorkersResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkersResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type WorkersResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workflowJobs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workflowJobs,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().WorkflowJobs(ctx, fc.Args["runID"].(string), fc.Args["taskID"].(*string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNWorkflowJobsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJobsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workflowJobs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type WorkflowJobsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workflowJobs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_executionHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_executionHistory,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ExecutionHistory(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNExecutionHistoryResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_executionHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ExecutionHistoryResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_executionHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_deadLetterHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_deadLetterHistory,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().DeadLetterHistory(ctx, fc.Args["queue"].(*string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNDeadLetterHistoryResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_deadLetterHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DeadLetterHistoryResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_deadLetterHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1110,6 +3176,35 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _RequeueDeadLetterSuccess_ok(ctx context.Context, field graphql.CollectedField, obj *models.RequeueDeadLetterSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequeueDeadLetterSuccess_ok,
+		func(ctx context.Context) (any, error) {
+			return obj.Ok, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequeueDeadLetterSuccess_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequeueDeadLetterSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ScmSupportedOperationsSuccess_operations(ctx context.Context, field graphql.CollectedField, obj *models.ScmSupportedOperationsSuccess) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1135,6 +3230,695 @@ func (ec *executionContext) fieldContext_ScmSupportedOperationsSuccess_operation
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type SCMOperation does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSuccess_session(ctx context.Context, field graphql.CollectedField, obj *models.SessionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSuccess_session,
+		func(ctx context.Context) (any, error) {
+			return obj.Session, nil
+		},
+		nil,
+		ec.marshalNSessionSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionSummary,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSuccess_session(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_SessionSummary_runID(ctx, field)
+			case "taskCount":
+				return ec.fieldContext_SessionSummary_taskCount(ctx, field)
+			case "jobCount":
+				return ec.fieldContext_SessionSummary_jobCount(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionSummary_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSummary_runID(ctx context.Context, field graphql.CollectedField, obj *models.SessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSummary_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSummary_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSummary_taskCount(ctx context.Context, field graphql.CollectedField, obj *models.SessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSummary_taskCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSummary_taskCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSummary_jobCount(ctx context.Context, field graphql.CollectedField, obj *models.SessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSummary_jobCount,
+		func(ctx context.Context) (any, error) {
+			return obj.JobCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSummary_jobCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSummary_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.SessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSummary_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSummary_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionsSuccess_sessions(ctx context.Context, field graphql.CollectedField, obj *models.SessionsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionsSuccess_sessions,
+		func(ctx context.Context) (any, error) {
+			return obj.Sessions, nil
+		},
+		nil,
+		ec.marshalNSessionSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionSummaryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionsSuccess_sessions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_SessionSummary_runID(ctx, field)
+			case "taskCount":
+				return ec.fieldContext_SessionSummary_taskCount(ctx, field)
+			case "jobCount":
+				return ec.fieldContext_SessionSummary_jobCount(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_SessionSummary_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_eventID(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_eventID,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_eventID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_streamOffset(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_streamOffset,
+		func(ctx context.Context) (any, error) {
+			return obj.StreamOffset, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_streamOffset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_occurredAt(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_occurredAt,
+		func(ctx context.Context) (any, error) {
+			return obj.OccurredAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_occurredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_runID(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_taskID(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_jobID(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_sessionID(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_sessionID,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_sessionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_correlationID(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_correlationID,
+		func(ctx context.Context) (any, error) {
+			return obj.CorrelationID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_correlationID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_source(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalNStreamEventSource2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventSource,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventSource does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_eventType(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_eventType,
+		func(ctx context.Context) (any, error) {
+			return obj.EventType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_eventType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_payload(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_payload,
+		func(ctx context.Context) (any, error) {
+			return obj.Payload, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEventSuccess_event(ctx context.Context, field graphql.CollectedField, obj *models.StreamEventSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEventSuccess_event,
+		func(ctx context.Context) (any, error) {
+			return obj.Event, nil
+		},
+		nil,
+		ec.marshalNStreamEvent2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEvent,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEventSuccess_event(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEventSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "eventID":
+				return ec.fieldContext_StreamEvent_eventID(ctx, field)
+			case "streamOffset":
+				return ec.fieldContext_StreamEvent_streamOffset(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_StreamEvent_occurredAt(ctx, field)
+			case "runID":
+				return ec.fieldContext_StreamEvent_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_StreamEvent_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_StreamEvent_jobID(ctx, field)
+			case "sessionID":
+				return ec.fieldContext_StreamEvent_sessionID(ctx, field)
+			case "correlationID":
+				return ec.fieldContext_StreamEvent_correlationID(ctx, field)
+			case "source":
+				return ec.fieldContext_StreamEvent_source(ctx, field)
+			case "eventType":
+				return ec.fieldContext_StreamEvent_eventType(ctx, field)
+			case "payload":
+				return ec.fieldContext_StreamEvent_payload(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type StreamEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_sessionActivityStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_sessionActivityStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().SessionActivityStream(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_sessionActivityStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_sessionActivityStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_workflowExecutionStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_workflowExecutionStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().WorkflowExecutionStream(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_workflowExecutionStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_workflowExecutionStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_agentOutputStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_agentOutputStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().AgentOutputStream(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_agentOutputStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_agentOutputStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1766,6 +4550,502 @@ func (ec *executionContext) fieldContext_SupervisorDecisionMetadataEntry_value(_
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkerSummary_workerID(ctx context.Context, field graphql.CollectedField, obj *models.WorkerSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkerSummary_workerID,
+		func(ctx context.Context) (any, error) {
+			return obj.WorkerID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkerSummary_workerID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkerSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkerSummary_capabilities(ctx context.Context, field graphql.CollectedField, obj *models.WorkerSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkerSummary_capabilities,
+		func(ctx context.Context) (any, error) {
+			return obj.Capabilities, nil
+		},
+		nil,
+		ec.marshalNJobKind2ᚕagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKindᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkerSummary_capabilities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkerSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JobKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkerSummary_lastHeartbeat(ctx context.Context, field graphql.CollectedField, obj *models.WorkerSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkerSummary_lastHeartbeat,
+		func(ctx context.Context) (any, error) {
+			return obj.LastHeartbeat, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkerSummary_lastHeartbeat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkerSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkersSuccess_workers(ctx context.Context, field graphql.CollectedField, obj *models.WorkersSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkersSuccess_workers,
+		func(ctx context.Context) (any, error) {
+			return obj.Workers, nil
+		},
+		nil,
+		ec.marshalNWorkerSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummaryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkersSuccess_workers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkersSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "workerID":
+				return ec.fieldContext_WorkerSummary_workerID(ctx, field)
+			case "capabilities":
+				return ec.fieldContext_WorkerSummary_capabilities(ctx, field)
+			case "lastHeartbeat":
+				return ec.fieldContext_WorkerSummary_lastHeartbeat(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkerSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_runID(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_taskID(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_jobID(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_jobKind(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_jobKind,
+		func(ctx context.Context) (any, error) {
+			return obj.JobKind, nil
+		},
+		nil,
+		ec.marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_jobKind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JobKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_idempotencyKey(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_idempotencyKey,
+		func(ctx context.Context) (any, error) {
+			return obj.IdempotencyKey, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_idempotencyKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_queueTaskID(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_queueTaskID,
+		func(ctx context.Context) (any, error) {
+			return obj.QueueTaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_queueTaskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_queue(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_queue,
+		func(ctx context.Context) (any, error) {
+			return obj.Queue, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_queue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_status(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_duplicate(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_duplicate,
+		func(ctx context.Context) (any, error) {
+			return obj.Duplicate, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_duplicate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_enqueuedAt(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_enqueuedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.EnqueuedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_enqueuedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJob_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJob) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJob_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJob_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJob",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkflowJobsSuccess_jobs(ctx context.Context, field graphql.CollectedField, obj *models.WorkflowJobsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkflowJobsSuccess_jobs,
+		func(ctx context.Context) (any, error) {
+			return obj.Jobs, nil
+		},
+		nil,
+		ec.marshalNWorkflowJob2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJobᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkflowJobsSuccess_jobs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkflowJobsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_WorkflowJob_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_WorkflowJob_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_WorkflowJob_jobID(ctx, field)
+			case "jobKind":
+				return ec.fieldContext_WorkflowJob_jobKind(ctx, field)
+			case "idempotencyKey":
+				return ec.fieldContext_WorkflowJob_idempotencyKey(ctx, field)
+			case "queueTaskID":
+				return ec.fieldContext_WorkflowJob_queueTaskID(ctx, field)
+			case "queue":
+				return ec.fieldContext_WorkflowJob_queue(ctx, field)
+			case "status":
+				return ec.fieldContext_WorkflowJob_status(ctx, field)
+			case "duplicate":
+				return ec.fieldContext_WorkflowJob_duplicate(ctx, field)
+			case "enqueuedAt":
+				return ec.fieldContext_WorkflowJob_enqueuedAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_WorkflowJob_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkflowJob", field.Name)
 		},
 	}
 	return fc, nil
@@ -3217,6 +6497,142 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputApproveIssueIntakeInput(ctx context.Context, obj any) (models.ApproveIssueIntakeInput, error) {
+	var it models.ApproveIssueIntakeInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"runID", "taskID", "jobID", "source", "issueReference", "approvedBy"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "runID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RunID = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
+		case "jobID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jobID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JobID = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
+		case "issueReference":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("issueReference"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IssueReference = data
+		case "approvedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("approvedBy"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ApprovedBy = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputEnqueueIngestionWorkflowInput(ctx context.Context, obj any) (models.EnqueueIngestionWorkflowInput, error) {
+	var it models.EnqueueIngestionWorkflowInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"runID", "taskID", "jobID", "idempotencyKey", "prompt", "projectID", "workflowID", "boardSource"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "runID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RunID = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
+		case "jobID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jobID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JobID = data
+		case "idempotencyKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idempotencyKey"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IdempotencyKey = data
+		case "prompt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("prompt"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Prompt = data
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "workflowID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WorkflowID = data
+		case "boardSource":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardSource"))
+			data, err := ec.unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardSource = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputEnqueueSCMWorkflowInput(ctx context.Context, obj any) (models.EnqueueSCMWorkflowInput, error) {
 	var it models.EnqueueSCMWorkflowInput
 	asMap := map[string]any{}
@@ -3355,6 +6771,79 @@ func (ec *executionContext) unmarshalInputEnqueueSCMWorkflowInput(ctx context.Co
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputIngestionBoardSourceInput(ctx context.Context, obj any) (models.IngestionBoardSourceInput, error) {
+	var it models.IngestionBoardSourceInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"kind", "location", "boardID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "location":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("location"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Location = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRequeueDeadLetterInput(ctx context.Context, obj any) (models.RequeueDeadLetterInput, error) {
+	var it models.RequeueDeadLetterInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"queue", "taskID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "queue":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("queue"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Queue = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSupervisorCorrelationInput(ctx context.Context, obj any) (models.SupervisorCorrelationInput, error) {
 	var it models.SupervisorCorrelationInput
 	asMap := map[string]any{}
@@ -3399,6 +6888,87 @@ func (ec *executionContext) unmarshalInputSupervisorCorrelationInput(ctx context
 
 // region    ************************** interface.gotpl ***************************
 
+func (ec *executionContext) _ApproveIssueIntakeResult(ctx context.Context, sel ast.SelectionSet, obj models.ApproveIssueIntakeResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	case models.ApproveIssueIntakeSuccess:
+		return ec._ApproveIssueIntakeSuccess(ctx, sel, &obj)
+	case *models.ApproveIssueIntakeSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ApproveIssueIntakeSuccess(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ApproveIssueIntakeResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _DeadLetterHistoryResult(ctx context.Context, sel ast.SelectionSet, obj models.DeadLetterHistoryResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	case models.DeadLetterHistorySuccess:
+		return ec._DeadLetterHistorySuccess(ctx, sel, &obj)
+	case *models.DeadLetterHistorySuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._DeadLetterHistorySuccess(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of DeadLetterHistoryResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _EnqueueIngestionWorkflowResult(ctx context.Context, sel ast.SelectionSet, obj models.EnqueueIngestionWorkflowResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	case models.EnqueueIngestionWorkflowSuccess:
+		return ec._EnqueueIngestionWorkflowSuccess(ctx, sel, &obj)
+	case *models.EnqueueIngestionWorkflowSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._EnqueueIngestionWorkflowSuccess(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of EnqueueIngestionWorkflowResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
 func (ec *executionContext) _EnqueueSCMWorkflowResult(ctx context.Context, sel ast.SelectionSet, obj models.EnqueueSCMWorkflowResult) graphql.Marshaler {
 	switch obj := (obj).(type) {
 	case nil:
@@ -3422,6 +6992,60 @@ func (ec *executionContext) _EnqueueSCMWorkflowResult(ctx context.Context, sel a
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of EnqueueSCMWorkflowResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _ExecutionHistoryResult(ctx context.Context, sel ast.SelectionSet, obj models.ExecutionHistoryResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	case models.ExecutionHistorySuccess:
+		return ec._ExecutionHistorySuccess(ctx, sel, &obj)
+	case *models.ExecutionHistorySuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ExecutionHistorySuccess(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ExecutionHistoryResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _RequeueDeadLetterResult(ctx context.Context, sel ast.SelectionSet, obj models.RequeueDeadLetterResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.RequeueDeadLetterSuccess:
+		return ec._RequeueDeadLetterSuccess(ctx, sel, &obj)
+	case *models.RequeueDeadLetterSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RequeueDeadLetterSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of RequeueDeadLetterResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -3453,6 +7077,87 @@ func (ec *executionContext) _ScmSupportedOperationsResult(ctx context.Context, s
 	}
 }
 
+func (ec *executionContext) _SessionResult(ctx context.Context, sel ast.SelectionSet, obj models.SessionResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.SessionSuccess:
+		return ec._SessionSuccess(ctx, sel, &obj)
+	case *models.SessionSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SessionSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of SessionResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _SessionsResult(ctx context.Context, sel ast.SelectionSet, obj models.SessionsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.SessionsSuccess:
+		return ec._SessionsSuccess(ctx, sel, &obj)
+	case *models.SessionsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SessionsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of SessionsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _StreamEventResult(ctx context.Context, sel ast.SelectionSet, obj models.StreamEventResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.StreamEventSuccess:
+		return ec._StreamEventSuccess(ctx, sel, &obj)
+	case *models.StreamEventSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._StreamEventSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of StreamEventResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
 func (ec *executionContext) _SupervisorDecisionHistoryResult(ctx context.Context, sel ast.SelectionSet, obj models.SupervisorDecisionHistoryResult) graphql.Marshaler {
 	switch obj := (obj).(type) {
 	case nil:
@@ -3480,9 +7185,250 @@ func (ec *executionContext) _SupervisorDecisionHistoryResult(ctx context.Context
 	}
 }
 
+func (ec *executionContext) _WorkersResult(ctx context.Context, sel ast.SelectionSet, obj models.WorkersResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.WorkersSuccess:
+		return ec._WorkersSuccess(ctx, sel, &obj)
+	case *models.WorkersSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._WorkersSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of WorkersResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _WorkflowJobsResult(ctx context.Context, sel ast.SelectionSet, obj models.WorkflowJobsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.WorkflowJobsSuccess:
+		return ec._WorkflowJobsSuccess(ctx, sel, &obj)
+	case *models.WorkflowJobsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._WorkflowJobsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of WorkflowJobsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
+
+var approveIssueIntakeSuccessImplementors = []string{"ApproveIssueIntakeSuccess", "ApproveIssueIntakeResult"}
+
+func (ec *executionContext) _ApproveIssueIntakeSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ApproveIssueIntakeSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, approveIssueIntakeSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApproveIssueIntakeSuccess")
+		case "decision":
+			out.Values[i] = ec._ApproveIssueIntakeSuccess_decision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var deadLetterHistoryRecordImplementors = []string{"DeadLetterHistoryRecord"}
+
+func (ec *executionContext) _DeadLetterHistoryRecord(ctx context.Context, sel ast.SelectionSet, obj *models.DeadLetterHistoryRecord) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deadLetterHistoryRecordImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeadLetterHistoryRecord")
+		case "queue":
+			out.Values[i] = ec._DeadLetterHistoryRecord_queue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskID":
+			out.Values[i] = ec._DeadLetterHistoryRecord_taskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobKind":
+			out.Values[i] = ec._DeadLetterHistoryRecord_jobKind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "action":
+			out.Values[i] = ec._DeadLetterHistoryRecord_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastError":
+			out.Values[i] = ec._DeadLetterHistoryRecord_lastError(ctx, field, obj)
+		case "reason":
+			out.Values[i] = ec._DeadLetterHistoryRecord_reason(ctx, field, obj)
+		case "actor":
+			out.Values[i] = ec._DeadLetterHistoryRecord_actor(ctx, field, obj)
+		case "occurredAt":
+			out.Values[i] = ec._DeadLetterHistoryRecord_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var deadLetterHistorySuccessImplementors = []string{"DeadLetterHistorySuccess", "DeadLetterHistoryResult"}
+
+func (ec *executionContext) _DeadLetterHistorySuccess(ctx context.Context, sel ast.SelectionSet, obj *models.DeadLetterHistorySuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deadLetterHistorySuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeadLetterHistorySuccess")
+		case "records":
+			out.Values[i] = ec._DeadLetterHistorySuccess_records(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var enqueueIngestionWorkflowSuccessImplementors = []string{"EnqueueIngestionWorkflowSuccess", "EnqueueIngestionWorkflowResult"}
+
+func (ec *executionContext) _EnqueueIngestionWorkflowSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.EnqueueIngestionWorkflowSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, enqueueIngestionWorkflowSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EnqueueIngestionWorkflowSuccess")
+		case "queueTaskID":
+			out.Values[i] = ec._EnqueueIngestionWorkflowSuccess_queueTaskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duplicate":
+			out.Values[i] = ec._EnqueueIngestionWorkflowSuccess_duplicate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
 
 var enqueueSCMWorkflowSuccessImplementors = []string{"EnqueueSCMWorkflowSuccess", "EnqueueSCMWorkflowResult"}
 
@@ -3528,7 +7474,122 @@ func (ec *executionContext) _EnqueueSCMWorkflowSuccess(ctx context.Context, sel 
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var executionHistoryRecordImplementors = []string{"ExecutionHistoryRecord"}
+
+func (ec *executionContext) _ExecutionHistoryRecord(ctx context.Context, sel ast.SelectionSet, obj *models.ExecutionHistoryRecord) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, executionHistoryRecordImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExecutionHistoryRecord")
+		case "runID":
+			out.Values[i] = ec._ExecutionHistoryRecord_runID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskID":
+			out.Values[i] = ec._ExecutionHistoryRecord_taskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobID":
+			out.Values[i] = ec._ExecutionHistoryRecord_jobID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobKind":
+			out.Values[i] = ec._ExecutionHistoryRecord_jobKind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "idempotencyKey":
+			out.Values[i] = ec._ExecutionHistoryRecord_idempotencyKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "step":
+			out.Values[i] = ec._ExecutionHistoryRecord_step(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ExecutionHistoryRecord_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorMessage":
+			out.Values[i] = ec._ExecutionHistoryRecord_errorMessage(ctx, field, obj)
+		case "updatedAt":
+			out.Values[i] = ec._ExecutionHistoryRecord_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var executionHistorySuccessImplementors = []string{"ExecutionHistorySuccess", "ExecutionHistoryResult"}
+
+func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ExecutionHistorySuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, executionHistorySuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExecutionHistorySuccess")
+		case "records":
+			out.Values[i] = ec._ExecutionHistorySuccess_records(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "WorkersResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "EnqueueIngestionWorkflowResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "StreamEventResult", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -3593,6 +7654,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
+		case "enqueueIngestionWorkflow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_enqueueIngestionWorkflow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "approveIssueIntake":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_approveIssueIntake(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requeueDeadLetter":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_requeueDeadLetter(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "enqueueScmWorkflow":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_enqueueScmWorkflow(ctx, field)
@@ -3642,6 +7724,138 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
+		case "sessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_sessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "session":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_session(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workers":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workers(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workflowJobs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workflowJobs(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "executionHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_executionHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "deadLetterHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_deadLetterHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "scmSupportedOperations":
 			field := field
 
@@ -3717,6 +7931,45 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var requeueDeadLetterSuccessImplementors = []string{"RequeueDeadLetterSuccess", "RequeueDeadLetterResult"}
+
+func (ec *executionContext) _RequeueDeadLetterSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.RequeueDeadLetterSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, requeueDeadLetterSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RequeueDeadLetterSuccess")
+		case "ok":
+			out.Values[i] = ec._RequeueDeadLetterSuccess_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var scmSupportedOperationsSuccessImplementors = []string{"ScmSupportedOperationsSuccess", "ScmSupportedOperationsResult"}
 
 func (ec *executionContext) _ScmSupportedOperationsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ScmSupportedOperationsSuccess) graphql.Marshaler {
@@ -3756,6 +8009,254 @@ func (ec *executionContext) _ScmSupportedOperationsSuccess(ctx context.Context, 
 	return out
 }
 
+var sessionSuccessImplementors = []string{"SessionSuccess", "SessionResult"}
+
+func (ec *executionContext) _SessionSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.SessionSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionSuccess")
+		case "session":
+			out.Values[i] = ec._SessionSuccess_session(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sessionSummaryImplementors = []string{"SessionSummary"}
+
+func (ec *executionContext) _SessionSummary(ctx context.Context, sel ast.SelectionSet, obj *models.SessionSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionSummary")
+		case "runID":
+			out.Values[i] = ec._SessionSummary_runID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskCount":
+			out.Values[i] = ec._SessionSummary_taskCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobCount":
+			out.Values[i] = ec._SessionSummary_jobCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SessionSummary_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var sessionsSuccessImplementors = []string{"SessionsSuccess", "SessionsResult"}
+
+func (ec *executionContext) _SessionsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.SessionsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionsSuccess")
+		case "sessions":
+			out.Values[i] = ec._SessionsSuccess_sessions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var streamEventImplementors = []string{"StreamEvent"}
+
+func (ec *executionContext) _StreamEvent(ctx context.Context, sel ast.SelectionSet, obj *models.StreamEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, streamEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StreamEvent")
+		case "eventID":
+			out.Values[i] = ec._StreamEvent_eventID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "streamOffset":
+			out.Values[i] = ec._StreamEvent_streamOffset(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "occurredAt":
+			out.Values[i] = ec._StreamEvent_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runID":
+			out.Values[i] = ec._StreamEvent_runID(ctx, field, obj)
+		case "taskID":
+			out.Values[i] = ec._StreamEvent_taskID(ctx, field, obj)
+		case "jobID":
+			out.Values[i] = ec._StreamEvent_jobID(ctx, field, obj)
+		case "sessionID":
+			out.Values[i] = ec._StreamEvent_sessionID(ctx, field, obj)
+		case "correlationID":
+			out.Values[i] = ec._StreamEvent_correlationID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._StreamEvent_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventType":
+			out.Values[i] = ec._StreamEvent_eventType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payload":
+			out.Values[i] = ec._StreamEvent_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var streamEventSuccessImplementors = []string{"StreamEventSuccess", "StreamEventResult"}
+
+func (ec *executionContext) _StreamEventSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.StreamEventSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, streamEventSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StreamEventSuccess")
+		case "event":
+			out.Values[i] = ec._StreamEventSuccess_event(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var subscriptionImplementors = []string{"Subscription"}
 
 func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
@@ -3769,6 +8270,12 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 
 	switch fields[0].Name {
+	case "sessionActivityStream":
+		return ec._Subscription_sessionActivityStream(ctx, fields[0])
+	case "workflowExecutionStream":
+		return ec._Subscription_workflowExecutionStream(ctx, fields[0])
+	case "agentOutputStream":
+		return ec._Subscription_agentOutputStream(ctx, fields[0])
 	case "supervisorDecisionHistoryStream":
 		return ec._Subscription_supervisorDecisionHistoryStream(ctx, fields[0])
 	default:
@@ -3947,6 +8454,222 @@ func (ec *executionContext) _SupervisorDecisionMetadataEntry(ctx context.Context
 			}
 		case "value":
 			out.Values[i] = ec._SupervisorDecisionMetadataEntry_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workerSummaryImplementors = []string{"WorkerSummary"}
+
+func (ec *executionContext) _WorkerSummary(ctx context.Context, sel ast.SelectionSet, obj *models.WorkerSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workerSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkerSummary")
+		case "workerID":
+			out.Values[i] = ec._WorkerSummary_workerID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "capabilities":
+			out.Values[i] = ec._WorkerSummary_capabilities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastHeartbeat":
+			out.Values[i] = ec._WorkerSummary_lastHeartbeat(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workersSuccessImplementors = []string{"WorkersSuccess", "WorkersResult"}
+
+func (ec *executionContext) _WorkersSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.WorkersSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workersSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkersSuccess")
+		case "workers":
+			out.Values[i] = ec._WorkersSuccess_workers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workflowJobImplementors = []string{"WorkflowJob"}
+
+func (ec *executionContext) _WorkflowJob(ctx context.Context, sel ast.SelectionSet, obj *models.WorkflowJob) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowJobImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowJob")
+		case "runID":
+			out.Values[i] = ec._WorkflowJob_runID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskID":
+			out.Values[i] = ec._WorkflowJob_taskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobID":
+			out.Values[i] = ec._WorkflowJob_jobID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobKind":
+			out.Values[i] = ec._WorkflowJob_jobKind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "idempotencyKey":
+			out.Values[i] = ec._WorkflowJob_idempotencyKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queueTaskID":
+			out.Values[i] = ec._WorkflowJob_queueTaskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queue":
+			out.Values[i] = ec._WorkflowJob_queue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._WorkflowJob_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duplicate":
+			out.Values[i] = ec._WorkflowJob_duplicate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enqueuedAt":
+			out.Values[i] = ec._WorkflowJob_enqueuedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._WorkflowJob_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var workflowJobsSuccessImplementors = []string{"WorkflowJobsSuccess", "WorkflowJobsResult"}
+
+func (ec *executionContext) _WorkflowJobsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.WorkflowJobsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workflowJobsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkflowJobsSuccess")
+		case "jobs":
+			out.Values[i] = ec._WorkflowJobsSuccess_jobs(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -4308,6 +9031,21 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNApproveIssueIntakeInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐApproveIssueIntakeInput(ctx context.Context, v any) (models.ApproveIssueIntakeInput, error) {
+	res, err := ec.unmarshalInputApproveIssueIntakeInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNApproveIssueIntakeResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐApproveIssueIntakeResult(ctx context.Context, sel ast.SelectionSet, v models.ApproveIssueIntakeResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ApproveIssueIntakeResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4324,6 +9062,57 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNDeadLetterHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.DeadLetterHistoryRecord) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDeadLetterHistoryRecord2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryRecord(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDeadLetterHistoryRecord2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryRecord(ctx context.Context, sel ast.SelectionSet, v *models.DeadLetterHistoryRecord) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeadLetterHistoryRecord(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDeadLetterHistoryResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryResult(ctx context.Context, sel ast.SelectionSet, v models.DeadLetterHistoryResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeadLetterHistoryResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNEnqueueIngestionWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowInput(ctx context.Context, v any) (models.EnqueueIngestionWorkflowInput, error) {
+	res, err := ec.unmarshalInputEnqueueIngestionWorkflowInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNEnqueueIngestionWorkflowResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowResult(ctx context.Context, sel ast.SelectionSet, v models.EnqueueIngestionWorkflowResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EnqueueIngestionWorkflowResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNEnqueueSCMWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueSCMWorkflowInput(ctx context.Context, v any) (models.EnqueueSCMWorkflowInput, error) {
 	res, err := ec.unmarshalInputEnqueueSCMWorkflowInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4337,6 +9126,42 @@ func (ec *executionContext) marshalNEnqueueSCMWorkflowResult2agenticᚑorchestra
 		return graphql.Null
 	}
 	return ec._EnqueueSCMWorkflowResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNExecutionHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ExecutionHistoryRecord) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNExecutionHistoryRecord2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryRecord(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNExecutionHistoryRecord2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryRecord(ctx context.Context, sel ast.SelectionSet, v *models.ExecutionHistoryRecord) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExecutionHistoryRecord(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNExecutionHistoryResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryResult(ctx context.Context, sel ast.SelectionSet, v models.ExecutionHistoryResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExecutionHistoryResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNFailureClass2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐFailureClass(ctx context.Context, v any) (models.FailureClass, error) {
@@ -4375,6 +9200,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx context.Context, v any) (*models.IngestionBoardSourceInput, error) {
+	res, err := ec.unmarshalInputIngestionBoardSourceInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
 	res, err := graphql.UnmarshalInt32(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4389,6 +9219,62 @@ func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx context.Context, v any) (models.JobKind, error) {
+	var res models.JobKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx context.Context, sel ast.SelectionSet, v models.JobKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNJobKind2ᚕagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKindᚄ(ctx context.Context, v any) ([]models.JobKind, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]models.JobKind, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNJobKind2ᚕagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKindᚄ(ctx context.Context, sel ast.SelectionSet, v []models.JobKind) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNRequeueDeadLetterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterInput(ctx context.Context, v any) (models.RequeueDeadLetterInput, error) {
+	res, err := ec.unmarshalInputRequeueDeadLetterInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRequeueDeadLetterResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterResult(ctx context.Context, sel ast.SelectionSet, v models.RequeueDeadLetterResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RequeueDeadLetterResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSCMOperation2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMOperation(ctx context.Context, v any) (models.SCMOperation, error) {
@@ -4450,6 +9336,82 @@ func (ec *executionContext) marshalNScmSupportedOperationsResult2agenticᚑorche
 		return graphql.Null
 	}
 	return ec._ScmSupportedOperationsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSessionResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionResult(ctx context.Context, sel ast.SelectionSet, v models.SessionResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSessionSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.SessionSummary) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSessionSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionSummary(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSessionSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionSummary(ctx context.Context, sel ast.SelectionSet, v *models.SessionSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSessionsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSessionsResult(ctx context.Context, sel ast.SelectionSet, v models.SessionsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SessionsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNStreamEvent2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEvent(ctx context.Context, sel ast.SelectionSet, v *models.StreamEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StreamEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult(ctx context.Context, sel ast.SelectionSet, v models.StreamEventResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StreamEventResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNStreamEventSource2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventSource(ctx context.Context, v any) (models.StreamEventSource, error) {
+	var res models.StreamEventSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNStreamEventSource2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventSource(ctx context.Context, sel ast.SelectionSet, v models.StreamEventSource) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -4599,6 +9561,88 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx context.Context, v any) (models.TrackerSourceKind, error) {
+	var res models.TrackerSourceKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx context.Context, sel ast.SelectionSet, v models.TrackerSourceKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNWorkerSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.WorkerSummary) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWorkerSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummary(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkerSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummary(ctx context.Context, sel ast.SelectionSet, v *models.WorkerSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkerSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkersResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkersResult(ctx context.Context, sel ast.SelectionSet, v models.WorkersResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkersResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkflowJob2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.WorkflowJob) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWorkflowJob2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJob(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkflowJob2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJob(ctx context.Context, sel ast.SelectionSet, v *models.WorkflowJob) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowJob(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkflowJobsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJobsResult(ctx context.Context, sel ast.SelectionSet, v models.WorkflowJobsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkflowJobsResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {

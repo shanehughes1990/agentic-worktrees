@@ -108,7 +108,7 @@ func newSCMAdmissionQueueWorkerAdapterFixture(t *testing.T) *scmAdmissionQueueWo
 	if err != nil {
 		t.Fatalf("new scheduler: %v", err)
 	}
-	fixture.resolver = NewResolver(scheduler, nil)
+	fixture.resolver = NewResolver(scheduler, nil, nil, nil)
 	fixture.handler = handler
 	return fixture
 }

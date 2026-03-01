@@ -10,17 +10,107 @@ import (
 	"time"
 )
 
+type ApproveIssueIntakeResult interface {
+	IsApproveIssueIntakeResult()
+}
+
+type DeadLetterHistoryResult interface {
+	IsDeadLetterHistoryResult()
+}
+
+type EnqueueIngestionWorkflowResult interface {
+	IsEnqueueIngestionWorkflowResult()
+}
+
 type EnqueueSCMWorkflowResult interface {
 	IsEnqueueSCMWorkflowResult()
+}
+
+type ExecutionHistoryResult interface {
+	IsExecutionHistoryResult()
+}
+
+type RequeueDeadLetterResult interface {
+	IsRequeueDeadLetterResult()
 }
 
 type ScmSupportedOperationsResult interface {
 	IsScmSupportedOperationsResult()
 }
 
+type SessionResult interface {
+	IsSessionResult()
+}
+
+type SessionsResult interface {
+	IsSessionsResult()
+}
+
+type StreamEventResult interface {
+	IsStreamEventResult()
+}
+
 type SupervisorDecisionHistoryResult interface {
 	IsSupervisorDecisionHistoryResult()
 }
+
+type WorkersResult interface {
+	IsWorkersResult()
+}
+
+type WorkflowJobsResult interface {
+	IsWorkflowJobsResult()
+}
+
+type ApproveIssueIntakeInput struct {
+	RunID          string `json:"runID"`
+	TaskID         string `json:"taskID"`
+	JobID          string `json:"jobID"`
+	Source         string `json:"source"`
+	IssueReference string `json:"issueReference"`
+	ApprovedBy     string `json:"approvedBy"`
+}
+
+type ApproveIssueIntakeSuccess struct {
+	Decision *SupervisorDecision `json:"decision"`
+}
+
+func (ApproveIssueIntakeSuccess) IsApproveIssueIntakeResult() {}
+
+type DeadLetterHistoryRecord struct {
+	Queue      string    `json:"queue"`
+	TaskID     string    `json:"taskID"`
+	JobKind    JobKind   `json:"jobKind"`
+	Action     string    `json:"action"`
+	LastError  *string   `json:"lastError,omitempty"`
+	Reason     *string   `json:"reason,omitempty"`
+	Actor      *string   `json:"actor,omitempty"`
+	OccurredAt time.Time `json:"occurredAt"`
+}
+
+type DeadLetterHistorySuccess struct {
+	Records []*DeadLetterHistoryRecord `json:"records"`
+}
+
+func (DeadLetterHistorySuccess) IsDeadLetterHistoryResult() {}
+
+type EnqueueIngestionWorkflowInput struct {
+	RunID          string                     `json:"runID"`
+	TaskID         string                     `json:"taskID"`
+	JobID          string                     `json:"jobID"`
+	IdempotencyKey string                     `json:"idempotencyKey"`
+	Prompt         string                     `json:"prompt"`
+	ProjectID      string                     `json:"projectID"`
+	WorkflowID     string                     `json:"workflowID"`
+	BoardSource    *IngestionBoardSourceInput `json:"boardSource"`
+}
+
+type EnqueueIngestionWorkflowSuccess struct {
+	QueueTaskID string `json:"queueTaskID"`
+	Duplicate   bool   `json:"duplicate"`
+}
+
+func (EnqueueIngestionWorkflowSuccess) IsEnqueueIngestionWorkflowResult() {}
 
 type EnqueueSCMWorkflowInput struct {
 	Operation         SCMOperation       `json:"operation"`
@@ -49,11 +139,49 @@ type EnqueueSCMWorkflowSuccess struct {
 
 func (EnqueueSCMWorkflowSuccess) IsEnqueueSCMWorkflowResult() {}
 
+type ExecutionHistoryRecord struct {
+	RunID          string    `json:"runID"`
+	TaskID         string    `json:"taskID"`
+	JobID          string    `json:"jobID"`
+	JobKind        JobKind   `json:"jobKind"`
+	IdempotencyKey string    `json:"idempotencyKey"`
+	Step           string    `json:"step"`
+	Status         string    `json:"status"`
+	ErrorMessage   *string   `json:"errorMessage,omitempty"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type ExecutionHistorySuccess struct {
+	Records []*ExecutionHistoryRecord `json:"records"`
+}
+
+func (ExecutionHistorySuccess) IsExecutionHistoryResult() {}
+
 type GraphError struct {
 	Code    GraphErrorCode `json:"code"`
 	Message string         `json:"message"`
 	Field   *string        `json:"field,omitempty"`
 }
+
+func (GraphError) IsSessionsResult() {}
+
+func (GraphError) IsSessionResult() {}
+
+func (GraphError) IsWorkflowJobsResult() {}
+
+func (GraphError) IsWorkersResult() {}
+
+func (GraphError) IsExecutionHistoryResult() {}
+
+func (GraphError) IsDeadLetterHistoryResult() {}
+
+func (GraphError) IsEnqueueIngestionWorkflowResult() {}
+
+func (GraphError) IsApproveIssueIntakeResult() {}
+
+func (GraphError) IsRequeueDeadLetterResult() {}
+
+func (GraphError) IsStreamEventResult() {}
 
 func (GraphError) IsEnqueueSCMWorkflowResult() {}
 
@@ -61,17 +189,73 @@ func (GraphError) IsScmSupportedOperationsResult() {}
 
 func (GraphError) IsSupervisorDecisionHistoryResult() {}
 
+type IngestionBoardSourceInput struct {
+	Kind     TrackerSourceKind `json:"kind"`
+	Location *string           `json:"location,omitempty"`
+	BoardID  *string           `json:"boardID,omitempty"`
+}
+
 type Mutation struct {
 }
 
 type Query struct {
 }
 
+type RequeueDeadLetterInput struct {
+	Queue  string `json:"queue"`
+	TaskID string `json:"taskID"`
+}
+
+type RequeueDeadLetterSuccess struct {
+	Ok bool `json:"ok"`
+}
+
+func (RequeueDeadLetterSuccess) IsRequeueDeadLetterResult() {}
+
 type ScmSupportedOperationsSuccess struct {
 	Operations []SCMOperation `json:"operations"`
 }
 
 func (ScmSupportedOperationsSuccess) IsScmSupportedOperationsResult() {}
+
+type SessionSuccess struct {
+	Session *SessionSummary `json:"session"`
+}
+
+func (SessionSuccess) IsSessionResult() {}
+
+type SessionSummary struct {
+	RunID     string    `json:"runID"`
+	TaskCount int32     `json:"taskCount"`
+	JobCount  int32     `json:"jobCount"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type SessionsSuccess struct {
+	Sessions []*SessionSummary `json:"sessions"`
+}
+
+func (SessionsSuccess) IsSessionsResult() {}
+
+type StreamEvent struct {
+	EventID       string            `json:"eventID"`
+	StreamOffset  int32             `json:"streamOffset"`
+	OccurredAt    time.Time         `json:"occurredAt"`
+	RunID         *string           `json:"runID,omitempty"`
+	TaskID        *string           `json:"taskID,omitempty"`
+	JobID         *string           `json:"jobID,omitempty"`
+	SessionID     *string           `json:"sessionID,omitempty"`
+	CorrelationID string            `json:"correlationID"`
+	Source        StreamEventSource `json:"source"`
+	EventType     string            `json:"eventType"`
+	Payload       string            `json:"payload"`
+}
+
+type StreamEventSuccess struct {
+	Event *StreamEvent `json:"event"`
+}
+
+func (StreamEventSuccess) IsStreamEventResult() {}
 
 type Subscription struct {
 }
@@ -111,6 +295,38 @@ type SupervisorDecisionMetadataEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+type WorkerSummary struct {
+	WorkerID      string    `json:"workerID"`
+	Capabilities  []JobKind `json:"capabilities"`
+	LastHeartbeat time.Time `json:"lastHeartbeat"`
+}
+
+type WorkersSuccess struct {
+	Workers []*WorkerSummary `json:"workers"`
+}
+
+func (WorkersSuccess) IsWorkersResult() {}
+
+type WorkflowJob struct {
+	RunID          string    `json:"runID"`
+	TaskID         string    `json:"taskID"`
+	JobID          string    `json:"jobID"`
+	JobKind        JobKind   `json:"jobKind"`
+	IdempotencyKey string    `json:"idempotencyKey"`
+	QueueTaskID    string    `json:"queueTaskID"`
+	Queue          string    `json:"queue"`
+	Status         string    `json:"status"`
+	Duplicate      bool      `json:"duplicate"`
+	EnqueuedAt     time.Time `json:"enqueuedAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type WorkflowJobsSuccess struct {
+	Jobs []*WorkflowJob `json:"jobs"`
+}
+
+func (WorkflowJobsSuccess) IsWorkflowJobsResult() {}
 
 type FailureClass string
 
@@ -229,6 +445,63 @@ func (e *GraphErrorCode) UnmarshalJSON(b []byte) error {
 }
 
 func (e GraphErrorCode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type JobKind string
+
+const (
+	JobKindIngestionAgentRun JobKind = "INGESTION_AGENT_RUN"
+	JobKindAgentWorkflowRun  JobKind = "AGENT_WORKFLOW_RUN"
+	JobKindScmWorkflowRun    JobKind = "SCM_WORKFLOW_RUN"
+)
+
+var AllJobKind = []JobKind{
+	JobKindIngestionAgentRun,
+	JobKindAgentWorkflowRun,
+	JobKindScmWorkflowRun,
+}
+
+func (e JobKind) IsValid() bool {
+	switch e {
+	case JobKindIngestionAgentRun, JobKindAgentWorkflowRun, JobKindScmWorkflowRun:
+		return true
+	}
+	return false
+}
+
+func (e JobKind) String() string {
+	return string(e)
+}
+
+func (e *JobKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = JobKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid JobKind", str)
+	}
+	return nil
+}
+
+func (e JobKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *JobKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e JobKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -469,6 +742,63 @@ func (e *SCMReviewDecision) UnmarshalJSON(b []byte) error {
 }
 
 func (e SCMReviewDecision) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type StreamEventSource string
+
+const (
+	StreamEventSourceAcp         StreamEventSource = "ACP"
+	StreamEventSourceSessionFile StreamEventSource = "SESSION_FILE"
+	StreamEventSourceWorker      StreamEventSource = "WORKER"
+)
+
+var AllStreamEventSource = []StreamEventSource{
+	StreamEventSourceAcp,
+	StreamEventSourceSessionFile,
+	StreamEventSourceWorker,
+}
+
+func (e StreamEventSource) IsValid() bool {
+	switch e {
+	case StreamEventSourceAcp, StreamEventSourceSessionFile, StreamEventSourceWorker:
+		return true
+	}
+	return false
+}
+
+func (e StreamEventSource) String() string {
+	return string(e)
+}
+
+func (e *StreamEventSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StreamEventSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StreamEventSource", str)
+	}
+	return nil
+}
+
+func (e StreamEventSource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StreamEventSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StreamEventSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -842,6 +1172,65 @@ func (e *SupervisorState) UnmarshalJSON(b []byte) error {
 }
 
 func (e SupervisorState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TrackerSourceKind string
+
+const (
+	TrackerSourceKindLocalJSON    TrackerSourceKind = "LOCAL_JSON"
+	TrackerSourceKindGithubIssues TrackerSourceKind = "GITHUB_ISSUES"
+	TrackerSourceKindJira         TrackerSourceKind = "JIRA"
+	TrackerSourceKindLinear       TrackerSourceKind = "LINEAR"
+)
+
+var AllTrackerSourceKind = []TrackerSourceKind{
+	TrackerSourceKindLocalJSON,
+	TrackerSourceKindGithubIssues,
+	TrackerSourceKindJira,
+	TrackerSourceKindLinear,
+}
+
+func (e TrackerSourceKind) IsValid() bool {
+	switch e {
+	case TrackerSourceKindLocalJSON, TrackerSourceKindGithubIssues, TrackerSourceKindJira, TrackerSourceKindLinear:
+		return true
+	}
+	return false
+}
+
+func (e TrackerSourceKind) String() string {
+	return string(e)
+}
+
+func (e *TrackerSourceKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TrackerSourceKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TrackerSourceKind", str)
+	}
+	return nil
+}
+
+func (e TrackerSourceKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TrackerSourceKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TrackerSourceKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

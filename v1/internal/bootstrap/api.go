@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
@@ -93,6 +94,14 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init stream service: %w", err)
 	}
+	controlPlaneQueryRepository, err := infrataskenginepostgres.NewControlPlaneQueryRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init control-plane query repository: %w", err)
+	}
+	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, supervisorService, controlPlaneQueryRepository, taskEnginePlatform)
+	if err != nil {
+		return nil, fmt.Errorf("init control-plane service: %w", err)
+	}
 	sessionStateReader, err := infraagent.NewSessionStateReader(strings.TrimSpace(os.Getenv("API_COPILOT_SESSION_STATE_DIR")))
 	if err != nil {
 		return nil, fmt.Errorf("init session state reader: %w", err)
@@ -107,7 +116,7 @@ func InitAPI() (*APIApp, error) {
 		streamService.SetHealthEvaluator(acpClient)
 	}
 
-	resolver := resolvers.NewResolver(taskScheduler, supervisorService)
+	resolver := resolvers.NewResolver(taskScheduler, supervisorService, controlPlaneService, streamService)
 	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})

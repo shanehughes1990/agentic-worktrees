@@ -3,7 +3,7 @@
 ## Status
 
 - Violation Remediation: **Completed**
-- Slice Completion: **In Progress**
+- Slice Completion: **Completed**
 - Reviewed At: **2026-03-01T00:00:00Z**
 
 ## Objective
@@ -35,11 +35,11 @@ Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orc
 
 - [x] Initialize `gqlgen` project structure and schema/resolver scaffolding.
 - [x] Place GraphQL files under DDD-aligned interface paths.
-- [ ] Implement session/workflow/worker queries against application query services.
-- [ ] Implement core control mutations (spawn/send/cancel/restore/assign/merge).
-- [ ] Implement subscriptions for session + orchestrator events.
-- [ ] Add Postgres-backed query repositories for run/task/job/worker and dead-letter history views.
-- [ ] Add contract/integration tests for GraphQL operations.
+- [x] Implement session/workflow/worker queries against application query services.
+- [x] Implement core control mutations (spawn/send/cancel/restore/assign/merge).
+- [x] Implement subscriptions for session + orchestrator events.
+- [x] Add Postgres-backed query repositories for run/task/job/worker and dead-letter history views.
+- [x] Add contract/integration tests for GraphQL operations.
 
 ## Deliverables
 

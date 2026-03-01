@@ -23,7 +23,7 @@ func TestEnqueueSCMWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new scheduler: %v", err)
 	}
-	resolver := NewResolver(scheduler, nil)
+	resolver := NewResolver(scheduler, nil, nil, nil)
 
 	result, enqueueErr := enqueueSCMWorkflow(context.Background(), resolver, models.EnqueueSCMWorkflowInput{
 		Operation:      models.SCMOperationEnsureWorktree,

@@ -1,0 +1,195 @@
+enum JobKind {
+  INGESTION_AGENT_RUN
+  AGENT_WORKFLOW_RUN
+  SCM_WORKFLOW_RUN
+}
+
+type SessionSummary {
+  runID: String!
+  taskCount: Int!
+  jobCount: Int!
+  updatedAt: Time!
+}
+
+type SessionsSuccess {
+  sessions: [SessionSummary!]!
+}
+
+union SessionsResult = SessionsSuccess | GraphError
+
+type SessionSuccess {
+  session: SessionSummary!
+}
+
+union SessionResult = SessionSuccess | GraphError
+
+type WorkflowJob {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  jobKind: JobKind!
+  idempotencyKey: String!
+  queueTaskID: String!
+  queue: String!
+  status: String!
+  duplicate: Boolean!
+  enqueuedAt: Time!
+  updatedAt: Time!
+}
+
+type WorkflowJobsSuccess {
+  jobs: [WorkflowJob!]!
+}
+
+union WorkflowJobsResult = WorkflowJobsSuccess | GraphError
+
+type WorkerSummary {
+  workerID: String!
+  capabilities: [JobKind!]!
+  lastHeartbeat: Time!
+}
+
+type WorkersSuccess {
+  workers: [WorkerSummary!]!
+}
+
+union WorkersResult = WorkersSuccess | GraphError
+
+type ExecutionHistoryRecord {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  jobKind: JobKind!
+  idempotencyKey: String!
+  step: String!
+  status: String!
+  errorMessage: String
+  updatedAt: Time!
+}
+
+type ExecutionHistorySuccess {
+  records: [ExecutionHistoryRecord!]!
+}
+
+union ExecutionHistoryResult = ExecutionHistorySuccess | GraphError
+
+type DeadLetterHistoryRecord {
+  queue: String!
+  taskID: String!
+  jobKind: JobKind!
+  action: String!
+  lastError: String
+  reason: String
+  actor: String
+  occurredAt: Time!
+}
+
+type DeadLetterHistorySuccess {
+  records: [DeadLetterHistoryRecord!]!
+}
+
+union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
+
+enum TrackerSourceKind {
+  LOCAL_JSON
+  GITHUB_ISSUES
+  JIRA
+  LINEAR
+}
+
+input IngestionBoardSourceInput {
+  kind: TrackerSourceKind!
+  location: String
+  boardID: String
+}
+
+input EnqueueIngestionWorkflowInput {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  idempotencyKey: String!
+  prompt: String!
+  projectID: String!
+  workflowID: String!
+  boardSource: IngestionBoardSourceInput!
+}
+
+type EnqueueIngestionWorkflowSuccess {
+  queueTaskID: ID!
+  duplicate: Boolean!
+}
+
+union EnqueueIngestionWorkflowResult = EnqueueIngestionWorkflowSuccess | GraphError
+
+input ApproveIssueIntakeInput {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  source: String!
+  issueReference: String!
+  approvedBy: String!
+}
+
+type ApproveIssueIntakeSuccess {
+  decision: SupervisorDecision!
+}
+
+union ApproveIssueIntakeResult = ApproveIssueIntakeSuccess | GraphError
+
+input RequeueDeadLetterInput {
+  queue: String!
+  taskID: String!
+}
+
+type RequeueDeadLetterSuccess {
+  ok: Boolean!
+}
+
+union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
+
+enum StreamEventSource {
+  ACP
+  SESSION_FILE
+  WORKER
+}
+
+type StreamEvent {
+  eventID: ID!
+  streamOffset: Int!
+  occurredAt: Time!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String
+  correlationID: String!
+  source: StreamEventSource!
+  eventType: String!
+  payload: String!
+}
+
+type StreamEventSuccess {
+  event: StreamEvent!
+}
+
+union StreamEventResult = StreamEventSuccess | GraphError
+
+extend type Query {
+  sessions(limit: Int = 50): SessionsResult!
+  session(runID: String!): SessionResult!
+  workers(limit: Int = 50): WorkersResult!
+  workflowJobs(runID: String!, taskID: String, limit: Int = 100): WorkflowJobsResult!
+  executionHistory(correlation: SupervisorCorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
+  deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
+}
+
+extend type Mutation {
+  enqueueIngestionWorkflow(input: EnqueueIngestionWorkflowInput!): EnqueueIngestionWorkflowResult!
+  approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
+  requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
+}
+
+extend type Subscription {
+  sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+}

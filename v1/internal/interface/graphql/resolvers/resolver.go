@@ -1,6 +1,8 @@
 package resolvers
 
 import (
+	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
+	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 )
@@ -11,10 +13,12 @@ import (
 // here.
 
 type Resolver struct {
-	TaskScheduler     *taskengine.Scheduler
-	SupervisorService *applicationsupervisor.Service
+	TaskScheduler        *taskengine.Scheduler
+	SupervisorService    *applicationsupervisor.Service
+	ControlPlaneService  *applicationcontrolplane.Service
+	StreamService        *applicationstream.Service
 }
 
-func NewResolver(taskScheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service) *Resolver {
-	return &Resolver{TaskScheduler: taskScheduler, SupervisorService: supervisorService}
+func NewResolver(taskScheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, controlPlaneService *applicationcontrolplane.Service, streamService *applicationstream.Service) *Resolver {
+	return &Resolver{TaskScheduler: taskScheduler, SupervisorService: supervisorService, ControlPlaneService: controlPlaneService, StreamService: streamService}
 }
