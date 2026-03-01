@@ -94,8 +94,8 @@ Ship a GraphQL-first orchestrator platform with local + remote workers, real-tim
 
 ## Current Persistence Status (Aligned to Slice Plans)
 
-- **Implemented now**: Postgres client/lifecycle wiring, checkpoint persistence, execution journal persistence, SCM lease persistence, worker registry persistence, tracker board snapshot persistence, admission ledger enqueue writes, dead-letter requeue audit events.
-- **Next persistence targets**: lease expiry/stale recovery, normalized tracker relational model, session snapshots, supervisor event history, stream replay store, GraphQL read models.
+- **Implemented now**: Postgres client/lifecycle wiring, checkpoint persistence, execution journal persistence, SCM lease persistence, worker registry persistence, tracker board snapshot persistence, admission ledger enqueue writes, dead-letter requeue audit events, supervisor decision history persistence (`supervisor_events`).
+- **Next persistence targets**: lease expiry/stale recovery, normalized tracker relational model, session snapshots, stream replay store, GraphQL read models.
 
 ## V1 Release Exit Criteria
 
@@ -122,6 +122,6 @@ V1 is release-ready only when all are true:
 ## Immediate Priority Focus
 
 1. Complete remaining persistence conversions identified in `docs/roadmap/09-postgres-persistence-conversion.md`.
-2. Land supervisor + stream persistence (`supervisor_events`, `stream_events`) before full client polish.
+2. Land stream persistence (`stream_events`) and replay-path wiring before full client polish.
 3. Back GraphQL query/subscription surfaces with Postgres read models.
 4. Add formal schema migration/versioning and deployment lifecycle checks.

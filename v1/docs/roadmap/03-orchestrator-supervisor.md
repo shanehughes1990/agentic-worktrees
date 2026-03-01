@@ -1,5 +1,10 @@
 # Slice 03 — Orchestrator Supervisor
 
+## Status
+
+- Completed: **In Progress (Substantially Complete)**
+- Reviewed At: **2026-02-28T00:00:00Z**
+
 ## Objective
 
 Implement the central orchestration supervisor as an **agentic gatekeeper** for change quality and merge readiness.
@@ -44,18 +49,18 @@ Additional tracker providers may exist as boundaries, but they are not required 
 
 ## Task Checklist
 
-- [ ] Define supervisor domain model (states, transitions, invariants) including merge-gate and rework-loop states.
-- [ ] Define supervisor event taxonomy with typed reason codes and action codes for merge/refuse/rework/escalation outcomes.
-- [ ] Implement deterministic policy priority order for conflicting rule matches across merge gates.
-- [ ] Implement application-layer policy engine for multi-layer merge decisions.
-- [ ] Implement correlation-ID propagation across supervisor decisions and rework loops.
-- [ ] Persist append-only supervisor decision history in Postgres (`supervisor_events`).
-- [ ] Implement decision query interfaces for `run_id/task_id/job_id` history retrieval.
+- [x] Define supervisor domain model (states, transitions, invariants) including merge-gate and rework-loop states.
+- [x] Define supervisor event taxonomy with typed reason codes and action codes for merge/refuse/rework/escalation outcomes.
+- [x] Implement deterministic policy priority order for conflicting rule matches across merge gates.
+- [x] Implement application-layer policy engine for multi-layer merge decisions.
+- [x] Implement correlation-ID propagation across supervisor decisions and rework loops.
+- [x] Persist append-only supervisor decision history in Postgres (`supervisor_events`).
+- [x] Implement decision query interfaces for `run_id/task_id/job_id` history retrieval.
 - [ ] Add deterministic transition tests over real worker/SCM/tracker/issue signal fixtures.
 - [ ] Expose supervisor decision history for query/subscription layers.
-- [ ] Implement kickback routing for merge conflicts, unresolved review comments, and policy violations back to task agents.
-- [ ] Implement final merge/refusal orchestration path where supervisor is the gatekeeper.
-- [ ] Implement issue-intake to task-agent kickoff flow under supervisor policy control.
+- [x] Implement kickback routing for merge conflicts, unresolved review comments, and policy violations back to task agents.
+- [x] Implement final merge/refusal orchestration path where supervisor is the gatekeeper.
+- [x] Implement issue-intake to task-agent kickoff flow under supervisor policy control.
 
 ## Deliverables
 
