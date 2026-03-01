@@ -65,17 +65,29 @@ Make execution reliability durable by persisting state transitions and resumabil
 - [x] Persist dead-letter triage requeue audit events (`dead_letter_events`).
 - [x] Replace in-memory SCM lease manager with Postgres lease manager (`scm_repo_leases`).
 
+## AO-Informed Runtime Patterns (Adopted)
+
+The `.docs/agent-orchestrator` review reinforced the following patterns, which are now part of Slice 01 operating contracts:
+
+- [x] **Correlation-first tracing**: propagate `run_id/task_id/job_id` across admission, worker execution, and persistence surfaces.
+- [x] **Checkpoint-guarded idempotent handlers**: load checkpoint, short-circuit completed steps, then persist next checkpoint boundary.
+- [x] **Typed failure mapping**: classify failures as `transient` vs `terminal` for deterministic retry/escalation behavior.
+- [x] **Append-only operational audit trail**: persist admission and dead-letter events; persist execution lifecycle records for replay/debug.
+- [x] **Worker-owned provider execution**: keep SCM auth/provider calls in worker runtime only; interface/application remain orchestration-only.
+
 ## Deliverables
 
 - GitHub-first SCM contracts and adapters for source/worktree/branch/PR/review/merge-intent.
 - Agent orchestration contracts that compose SCM through ports.
 - Durable reliability foundation in Postgres for retries, execution status, admission, dead-letter auditing, and SCM lease coordination.
+- AO-aligned runtime execution patterns codified as Slice 01 baseline behavior.
 
 ## In Scope
 
 - Part 01A full GitHub-first SCM vertical slice.
 - Part 01B agent orchestration consuming SCM application services.
 - Postgres-backed reliability persistence needed by worker execution and operations.
+- AO-derived reliability/runtime patterns listed above.
 
 ## Out of Scope
 
@@ -90,6 +102,7 @@ Make execution reliability durable by persisting state transitions and resumabil
 - Agent workflows consume SCM through application/domain contracts only.
 - Retry behavior resumes from persisted Postgres checkpoint state.
 - Execution/admission/triage/lease state survives worker restarts and Redis flushes.
+- Correlation IDs and typed failures are preserved end-to-end for deterministic replay and auditability.
 
 ## Dependencies
 
@@ -98,4 +111,4 @@ Make execution reliability durable by persisting state transitions and resumabil
 
 ## Exit Check
 
-Slice 01 is complete when SCM + agent flows are contract-driven and reliability-critical operational state is durably persisted in Postgres.
+Slice 01 is complete when SCM + agent flows are contract-driven, reliability-critical operational state is durably persisted in Postgres, and AO-informed runtime patterns are enforced by default.
