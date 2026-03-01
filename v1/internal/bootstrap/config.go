@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/xo/dburl"
 )
 
 type BaseConfig struct {
@@ -23,6 +24,7 @@ type BaseConfig struct {
 	HealthLivePath           string        `envconfig:"HEALTH_LIVE_PATH" default:"/live" validate:"required,startswith=/"`
 	HealthReadyPath          string        `envconfig:"HEALTH_READY_PATH" default:"/ready" validate:"required,startswith=/"`
 	ShutdownTimeout          time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
+	DatabaseDSN              string        `envconfig:"DATABASE_DSN" validate:"required"`
 
 	TaskEngineBackend        string `envconfig:"TASK_ENGINE_BACKEND" default:"asynq" validate:"required,oneof=asynq"`
 	TaskEngineRedisAddress   string `envconfig:"TASK_ENGINE_REDIS_ADDRESS" default:"127.0.0.1:6379" validate:"required"`
@@ -86,6 +88,9 @@ func LoadAPIConfigFromEnv() (APIConfig, error) {
 	if err := validator.New().Struct(config); err != nil {
 		return APIConfig{}, fmt.Errorf("validate api env config: %w", err)
 	}
+	if err := validateDatabaseDSN(config.DatabaseDSN); err != nil {
+		return APIConfig{}, err
+	}
 	return config, nil
 }
 
@@ -97,7 +102,22 @@ func LoadWorkerConfigFromEnv() (WorkerConfig, error) {
 	if err := validator.New().Struct(config); err != nil {
 		return WorkerConfig{}, fmt.Errorf("validate worker env config: %w", err)
 	}
+	if err := validateDatabaseDSN(config.DatabaseDSN); err != nil {
+		return WorkerConfig{}, err
+	}
 	return config, nil
+}
+
+func validateDatabaseDSN(raw string) error {
+	parsedURL, err := dburl.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("validate database dsn: %w", err)
+	}
+	scheme := strings.ToLower(strings.TrimSpace(parsedURL.Scheme))
+	if scheme != "postgres" && scheme != "postgresql" {
+		return fmt.Errorf("validate database dsn: expected postgres scheme, got %q", parsedURL.Scheme)
+	}
+	return nil
 }
 
 func parseOTLPHeaders(raw string) map[string]string {

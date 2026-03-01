@@ -18,6 +18,7 @@ This directory contains detailed execution plans for V1 delivery slices.
 6. `06-graphql-control-plane.md`
 7. `07-client-experience.md`
 8. `08-container-first-deployment.md`
+9. `09-postgres-persistence-conversion.md`
 
 ## Execution Order
 
@@ -32,6 +33,7 @@ File numbering now matches recommended implementation order to maximize integrat
 7. `06-graphql-control-plane.md`
 8. `07-client-experience.md`
 9. `08-container-first-deployment.md`
+10. `09-postgres-persistence-conversion.md`
 
 This order ensures supervisor policy and control-plane behavior are validated against real SCM-backed execution flows.
 
