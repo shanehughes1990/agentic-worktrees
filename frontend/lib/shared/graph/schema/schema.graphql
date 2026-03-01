@@ -1,0 +1,23 @@
+scalar Time
+
+enum GraphErrorCode {
+  INTERNAL
+  VALIDATION
+  CONFLICT
+  NOT_FOUND
+  UNAUTHORIZED
+  FORBIDDEN
+  UNAVAILABLE
+}
+
+type GraphError {
+  code: GraphErrorCode!
+  message: String!
+  field: String
+}
+
+type Query
+
+type Mutation
+
+type Subscription

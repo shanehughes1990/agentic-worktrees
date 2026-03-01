@@ -93,11 +93,34 @@ type ComplexityRoot struct {
 		EnqueueIngestionWorkflow func(childComplexity int, input models.EnqueueIngestionWorkflowInput) int
 		EnqueueScmWorkflow       func(childComplexity int, input models.EnqueueSCMWorkflowInput) int
 		RequeueDeadLetter        func(childComplexity int, input models.RequeueDeadLetterInput) int
+		UpsertProjectSetup       func(childComplexity int, input models.UpsertProjectSetupInput) int
+	}
+
+	ProjectSetup struct {
+		CreatedAt       func(childComplexity int) int
+		ProjectID       func(childComplexity int) int
+		ProjectName     func(childComplexity int) int
+		RepositoryURL   func(childComplexity int) int
+		ScmProvider     func(childComplexity int) int
+		TrackerBoardID  func(childComplexity int) int
+		TrackerLocation func(childComplexity int) int
+		TrackerProvider func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+	}
+
+	ProjectSetupSuccess struct {
+		Project func(childComplexity int) int
+	}
+
+	ProjectSetupsSuccess struct {
+		Projects func(childComplexity int) int
 	}
 
 	Query struct {
 		DeadLetterHistory         func(childComplexity int, queue *string, limit *int32) int
 		ExecutionHistory          func(childComplexity int, correlation models.SupervisorCorrelationInput, limit *int32) int
+		ProjectSetup              func(childComplexity int, projectID string) int
+		ProjectSetups             func(childComplexity int, limit *int32) int
 		ScmSupportedOperations    func(childComplexity int) int
 		Session                   func(childComplexity int, runID string) int
 		Sessions                  func(childComplexity int, limit *int32) int
@@ -182,6 +205,10 @@ type ComplexityRoot struct {
 		Value func(childComplexity int) int
 	}
 
+	UpsertProjectSetupSuccess struct {
+		Project func(childComplexity int) int
+	}
+
 	WorkerSummary struct {
 		Capabilities  func(childComplexity int) int
 		LastHeartbeat func(childComplexity int) int
@@ -215,6 +242,7 @@ type MutationResolver interface {
 	EnqueueIngestionWorkflow(ctx context.Context, input models.EnqueueIngestionWorkflowInput) (models.EnqueueIngestionWorkflowResult, error)
 	ApproveIssueIntake(ctx context.Context, input models.ApproveIssueIntakeInput) (models.ApproveIssueIntakeResult, error)
 	RequeueDeadLetter(ctx context.Context, input models.RequeueDeadLetterInput) (models.RequeueDeadLetterResult, error)
+	UpsertProjectSetup(ctx context.Context, input models.UpsertProjectSetupInput) (models.UpsertProjectSetupResult, error)
 	EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (models.EnqueueSCMWorkflowResult, error)
 }
 type QueryResolver interface {
@@ -224,6 +252,8 @@ type QueryResolver interface {
 	WorkflowJobs(ctx context.Context, runID string, taskID *string, limit *int32) (models.WorkflowJobsResult, error)
 	ExecutionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput, limit *int32) (models.ExecutionHistoryResult, error)
 	DeadLetterHistory(ctx context.Context, queue *string, limit *int32) (models.DeadLetterHistoryResult, error)
+	ProjectSetups(ctx context.Context, limit *int32) (models.ProjectSetupsResult, error)
+	ProjectSetup(ctx context.Context, projectID string) (models.ProjectSetupResult, error)
 	ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error)
 	SupervisorDecisionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput) (models.SupervisorDecisionHistoryResult, error)
 }
@@ -462,6 +492,86 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequeueDeadLetter(childComplexity, args["input"].(models.RequeueDeadLetterInput)), true
+	case "Mutation.upsertProjectSetup":
+		if e.ComplexityRoot.Mutation.UpsertProjectSetup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_upsertProjectSetup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpsertProjectSetup(childComplexity, args["input"].(models.UpsertProjectSetupInput)), true
+
+	case "ProjectSetup.createdAt":
+		if e.ComplexityRoot.ProjectSetup.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.CreatedAt(childComplexity), true
+	case "ProjectSetup.projectID":
+		if e.ComplexityRoot.ProjectSetup.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.ProjectID(childComplexity), true
+	case "ProjectSetup.projectName":
+		if e.ComplexityRoot.ProjectSetup.ProjectName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.ProjectName(childComplexity), true
+	case "ProjectSetup.repositoryURL":
+		if e.ComplexityRoot.ProjectSetup.RepositoryURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.RepositoryURL(childComplexity), true
+	case "ProjectSetup.scmProvider":
+		if e.ComplexityRoot.ProjectSetup.ScmProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.ScmProvider(childComplexity), true
+	case "ProjectSetup.trackerBoardID":
+		if e.ComplexityRoot.ProjectSetup.TrackerBoardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.TrackerBoardID(childComplexity), true
+	case "ProjectSetup.trackerLocation":
+		if e.ComplexityRoot.ProjectSetup.TrackerLocation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.TrackerLocation(childComplexity), true
+	case "ProjectSetup.trackerProvider":
+		if e.ComplexityRoot.ProjectSetup.TrackerProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.TrackerProvider(childComplexity), true
+	case "ProjectSetup.updatedAt":
+		if e.ComplexityRoot.ProjectSetup.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.UpdatedAt(childComplexity), true
+
+	case "ProjectSetupSuccess.project":
+		if e.ComplexityRoot.ProjectSetupSuccess.Project == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetupSuccess.Project(childComplexity), true
+
+	case "ProjectSetupsSuccess.projects":
+		if e.ComplexityRoot.ProjectSetupsSuccess.Projects == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetupsSuccess.Projects(childComplexity), true
 
 	case "Query.deadLetterHistory":
 		if e.ComplexityRoot.Query.DeadLetterHistory == nil {
@@ -486,6 +596,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.ExecutionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["limit"].(*int32)), true
 
+	case "Query.projectSetup":
+		if e.ComplexityRoot.Query.ProjectSetup == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectSetup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectSetup(childComplexity, args["projectID"].(string)), true
+	case "Query.projectSetups":
+		if e.ComplexityRoot.Query.ProjectSetups == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectSetups_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectSetups(childComplexity, args["limit"].(*int32)), true
 	case "Query.scmSupportedOperations":
 		if e.ComplexityRoot.Query.ScmSupportedOperations == nil {
 			break
@@ -837,6 +969,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SupervisorDecisionMetadataEntry.Value(childComplexity), true
 
+	case "UpsertProjectSetupSuccess.project":
+		if e.ComplexityRoot.UpsertProjectSetupSuccess.Project == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpsertProjectSetupSuccess.Project(childComplexity), true
+
 	case "WorkerSummary.capabilities":
 		if e.ComplexityRoot.WorkerSummary.Capabilities == nil {
 			break
@@ -951,6 +1090,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputIngestionBoardSourceInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
+		ec.unmarshalInputUpsertProjectSetupInput,
 	)
 	first := true
 
@@ -1192,6 +1332,46 @@ type RequeueDeadLetterSuccess {
 
 union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
 
+type ProjectSetup {
+  projectID: String!
+  projectName: String!
+  scmProvider: SCMProvider!
+  repositoryURL: String!
+  trackerProvider: TrackerSourceKind!
+  trackerLocation: String
+  trackerBoardID: String
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ProjectSetupsSuccess {
+  projects: [ProjectSetup!]!
+}
+
+union ProjectSetupsResult = ProjectSetupsSuccess | GraphError
+
+type ProjectSetupSuccess {
+  project: ProjectSetup!
+}
+
+union ProjectSetupResult = ProjectSetupSuccess | GraphError
+
+input UpsertProjectSetupInput {
+  projectID: String!
+  projectName: String!
+  scmProvider: SCMProvider!
+  repositoryURL: String!
+  trackerProvider: TrackerSourceKind!
+  trackerLocation: String
+  trackerBoardID: String
+}
+
+type UpsertProjectSetupSuccess {
+  project: ProjectSetup!
+}
+
+union UpsertProjectSetupResult = UpsertProjectSetupSuccess | GraphError
+
 enum StreamEventSource {
   ACP
   SESSION_FILE
@@ -1225,12 +1405,15 @@ extend type Query {
   workflowJobs(runID: String!, taskID: String, limit: Int = 100): WorkflowJobsResult!
   executionHistory(correlation: SupervisorCorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
+  projectSetups(limit: Int = 50): ProjectSetupsResult!
+  projectSetup(projectID: String!): ProjectSetupResult!
 }
 
 extend type Mutation {
   enqueueIngestionWorkflow(input: EnqueueIngestionWorkflowInput!): EnqueueIngestionWorkflowResult!
   approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
+  upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
 }
 
 extend type Subscription {
@@ -1509,6 +1692,17 @@ func (ec *executionContext) field_Mutation_requeueDeadLetter_args(ctx context.Co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_upsertProjectSetup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpsertProjectSetupInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpsertProjectSetupInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1549,6 +1743,28 @@ func (ec *executionContext) field_Query_executionHistory_args(ctx context.Contex
 		return nil, err
 	}
 	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectSetup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectSetups_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
 	return args, nil
 }
 
@@ -2711,6 +2927,47 @@ func (ec *executionContext) fieldContext_Mutation_requeueDeadLetter(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_upsertProjectSetup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_upsertProjectSetup,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpsertProjectSetup(ctx, fc.Args["input"].(models.UpsertProjectSetupInput))
+		},
+		nil,
+		ec.marshalNUpsertProjectSetupResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpsertProjectSetupResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_upsertProjectSetup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type UpsertProjectSetupResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_upsertProjectSetup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_enqueueScmWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2748,6 +3005,365 @@ func (ec *executionContext) fieldContext_Mutation_enqueueScmWorkflow(ctx context
 	if fc.Args, err = ec.field_Mutation_enqueueScmWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_projectID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_projectName(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_projectName,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_projectName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_scmProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_scmProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.ScmProvider, nil
+		},
+		nil,
+		ec.marshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_scmProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type SCMProvider does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_repositoryURL(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_repositoryURL,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_repositoryURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_trackerProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_trackerProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.TrackerProvider, nil
+		},
+		nil,
+		ec.marshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_trackerProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TrackerSourceKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_trackerLocation(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_trackerLocation,
+		func(ctx context.Context) (any, error) {
+			return obj.TrackerLocation, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_trackerLocation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_trackerBoardID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_trackerBoardID,
+		func(ctx context.Context) (any, error) {
+			return obj.TrackerBoardID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_trackerBoardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetup_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetupSuccess_project(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetupSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetupSuccess_project,
+		func(ctx context.Context) (any, error) {
+			return obj.Project, nil
+		},
+		nil,
+		ec.marshalNProjectSetup2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetup,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetupSuccess_project(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetupSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
+			case "projectName":
+				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
+			case "scmProvider":
+				return ec.fieldContext_ProjectSetup_scmProvider(ctx, field)
+			case "repositoryURL":
+				return ec.fieldContext_ProjectSetup_repositoryURL(ctx, field)
+			case "trackerProvider":
+				return ec.fieldContext_ProjectSetup_trackerProvider(ctx, field)
+			case "trackerLocation":
+				return ec.fieldContext_ProjectSetup_trackerLocation(ctx, field)
+			case "trackerBoardID":
+				return ec.fieldContext_ProjectSetup_trackerBoardID(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ProjectSetup_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ProjectSetup_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectSetup", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSetupsSuccess_projects(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetupsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetupsSuccess_projects,
+		func(ctx context.Context) (any, error) {
+			return obj.Projects, nil
+		},
+		nil,
+		ec.marshalNProjectSetup2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetupsSuccess_projects(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetupsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
+			case "projectName":
+				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
+			case "scmProvider":
+				return ec.fieldContext_ProjectSetup_scmProvider(ctx, field)
+			case "repositoryURL":
+				return ec.fieldContext_ProjectSetup_repositoryURL(ctx, field)
+			case "trackerProvider":
+				return ec.fieldContext_ProjectSetup_trackerProvider(ctx, field)
+			case "trackerLocation":
+				return ec.fieldContext_ProjectSetup_trackerLocation(ctx, field)
+			case "trackerBoardID":
+				return ec.fieldContext_ProjectSetup_trackerBoardID(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ProjectSetup_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ProjectSetup_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectSetup", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -2992,6 +3608,88 @@ func (ec *executionContext) fieldContext_Query_deadLetterHistory(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_deadLetterHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectSetups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_projectSetups,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectSetups(ctx, fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNProjectSetupsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_projectSetups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProjectSetupsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectSetups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectSetup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_projectSetup,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectSetup(ctx, fc.Args["projectID"].(string))
+		},
+		nil,
+		ec.marshalNProjectSetupResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_projectSetup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProjectSetupResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectSetup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4550,6 +5248,55 @@ func (ec *executionContext) fieldContext_SupervisorDecisionMetadataEntry_value(_
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpsertProjectSetupSuccess_project(ctx context.Context, field graphql.CollectedField, obj *models.UpsertProjectSetupSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpsertProjectSetupSuccess_project,
+		func(ctx context.Context) (any, error) {
+			return obj.Project, nil
+		},
+		nil,
+		ec.marshalNProjectSetup2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetup,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpsertProjectSetupSuccess_project(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpsertProjectSetupSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
+			case "projectName":
+				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
+			case "scmProvider":
+				return ec.fieldContext_ProjectSetup_scmProvider(ctx, field)
+			case "repositoryURL":
+				return ec.fieldContext_ProjectSetup_repositoryURL(ctx, field)
+			case "trackerProvider":
+				return ec.fieldContext_ProjectSetup_trackerProvider(ctx, field)
+			case "trackerLocation":
+				return ec.fieldContext_ProjectSetup_trackerLocation(ctx, field)
+			case "trackerBoardID":
+				return ec.fieldContext_ProjectSetup_trackerBoardID(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ProjectSetup_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ProjectSetup_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectSetup", field.Name)
 		},
 	}
 	return fc, nil
@@ -6884,6 +7631,74 @@ func (ec *executionContext) unmarshalInputSupervisorCorrelationInput(ctx context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpsertProjectSetupInput(ctx context.Context, obj any) (models.UpsertProjectSetupInput, error) {
+	var it models.UpsertProjectSetupInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "projectName", "scmProvider", "repositoryURL", "trackerProvider", "trackerLocation", "trackerBoardID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "projectName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectName = data
+		case "scmProvider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmProvider"))
+			data, err := ec.unmarshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScmProvider = data
+		case "repositoryURL":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryURL"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryURL = data
+		case "trackerProvider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerProvider"))
+			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TrackerProvider = data
+		case "trackerLocation":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerLocation"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TrackerLocation = data
+		case "trackerBoardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerBoardID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TrackerBoardID = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -7019,6 +7834,60 @@ func (ec *executionContext) _ExecutionHistoryResult(ctx context.Context, sel ast
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of ExecutionHistoryResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _ProjectSetupResult(ctx context.Context, sel ast.SelectionSet, obj models.ProjectSetupResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.ProjectSetupSuccess:
+		return ec._ProjectSetupSuccess(ctx, sel, &obj)
+	case *models.ProjectSetupSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectSetupSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectSetupResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _ProjectSetupsResult(ctx context.Context, sel ast.SelectionSet, obj models.ProjectSetupsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.ProjectSetupsSuccess:
+		return ec._ProjectSetupsSuccess(ctx, sel, &obj)
+	case *models.ProjectSetupsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectSetupsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectSetupsResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -7181,6 +8050,33 @@ func (ec *executionContext) _SupervisorDecisionHistoryResult(ctx context.Context
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of SupervisorDecisionHistoryResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _UpsertProjectSetupResult(ctx context.Context, sel ast.SelectionSet, obj models.UpsertProjectSetupResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.UpsertProjectSetupSuccess:
+		return ec._UpsertProjectSetupSuccess(ctx, sel, &obj)
+	case *models.UpsertProjectSetupSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._UpsertProjectSetupSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of UpsertProjectSetupResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -7589,7 +8485,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "WorkersResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "EnqueueIngestionWorkflowResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "StreamEventResult", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "WorkersResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "EnqueueIngestionWorkflowResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "StreamEventResult", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -7675,10 +8571,168 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "upsertProjectSetup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_upsertProjectSetup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "enqueueScmWorkflow":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_enqueueScmWorkflow(ctx, field)
 			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectSetupImplementors = []string{"ProjectSetup"}
+
+func (ec *executionContext) _ProjectSetup(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectSetup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectSetupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectSetup")
+		case "projectID":
+			out.Values[i] = ec._ProjectSetup_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectName":
+			out.Values[i] = ec._ProjectSetup_projectName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scmProvider":
+			out.Values[i] = ec._ProjectSetup_scmProvider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "repositoryURL":
+			out.Values[i] = ec._ProjectSetup_repositoryURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trackerProvider":
+			out.Values[i] = ec._ProjectSetup_trackerProvider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trackerLocation":
+			out.Values[i] = ec._ProjectSetup_trackerLocation(ctx, field, obj)
+		case "trackerBoardID":
+			out.Values[i] = ec._ProjectSetup_trackerBoardID(ctx, field, obj)
+		case "createdAt":
+			out.Values[i] = ec._ProjectSetup_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectSetup_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectSetupSuccessImplementors = []string{"ProjectSetupSuccess", "ProjectSetupResult"}
+
+func (ec *executionContext) _ProjectSetupSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectSetupSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectSetupSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectSetupSuccess")
+		case "project":
+			out.Values[i] = ec._ProjectSetupSuccess_project(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectSetupsSuccessImplementors = []string{"ProjectSetupsSuccess", "ProjectSetupsResult"}
+
+func (ec *executionContext) _ProjectSetupsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectSetupsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectSetupsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectSetupsSuccess")
+		case "projects":
+			out.Values[i] = ec._ProjectSetupsSuccess_projects(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -7844,6 +8898,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_deadLetterHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectSetups":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectSetups(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectSetup":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectSetup(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -8454,6 +9552,45 @@ func (ec *executionContext) _SupervisorDecisionMetadataEntry(ctx context.Context
 			}
 		case "value":
 			out.Values[i] = ec._SupervisorDecisionMetadataEntry_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var upsertProjectSetupSuccessImplementors = []string{"UpsertProjectSetupSuccess", "UpsertProjectSetupResult"}
+
+func (ec *executionContext) _UpsertProjectSetupSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.UpsertProjectSetupSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, upsertProjectSetupSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UpsertProjectSetupSuccess")
+		case "project":
+			out.Values[i] = ec._UpsertProjectSetupSuccess_project(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9262,6 +10399,52 @@ func (ec *executionContext) marshalNJobKind2ᚕagenticᚑorchestratorᚋinternal
 	return ret
 }
 
+func (ec *executionContext) marshalNProjectSetup2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectSetup) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectSetup2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetup(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectSetup2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetup(ctx context.Context, sel ast.SelectionSet, v *models.ProjectSetup) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectSetup(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectSetupResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupResult(ctx context.Context, sel ast.SelectionSet, v models.ProjectSetupResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectSetupResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectSetupsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupsResult(ctx context.Context, sel ast.SelectionSet, v models.ProjectSetupsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectSetupsResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNRequeueDeadLetterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterInput(ctx context.Context, v any) (models.RequeueDeadLetterInput, error) {
 	res, err := ec.unmarshalInputRequeueDeadLetterInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -9571,6 +10754,21 @@ func (ec *executionContext) unmarshalNTrackerSourceKind2agenticᚑorchestrator�
 
 func (ec *executionContext) marshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx context.Context, sel ast.SelectionSet, v models.TrackerSourceKind) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNUpsertProjectSetupInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpsertProjectSetupInput(ctx context.Context, v any) (models.UpsertProjectSetupInput, error) {
+	res, err := ec.unmarshalInputUpsertProjectSetupInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNUpsertProjectSetupResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpsertProjectSetupResult(ctx context.Context, sel ast.SelectionSet, v models.UpsertProjectSetupResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._UpsertProjectSetupResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNWorkerSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.WorkerSummary) graphql.Marshaler {

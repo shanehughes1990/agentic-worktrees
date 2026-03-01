@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:agentic_worktrees/shared/config/app_config.dart';
-import 'package:agentic_worktrees/shared/graphql/control_plane_api.dart';
+import 'package:agentic_worktrees/graph/typed/control_plane.dart';
 import 'package:agentic_worktrees/shared/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
-enum _DashboardView { dashboard, settings }
+enum _DashboardView { dashboard, projectSetup, settings }
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({required this.initialEndpoint, super.key});
@@ -33,6 +33,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final TextEditingController _projectController = TextEditingController(
     text: 'project-1',
   );
+  final TextEditingController _projectNameController = TextEditingController(
+    text: 'Project 1',
+  );
+  final TextEditingController _repositoryUrlController = TextEditingController(
+    text: 'https://github.com/acme/repo',
+  );
+  final TextEditingController _trackerLocationController =
+      TextEditingController(text: 'acme/repo');
+  final TextEditingController _trackerBoardIDController =
+      TextEditingController();
   final TextEditingController _workflowController = TextEditingController(
     text: 'workflow-1',
   );
@@ -50,9 +60,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   WorkflowJob? _selectedJob;
   String? _statusMessage;
   bool _isSavingEndpoint = false;
+  bool _isSavingProjectSetup = false;
   bool _isRunningAction = false;
   int _refreshToken = 0;
   _DashboardView _activeView = _DashboardView.dashboard;
+  String _setupScmProvider = 'GITHUB';
+  String _setupTrackerProvider = 'GITHUB_ISSUES';
+  List<ProjectSetupConfig> _projectSetups = const <ProjectSetupConfig>[];
   final List<StreamEvent> _streamEvents = <StreamEvent>[];
   StreamSubscription<ApiResult<StreamEvent>>? _streamSubscription;
 
@@ -60,6 +74,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     _endpointController = TextEditingController(text: widget.initialEndpoint);
+    unawaited(_loadProjectSetups());
   }
 
   void _showDashboard(BuildContext context) {
@@ -70,6 +85,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void _showSettings(BuildContext context) {
     Navigator.of(context).pop();
     setState(() => _activeView = _DashboardView.settings);
+  }
+
+  void _startNewProjectSetup(BuildContext context) {
+    Navigator.of(context).pop();
+    setState(() {
+      _activeView = _DashboardView.projectSetup;
+      _projectController.text = '';
+      _projectNameController.text = '';
+      _repositoryUrlController.text = '';
+      _trackerLocationController.text = '';
+      _trackerBoardIDController.text = '';
+      _setupScmProvider = 'GITHUB';
+      _setupTrackerProvider = 'GITHUB_ISSUES';
+      _statusMessage = 'Creating a new project setup';
+    });
   }
 
   Future<void> _exitApp(BuildContext context) async {
@@ -87,6 +117,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _issueReferenceController.dispose();
     _approvedByController.dispose();
     _projectController.dispose();
+    _projectNameController.dispose();
+    _repositoryUrlController.dispose();
+    _trackerLocationController.dispose();
+    _trackerBoardIDController.dispose();
     _workflowController.dispose();
     _promptController.dispose();
     _scmOwnerController.dispose();
@@ -147,9 +181,113 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _isRunningAction = false;
       _statusMessage = result.isSuccess
           ? 'Connection successful (${result.data?.length ?? 0} session rows returned).'
-          : 'Connection failed at $endpoint: ${result.errorMessage}';
+          : 'Connection failed at $endpoint: ${_compactError(result.errorMessage)}';
       _refreshToken++;
     });
+
+    if (result.isSuccess) {
+      await _loadProjectSetups();
+    }
+  }
+
+  Future<void> _loadProjectSetups() async {
+    final endpoint = normalizeGraphqlEndpoint(_endpointController.text);
+    if (endpoint.isEmpty) {
+      return;
+    }
+    final api = ControlPlaneApi(buildGraphqlClient(endpoint));
+    final response = await api.projectSetups(limit: 50);
+    if (!mounted) {
+      return;
+    }
+    if (!response.isSuccess || response.data == null) {
+      setState(() {
+        _statusMessage =
+            'Loading project setups failed: ${_compactError(response.errorMessage)}';
+      });
+      return;
+    }
+    setState(() {
+      _projectSetups = response.data!;
+      final selectedProjectID = _projectController.text.trim();
+      final selected = _projectSetups
+          .where((ProjectSetupConfig setup) {
+            return setup.projectID == selectedProjectID;
+          })
+          .toList(growable: false);
+      if (selected.isNotEmpty) {
+        _applyProjectSetup(selected.first);
+      } else if (_projectSetups.isNotEmpty) {
+        _applyProjectSetup(_projectSetups.first);
+      }
+    });
+  }
+
+  Future<void> _saveProjectSetup() async {
+    final endpoint = normalizeGraphqlEndpoint(_endpointController.text);
+    if (endpoint.isEmpty) {
+      setState(() => _statusMessage = 'Save endpoint settings first.');
+      return;
+    }
+    final projectID = _projectController.text.trim();
+    final projectName = _projectNameController.text.trim();
+    final repositoryURL = _repositoryUrlController.text.trim();
+    if (projectID.isEmpty || projectName.isEmpty || repositoryURL.isEmpty) {
+      setState(
+        () => _statusMessage =
+            'Project ID, Project Name, and Repository URL are required.',
+      );
+      return;
+    }
+    setState(() => _isSavingProjectSetup = true);
+    final api = ControlPlaneApi(buildGraphqlClient(endpoint));
+    final response = await api.upsertProjectSetup(
+      projectID: projectID,
+      projectName: projectName,
+      scmProvider: _setupScmProvider,
+      repositoryURL: repositoryURL,
+      trackerProvider: _setupTrackerProvider,
+      trackerLocation: _trackerLocationController.text.trim(),
+      trackerBoardID: _trackerBoardIDController.text.trim(),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _isSavingProjectSetup = false);
+    if (!response.isSuccess || response.data == null) {
+      setState(
+        () => _statusMessage =
+            'Saving project setup failed: ${_compactError(response.errorMessage)}',
+      );
+      return;
+    }
+    setState(() {
+      _statusMessage = 'Saved project setup for ${response.data!.projectID}';
+    });
+    await _loadProjectSetups();
+  }
+
+  void _applyProjectSetup(ProjectSetupConfig setup) {
+    _projectController.text = setup.projectID;
+    _projectNameController.text = setup.projectName;
+    _repositoryUrlController.text = setup.repositoryURL;
+    _setupScmProvider = setup.scmProvider;
+    _setupTrackerProvider = setup.trackerProvider;
+    _trackerLocationController.text = setup.trackerLocation;
+    _trackerBoardIDController.text = setup.trackerBoardID;
+  }
+
+  String _compactError(String? message) {
+    final fallback = 'unknown error';
+    final raw = (message ?? fallback).trim();
+    if (raw.isEmpty) {
+      return fallback;
+    }
+    final firstLine = raw.split('\n').first.trim();
+    if (firstLine.length <= 180) {
+      return firstLine;
+    }
+    return '${firstLine.substring(0, 177)}...';
   }
 
   Future<void> _runEnqueueIngestion(ControlPlaneApi api) async {
@@ -268,8 +406,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final endpoint = configState?.graphqlHttpEndpoint ?? widget.initialEndpoint;
     final api = ControlPlaneApi(buildGraphqlClient(endpoint));
     final isDashboard = _activeView == _DashboardView.dashboard;
+    final isProjectSetup = _activeView == _DashboardView.projectSetup;
     final title = isDashboard
         ? 'Agentic Worktrees Desktop Control Plane'
+        : isProjectSetup
+        ? 'New Project Setup'
         : 'Settings';
 
     return Scaffold(
@@ -295,6 +436,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       selected: isDashboard,
                       onTap: () => _showDashboard(context),
                     ),
+                    ListTile(
+                      leading: const Icon(Icons.add_box_outlined),
+                      title: const Text('New Project Setup'),
+                      selected: isProjectSetup,
+                      onTap: () => _startNewProjectSetup(context),
+                    ),
                   ],
                 ),
               ),
@@ -317,15 +464,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: AppBar(
         title: Text(title),
         actions: <Widget>[
-          if (isDashboard)
+          if (isDashboard || isProjectSetup)
             IconButton(
-              onPressed: () => setState(() => _refreshToken++),
+              onPressed: () {
+                setState(() => _refreshToken++);
+                unawaited(_loadProjectSetups());
+              },
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh queries',
             ),
         ],
       ),
-      body: isDashboard ? _buildDashboardBody(api) : _buildSettingsBody(),
+      body: isDashboard
+          ? _buildDashboardBody(api)
+          : isProjectSetup
+          ? _buildProjectSetupBody()
+          : _buildSettingsBody(),
     );
   }
 
@@ -337,7 +491,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(_statusMessage!),
+              child: Text(
+                _statusMessage!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         Expanded(
@@ -345,53 +503,101 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             children: <Widget>[
               SizedBox(
                 width: 330,
-                child: Card(
-                  margin: const EdgeInsets.all(12),
-                  child: FutureBuilder<ApiResult<List<SessionSummary>>>(
-                    future: api.sessions(limit: 50 + _refreshToken),
-                    builder:
-                        (
-                          BuildContext context,
-                          AsyncSnapshot<ApiResult<List<SessionSummary>>>
-                          snapshot,
-                        ) {
-                          if (!snapshot.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          final value = snapshot.data!;
-                          if (!value.isSuccess || value.data == null) {
-                            return Center(
-                              child: Text(
-                                value.errorMessage ?? 'Failed loading sessions',
-                              ),
-                            );
-                          }
-                          final sessions = value.data!;
-                          if (sessions.isEmpty) {
-                            return const Center(
-                              child: Text('No sessions found.'),
-                            );
-                          }
-                          return ListView.builder(
-                            itemCount: sessions.length,
-                            itemBuilder: (BuildContext context, int index) {
-                              final item = sessions[index];
-                              final selected =
-                                  _selectedSession?.runID == item.runID;
-                              return ListTile(
-                                selected: selected,
-                                title: Text(item.runID),
-                                subtitle: Text(
-                                  'tasks: ${item.taskCount} jobs: ${item.jobCount}\nupdated: ${item.updatedAt}',
-                                ),
-                                onTap: () => _selectSession(api, item),
-                              );
-                            },
-                          );
-                        },
-                  ),
+                child: Column(
+                  children: <Widget>[
+                    Card(
+                      margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const ListTile(
+                              dense: true,
+                              title: Text('Configured Projects'),
+                            ),
+                            if (_projectSetups.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                                child: Text('No project setups configured.'),
+                              )
+                            else
+                              ..._projectSetups.map((ProjectSetupConfig setup) {
+                                final selected =
+                                    _projectController.text.trim() ==
+                                    setup.projectID;
+                                return ListTile(
+                                  dense: true,
+                                  selected: selected,
+                                  title: Text(setup.projectID),
+                                  subtitle: Text(
+                                    '${setup.projectName}\n${setup.repositoryURL}',
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      _applyProjectSetup(setup);
+                                      _statusMessage =
+                                          'Selected project ${setup.projectID}';
+                                    });
+                                  },
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Card(
+                        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+                        child: FutureBuilder<ApiResult<List<SessionSummary>>>(
+                          future: api.sessions(limit: 50 + _refreshToken),
+                          builder:
+                              (
+                                BuildContext context,
+                                AsyncSnapshot<ApiResult<List<SessionSummary>>>
+                                snapshot,
+                              ) {
+                                if (!snapshot.hasData) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                }
+                                final value = snapshot.data!;
+                                if (!value.isSuccess || value.data == null) {
+                                  return Center(
+                                    child: Text(
+                                      value.errorMessage ??
+                                          'Failed loading sessions',
+                                    ),
+                                  );
+                                }
+                                final sessions = value.data!;
+                                if (sessions.isEmpty) {
+                                  return const Center(
+                                    child: Text('No sessions found.'),
+                                  );
+                                }
+                                return ListView.builder(
+                                  itemCount: sessions.length,
+                                  itemBuilder: (BuildContext context, int index) {
+                                    final item = sessions[index];
+                                    final selected =
+                                        _selectedSession?.runID == item.runID;
+                                    return ListTile(
+                                      selected: selected,
+                                      title: Text(item.runID),
+                                      subtitle: Text(
+                                        'tasks: ${item.taskCount} jobs: ${item.jobCount}\nupdated: ${item.updatedAt}',
+                                      ),
+                                      onTap: () => _selectSession(api, item),
+                                    );
+                                  },
+                                );
+                              },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -430,7 +636,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildSettingsBody() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,7 +671,150 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
           if (_statusMessage != null) ...<Widget>[
             const SizedBox(height: 12),
-            Text(_statusMessage!),
+            Text(_statusMessage!, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectSetupBody() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'Project Setup',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _projectController,
+            decoration: const InputDecoration(
+              labelText: 'Project ID',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _projectNameController,
+            decoration: const InputDecoration(
+              labelText: 'Project Name',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _setupScmProvider,
+            decoration: const InputDecoration(
+              labelText: 'SCM Provider',
+              border: OutlineInputBorder(),
+            ),
+            items: const <DropdownMenuItem<String>>[
+              DropdownMenuItem<String>(value: 'GITHUB', child: Text('GitHub')),
+            ],
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() => _setupScmProvider = value);
+            },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _repositoryUrlController,
+            decoration: const InputDecoration(
+              labelText: 'Repository URL',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _setupTrackerProvider,
+            decoration: const InputDecoration(
+              labelText: 'Tracker Provider',
+              border: OutlineInputBorder(),
+            ),
+            items: const <DropdownMenuItem<String>>[
+              DropdownMenuItem<String>(
+                value: 'GITHUB_ISSUES',
+                child: Text('GitHub Issues'),
+              ),
+              DropdownMenuItem<String>(value: 'JIRA', child: Text('Jira')),
+              DropdownMenuItem<String>(
+                value: 'LOCAL_JSON',
+                child: Text('Local JSON'),
+              ),
+              DropdownMenuItem<String>(value: 'LINEAR', child: Text('Linear')),
+            ],
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() => _setupTrackerProvider = value);
+            },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _trackerLocationController,
+            decoration: const InputDecoration(
+              labelText: 'Tracker Location',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _trackerBoardIDController,
+            decoration: const InputDecoration(
+              labelText: 'Tracker Board ID (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              FilledButton(
+                onPressed: _isSavingProjectSetup ? null : _saveProjectSetup,
+                child: const Text('Save Project Setup'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: _loadProjectSetups,
+                child: const Text('Reload'),
+              ),
+            ],
+          ),
+          if (_projectSetups.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            const Text(
+              'Configured Projects',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            ..._projectSetups.map((ProjectSetupConfig setup) {
+              return Card(
+                child: ListTile(
+                  dense: true,
+                  selected: _projectController.text.trim() == setup.projectID,
+                  title: Text(setup.projectID),
+                  subtitle: Text(
+                    '${setup.projectName}\n${setup.repositoryURL}',
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _applyProjectSetup(setup);
+                      _statusMessage =
+                          'Loaded project setup ${setup.projectID}';
+                    });
+                  },
+                ),
+              );
+            }),
+          ],
+          if (_statusMessage != null) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(_statusMessage!, maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ],
       ),

@@ -1,0 +1,199 @@
+query Sessions($limit: Int!) {
+  sessions(limit: $limit) {
+    __typename
+    ... on SessionsSuccess {
+      sessions {
+        runID
+        taskCount
+        jobCount
+        updatedAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+query Workers($limit: Int!) {
+  workers(limit: $limit) {
+    __typename
+    ... on WorkersSuccess {
+      workers {
+        workerID
+        capabilities
+        lastHeartbeat
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+query WorkflowJobs($runID: String!, $taskID: String, $limit: Int!) {
+  workflowJobs(runID: $runID, taskID: $taskID, limit: $limit) {
+    __typename
+    ... on WorkflowJobsSuccess {
+      jobs {
+        runID
+        taskID
+        jobID
+        jobKind
+        status
+        queue
+        queueTaskID
+        duplicate
+        updatedAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+query SupervisorDecisionHistory($runID: String!, $taskID: String!, $jobID: String!) {
+  supervisorDecisionHistory(correlation: {runID: $runID, taskID: $taskID, jobID: $jobID}) {
+    __typename
+    ... on SupervisorDecisionHistorySuccess {
+      decisions {
+        signalType
+        action
+        reason
+        occurredAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+mutation EnqueueScmWorkflow($input: EnqueueSCMWorkflowInput!) {
+  enqueueScmWorkflow(input: $input) {
+    __typename
+    ... on EnqueueSCMWorkflowSuccess {
+      queueTaskID
+      duplicate
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+mutation EnqueueIngestionWorkflow($input: EnqueueIngestionWorkflowInput!) {
+  enqueueIngestionWorkflow(input: $input) {
+    __typename
+    ... on EnqueueIngestionWorkflowSuccess {
+      queueTaskID
+      duplicate
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+mutation ApproveIssueIntake($input: ApproveIssueIntakeInput!) {
+  approveIssueIntake(input: $input) {
+    __typename
+    ... on ApproveIssueIntakeSuccess {
+      decision {
+        signalType
+        action
+        reason
+        occurredAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+query ProjectSetups($limit: Int!) {
+  projectSetups(limit: $limit) {
+    __typename
+    ... on ProjectSetupsSuccess {
+      projects {
+        projectID
+        projectName
+        scmProvider
+        repositoryURL
+        trackerProvider
+        trackerLocation
+        trackerBoardID
+        createdAt
+        updatedAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+mutation UpsertProjectSetup($input: UpsertProjectSetupInput!) {
+  upsertProjectSetup(input: $input) {
+    __typename
+    ... on UpsertProjectSetupSuccess {
+      project {
+        projectID
+        projectName
+        scmProvider
+        repositoryURL
+        trackerProvider
+        trackerLocation
+        trackerBoardID
+        createdAt
+        updatedAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}
+
+subscription SessionActivity($runID: String!, $taskID: String!, $jobID: String!, $fromOffset: Int!) {
+  sessionActivityStream(
+    correlation: {runID: $runID, taskID: $taskID, jobID: $jobID}
+    fromOffset: $fromOffset
+  ) {
+    __typename
+    ... on StreamEventSuccess {
+      event {
+        eventID
+        eventType
+        source
+        payload
+        occurredAt
+      }
+    }
+    ... on GraphError {
+      code
+      message
+      field
+    }
+  }
+}

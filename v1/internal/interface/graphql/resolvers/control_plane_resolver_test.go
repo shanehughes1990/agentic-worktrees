@@ -84,6 +84,48 @@ func (repository *controlPlaneFakeQueryRepository) ListDeadLetterHistory(ctx con
 	return []applicationcontrolplane.DeadLetterHistoryRecord{{Queue: "scm", TaskID: "archive-1", JobKind: taskengine.JobKindSCMWorkflow, Action: taskengine.DeadLetterActionRequeue, OccurredAt: time.Now().UTC()}}, nil
 }
 
+type controlPlaneFakeProjectRepository struct{}
+
+func (repository *controlPlaneFakeProjectRepository) ListProjectSetups(ctx context.Context, limit int) ([]applicationcontrolplane.ProjectSetup, error) {
+	_ = ctx
+	_ = limit
+	return []applicationcontrolplane.ProjectSetup{{
+		ProjectID:       "project-1",
+		ProjectName:     "Project One",
+		SCMProvider:     "github",
+		RepositoryURL:   "https://github.com/acme/repo",
+		TrackerProvider: "github_issues",
+		TrackerLocation: "acme/repo",
+		CreatedAt:       time.Unix(1700000000, 0).UTC(),
+		UpdatedAt:       time.Unix(1700000000, 0).UTC(),
+	}}, nil
+}
+
+func (repository *controlPlaneFakeProjectRepository) GetProjectSetup(ctx context.Context, projectID string) (*applicationcontrolplane.ProjectSetup, error) {
+	_ = ctx
+	if projectID != "project-1" {
+		return nil, nil
+	}
+	result := applicationcontrolplane.ProjectSetup{
+		ProjectID:       "project-1",
+		ProjectName:     "Project One",
+		SCMProvider:     "github",
+		RepositoryURL:   "https://github.com/acme/repo",
+		TrackerProvider: "github_issues",
+		TrackerLocation: "acme/repo",
+		CreatedAt:       time.Unix(1700000000, 0).UTC(),
+		UpdatedAt:       time.Unix(1700000000, 0).UTC(),
+	}
+	return &result, nil
+}
+
+func (repository *controlPlaneFakeProjectRepository) UpsertProjectSetup(ctx context.Context, setup applicationcontrolplane.ProjectSetup) (*applicationcontrolplane.ProjectSetup, error) {
+	_ = ctx
+	setup.CreatedAt = time.Unix(1700000000, 0).UTC()
+	setup.UpdatedAt = time.Unix(1700000000, 0).UTC()
+	return &setup, nil
+}
+
 type supervisorMemoryEventStoreForControlPlane struct {
 	decisions []domainsupervisor.Decision
 }
@@ -142,7 +184,7 @@ func newControlPlaneResolverFixture(t *testing.T) *Resolver {
 	if err != nil {
 		t.Fatalf("new supervisor service: %v", err)
 	}
-	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, supervisorService, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeDeadLetterManager{})
+	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, supervisorService, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeProjectRepository{}, &controlPlaneFakeDeadLetterManager{})
 	if err != nil {
 		t.Fatalf("new control-plane service: %v", err)
 	}

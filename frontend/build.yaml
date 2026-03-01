@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      graphql_codegen:
+        options:
+          assetsPath: lib/shared/graph/**.graphql
+          outputDirectory: /lib/shared/graph/generated
+          clients:
+          - graphql
+          scalars:
+            Time:
+              type: DateTime
+              fromJsonFunctionName: dateTimeFromJson
+              toJsonFunctionName: dateTimeToJson
+              import: package:agentic_worktrees/shared/graph/scalars/date_time_scalar.dart

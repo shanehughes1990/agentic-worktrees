@@ -4,9 +4,11 @@ import (
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
+	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -61,6 +63,50 @@ type DeadLetterHistoryRecord struct {
 	OccurredAt time.Time
 }
 
+type ProjectSetup struct {
+	ProjectID       string
+	ProjectName     string
+	SCMProvider     string
+	RepositoryURL   string
+	TrackerProvider string
+	TrackerLocation string
+	TrackerBoardID  string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type UpsertProjectSetupRequest struct {
+	ProjectID       string
+	ProjectName     string
+	SCMProvider     string
+	RepositoryURL   string
+	TrackerProvider string
+	TrackerLocation string
+	TrackerBoardID  string
+}
+
+func (request UpsertProjectSetupRequest) Validate() error {
+	if strings.TrimSpace(request.ProjectID) == "" {
+		return fmt.Errorf("project_id is required")
+	}
+	if strings.TrimSpace(request.ProjectName) == "" {
+		return fmt.Errorf("project_name is required")
+	}
+	if strings.TrimSpace(request.SCMProvider) != "github" {
+		return fmt.Errorf("scm_provider must be github")
+	}
+	if strings.TrimSpace(request.RepositoryURL) == "" {
+		return fmt.Errorf("repository_url is required")
+	}
+	if parsed, err := url.ParseRequestURI(strings.TrimSpace(request.RepositoryURL)); err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("repository_url must be a valid absolute URL")
+	}
+	if err := domaintracker.SourceKind(strings.TrimSpace(request.TrackerProvider)).Validate(); err != nil {
+		return fmt.Errorf("tracker_provider: %w", err)
+	}
+	return nil
+}
+
 type CorrelationFilter struct {
 	RunID  string
 	TaskID string
@@ -74,6 +120,12 @@ type QueryRepository interface {
 	ListWorkers(ctx context.Context, limit int) ([]WorkerSummary, error)
 	ListExecutionHistory(ctx context.Context, filter CorrelationFilter, limit int) ([]ExecutionHistoryRecord, error)
 	ListDeadLetterHistory(ctx context.Context, queue string, limit int) ([]DeadLetterHistoryRecord, error)
+}
+
+type ProjectSetupRepository interface {
+	ListProjectSetups(ctx context.Context, limit int) ([]ProjectSetup, error)
+	GetProjectSetup(ctx context.Context, projectID string) (*ProjectSetup, error)
+	UpsertProjectSetup(ctx context.Context, setup ProjectSetup) (*ProjectSetup, error)
 }
 
 type IngestionBoardSource struct {
@@ -154,17 +206,22 @@ type Service struct {
 	scheduler         *taskengine.Scheduler
 	supervisorService *applicationsupervisor.Service
 	queryRepository   QueryRepository
+	projectRepository ProjectSetupRepository
 	deadLetterManager taskengine.DeadLetterManager
 }
 
-func NewService(scheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, queryRepository QueryRepository, deadLetterManager taskengine.DeadLetterManager) (*Service, error) {
+func NewService(scheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, queryRepository QueryRepository, projectRepository ProjectSetupRepository, deadLetterManager taskengine.DeadLetterManager) (*Service, error) {
 	if queryRepository == nil {
 		return nil, fmt.Errorf("control-plane query repository is required")
+	}
+	if projectRepository == nil {
+		return nil, fmt.Errorf("control-plane project repository is required")
 	}
 	return &Service{
 		scheduler:         scheduler,
 		supervisorService: supervisorService,
 		queryRepository:   queryRepository,
+		projectRepository: projectRepository,
 		deadLetterManager: deadLetterManager,
 	}, nil
 }
@@ -205,6 +262,49 @@ func (service *Service) ExecutionHistory(ctx context.Context, filter Correlation
 
 func (service *Service) DeadLetterHistory(ctx context.Context, queue string, limit int) ([]DeadLetterHistoryRecord, error) {
 	return service.queryRepository.ListDeadLetterHistory(ctx, strings.TrimSpace(queue), normalizeLimit(limit, 100, 500))
+}
+
+func (service *Service) ProjectSetups(ctx context.Context, limit int) ([]ProjectSetup, error) {
+	if service == nil || service.projectRepository == nil {
+		return nil, fmt.Errorf("project repository is not configured")
+	}
+	return service.projectRepository.ListProjectSetups(ctx, normalizeLimit(limit, 50, 250))
+}
+
+func (service *Service) ProjectSetup(ctx context.Context, projectID string) (*ProjectSetup, error) {
+	if service == nil || service.projectRepository == nil {
+		return nil, fmt.Errorf("project repository is not configured")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	return service.projectRepository.GetProjectSetup(ctx, projectID)
+}
+
+func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertProjectSetupRequest) (*ProjectSetup, error) {
+	if service == nil || service.projectRepository == nil {
+		return nil, fmt.Errorf("project repository is not configured")
+	}
+	request.ProjectID = strings.TrimSpace(request.ProjectID)
+	request.ProjectName = strings.TrimSpace(request.ProjectName)
+	request.SCMProvider = strings.ToLower(strings.TrimSpace(request.SCMProvider))
+	request.RepositoryURL = strings.TrimSpace(request.RepositoryURL)
+	request.TrackerProvider = strings.TrimSpace(request.TrackerProvider)
+	request.TrackerLocation = strings.TrimSpace(request.TrackerLocation)
+	request.TrackerBoardID = strings.TrimSpace(request.TrackerBoardID)
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	return service.projectRepository.UpsertProjectSetup(ctx, ProjectSetup{
+		ProjectID:       request.ProjectID,
+		ProjectName:     request.ProjectName,
+		SCMProvider:     request.SCMProvider,
+		RepositoryURL:   request.RepositoryURL,
+		TrackerProvider: request.TrackerProvider,
+		TrackerLocation: request.TrackerLocation,
+		TrackerBoardID:  request.TrackerBoardID,
+	})
 }
 
 func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request EnqueueIngestionWorkflowRequest) (taskengine.EnqueueResult, error) {

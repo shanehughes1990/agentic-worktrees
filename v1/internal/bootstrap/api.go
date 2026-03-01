@@ -98,7 +98,11 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane query repository: %w", err)
 	}
-	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, supervisorService, controlPlaneQueryRepository, taskEnginePlatform)
+	projectSetupRepository, err := infrataskenginepostgres.NewProjectSetupRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init project setup repository: %w", err)
+	}
+	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, supervisorService, controlPlaneQueryRepository, projectSetupRepository, taskEnginePlatform)
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}

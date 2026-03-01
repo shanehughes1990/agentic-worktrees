@@ -7,15 +7,10 @@ package resolvers
 
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
-	applicationstream "agentic-orchestrator/internal/application/stream"
-	"agentic-orchestrator/internal/application/taskengine"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
-	"encoding/json"
 	"fmt"
-	"math"
-	"strings"
 )
 
 // EnqueueIngestionWorkflow is the resolver for the enqueueIngestionWorkflow field.
@@ -76,6 +71,30 @@ func (r *mutationResolver) RequeueDeadLetter(ctx context.Context, input models.R
 		return graphErrorFromError(err), nil
 	}
 	return models.RequeueDeadLetterSuccess{Ok: true}, nil
+}
+
+// UpsertProjectSetup is the resolver for the upsertProjectSetup field.
+func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.UpsertProjectSetupInput) (models.UpsertProjectSetupResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	setup, err := r.Resolver.ControlPlaneService.UpsertProjectSetup(ctx, applicationcontrolplane.UpsertProjectSetupRequest{
+		ProjectID:       input.ProjectID,
+		ProjectName:     input.ProjectName,
+		SCMProvider:     toSCMProviderString(input.ScmProvider),
+		RepositoryURL:   input.RepositoryURL,
+		TrackerProvider: toTrackerSourceKindString(input.TrackerProvider),
+		TrackerLocation: derefString(input.TrackerLocation),
+		TrackerBoardID:  derefString(input.TrackerBoardID),
+	})
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("upsert project setup: %w", err)), nil
+	}
+	mapped, mapErr := toGraphProjectSetup(setup)
+	if mapErr != nil {
+		return graphErrorFromError(mapErr), nil
+	}
+	return models.UpsertProjectSetupSuccess{Project: mapped}, nil
 }
 
 // Sessions is the resolver for the sessions field.
@@ -224,6 +243,45 @@ func (r *queryResolver) DeadLetterHistory(ctx context.Context, queue *string, li
 	return models.DeadLetterHistorySuccess{Records: items}, nil
 }
 
+// ProjectSetups is the resolver for the projectSetups field.
+func (r *queryResolver) ProjectSetups(ctx context.Context, limit *int32) (models.ProjectSetupsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	projects, err := r.Resolver.ControlPlaneService.ProjectSetups(ctx, int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load project setups: %w", err)), nil
+	}
+	items := make([]*models.ProjectSetup, 0, len(projects))
+	for _, project := range projects {
+		mapped, mapErr := toGraphProjectSetup(&project)
+		if mapErr != nil {
+			return graphErrorFromError(mapErr), nil
+		}
+		items = append(items, mapped)
+	}
+	return models.ProjectSetupsSuccess{Projects: items}, nil
+}
+
+// ProjectSetup is the resolver for the projectSetup field.
+func (r *queryResolver) ProjectSetup(ctx context.Context, projectID string) (models.ProjectSetupResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	project, err := r.Resolver.ControlPlaneService.ProjectSetup(ctx, projectID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load project setup: %w", err)), nil
+	}
+	if project == nil {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "project setup not found", Field: strPtr("projectID")}, nil
+	}
+	mapped, mapErr := toGraphProjectSetup(project)
+	if mapErr != nil {
+		return graphErrorFromError(mapErr), nil
+	}
+	return models.ProjectSetupSuccess{Project: mapped}, nil
+}
+
 // SessionActivityStream is the resolver for the sessionActivityStream field.
 func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
@@ -258,157 +316,4 @@ func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlatio
 			return false
 		}
 	})
-}
-
-func streamSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.SupervisorCorrelationInput, fromOffset *int32, eventFilter func(domainstream.EventType) bool) (<-chan models.StreamEventResult, error) {
-	if streamService == nil {
-		return singleEventStream(models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "stream service is not configured"}), nil
-	}
-	output := make(chan models.StreamEventResult, 64)
-	offset := int32ToInt(fromOffset)
-	if offset < 0 {
-		offset = 0
-	}
-	replay, err := streamService.ReplayFromOffset(ctx, uint64(offset), 500)
-	if err != nil {
-		return singleEventStream(graphErrorFromError(fmt.Errorf("replay stream events: %w", err))), nil
-	}
-	for _, event := range replay {
-		if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
-			continue
-		}
-		output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}
-	}
-	_, live, cancel := streamService.Subscribe(256)
-	go func() {
-		defer cancel()
-		defer close(output)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event, open := <-live:
-				if !open {
-					return
-				}
-				if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
-					continue
-				}
-				select {
-				case output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
-	return output, nil
-}
-
-func matchesCorrelation(event domainstream.Event, correlation models.SupervisorCorrelationInput) bool {
-	if strings.TrimSpace(correlation.RunID) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(correlation.RunID) {
-		return false
-	}
-	if strings.TrimSpace(correlation.TaskID) != "" && strings.TrimSpace(event.CorrelationIDs.TaskID) != strings.TrimSpace(correlation.TaskID) {
-		return false
-	}
-	if strings.TrimSpace(correlation.JobID) != "" && strings.TrimSpace(event.CorrelationIDs.JobID) != strings.TrimSpace(correlation.JobID) {
-		return false
-	}
-	return true
-}
-
-func mapStreamEvent(event domainstream.Event) *models.StreamEvent {
-	payload, err := json.Marshal(event.Payload)
-	if err != nil {
-		payload = []byte("{}")
-	}
-	return &models.StreamEvent{
-		EventID:       event.EventID,
-		StreamOffset:  uint64ToInt32(event.StreamOffset),
-		OccurredAt:    event.OccurredAt.UTC(),
-		RunID:         nilIfEmpty(event.CorrelationIDs.RunID),
-		TaskID:        nilIfEmpty(event.CorrelationIDs.TaskID),
-		JobID:         nilIfEmpty(event.CorrelationIDs.JobID),
-		SessionID:     nilIfEmpty(event.CorrelationIDs.SessionID),
-		CorrelationID: strings.TrimSpace(event.CorrelationIDs.CorrelationID),
-		Source:        toGraphStreamEventSource(event.Source),
-		EventType:     string(event.EventType),
-		Payload:       string(payload),
-	}
-}
-
-func singleEventStream(result models.StreamEventResult) <-chan models.StreamEventResult {
-	output := make(chan models.StreamEventResult, 1)
-	output <- result
-	close(output)
-	return output
-}
-
-func int32ToInt(value *int32) int {
-	if value == nil {
-		return 0
-	}
-	return int(*value)
-}
-
-func uint64ToInt32(value uint64) int32 {
-	if value > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	return int32(value)
-}
-
-func toGraphJobKind(value taskengine.JobKind) (models.JobKind, error) {
-	switch strings.TrimSpace(string(value)) {
-	case string(taskengine.JobKindIngestionAgent):
-		return models.JobKindIngestionAgentRun, nil
-	case string(taskengine.JobKindAgentWorkflow):
-		return models.JobKindAgentWorkflowRun, nil
-	case string(taskengine.JobKindSCMWorkflow):
-		return models.JobKindScmWorkflowRun, nil
-	default:
-		return "", fmt.Errorf("unsupported job kind %q", value)
-	}
-}
-
-func toTrackerSourceKindString(kind models.TrackerSourceKind) string {
-	switch kind {
-	case models.TrackerSourceKindLocalJSON:
-		return "local_json"
-	case models.TrackerSourceKindGithubIssues:
-		return "github_issues"
-	case models.TrackerSourceKindJira:
-		return "jira"
-	case models.TrackerSourceKindLinear:
-		return "linear"
-	default:
-		return ""
-	}
-}
-
-func toGraphStreamEventSource(source domainstream.Source) models.StreamEventSource {
-	switch source {
-	case domainstream.SourceACP:
-		return models.StreamEventSourceAcp
-	case domainstream.SourceSessionFile:
-		return models.StreamEventSourceSessionFile
-	default:
-		return models.StreamEventSourceWorker
-	}
-}
-
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
-func nilIfEmpty(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }

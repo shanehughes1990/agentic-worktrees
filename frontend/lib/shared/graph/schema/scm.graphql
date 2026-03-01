@@ -1,0 +1,70 @@
+enum SCMOperation {
+  SOURCE_STATE
+  ENSURE_WORKTREE
+  SYNC_WORKTREE
+  CLEANUP_WORKTREE
+  ENSURE_BRANCH
+  SYNC_BRANCH
+  UPSERT_PULL_REQUEST
+  GET_PULL_REQUEST
+  SUBMIT_REVIEW
+  CHECK_MERGE_READINESS
+  MERGE_PULL_REQUEST
+}
+
+enum SCMProvider {
+  GITHUB
+}
+
+enum SCMMergeMethod {
+  MERGE
+  SQUASH
+  REBASE
+}
+
+enum SCMReviewDecision {
+  APPROVE
+  REQUEST_CHANGES
+  COMMENT
+}
+
+type EnqueueSCMWorkflowSuccess {
+  queueTaskID: ID!
+  duplicate: Boolean!
+}
+
+union EnqueueSCMWorkflowResult = EnqueueSCMWorkflowSuccess | GraphError
+
+type ScmSupportedOperationsSuccess {
+  operations: [SCMOperation!]!
+}
+
+union ScmSupportedOperationsResult = ScmSupportedOperationsSuccess | GraphError
+
+input EnqueueSCMWorkflowInput {
+  operation: SCMOperation!
+  provider: SCMProvider!
+  owner: String!
+  repository: String!
+  runID: String!
+  taskID: String!
+  jobID: String!
+  idempotencyKey: String!
+  worktreePath: String
+  baseBranch: String
+  targetBranch: String
+  pullRequestNumber: Int
+  mergeMethod: SCMMergeMethod
+  pullRequestTitle: String
+  pullRequestBody: String
+  reviewDecision: SCMReviewDecision
+  reviewBody: String
+}
+
+extend type Query {
+  scmSupportedOperations: ScmSupportedOperationsResult!
+}
+
+extend type Mutation {
+  enqueueScmWorkflow(input: EnqueueSCMWorkflowInput!): EnqueueSCMWorkflowResult!
+}

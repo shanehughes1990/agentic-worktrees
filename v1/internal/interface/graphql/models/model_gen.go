@@ -30,6 +30,14 @@ type ExecutionHistoryResult interface {
 	IsExecutionHistoryResult()
 }
 
+type ProjectSetupResult interface {
+	IsProjectSetupResult()
+}
+
+type ProjectSetupsResult interface {
+	IsProjectSetupsResult()
+}
+
 type RequeueDeadLetterResult interface {
 	IsRequeueDeadLetterResult()
 }
@@ -52,6 +60,10 @@ type StreamEventResult interface {
 
 type SupervisorDecisionHistoryResult interface {
 	IsSupervisorDecisionHistoryResult()
+}
+
+type UpsertProjectSetupResult interface {
+	IsUpsertProjectSetupResult()
 }
 
 type WorkersResult interface {
@@ -181,6 +193,12 @@ func (GraphError) IsApproveIssueIntakeResult() {}
 
 func (GraphError) IsRequeueDeadLetterResult() {}
 
+func (GraphError) IsProjectSetupsResult() {}
+
+func (GraphError) IsProjectSetupResult() {}
+
+func (GraphError) IsUpsertProjectSetupResult() {}
+
 func (GraphError) IsStreamEventResult() {}
 
 func (GraphError) IsEnqueueSCMWorkflowResult() {}
@@ -197,6 +215,30 @@ type IngestionBoardSourceInput struct {
 
 type Mutation struct {
 }
+
+type ProjectSetup struct {
+	ProjectID       string            `json:"projectID"`
+	ProjectName     string            `json:"projectName"`
+	ScmProvider     SCMProvider       `json:"scmProvider"`
+	RepositoryURL   string            `json:"repositoryURL"`
+	TrackerProvider TrackerSourceKind `json:"trackerProvider"`
+	TrackerLocation *string           `json:"trackerLocation,omitempty"`
+	TrackerBoardID  *string           `json:"trackerBoardID,omitempty"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	UpdatedAt       time.Time         `json:"updatedAt"`
+}
+
+type ProjectSetupSuccess struct {
+	Project *ProjectSetup `json:"project"`
+}
+
+func (ProjectSetupSuccess) IsProjectSetupResult() {}
+
+type ProjectSetupsSuccess struct {
+	Projects []*ProjectSetup `json:"projects"`
+}
+
+func (ProjectSetupsSuccess) IsProjectSetupsResult() {}
 
 type Query struct {
 }
@@ -295,6 +337,22 @@ type SupervisorDecisionMetadataEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+
+type UpsertProjectSetupInput struct {
+	ProjectID       string            `json:"projectID"`
+	ProjectName     string            `json:"projectName"`
+	ScmProvider     SCMProvider       `json:"scmProvider"`
+	RepositoryURL   string            `json:"repositoryURL"`
+	TrackerProvider TrackerSourceKind `json:"trackerProvider"`
+	TrackerLocation *string           `json:"trackerLocation,omitempty"`
+	TrackerBoardID  *string           `json:"trackerBoardID,omitempty"`
+}
+
+type UpsertProjectSetupSuccess struct {
+	Project *ProjectSetup `json:"project"`
+}
+
+func (UpsertProjectSetupSuccess) IsUpsertProjectSetupResult() {}
 
 type WorkerSummary struct {
 	WorkerID      string    `json:"workerID"`
