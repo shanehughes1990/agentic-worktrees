@@ -4,12 +4,10 @@ go 1.25.3
 
 require (
 	github.com/99designs/gqlgen v0.17.87
-	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/hellofresh/health-go/v5 v5.5.5
 	github.com/hibiken/asynq v0.25.1
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/redis/go-redis/v9 v9.7.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/xo/dburl v0.24.2
@@ -49,11 +47,11 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/redis/go-redis/v9 v9.7.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/urfave/cli/v3 v3.6.2 // indirect
-	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
