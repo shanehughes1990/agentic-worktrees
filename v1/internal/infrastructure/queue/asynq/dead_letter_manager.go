@@ -27,6 +27,7 @@ func (platform *Platform) ListDeadLetters(ctx context.Context, queue string, lim
 		Password: platform.config.RedisPassword,
 		DB:       platform.config.RedisDatabase,
 	})
+	defer inspector.Close()
 	tasks, err := inspector.ListArchivedTasks(queue, asynq.PageSize(limit), asynq.Page(0))
 	if err != nil {
 		return nil, fmt.Errorf("list dead letters: %w", err)
@@ -73,6 +74,7 @@ func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, t
 		Password: platform.config.RedisPassword,
 		DB:       platform.config.RedisDatabase,
 	})
+	defer inspector.Close()
 	if err := inspector.RunTask(queue, taskID); err != nil {
 		return fmt.Errorf("requeue dead letter: %w", err)
 	}

@@ -77,11 +77,9 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	operation := strings.TrimSpace(payload.Operation)
 	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
 	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}
-	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID}, IdempotencyKey: payload.IdempotencyKey}
+	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID}, IdempotencyKey: idempotencyKey}
 
-	if err := handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusRunning, ""); err != nil {
-		return err
-	}
+	handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusRunning, "")
 
 	retryCheckpoint := taskengine.RetryCheckpointContract{
 		ResumeCheckpoint:      payload.ResumeCheckpoint,
@@ -93,7 +91,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	if handler.checkpointStore != nil && idempotencyKey != "" {
 		persistedCheckpoint, err := handler.checkpointStore.Load(ctx, idempotencyKey)
 		if err != nil {
-			_ = handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
+			handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("load persisted checkpoint: %w", err)
 		}
 		if persistedCheckpoint != nil {
@@ -101,9 +99,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 		}
 	}
 	if taskengine.CheckpointMatches(effectiveCheckpoint, operation, idempotencyKey) {
-		if err := handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSkipped, ""); err != nil {
-			return err
-		}
+		handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSkipped, "")
 		return nil
 	}
 
@@ -133,19 +129,21 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 		return fmt.Errorf("unsupported scm operation %q", payload.Operation)
 	}
 	if executionErr != nil {
-		_ = handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, executionErr.Error())
+		handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, executionErr.Error())
 		return executionErr
 	}
 	if handler.checkpointStore != nil && idempotencyKey != "" {
 		if err := handler.checkpointStore.Save(ctx, idempotencyKey, taskengine.Checkpoint{Step: operation, Token: idempotencyKey}); err != nil {
-			_ = handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
+			handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("persist completed checkpoint: %w", err)
 		}
 	}
-	if err := handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSucceeded, ""); err != nil {
-		return err
-	}
+	handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSucceeded, "")
 	return nil
+}
+
+func (handler *SCMWorkflowHandler) safeRecordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) {
+	_ = handler.recordExecution(ctx, correlationIDs, kind, idempotencyKey, step, status, errorMessage)
 }
 
 func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) error {

@@ -375,3 +375,26 @@ func TestAgentWorkflowHandlerRecordsExecutionJournalFailure(t *testing.T) {
 		t.Fatalf("expected last status failed, got %q", journal.records[len(journal.records)-1].Status)
 	}
 }
+
+func TestAgentWorkflowHandlerIgnoresExecutionJournalWriteErrors(t *testing.T) {
+	service := &fakeAgentService{}
+	journal := &fakeExecutionJournal{err: errors.New("journal unavailable")}
+	handler, err := NewAgentWorkflowHandlerWithReliability(service, nil, journal)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(AgentWorkflowPayload{
+		SessionID:      "session-1",
+		Prompt:         "run analysis",
+		Provider:       "github",
+		Owner:          "acme",
+		Repository:     "repo",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		JobID:          "job-1",
+		IdempotencyKey: "id-1",
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindAgentWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("expected journal errors to be ignored, got: %v", err)
+	}
+}

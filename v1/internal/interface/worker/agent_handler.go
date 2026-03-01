@@ -59,6 +59,7 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode agent workflow payload: %w", err)
 	}
+	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
 	request := domainagent.ExecutionRequest{
 		Session: domainagent.SessionRef{
 			SessionID: payload.SessionID,
@@ -75,14 +76,12 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 				TaskID: payload.TaskID,
 				JobID:  payload.JobID,
 			},
-			IdempotencyKey: payload.IdempotencyKey,
+			IdempotencyKey: idempotencyKey,
 		},
 	}
 
 	step := "source_state"
-	if err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, ""); err != nil {
-		return err
-	}
+	handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, "")
 
 	retryCheckpoint := (taskengine.RetryCheckpointContract{
 		ResumeCheckpoint:      payload.ResumeCheckpoint,
@@ -90,12 +89,11 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 		ResumeCheckpointToken: payload.ResumeCheckpointToken,
 	}).Checkpoint()
 
-	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
 	resumeCheckpoint := retryCheckpoint
 	if handler.checkpointStore != nil && idempotencyKey != "" {
 		persistedCheckpoint, err := handler.checkpointStore.Load(ctx, idempotencyKey)
 		if err != nil {
-			_ = handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
+			handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("load persisted checkpoint: %w", err)
 		}
 		if persistedCheckpoint != nil {
@@ -107,20 +105,22 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 	}
 
 	if err := handler.service.Execute(ctx, request); err != nil {
-		_ = handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
+		handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 		return err
 	}
 
 	if handler.checkpointStore != nil && idempotencyKey != "" {
 		if err := handler.checkpointStore.Save(ctx, idempotencyKey, taskengine.Checkpoint{Step: step, Token: idempotencyKey}); err != nil {
-			_ = handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
+			handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("persist completed checkpoint: %w", err)
 		}
 	}
-	if err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusSucceeded, ""); err != nil {
-		return err
-	}
+	handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusSucceeded, "")
 	return nil
+}
+
+func (handler *AgentWorkflowHandler) safeRecordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) {
+	_ = handler.recordExecution(ctx, request, kind, step, status, errorMessage)
 }
 
 func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) error {
