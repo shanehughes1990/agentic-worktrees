@@ -3,6 +3,7 @@ package bootstrap
 import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
 	applicationscm "agentic-orchestrator/internal/application/scm"
+	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
@@ -10,6 +11,7 @@ import (
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
+	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	infratracker "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
@@ -37,6 +39,7 @@ type WorkerApp struct {
 	agentService          *applicationagent.Service
 	scmService            *applicationscm.Service
 	trackerService        *applicationtracker.Service
+	supervisorService     *applicationsupervisor.Service
 }
 
 type workerJobRegistration struct {
@@ -90,6 +93,16 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init postgres execution journal: %w", err)
 	}
+	supervisorEventStore, err := infrasupervisorpostgres.NewEventStore(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres supervisor event store: %w", err)
+	}
+	supervisorService, err := applicationsupervisor.NewService(supervisorEventStore, nil)
+	if err != nil {
+		return nil, fmt.Errorf("init supervisor service: %w", err)
+	}
+	taskScheduler.SetAdmissionSignalSink(supervisorService)
+
 	repoLeaseManager, err := infrascm.NewPostgresRepoLeaseManager(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init postgres repo lease manager: %w", err)
@@ -124,9 +137,8 @@ func InitWorker() (*WorkerApp, error) {
 		return nil, fmt.Errorf("init postgres tracker board snapshot provider: %w", err)
 	}
 	trackerProviderRegistry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON: trackerSnapshotProvider,
-		domaintracker.SourceKindJira:      infratracker.NewJiraProvider(),
-		domaintracker.SourceKindLinear:    infratracker.NewLinearProvider(),
+		domaintracker.SourceKindLocalJSON:    trackerSnapshotProvider,
+		domaintracker.SourceKindGitHubIssues: infratracker.NewGitHubIssuesProvider(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init tracker provider registry: %w", err)
@@ -153,6 +165,7 @@ func InitWorker() (*WorkerApp, error) {
 		agentService:          agentService,
 		scmService:            scmService,
 		trackerService:        trackerService,
+		supervisorService:     supervisorService,
 	}, nil
 }
 
@@ -171,15 +184,15 @@ func (app *WorkerApp) Run() error {
 		}).Info("worker runtime starting")
 	}
 
-	ingestionHandler, err := workerinterface.NewIngestionAgentHandler(app.trackerService)
+	ingestionHandler, err := workerinterface.NewIngestionAgentHandlerWithSupervisor(app.trackerService, app.supervisorService)
 	if err != nil {
 		return fmt.Errorf("create ingestion agent handler: %w", err)
 	}
-	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithReliability(app.agentService, app.checkpointStore, app.executionJournal)
+	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithSupervisor(app.agentService, app.checkpointStore, app.executionJournal, app.supervisorService)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)
 	}
-	scmHandler, err := workerinterface.NewSCMWorkflowHandlerWithReliability(app.scmService, app.checkpointStore, app.executionJournal)
+	scmHandler, err := workerinterface.NewSCMWorkflowHandlerWithSupervisor(app.scmService, app.checkpointStore, app.executionJournal, app.supervisorService)
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}

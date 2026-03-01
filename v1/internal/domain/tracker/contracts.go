@@ -29,14 +29,15 @@ func (status Status) Validate() error {
 type SourceKind string
 
 const (
-	SourceKindLocalJSON SourceKind = "local_json"
-	SourceKindJira      SourceKind = "jira"
-	SourceKindLinear    SourceKind = "linear"
+	SourceKindLocalJSON    SourceKind = "local_json"
+	SourceKindGitHubIssues SourceKind = "github_issues"
+	SourceKindJira         SourceKind = "jira"
+	SourceKindLinear       SourceKind = "linear"
 )
 
 func (kind SourceKind) Validate() error {
 	switch kind {
-	case SourceKindLocalJSON, SourceKindJira, SourceKindLinear:
+	case SourceKindLocalJSON, SourceKindGitHubIssues, SourceKindJira, SourceKindLinear:
 		return nil
 	default:
 		return failures.WrapTerminal(fmt.Errorf("unsupported source kind %q", kind))
@@ -59,6 +60,10 @@ func (source SourceRef) Validate() error {
 	case SourceKindLocalJSON:
 		if strings.TrimSpace(source.Location) == "" {
 			return failures.WrapTerminal(errors.New("location is required for local_json source"))
+		}
+	case SourceKindGitHubIssues:
+		if strings.TrimSpace(source.Location) == "" {
+			return failures.WrapTerminal(errors.New("location is required for github_issues source (owner/repo)"))
 		}
 	case SourceKindJira, SourceKindLinear:
 		if strings.TrimSpace(source.BoardID) == "" {
@@ -99,15 +104,15 @@ func (priority Priority) Validate() error {
 }
 
 type WorkItem struct {
-	ID          WorkItemID    `json:"id"`
-	BoardID     string        `json:"board_id"`
-	Title       string        `json:"title"`
-	Description string        `json:"description,omitempty"`
-	Status      Status        `json:"status"`
-	Priority    Priority      `json:"priority,omitempty"`
+	ID          WorkItemID     `json:"id"`
+	BoardID     string         `json:"board_id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description,omitempty"`
+	Status      Status         `json:"status"`
+	Priority    Priority       `json:"priority,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-	CreatedAt   time.Time     `json:"created_at,omitempty"`
-	UpdatedAt   time.Time     `json:"updated_at,omitempty"`
+	CreatedAt   time.Time      `json:"created_at,omitempty"`
+	UpdatedAt   time.Time      `json:"updated_at,omitempty"`
 }
 
 func (item WorkItem) Validate() error {

@@ -44,9 +44,8 @@ func newIngestionTrackerService(t *testing.T, baseDirectory string) *application
 		t.Fatalf("new local json provider: %v", err)
 	}
 	registry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON: localProvider,
-		domaintracker.SourceKindJira:      infratracker.NewJiraProvider(),
-		domaintracker.SourceKindLinear:    infratracker.NewLinearProvider(),
+		domaintracker.SourceKindLocalJSON:    localProvider,
+		domaintracker.SourceKindGitHubIssues: infratracker.NewGitHubIssuesProvider(),
 	})
 	if err != nil {
 		t.Fatalf("new provider registry: %v", err)

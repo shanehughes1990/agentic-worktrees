@@ -49,9 +49,10 @@ type scmService interface {
 }
 
 type SCMWorkflowHandler struct {
-	service          scmService
-	checkpointStore  taskengine.CheckpointStore
-	executionJournal taskengine.ExecutionJournal
+	service           scmService
+	checkpointStore   taskengine.CheckpointStore
+	executionJournal  taskengine.ExecutionJournal
+	supervisorService supervisorSignalService
 }
 
 func NewSCMWorkflowHandler(service scmService) (*SCMWorkflowHandler, error) {
@@ -63,10 +64,18 @@ func NewSCMWorkflowHandlerWithCheckpointStore(service scmService, checkpointStor
 }
 
 func NewSCMWorkflowHandlerWithReliability(service scmService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*SCMWorkflowHandler, error) {
+	return newSCMWorkflowHandler(service, checkpointStore, executionJournal, nil)
+}
+
+func NewSCMWorkflowHandlerWithSupervisor(service scmService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*SCMWorkflowHandler, error) {
+	return newSCMWorkflowHandler(service, checkpointStore, executionJournal, supervisorService)
+}
+
+func newSCMWorkflowHandler(service scmService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*SCMWorkflowHandler, error) {
 	if service == nil {
 		return nil, fmt.Errorf("scm service is required")
 	}
-	return &SCMWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal}, nil
+	return &SCMWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
 }
 
 func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -137,19 +146,21 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 			handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("persist completed checkpoint: %w", err)
 		}
+		handler.safeSupervisorCheckpoint(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation)
 	}
 	handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSucceeded, "")
 	return nil
 }
 
 func (handler *SCMWorkflowHandler) safeRecordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) {
-	_ = handler.recordExecution(ctx, correlationIDs, kind, idempotencyKey, step, status, errorMessage)
+	record, err := handler.recordExecution(ctx, correlationIDs, kind, idempotencyKey, step, status, errorMessage)
+	if err != nil {
+		return
+	}
+	handler.safeSupervisorExecution(ctx, record)
 }
 
-func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) error {
-	if handler == nil || handler.executionJournal == nil {
-		return nil
-	}
+func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) (taskengine.ExecutionRecord, error) {
 	record := taskengine.ExecutionRecord{
 		RunID:          correlationIDs.RunID,
 		TaskID:         correlationIDs.TaskID,
@@ -161,8 +172,25 @@ func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlat
 		ErrorMessage:   strings.TrimSpace(errorMessage),
 		UpdatedAt:      time.Now().UTC(),
 	}
-	if err := handler.executionJournal.Upsert(ctx, record); err != nil {
-		return fmt.Errorf("record execution journal: %w", err)
+	if handler == nil || handler.executionJournal == nil {
+		return record, nil
 	}
-	return nil
+	if err := handler.executionJournal.Upsert(ctx, record); err != nil {
+		return taskengine.ExecutionRecord{}, fmt.Errorf("record execution journal: %w", err)
+	}
+	return record, nil
+}
+
+func (handler *SCMWorkflowHandler) safeSupervisorExecution(ctx context.Context, record taskengine.ExecutionRecord) {
+	if handler == nil || handler.supervisorService == nil {
+		return
+	}
+	_, _ = handler.supervisorService.OnExecution(ctx, record, 0, 0)
+}
+
+func (handler *SCMWorkflowHandler) safeSupervisorCheckpoint(ctx context.Context, correlation taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string) {
+	if handler == nil || handler.supervisorService == nil {
+		return
+	}
+	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, correlation, kind, idempotencyKey, step)
 }

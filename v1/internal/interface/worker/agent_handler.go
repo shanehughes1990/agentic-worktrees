@@ -34,9 +34,10 @@ type agentService interface {
 var _ agentService = (*applicationagent.Service)(nil)
 
 type AgentWorkflowHandler struct {
-	service          agentService
-	checkpointStore  taskengine.CheckpointStore
-	executionJournal taskengine.ExecutionJournal
+	service           agentService
+	checkpointStore   taskengine.CheckpointStore
+	executionJournal  taskengine.ExecutionJournal
+	supervisorService supervisorSignalService
 }
 
 func NewAgentWorkflowHandler(service agentService) (*AgentWorkflowHandler, error) {
@@ -48,10 +49,18 @@ func NewAgentWorkflowHandlerWithCheckpointStore(service agentService, checkpoint
 }
 
 func NewAgentWorkflowHandlerWithReliability(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(service, checkpointStore, executionJournal, nil)
+}
+
+func NewAgentWorkflowHandlerWithSupervisor(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(service, checkpointStore, executionJournal, supervisorService)
+}
+
+func newAgentWorkflowHandler(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
 	if service == nil {
 		return nil, fmt.Errorf("agent service is required")
 	}
-	return &AgentWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal}, nil
+	return &AgentWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
 }
 
 func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -81,7 +90,9 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 	}
 
 	step := "source_state"
-	handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, "")
+	if record, err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, ""); err == nil {
+		handler.safeSupervisorExecution(ctx, record)
+	}
 
 	retryCheckpoint := (taskengine.RetryCheckpointContract{
 		ResumeCheckpoint:      payload.ResumeCheckpoint,
@@ -114,19 +125,21 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 			handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("persist completed checkpoint: %w", err)
 		}
+		handler.safeSupervisorCheckpoint(ctx, request.Metadata.CorrelationIDs, job.Kind, idempotencyKey, step)
 	}
 	handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusSucceeded, "")
 	return nil
 }
 
 func (handler *AgentWorkflowHandler) safeRecordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) {
-	_ = handler.recordExecution(ctx, request, kind, step, status, errorMessage)
+	record, err := handler.recordExecution(ctx, request, kind, step, status, errorMessage)
+	if err != nil {
+		return
+	}
+	handler.safeSupervisorExecution(ctx, record)
 }
 
-func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) error {
-	if handler == nil || handler.executionJournal == nil {
-		return nil
-	}
+func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) (taskengine.ExecutionRecord, error) {
 	record := taskengine.ExecutionRecord{
 		RunID:          request.Metadata.CorrelationIDs.RunID,
 		TaskID:         request.Metadata.CorrelationIDs.TaskID,
@@ -138,8 +151,25 @@ func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, reques
 		ErrorMessage:   strings.TrimSpace(errorMessage),
 		UpdatedAt:      time.Now().UTC(),
 	}
-	if err := handler.executionJournal.Upsert(ctx, record); err != nil {
-		return fmt.Errorf("record execution journal: %w", err)
+	if handler == nil || handler.executionJournal == nil {
+		return record, nil
 	}
-	return nil
+	if err := handler.executionJournal.Upsert(ctx, record); err != nil {
+		return taskengine.ExecutionRecord{}, fmt.Errorf("record execution journal: %w", err)
+	}
+	return record, nil
+}
+
+func (handler *AgentWorkflowHandler) safeSupervisorExecution(ctx context.Context, record taskengine.ExecutionRecord) {
+	if handler == nil || handler.supervisorService == nil {
+		return
+	}
+	_, _ = handler.supervisorService.OnExecution(ctx, record, 0, 0)
+}
+
+func (handler *AgentWorkflowHandler) safeSupervisorCheckpoint(ctx context.Context, correlation domainagent.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string) {
+	if handler == nil || handler.supervisorService == nil {
+		return
+	}
+	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, taskengine.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID}, kind, idempotencyKey, step)
 }

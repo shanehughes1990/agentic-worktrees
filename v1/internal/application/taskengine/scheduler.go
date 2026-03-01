@@ -7,10 +7,15 @@ import (
 	"time"
 )
 
+type AdmissionSignalSink interface {
+	OnAdmitted(ctx context.Context, record AdmissionRecord) error
+}
+
 type Scheduler struct {
-	engine          Engine
-	policies        map[JobKind]JobPolicy
-	admissionLedger AdmissionLedger
+	engine              Engine
+	policies            map[JobKind]JobPolicy
+	admissionLedger     AdmissionLedger
+	admissionSignalSink AdmissionSignalSink
 }
 
 func NewScheduler(engine Engine, policies map[JobKind]JobPolicy) (*Scheduler, error) {
@@ -28,6 +33,13 @@ func (scheduler *Scheduler) SetAdmissionLedger(ledger AdmissionLedger) {
 		return
 	}
 	scheduler.admissionLedger = ledger
+}
+
+func (scheduler *Scheduler) SetAdmissionSignalSink(sink AdmissionSignalSink) {
+	if scheduler == nil {
+		return
+	}
+	scheduler.admissionSignalSink = sink
 }
 
 func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest) (EnqueueResult, error) {
@@ -75,21 +87,26 @@ func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest)
 	if err != nil {
 		return EnqueueResult{}, err
 	}
+	record := AdmissionRecord{
+		RunID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.RunID),
+		TaskID:         strings.TrimSpace(normalizedRequest.CorrelationIDs.TaskID),
+		JobID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.JobID),
+		JobKind:        normalizedRequest.Kind,
+		IdempotencyKey: strings.TrimSpace(normalizedRequest.IdempotencyKey),
+		QueueTaskID:    strings.TrimSpace(result.QueueTaskID),
+		Queue:          strings.TrimSpace(normalizedRequest.Queue),
+		Status:         AdmissionStatusQueued,
+		Duplicate:      result.Duplicate,
+		EnqueuedAt:     time.Now().UTC(),
+	}
 	if scheduler.admissionLedger != nil {
-		record := AdmissionRecord{
-			RunID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.RunID),
-			TaskID:         strings.TrimSpace(normalizedRequest.CorrelationIDs.TaskID),
-			JobID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.JobID),
-			JobKind:        normalizedRequest.Kind,
-			IdempotencyKey: strings.TrimSpace(normalizedRequest.IdempotencyKey),
-			QueueTaskID:    strings.TrimSpace(result.QueueTaskID),
-			Queue:          strings.TrimSpace(normalizedRequest.Queue),
-			Status:         AdmissionStatusQueued,
-			Duplicate:      result.Duplicate,
-			EnqueuedAt:     time.Now().UTC(),
-		}
 		if err := scheduler.admissionLedger.Upsert(ctx, record); err != nil {
 			return EnqueueResult{}, fmt.Errorf("persist admission ledger: %w", err)
+		}
+	}
+	if scheduler.admissionSignalSink != nil {
+		if err := scheduler.admissionSignalSink.OnAdmitted(ctx, record); err != nil {
+			return EnqueueResult{}, fmt.Errorf("emit admission supervisor signal: %w", err)
 		}
 	}
 
