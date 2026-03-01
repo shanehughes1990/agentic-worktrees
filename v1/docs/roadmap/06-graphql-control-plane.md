@@ -2,29 +2,30 @@
 
 ## Objective
 
-Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orchestrator operations.
+Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orchestrator operations, backed by Postgres read models for durable queryability.
 
 ## Task Checklist
 
 - [x] Initialize `gqlgen` project structure and schema/resolver scaffolding.
 - [x] Place GraphQL files under DDD-aligned interface paths.
-- [ ] Implement session/workflow/worker queries against application services.
+- [ ] Implement session/workflow/worker queries against application query services.
 - [ ] Implement core control mutations (spawn/send/cancel/restore/assign/merge).
 - [ ] Implement subscriptions for session + orchestrator events.
+- [ ] Add Postgres-backed query repositories for run/task/job/worker and dead-letter history views.
 - [ ] Add contract/integration tests for GraphQL operations.
 
 ## Deliverables
 
-- Schema for sessions, workers, workflows, and events.
-- Mutations for core operator actions (spawn/send/cancel/restore/assign/merge).
-- Queries for system state and fleet visibility.
-- Subscriptions for realtime session and orchestrator updates.
+- Schema for sessions, workers, workflows, execution history, and events.
+- Mutations for core operator actions.
+- Queries backed by Postgres read models (not transient runtime memory).
+- Subscriptions for realtime updates with replay alignment from persisted stream data.
 
 ## In Scope
 
 - Contract-first schema evolution with resolver boundaries.
 - Mapping between application use cases and GraphQL operations.
-- Error and status models suitable for operator clients.
+- Postgres-backed query repositories and pagination/filtering contracts.
 
 ## Out of Scope
 
@@ -34,8 +35,8 @@ Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orc
 ## Acceptance Criteria
 
 - Core control-plane actions are available via GraphQL.
-- Read models reflect orchestrator, worker, and tracker state coherently.
-- Subscriptions deliver production-usable update streams.
+- Read models reflect orchestrator, worker, and tracker state coherently from Postgres.
+- Subscriptions deliver production-usable update streams aligned with persisted event replay.
 
 ## Dependencies
 
@@ -43,4 +44,4 @@ Deliver a GraphQL-first control plane (`gqlgen`) as the primary contract for orc
 
 ## Exit Check
 
-This slice is complete when operator workflows can be executed entirely through GraphQL contracts.
+This slice is complete when operator workflows can be executed entirely through GraphQL contracts with durable persisted state behind queries/subscriptions.

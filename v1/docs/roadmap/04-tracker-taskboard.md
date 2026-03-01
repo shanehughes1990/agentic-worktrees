@@ -2,29 +2,33 @@
 
 ## Objective
 
-Implement tracker-agnostic planning and execution intake through a canonical internal taskboard model.
+Implement tracker-agnostic planning and execution intake through a canonical internal taskboard model, with Postgres-backed canonical persistence.
 
 ## Task Checklist
 
-- [x] Define canonical tracker/taskboard domain model in `internal/domain/tracker`. — **Completed**
-- [x] Define tracker provider port contracts in application layer. — **Completed**
-- [x] Implement local JSON tracker/taskboard adapter in infrastructure. — **Completed**
-- [x] Add board-source selection at project/workflow boundary. — **Completed**
-- [x] Define external provider adapter boundary (Jira/Linear-ready contract). — **Completed**
-- [x] Add ingestion/sync integration tests against canonical model. — **Completed**
+- [x] Define canonical tracker/taskboard domain model in `internal/domain/tracker`.
+- [x] Define tracker provider port contracts in application layer.
+- [x] Implement local JSON tracker/taskboard adapter in infrastructure.
+- [x] Add board-source selection at project/workflow boundary.
+- [x] Define external provider adapter boundary (Jira/Linear-ready contract).
+- [x] Add ingestion/sync integration tests against canonical model.
+- [x] Persist board snapshots on ingestion sync (`tracker_board_snapshots`).
+- [ ] Implement full normalized Postgres tracker model (`tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes`).
 
 ## Deliverables
 
 - Canonical tracker/taskboard domain model.
-- `tracker` slot contract for work-item and board/task lifecycle operations.
+- `tracker` provider contract for board/task lifecycle operations.
 - Local JSON tracker/taskboard adapter (V1-authored).
-- External-provider adapter boundary (extension point, not full implementation).
+- Postgres snapshot persistence for board sync events.
+- Planned normalized relational tracker persistence model.
 
 ## In Scope
 
-- Domain model normalization independent of vendor schemas.
+- Domain normalization independent of vendor schemas.
 - Adapter contract that keeps orchestration logic unchanged across providers.
-- Selection mechanism for board source per project/workflow.
+- Source selection mechanism per project/workflow.
+- Durable Postgres persistence for canonical tracker state.
 
 ## Out of Scope
 
@@ -34,8 +38,8 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 ## Acceptance Criteria
 
 - Orchestration consumes canonical model only.
-- Local JSON workflows run reliably through canonical contract.
-- New tracker providers can be added without orchestration rewrites.
+- Local JSON workflows run through canonical contract and persist board snapshots in Postgres.
+- Normalized relational tracker persistence path is defined and implementable without orchestration rewrites.
 
 ## Dependencies
 
@@ -45,4 +49,4 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 
 ## Exit Check
 
-This slice is complete when task intake and execution planning are provider-agnostic at application boundaries.
+This slice is complete when task intake and execution planning are provider-agnostic and canonical tracker state is durably persisted in Postgres.

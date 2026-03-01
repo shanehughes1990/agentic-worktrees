@@ -22,7 +22,7 @@ This directory contains detailed execution plans for V1 delivery slices.
 
 ## Execution Order
 
-File numbering now matches recommended implementation order to maximize integration confidence at each step:
+File numbering matches recommended implementation order:
 
 1. `00-project-layout.md`
 2. `01-agent-scm-core.md`
@@ -33,15 +33,15 @@ File numbering now matches recommended implementation order to maximize integrat
 7. `06-graphql-control-plane.md`
 8. `07-client-experience.md`
 9. `08-container-first-deployment.md`
-10. `09-postgres-persistence-conversion.md`
-
-This order ensures supervisor policy and control-plane behavior are validated against real SCM-backed execution flows.
+10. `09-postgres-persistence-conversion.md` (cross-slice persistence conversion status and remaining phases)
 
 ## Common Rules for All Slices
 
 - V1 rewrite policy is mandatory (no source migration from `mvp/`).
 - Placement and dependency rules from `../PLACEMENT_RULES.md` are mandatory.
 - User-facing operation is client-first; terminal-first UX is out of scope.
+- PostgreSQL is the only durable system of record for business/operational state.
+- Redis is limited to queue transport internals for `asynq`.
 - Each slice must define clear acceptance criteria and dependencies.
 
 ## How to Use
