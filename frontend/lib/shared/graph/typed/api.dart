@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:agentic_worktrees/graph/generated/operations/control_plane.graphql.dart'
+import 'package:agentic_worktrees/shared/graph/generated/operations/control_plane.graphql.dart'
     as gql_ops;
-import 'package:agentic_worktrees/graph/generated/schema/control_plane.graphql.dart'
+import 'package:agentic_worktrees/shared/graph/generated/schema/control_plane.graphql.dart'
     as gql_cp;
-import 'package:agentic_worktrees/graph/generated/schema/scm.graphql.dart'
+import 'package:agentic_worktrees/shared/graph/generated/schema/scm.graphql.dart'
     as gql_scm;
-import 'package:agentic_worktrees/graph/typed/models.dart';
+import 'package:agentic_worktrees/shared/graph/typed/models.dart';
 import 'package:agentic_worktrees/shared/logging/app_logger.dart';
 import 'package:graphql/client.dart';
 

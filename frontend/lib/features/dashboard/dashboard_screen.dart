@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:agentic_worktrees/shared/config/app_config.dart';
-import 'package:agentic_worktrees/graph/typed/control_plane.dart';
+import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:agentic_worktrees/shared/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
