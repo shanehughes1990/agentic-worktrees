@@ -18,6 +18,18 @@ func (engine *fakeEngine) Enqueue(_ context.Context, request EnqueueRequest) (En
 	return engine.result, engine.err
 }
 
+type fakeAdmissionLedger struct {
+	lastRecord AdmissionRecord
+	err        error
+	calls      int
+}
+
+func (ledger *fakeAdmissionLedger) Upsert(_ context.Context, record AdmissionRecord) error {
+	ledger.calls++
+	ledger.lastRecord = record
+	return ledger.err
+}
+
 func TestSchedulerEnqueueRejectsMissingIdempotencyForIngestion(t *testing.T) {
 	engine := &fakeEngine{}
 	scheduler, err := NewScheduler(engine, DefaultPolicies())
@@ -86,5 +98,54 @@ func TestSchedulerEnqueueRejectsMissingIdempotencyForSCM(t *testing.T) {
 	}
 	if !errors.Is(enqueueErr, ErrInvalidEnqueueRequest) {
 		t.Fatalf("expected ErrInvalidEnqueueRequest, got %v", enqueueErr)
+	}
+}
+
+func TestSchedulerEnqueuePersistsAdmissionRecord(t *testing.T) {
+	engine := &fakeEngine{result: EnqueueResult{QueueTaskID: "queue-task-1"}}
+	ledger := &fakeAdmissionLedger{}
+	scheduler, err := NewScheduler(engine, DefaultPolicies())
+	if err != nil {
+		t.Fatalf("new scheduler: %v", err)
+	}
+	scheduler.SetAdmissionLedger(ledger)
+
+	_, enqueueErr := scheduler.Enqueue(context.Background(), EnqueueRequest{
+		Kind:           JobKindSCMWorkflow,
+		Payload:        []byte(`{"run_id":"run-1","operation":"ensure_worktree"}`),
+		IdempotencyKey: "id-1",
+		CorrelationIDs: CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"},
+	})
+	if enqueueErr != nil {
+		t.Fatalf("enqueue: %v", enqueueErr)
+	}
+	if ledger.calls != 1 {
+		t.Fatalf("expected one ledger write, got %d", ledger.calls)
+	}
+	if ledger.lastRecord.Status != AdmissionStatusQueued {
+		t.Fatalf("expected queued status, got %q", ledger.lastRecord.Status)
+	}
+	if ledger.lastRecord.QueueTaskID != "queue-task-1" {
+		t.Fatalf("expected queue task id queue-task-1, got %q", ledger.lastRecord.QueueTaskID)
+	}
+}
+
+func TestSchedulerEnqueueReturnsErrorWhenAdmissionPersistenceFails(t *testing.T) {
+	engine := &fakeEngine{result: EnqueueResult{QueueTaskID: "queue-task-1"}}
+	ledger := &fakeAdmissionLedger{err: errors.New("db down")}
+	scheduler, err := NewScheduler(engine, DefaultPolicies())
+	if err != nil {
+		t.Fatalf("new scheduler: %v", err)
+	}
+	scheduler.SetAdmissionLedger(ledger)
+
+	_, enqueueErr := scheduler.Enqueue(context.Background(), EnqueueRequest{
+		Kind:           JobKindSCMWorkflow,
+		Payload:        []byte(`{"run_id":"run-1","operation":"ensure_worktree"}`),
+		IdempotencyKey: "id-1",
+		CorrelationIDs: CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"},
+	})
+	if enqueueErr == nil {
+		t.Fatalf("expected admission persistence error")
 	}
 }

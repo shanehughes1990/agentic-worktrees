@@ -6,10 +6,11 @@ import (
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
+	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
-	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
+	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	infratracker "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
 	"context"
@@ -26,6 +27,8 @@ type WorkerApp struct {
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    taskengine.Consumer
+	databaseClient        *postgresdb.Client
+	workerRegistry        *infrataskenginepostgres.WorkerRegistry
 	checkpointStore       taskengine.CheckpointStore
 	executionJournal      taskengine.ExecutionJournal
 	agentService          *applicationagent.Service
@@ -57,14 +60,37 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, err
 	}
-	queueConfig := asynqengine.Config{
-		RedisAddress:  config.TaskEngineRedisAddress,
-		RedisPassword: config.TaskEngineRedisPassword,
-		RedisDatabase: config.TaskEngineRedisDatabase,
-		Concurrency:   config.TaskEngineConcurrency,
+
+	databaseClient, err := postgresdb.Open(context.Background(), postgresdb.Config{DSN: config.DatabaseDSN}, observabilityPlatform.ServiceEntry())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres client: %w", err)
 	}
-	checkpointStore := asynqengine.NewRedisCheckpointStoreFromConfig(queueConfig, 0)
-	executionJournal := asynqengine.NewRedisExecutionJournalFromConfig(queueConfig, 0)
+	admissionLedger, err := infrataskenginepostgres.NewAdmissionLedger(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres admission ledger: %w", err)
+	}
+	taskScheduler.SetAdmissionLedger(admissionLedger)
+	deadLetterAudit, err := infrataskenginepostgres.NewDeadLetterAudit(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres dead-letter audit: %w", err)
+	}
+	taskEnginePlatform.SetDeadLetterAudit(deadLetterAudit)
+	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres worker registry: %w", err)
+	}
+	checkpointStore, err := infrataskenginepostgres.NewPostgresCheckpointStore(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres checkpoint store: %w", err)
+	}
+	executionJournal, err := infrataskenginepostgres.NewPostgresExecutionJournal(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres execution journal: %w", err)
+	}
+	repoLeaseManager, err := infrascm.NewPostgresRepoLeaseManager(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres repo lease manager: %w", err)
+	}
 
 	if strings.TrimSpace(config.SCMGitHubToken) == "" {
 		return nil, fmt.Errorf("worker requires SCM_GITHUB_TOKEN for github scm execution")
@@ -78,7 +104,6 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init github scm adapter: %w", err)
 	}
-	repoLeaseManager := infrascm.NewInMemoryRepoLeaseManager()
 	scmService, err := applicationscm.NewServiceWithLeaseManager(githubAdapter, repoLeaseManager)
 	if err != nil {
 		return nil, fmt.Errorf("init scm service: %w", err)
@@ -91,8 +116,12 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init local tracker provider: %w", err)
 	}
+	trackerSnapshotProvider, err := infratracker.NewPostgresBoardSnapshotProvider(databaseClient.DB(), localTrackerProvider)
+	if err != nil {
+		return nil, fmt.Errorf("init postgres tracker board snapshot provider: %w", err)
+	}
 	trackerProviderRegistry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON: localTrackerProvider,
+		domaintracker.SourceKindLocalJSON: trackerSnapshotProvider,
 		domaintracker.SourceKindJira:      infratracker.NewJiraProvider(),
 		domaintracker.SourceKindLinear:    infratracker.NewLinearProvider(),
 	})
@@ -110,6 +139,8 @@ func InitWorker() (*WorkerApp, error) {
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
+		databaseClient:        databaseClient,
+		workerRegistry:        workerRegistry,
 		checkpointStore:       checkpointStore,
 		executionJournal:      executionJournal,
 		agentService:          agentService,
@@ -144,17 +175,23 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}
-	if err := registerWorkerJobs(
-		context.Background(),
-		app.taskEnginePlatform,
-		fmt.Sprintf("%s-worker-%d", strings.TrimSpace(app.config.ServiceName), app.config.WorkerPort),
-		[]workerJobRegistration{
-			{kind: taskengine.JobKindIngestionAgent, handler: ingestionHandler, label: "ingestion agent"},
-			{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
-			{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
-		},
-	); err != nil {
+	workerID := fmt.Sprintf("%s-worker-%d", strings.TrimSpace(app.config.ServiceName), app.config.WorkerPort)
+	registrations := []workerJobRegistration{
+		{kind: taskengine.JobKindIngestionAgent, handler: ingestionHandler, label: "ingestion agent"},
+		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
+		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
+	}
+	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
 		return err
+	}
+	if app.workerRegistry != nil {
+		capabilities := make([]taskengine.WorkerCapability, 0, len(registrations))
+		for _, registration := range registrations {
+			capabilities = append(capabilities, taskengine.WorkerCapability{Kind: registration.kind})
+		}
+		if err := app.workerRegistry.Upsert(context.Background(), taskengine.WorkerCapabilityAdvertisement{WorkerID: workerID, Capabilities: capabilities}); err != nil {
+			return fmt.Errorf("persist worker capability advertisement: %w", err)
+		}
 	}
 	if err := app.taskEnginePlatform.Start(); err != nil {
 		if entry != nil {
@@ -184,6 +221,14 @@ func (app *WorkerApp) Run() error {
 				entry.WithError(err).WithField("runtime", "worker").Error("shutdown task engine platform failed")
 			}
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown task engine platform: %w", err))
+		}
+	}
+	if app.databaseClient != nil {
+		if err := app.databaseClient.Close(); err != nil {
+			if entry != nil {
+				entry.WithError(err).WithField("runtime", "worker").Error("shutdown postgres client failed")
+			}
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown postgres client: %w", err))
 		}
 	}
 	if err := app.healthPlatform.Shutdown(shutdownCtx); err != nil {

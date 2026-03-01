@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Scheduler struct {
-	engine   Engine
-	policies map[JobKind]JobPolicy
+	engine          Engine
+	policies        map[JobKind]JobPolicy
+	admissionLedger AdmissionLedger
 }
 
 func NewScheduler(engine Engine, policies map[JobKind]JobPolicy) (*Scheduler, error) {
@@ -19,6 +21,13 @@ func NewScheduler(engine Engine, policies map[JobKind]JobPolicy) (*Scheduler, er
 		return nil, fmt.Errorf("%w: at least one job policy is required", ErrInvalidEnqueueRequest)
 	}
 	return &Scheduler{engine: engine, policies: policies}, nil
+}
+
+func (scheduler *Scheduler) SetAdmissionLedger(ledger AdmissionLedger) {
+	if scheduler == nil {
+		return
+	}
+	scheduler.admissionLedger = ledger
 }
 
 func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest) (EnqueueResult, error) {
@@ -62,5 +71,27 @@ func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest)
 		return EnqueueResult{}, fmt.Errorf("%w: queue is required", ErrInvalidEnqueueRequest)
 	}
 
-	return scheduler.engine.Enqueue(ctx, normalizedRequest)
+	result, err := scheduler.engine.Enqueue(ctx, normalizedRequest)
+	if err != nil {
+		return EnqueueResult{}, err
+	}
+	if scheduler.admissionLedger != nil {
+		record := AdmissionRecord{
+			RunID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.RunID),
+			TaskID:         strings.TrimSpace(normalizedRequest.CorrelationIDs.TaskID),
+			JobID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.JobID),
+			JobKind:        normalizedRequest.Kind,
+			IdempotencyKey: strings.TrimSpace(normalizedRequest.IdempotencyKey),
+			QueueTaskID:    strings.TrimSpace(result.QueueTaskID),
+			Queue:          strings.TrimSpace(normalizedRequest.Queue),
+			Status:         AdmissionStatusQueued,
+			Duplicate:      result.Duplicate,
+			EnqueuedAt:     time.Now().UTC(),
+		}
+		if err := scheduler.admissionLedger.Upsert(ctx, record); err != nil {
+			return EnqueueResult{}, fmt.Errorf("persist admission ledger: %w", err)
+		}
+	}
+
+	return result, nil
 }

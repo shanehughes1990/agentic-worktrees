@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -56,7 +57,6 @@ func (platform *Platform) ListDeadLetters(ctx context.Context, queue string, lim
 }
 
 func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, taskID string) error {
-	_ = ctx
 	if platform == nil {
 		return fmt.Errorf("task engine platform is not initialized")
 	}
@@ -75,8 +75,39 @@ func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, t
 		DB:       platform.config.RedisDatabase,
 	})
 	defer inspector.Close()
+
+	archivedTasks, err := inspector.ListArchivedTasks(queue, asynq.PageSize(500), asynq.Page(0))
+	if err != nil {
+		return fmt.Errorf("list dead letters: %w", err)
+	}
+	var requeuedTask *asynq.TaskInfo
+	for _, archivedTask := range archivedTasks {
+		if strings.TrimSpace(archivedTask.ID) == taskID {
+			requeuedTask = archivedTask
+			break
+		}
+	}
+	if requeuedTask == nil {
+		return fmt.Errorf("requeue dead letter: task %q not found in queue %q", taskID, queue)
+	}
+
 	if err := inspector.RunTask(queue, taskID); err != nil {
 		return fmt.Errorf("requeue dead letter: %w", err)
+	}
+	if platform.deadLetterAudit != nil {
+		auditErr := platform.deadLetterAudit.Record(ctx, taskengine.DeadLetterEvent{
+			Queue:      queue,
+			TaskID:     taskID,
+			JobKind:    taskengine.JobKind(strings.TrimSpace(requeuedTask.Type)),
+			Action:     taskengine.DeadLetterActionRequeue,
+			LastError:  strings.TrimSpace(requeuedTask.LastErr),
+			Reason:     "manual requeue",
+			Actor:      "system",
+			OccurredAt: time.Now().UTC(),
+		})
+		if auditErr != nil {
+			return fmt.Errorf("record dead-letter requeue audit: %w", auditErr)
+		}
 	}
 	return nil
 }

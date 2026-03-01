@@ -20,8 +20,9 @@ type Platform struct {
 	server *asynq.Server
 	mux    *asynq.ServeMux
 
-	started bool
-	mu      sync.Mutex
+	deadLetterAudit taskengine.DeadLetterAudit
+	started         bool
+	mu              sync.Mutex
 }
 
 func NewPlatform(config Config, entry *observability.Entry) *Platform {
@@ -38,6 +39,13 @@ func NewPlatform(config Config, entry *observability.Entry) *Platform {
 		server: asynq.NewServer(redisOptions, asynq.Config{Concurrency: normalizedConfig.Concurrency}),
 		mux:    asynq.NewServeMux(),
 	}
+}
+
+func (platform *Platform) SetDeadLetterAudit(audit taskengine.DeadLetterAudit) {
+	if platform == nil {
+		return
+	}
+	platform.deadLetterAudit = audit
 }
 
 func (platform *Platform) Enqueue(ctx context.Context, request taskengine.EnqueueRequest) (taskengine.EnqueueResult, error) {

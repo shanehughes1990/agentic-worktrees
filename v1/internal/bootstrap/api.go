@@ -2,9 +2,11 @@ package bootstrap
 
 import (
 	"agentic-orchestrator/internal/application/taskengine"
+	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
+	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	"agentic-orchestrator/internal/interface/graphql/graph"
 	"agentic-orchestrator/internal/interface/graphql/resolvers"
 	"context"
@@ -29,6 +31,7 @@ type APIApp struct {
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    *asynqengine.Platform
+	databaseClient        *postgresdb.Client
 }
 
 func InitAPI() (*APIApp, error) {
@@ -49,6 +52,20 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, err
 	}
+	databaseClient, err := postgresdb.Open(context.Background(), postgresdb.Config{DSN: config.DatabaseDSN}, observabilityPlatform.ServiceEntry())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres client: %w", err)
+	}
+	admissionLedger, err := infrataskenginepostgres.NewAdmissionLedger(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres admission ledger: %w", err)
+	}
+	taskScheduler.SetAdmissionLedger(admissionLedger)
+	deadLetterAudit, err := infrataskenginepostgres.NewDeadLetterAudit(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init postgres dead-letter audit: %w", err)
+	}
+	taskEnginePlatform.SetDeadLetterAudit(deadLetterAudit)
 
 	resolver := resolvers.NewResolver(taskScheduler)
 	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
@@ -73,6 +90,7 @@ func InitAPI() (*APIApp, error) {
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
+		databaseClient:        databaseClient,
 	}, nil
 }
 
@@ -135,6 +153,14 @@ func (app *APIApp) Run() error {
 				entry.WithError(err).WithField("runtime", "api").Error("shutdown task engine platform failed")
 			}
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown task engine platform: %w", err))
+		}
+	}
+	if app.databaseClient != nil {
+		if err := app.databaseClient.Close(); err != nil {
+			if entry != nil {
+				entry.WithError(err).WithField("runtime", "api").Error("shutdown postgres client failed")
+			}
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown postgres client: %w", err))
 		}
 	}
 	if err := app.healthPlatform.Shutdown(shutdownCtx); err != nil {
