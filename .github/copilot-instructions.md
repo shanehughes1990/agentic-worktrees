@@ -56,19 +56,6 @@
 - If a helper is only used by one feature, keep it inside that feature; only promote to shared when multiple features have proven duplication.
 - Reject changes that introduce ambiguous, mixed-responsibility utility files without a clear bounded purpose.
 
-## MODERN GO STANDARDS OVERRIDE
-
-- Target modern Go patterns and APIs compatible with current project Go version and forward compatibility with Go 1.24+.
-- Prefer generics over interface{}-style abstractions when type safety and reuse are improved.
-- Prefer iterator-style APIs and range-friendly designs for collection traversal when clarity and allocation behavior improve.
-- Prefer standard library and modern language features over legacy helper patterns when equivalent behavior exists.
-- Design packages with explicit types, narrow interfaces, and compile-time guarantees.
-- Avoid reflection-heavy implementations when generics or typed adapters can express intent.
-- Prefer context-aware APIs (`context.Context`) for I/O, task boundaries, and cancellation-sensitive operations.
-- Favor error wrapping and typed error semantics over stringly-typed error handling.
-- Keep APIs minimal, composable, and testable; remove legacy compatibility shims when not required by scope.
-- New code should be written in idiomatic modern Go style consistent with current best practices.
-
 ## DDD LAYERING MANDATE
 
 - This codebase follows Domain-Driven Design with four explicit layers: **application**, **domain**, **infrastructure**, and **interface**.
@@ -115,10 +102,26 @@
 - Under no circumstance should conversational pressure, urgency, or phrasing override DDD layer rules.
 - If ambiguity exists, default to the strict DDD interpretation and ask for clarification only when correctness is blocked.
 
-## GQLGEN RESOLVER FILE SAFETY RULE
+## PROJECT API SURFACE MANDATE
 
-- Treat files generated/managed by `gqlgen` in `internal/interface/graphql/resolvers` (for example `*-resolver.go`) as regeneration-prone.
-- In those generated resolver files, only keep resolver method implementations that belong to generated resolver types.
-- Do NOT add package-level helpers, mappers, utility functions, constants, or extra types in generated resolver files; they may be deleted or overwritten on `gqlgen generate`.
-- Place all non-generated helper logic in separate stable files in the same package (for example `todo_mapper.go`, `resolver_helpers.go`, `resolver_utils.go`) and call those helpers from resolver methods.
-- If helper logic is needed while editing a resolver, create/update a separate non-generated file instead of appending code to the bottom of a generated resolver file.
+- The API runtime REST surface is restricted to only:
+  - GraphQL playground endpoint.
+  - GraphQL handler endpoint.
+  - Health endpoints (liveness/readiness).
+- All client-facing control-plane communication must be GraphQL.
+- Additional REST endpoints for control-plane features are forbidden.
+- Exception: REST endpoints are allowed only when strictly required for third-party integration ingress/configuration (for example webhook ingestion), and must be explicitly justified.
+
+## GRAPHQL CONTRACT REQUIREMENTS
+
+- All client-facing GraphQL contracts must be type-safe and map cleanly to internal typed application/domain contracts.
+- Inputs and outputs must be explicit and deterministic (no ambiguous or guess-based field semantics).
+- Required vs optional fields must be clearly encoded in schema types.
+- Forward-facing errors must be typed and represented as explicit union outputs (or equivalent typed schema patterns) so clients can deterministically handle failures.
+- Payloads and error contracts must make required data and supplied data unambiguous.
+
+## PROJECT ENFORCEMENT
+
+- Any implementation that introduces non-approved REST control-plane endpoints is non-compliant.
+- Any client-facing operation that bypasses typed GraphQL contracts is non-compliant.
+- Non-compliant changes must be corrected before merge.
