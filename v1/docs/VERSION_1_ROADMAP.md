@@ -41,7 +41,7 @@ Ship a GraphQL-first orchestrator platform with local + remote workers, real-tim
 4. **Tracker-Agnostic Planning**
    - Canonical taskboard domain model.
    - Local JSON adapter + external provider extension boundary.
-   - Postgres canonical tracker persistence (snapshots now, normalized model next).
+   - Postgres canonical tracker persistence (snapshots + normalized relational model).
 
 5. **Realtime Observability and Streams**
    - Session activity, agent output, supervisor/orchestrator decision streams.
@@ -94,8 +94,8 @@ Ship a GraphQL-first orchestrator platform with local + remote workers, real-tim
 
 ## Current Persistence Status (Aligned to Slice Plans)
 
-- **Implemented now**: Postgres client/lifecycle wiring, checkpoint persistence, execution journal persistence, SCM lease persistence, worker registry persistence, tracker board snapshot persistence, admission ledger enqueue writes, dead-letter requeue audit events, supervisor decision history persistence (`supervisor_events`).
-- **Next persistence targets**: lease expiry/stale recovery, normalized tracker relational model, session snapshots, stream replay store, GraphQL read models.
+- **Implemented now**: Postgres client/lifecycle wiring, checkpoint persistence, execution journal persistence, SCM lease persistence, worker registry persistence, tracker board snapshot persistence, normalized tracker relational persistence (`tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes`), admission ledger enqueue writes, dead-letter requeue audit events, supervisor decision history persistence (`supervisor_events`).
+- **Next persistence targets**: lease expiry/stale recovery, session snapshots, stream replay store, GraphQL read models.
 
 ## V1 Release Exit Criteria
 

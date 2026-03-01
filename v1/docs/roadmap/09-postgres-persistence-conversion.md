@@ -19,7 +19,7 @@ Consolidate durable application state into PostgreSQL (single primary database),
 | Execution journal | **Postgres-backed (implemented)** | `internal/infrastructure/taskengine/postgres/execution_journal.go`, worker handlers | Keep durable execution records in Postgres for replay/audit/debug. |
 | Dead-letter triage history | **Postgres-backed (implemented for requeue audit events)** | `internal/infrastructure/queue/asynq/dead_letter_manager.go`, `internal/infrastructure/taskengine/postgres/dead_letter_audit.go` | Persist dead-letter snapshots and operator actions (`requeue`, `discard`, reason, actor, timestamp). |
 | SCM repository lease coordination | **Postgres-backed (implemented)** | `internal/infrastructure/scm/postgres_repo_lease_manager.go`, `internal/application/scm/coordinator.go` | Keep lease table as durable coordination layer across workers. |
-| Tracker canonical board model | **Postgres snapshot persistence implemented** (ingestion writes snapshots while preserving source adapters) | `internal/infrastructure/tracker/postgres_board_snapshot_provider.go`, tracker service | Extend from snapshot persistence to full canonical relational model. |
+| Tracker canonical board model | **Postgres-backed (implemented: snapshots + normalized relational model)** | `internal/infrastructure/tracker/postgres_board_snapshot_provider.go`, `internal/infrastructure/tracker/postgres_normalized_provider.go`, tracker service/bootstrap wiring | Keep snapshot and normalized canonical persistence paths in Postgres. |
 | Session state snapshots | Derived at runtime; not durably stored | `internal/domain/agent/contracts.go`, `internal/application/agent/service.go` | Persist session snapshots and last-known SCM/task state for query/recovery. |
 | Worker capability + heartbeat registry | **Postgres-backed (implemented)** | `internal/infrastructure/taskengine/postgres/worker_registry.go`, worker bootstrap | Keep durable worker identity/capability/heartbeat records. |
 | Supervisor decision/event history | **Postgres-backed (implemented)** | `internal/infrastructure/supervisor/postgres/event_store.go`, `internal/application/supervisor/service.go`, `internal/bootstrap/api.go` | Keep state transitions + reason codes as append-only decision history. |
@@ -42,7 +42,7 @@ Consolidate durable application state into PostgreSQL (single primary database),
 - `dead_letter_events` — dead-letter snapshots and operator actions. **(requeue audit implemented)**
 - `scm_repo_leases` — lease ownership + expiry. **(implemented)**
 - `tracker_board_snapshots` — canonical board snapshots by run/board. **(implemented)**
-- `tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes` — full normalized tracker model.
+- `tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes` — full normalized tracker model. **(implemented)**
 - `agent_session_snapshots` — latest session view + resumable context.
 - `worker_registry` — worker capabilities + heartbeat. **(implemented)**
 - `supervisor_events` — policy decisions and transition history. **(implemented)**
@@ -73,7 +73,7 @@ Consolidate durable application state into PostgreSQL (single primary database),
 ### Phase 3 — Tracker and Session Persistence
 
 - [x] Persist board snapshots on ingestion sync via Postgres snapshot provider.
-- [ ] Introduce full Postgres tracker provider for canonical relational model.
+- [x] Introduce full Postgres tracker provider for canonical relational model.
 - [ ] Persist agent session snapshots + last checkpoint/session state.
 
 ### Phase 4 — Control Plane Read Models

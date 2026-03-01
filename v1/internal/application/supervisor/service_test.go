@@ -86,6 +86,62 @@ func TestServiceIssueRequiresApprovalBeforeKickoff(t *testing.T) {
 	}
 }
 
+func TestServiceDeterministicTransitionFixtures(t *testing.T) {
+	store := &memoryEventStore{}
+	service, err := NewService(store, nil)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	t.Run("issue opened blocks", func(t *testing.T) {
+		decision, fixtureErr := service.OnIssueOpened(context.Background(), taskengine.CorrelationIDs{RunID: "run-issue", TaskID: "task-issue", JobID: "job-issue"}, "octo/repo", "octo/repo#12")
+		if fixtureErr != nil {
+			t.Fatalf("OnIssueOpened() error = %v", fixtureErr)
+		}
+		if decision.Action != domainsupervisor.ActionBlock || decision.Reason != domainsupervisor.ReasonIssueAwaitingApproval {
+			t.Fatalf("expected issue-opened block/await-approval, got %q/%q", decision.Action, decision.Reason)
+		}
+	})
+
+	t.Run("checks failed requests rework", func(t *testing.T) {
+		decision, fixtureErr := service.OnPRChecksEvaluated(context.Background(), taskengine.CorrelationIDs{RunID: "run-check-fail", TaskID: "task-check-fail", JobID: "job-check-fail"}, "github", "octo", "repo", 34, false, "checks_failed")
+		if fixtureErr != nil {
+			t.Fatalf("OnPRChecksEvaluated(false) error = %v", fixtureErr)
+		}
+		if decision.Action != domainsupervisor.ActionRequestRework || decision.Reason != domainsupervisor.ReasonPRChecksFailed {
+			t.Fatalf("expected checks-failed rework, got %q/%q", decision.Action, decision.Reason)
+		}
+	})
+
+	t.Run("merge request refused when not ready", func(t *testing.T) {
+		decision, fixtureErr := service.OnPRMergeRequested(context.Background(), taskengine.CorrelationIDs{RunID: "run-refuse", TaskID: "task-refuse", JobID: "job-refuse"}, "github", "octo", "repo", 35, "squash")
+		if fixtureErr != nil {
+			t.Fatalf("OnPRMergeRequested(not-ready) error = %v", fixtureErr)
+		}
+		if decision.Action != domainsupervisor.ActionRefuse || decision.Reason != domainsupervisor.ReasonPRMergeRefused {
+			t.Fatalf("expected merge-refused, got %q/%q", decision.Action, decision.Reason)
+		}
+	})
+
+	t.Run("checks passed then merge request merges", func(t *testing.T) {
+		correlation := taskengine.CorrelationIDs{RunID: "run-merge", TaskID: "task-merge", JobID: "job-merge"}
+		checksDecision, fixtureErr := service.OnPRChecksEvaluated(context.Background(), correlation, "github", "octo", "repo", 36, true, "merge_ready")
+		if fixtureErr != nil {
+			t.Fatalf("OnPRChecksEvaluated(true) error = %v", fixtureErr)
+		}
+		if checksDecision.Action != domainsupervisor.ActionContinue || checksDecision.ToState != domainsupervisor.StateMergeReady {
+			t.Fatalf("expected checks-passed continue to merge-ready, got %q/%q", checksDecision.Action, checksDecision.ToState)
+		}
+		mergeDecision, mergeErr := service.OnPRMergeRequested(context.Background(), correlation, "github", "octo", "repo", 36, "squash")
+		if mergeErr != nil {
+			t.Fatalf("OnPRMergeRequested(ready) error = %v", mergeErr)
+		}
+		if mergeDecision.Action != domainsupervisor.ActionMerge || mergeDecision.Reason != domainsupervisor.ReasonPRMergeApproved {
+			t.Fatalf("expected merge-approved merge action, got %q/%q", mergeDecision.Action, mergeDecision.Reason)
+		}
+	})
+}
+
 func TestServiceExecutionFailureEscalatesOnMaxRetries(t *testing.T) {
 	store := &memoryEventStore{}
 	service, err := NewService(store, nil)

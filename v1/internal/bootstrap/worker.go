@@ -142,9 +142,18 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init postgres tracker board snapshot provider: %w", err)
 	}
+	normalizedLocalTrackerProvider, err := infratracker.NewPostgresNormalizedProvider(databaseClient.DB(), trackerSnapshotProvider)
+	if err != nil {
+		return nil, fmt.Errorf("init postgres normalized local tracker provider: %w", err)
+	}
+	githubIssuesProvider := infratracker.NewGitHubIssuesProvider()
+	normalizedGitHubIssuesProvider, err := infratracker.NewPostgresNormalizedProvider(databaseClient.DB(), githubIssuesProvider)
+	if err != nil {
+		return nil, fmt.Errorf("init postgres normalized github issues tracker provider: %w", err)
+	}
 	trackerProviderRegistry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON:    trackerSnapshotProvider,
-		domaintracker.SourceKindGitHubIssues: infratracker.NewGitHubIssuesProvider(),
+		domaintracker.SourceKindLocalJSON:    normalizedLocalTrackerProvider,
+		domaintracker.SourceKindGitHubIssues: normalizedGitHubIssuesProvider,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init tracker provider registry: %w", err)

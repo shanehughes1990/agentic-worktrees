@@ -2,7 +2,7 @@
 
 ## Status
 
-- Completed: **In Progress (Substantially Complete)**
+- Completed: **Completed**
 - Reviewed At: **2026-02-28T00:00:00Z**
 
 ## Objective
@@ -56,8 +56,8 @@ Additional tracker providers may exist as boundaries, but they are not required 
 - [x] Implement correlation-ID propagation across supervisor decisions and rework loops.
 - [x] Persist append-only supervisor decision history in Postgres (`supervisor_events`).
 - [x] Implement decision query interfaces for `run_id/task_id/job_id` history retrieval.
-- [ ] Add deterministic transition tests over real worker/SCM/tracker/issue signal fixtures.
-- [ ] Expose supervisor decision history for query/subscription layers.
+- [x] Add deterministic transition tests over real worker/SCM/tracker/issue signal fixtures.
+- [x] Expose supervisor decision history for query/subscription layers.
 - [x] Implement kickback routing for merge conflicts, unresolved review comments, and policy violations back to task agents.
 - [x] Implement final merge/refusal orchestration path where supervisor is the gatekeeper.
 - [x] Implement issue-intake to task-agent kickoff flow under supervisor policy control.
