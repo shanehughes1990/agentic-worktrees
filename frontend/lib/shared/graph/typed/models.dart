@@ -24,18 +24,6 @@ class SessionSummary {
   final DateTime updatedAt;
 }
 
-class WorkerSummary {
-  const WorkerSummary({
-    required this.workerID,
-    required this.capabilities,
-    required this.lastHeartbeat,
-  });
-
-  final String workerID;
-  final List<String> capabilities;
-  final DateTime lastHeartbeat;
-}
-
 class ProjectSetupConfig {
   const ProjectSetupConfig({
     required this.projectID,

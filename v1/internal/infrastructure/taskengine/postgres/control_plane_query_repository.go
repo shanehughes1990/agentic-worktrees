@@ -4,7 +4,6 @@ import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"agentic-orchestrator/internal/application/taskengine"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -129,32 +128,6 @@ func (repository *ControlPlaneQueryRepository) ListWorkflowJobs(ctx context.Cont
 			EnqueuedAt:     time.Unix(record.EnqueuedAtUnix, 0).UTC(),
 			UpdatedAt:      record.UpdatedAt.UTC(),
 		})
-	}
-	return result, nil
-}
-
-func (repository *ControlPlaneQueryRepository) ListWorkers(ctx context.Context, limit int) ([]applicationcontrolplane.WorkerSummary, error) {
-	if repository == nil || repository.db == nil {
-		return nil, fmt.Errorf("control-plane query repository is not initialized")
-	}
-	if limit <= 0 {
-		limit = 50
-	}
-	records := make([]workerRegistryRecord, 0)
-	if err := repository.db.WithContext(ctx).Model(&workerRegistryRecord{}).Order("last_heartbeat DESC").Limit(limit).Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("list workers: %w", err)
-	}
-	result := make([]applicationcontrolplane.WorkerSummary, 0, len(records))
-	for _, record := range records {
-		decoded := make([]taskengine.WorkerCapability, 0)
-		if err := json.Unmarshal(record.Capabilities, &decoded); err != nil {
-			return nil, fmt.Errorf("decode worker capabilities for worker %q: %w", strings.TrimSpace(record.WorkerID), err)
-		}
-		capabilities := make([]taskengine.JobKind, 0, len(decoded))
-		for _, capability := range decoded {
-			capabilities = append(capabilities, capability.Kind)
-		}
-		result = append(result, applicationcontrolplane.WorkerSummary{WorkerID: record.WorkerID, Capabilities: capabilities, LastHeartbeat: time.Unix(record.LastHeartbeat, 0).UTC()})
 	}
 	return result, nil
 }

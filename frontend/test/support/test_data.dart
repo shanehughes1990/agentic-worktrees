@@ -45,14 +45,6 @@ WorkflowJob sampleWorkflowJob({
   );
 }
 
-WorkerSummary sampleWorkerSummary({String workerID = 'worker-1'}) {
-  return WorkerSummary(
-    workerID: workerID,
-    capabilities: const <String>['INGESTION', 'SCM'],
-    lastHeartbeat: fixedTime,
-  );
-}
-
 SupervisorDecision sampleSupervisorDecision() {
   return SupervisorDecision(
     signalType: 'TASK_COMPLETED',

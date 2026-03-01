@@ -34,7 +34,6 @@ type WorkerApp struct {
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    taskengine.Consumer
 	databaseClient        *postgresdb.Client
-	workerRegistry        *infrataskenginepostgres.WorkerRegistry
 	checkpointStore       taskengine.CheckpointStore
 	executionJournal      taskengine.ExecutionJournal
 	agentService          *applicationagent.Service
@@ -82,10 +81,6 @@ func InitWorker() (*WorkerApp, error) {
 		return nil, fmt.Errorf("init postgres dead-letter audit: %w", err)
 	}
 	taskEnginePlatform.SetDeadLetterAudit(deadLetterAudit)
-	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
-	if err != nil {
-		return nil, fmt.Errorf("init postgres worker registry: %w", err)
-	}
 	checkpointStore, err := infrataskenginepostgres.NewPostgresCheckpointStore(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init postgres checkpoint store: %w", err)
@@ -174,7 +169,6 @@ func InitWorker() (*WorkerApp, error) {
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
 		databaseClient:        databaseClient,
-		workerRegistry:        workerRegistry,
 		checkpointStore:       checkpointStore,
 		executionJournal:      executionJournal,
 		agentService:          agentService,
@@ -217,17 +211,8 @@ func (app *WorkerApp) Run() error {
 		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
 		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
 	}
-	capabilities := make([]taskengine.WorkerCapability, 0, len(registrations))
-	for _, registration := range registrations {
-		capabilities = append(capabilities, taskengine.WorkerCapability{Kind: registration.kind})
-	}
 	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
 		return err
-	}
-	if app.workerRegistry != nil {
-		if err := app.workerRegistry.Upsert(context.Background(), taskengine.WorkerCapabilityAdvertisement{WorkerID: workerID, Capabilities: capabilities}); err != nil {
-			return fmt.Errorf("persist worker capability advertisement: %w", err)
-		}
 	}
 	if err := app.taskEnginePlatform.Start(); err != nil {
 		if entry != nil {
@@ -251,8 +236,6 @@ func (app *WorkerApp) Run() error {
 
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	heartbeatCancel := app.startWorkerHeartbeat(signalCtx, entry, workerID, capabilities)
-	defer heartbeatCancel()
 
 	select {
 	case err := <-serverErrCh:
@@ -307,33 +290,6 @@ func (app *WorkerApp) Run() error {
 	return shutdownErr
 }
 
-func (app *WorkerApp) startWorkerHeartbeat(parentCtx context.Context, entry *observability.Entry, workerID string, capabilities []taskengine.WorkerCapability) context.CancelFunc {
-	heartbeatCtx, cancel := context.WithCancel(parentCtx)
-	if app == nil || app.workerRegistry == nil || strings.TrimSpace(workerID) == "" || len(capabilities) == 0 {
-		return cancel
-	}
-	interval := app.config.WorkerHeartbeatInterval
-	if interval <= 0 {
-		interval = 15 * time.Second
-	}
-	ticker := time.NewTicker(interval)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				return
-			case <-ticker.C:
-				err := app.workerRegistry.Upsert(heartbeatCtx, taskengine.WorkerCapabilityAdvertisement{WorkerID: workerID, Capabilities: capabilities})
-				if err != nil && entry != nil {
-					entry.WithError(err).WithFields(map[string]any{"runtime": "worker", "worker_id": workerID}).Warn("worker heartbeat upsert failed")
-				}
-			}
-		}
-	}()
-	return cancel
-}
-
 func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, registrations []workerJobRegistration) error {
 	if consumer == nil {
 		return fmt.Errorf("task engine platform is not initialized")
@@ -364,3 +320,6 @@ func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, worke
 	}
 	return nil
 }
+
+
+var _ = time.Second

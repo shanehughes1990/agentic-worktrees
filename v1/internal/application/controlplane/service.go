@@ -14,9 +14,9 @@ import (
 )
 
 type SessionSummary struct {
-	RunID    string
+	RunID     string
 	TaskCount int
-	JobCount int
+	JobCount  int
 	UpdatedAt time.Time
 }
 
@@ -32,12 +32,6 @@ type WorkflowJob struct {
 	Duplicate      bool
 	EnqueuedAt     time.Time
 	UpdatedAt      time.Time
-}
-
-type WorkerSummary struct {
-	WorkerID      string
-	Capabilities  []taskengine.JobKind
-	LastHeartbeat time.Time
 }
 
 type ExecutionHistoryRecord struct {
@@ -117,7 +111,6 @@ type QueryRepository interface {
 	ListSessions(ctx context.Context, limit int) ([]SessionSummary, error)
 	GetSession(ctx context.Context, runID string) (*SessionSummary, error)
 	ListWorkflowJobs(ctx context.Context, runID string, taskID string, limit int) ([]WorkflowJob, error)
-	ListWorkers(ctx context.Context, limit int) ([]WorkerSummary, error)
 	ListExecutionHistory(ctx context.Context, filter CorrelationFilter, limit int) ([]ExecutionHistoryRecord, error)
 	ListDeadLetterHistory(ctx context.Context, queue string, limit int) ([]DeadLetterHistoryRecord, error)
 }
@@ -244,10 +237,6 @@ func (service *Service) WorkflowJobs(ctx context.Context, runID string, taskID s
 		return nil, fmt.Errorf("run_id is required")
 	}
 	return service.queryRepository.ListWorkflowJobs(ctx, runID, strings.TrimSpace(taskID), normalizeLimit(limit, 100, 500))
-}
-
-func (service *Service) Workers(ctx context.Context, limit int) ([]WorkerSummary, error) {
-	return service.queryRepository.ListWorkers(ctx, normalizeLimit(limit, 50, 250))
 }
 
 func (service *Service) ExecutionHistory(ctx context.Context, filter CorrelationFilter, limit int) ([]ExecutionHistoryRecord, error) {

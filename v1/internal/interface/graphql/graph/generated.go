@@ -125,7 +125,6 @@ type ComplexityRoot struct {
 		Session                   func(childComplexity int, runID string) int
 		Sessions                  func(childComplexity int, limit *int32) int
 		SupervisorDecisionHistory func(childComplexity int, correlation models.SupervisorCorrelationInput) int
-		Workers                   func(childComplexity int, limit *int32) int
 		WorkflowJobs              func(childComplexity int, runID string, taskID *string, limit *int32) int
 	}
 
@@ -209,16 +208,6 @@ type ComplexityRoot struct {
 		Project func(childComplexity int) int
 	}
 
-	WorkerSummary struct {
-		Capabilities  func(childComplexity int) int
-		LastHeartbeat func(childComplexity int) int
-		WorkerID      func(childComplexity int) int
-	}
-
-	WorkersSuccess struct {
-		Workers func(childComplexity int) int
-	}
-
 	WorkflowJob struct {
 		Duplicate      func(childComplexity int) int
 		EnqueuedAt     func(childComplexity int) int
@@ -248,7 +237,6 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Sessions(ctx context.Context, limit *int32) (models.SessionsResult, error)
 	Session(ctx context.Context, runID string) (models.SessionResult, error)
-	Workers(ctx context.Context, limit *int32) (models.WorkersResult, error)
 	WorkflowJobs(ctx context.Context, runID string, taskID *string, limit *int32) (models.WorkflowJobsResult, error)
 	ExecutionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput, limit *int32) (models.ExecutionHistoryResult, error)
 	DeadLetterHistory(ctx context.Context, queue *string, limit *int32) (models.DeadLetterHistoryResult, error)
@@ -657,17 +645,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SupervisorDecisionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput)), true
-	case "Query.workers":
-		if e.ComplexityRoot.Query.Workers == nil {
-			break
-		}
-
-		args, err := ec.field_Query_workers_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.Workers(childComplexity, args["limit"].(*int32)), true
 	case "Query.workflowJobs":
 		if e.ComplexityRoot.Query.WorkflowJobs == nil {
 			break
@@ -976,32 +953,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.UpsertProjectSetupSuccess.Project(childComplexity), true
 
-	case "WorkerSummary.capabilities":
-		if e.ComplexityRoot.WorkerSummary.Capabilities == nil {
-			break
-		}
-
-		return e.ComplexityRoot.WorkerSummary.Capabilities(childComplexity), true
-	case "WorkerSummary.lastHeartbeat":
-		if e.ComplexityRoot.WorkerSummary.LastHeartbeat == nil {
-			break
-		}
-
-		return e.ComplexityRoot.WorkerSummary.LastHeartbeat(childComplexity), true
-	case "WorkerSummary.workerID":
-		if e.ComplexityRoot.WorkerSummary.WorkerID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.WorkerSummary.WorkerID(childComplexity), true
-
-	case "WorkersSuccess.workers":
-		if e.ComplexityRoot.WorkersSuccess.Workers == nil {
-			break
-		}
-
-		return e.ComplexityRoot.WorkersSuccess.Workers(childComplexity), true
-
 	case "WorkflowJob.duplicate":
 		if e.ComplexityRoot.WorkflowJob.Duplicate == nil {
 			break
@@ -1228,18 +1179,6 @@ type WorkflowJobsSuccess {
 
 union WorkflowJobsResult = WorkflowJobsSuccess | GraphError
 
-type WorkerSummary {
-  workerID: String!
-  capabilities: [JobKind!]!
-  lastHeartbeat: Time!
-}
-
-type WorkersSuccess {
-  workers: [WorkerSummary!]!
-}
-
-union WorkersResult = WorkersSuccess | GraphError
-
 type ExecutionHistoryRecord {
   runID: String!
   taskID: String!
@@ -1401,7 +1340,6 @@ union StreamEventResult = StreamEventSuccess | GraphError
 extend type Query {
   sessions(limit: Int = 50): SessionsResult!
   session(runID: String!): SessionResult!
-  workers(limit: Int = 50): WorkersResult!
   workflowJobs(runID: String!, taskID: String, limit: Int = 100): WorkflowJobsResult!
   executionHistory(correlation: SupervisorCorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
@@ -1798,17 +1736,6 @@ func (ec *executionContext) field_Query_supervisorDecisionHistory_args(ctx conte
 		return nil, err
 	}
 	args["correlation"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_workers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
-	if err != nil {
-		return nil, err
-	}
-	args["limit"] = arg0
 	return args, nil
 }
 
@@ -3444,47 +3371,6 @@ func (ec *executionContext) fieldContext_Query_session(ctx context.Context, fiel
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_session_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_workers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_workers,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Workers(ctx, fc.Args["limit"].(*int32))
-		},
-		nil,
-		ec.marshalNWorkersResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkersResult,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_workers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type WorkersResult does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_workers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5297,130 +5183,6 @@ func (ec *executionContext) fieldContext_UpsertProjectSetupSuccess_project(_ con
 				return ec.fieldContext_ProjectSetup_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ProjectSetup", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _WorkerSummary_workerID(ctx context.Context, field graphql.CollectedField, obj *models.WorkerSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_WorkerSummary_workerID,
-		func(ctx context.Context) (any, error) {
-			return obj.WorkerID, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_WorkerSummary_workerID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "WorkerSummary",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _WorkerSummary_capabilities(ctx context.Context, field graphql.CollectedField, obj *models.WorkerSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_WorkerSummary_capabilities,
-		func(ctx context.Context) (any, error) {
-			return obj.Capabilities, nil
-		},
-		nil,
-		ec.marshalNJobKind2ᚕagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKindᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_WorkerSummary_capabilities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "WorkerSummary",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type JobKind does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _WorkerSummary_lastHeartbeat(ctx context.Context, field graphql.CollectedField, obj *models.WorkerSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_WorkerSummary_lastHeartbeat,
-		func(ctx context.Context) (any, error) {
-			return obj.LastHeartbeat, nil
-		},
-		nil,
-		ec.marshalNTime2timeᚐTime,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_WorkerSummary_lastHeartbeat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "WorkerSummary",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Time does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _WorkersSuccess_workers(ctx context.Context, field graphql.CollectedField, obj *models.WorkersSuccess) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_WorkersSuccess_workers,
-		func(ctx context.Context) (any, error) {
-			return obj.Workers, nil
-		},
-		nil,
-		ec.marshalNWorkerSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummaryᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_WorkersSuccess_workers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "WorkersSuccess",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "workerID":
-				return ec.fieldContext_WorkerSummary_workerID(ctx, field)
-			case "capabilities":
-				return ec.fieldContext_WorkerSummary_capabilities(ctx, field)
-			case "lastHeartbeat":
-				return ec.fieldContext_WorkerSummary_lastHeartbeat(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type WorkerSummary", field.Name)
 		},
 	}
 	return fc, nil
@@ -8081,33 +7843,6 @@ func (ec *executionContext) _UpsertProjectSetupResult(ctx context.Context, sel a
 	}
 }
 
-func (ec *executionContext) _WorkersResult(ctx context.Context, sel ast.SelectionSet, obj models.WorkersResult) graphql.Marshaler {
-	switch obj := (obj).(type) {
-	case nil:
-		return graphql.Null
-	case models.WorkersSuccess:
-		return ec._WorkersSuccess(ctx, sel, &obj)
-	case *models.WorkersSuccess:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._WorkersSuccess(ctx, sel, obj)
-	case models.GraphError:
-		return ec._GraphError(ctx, sel, &obj)
-	case *models.GraphError:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._GraphError(ctx, sel, obj)
-	default:
-		if typedObj, ok := obj.(graphql.Marshaler); ok {
-			return typedObj
-		} else {
-			panic(fmt.Errorf("unexpected type %T; non-generated variants of WorkersResult must implement graphql.Marshaler", obj))
-		}
-	}
-}
-
 func (ec *executionContext) _WorkflowJobsResult(ctx context.Context, sel ast.SelectionSet, obj models.WorkflowJobsResult) graphql.Marshaler {
 	switch obj := (obj).(type) {
 	case nil:
@@ -8485,7 +8220,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "WorkersResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "EnqueueIngestionWorkflowResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "StreamEventResult", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "EnqueueIngestionWorkflowResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "StreamEventResult", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -8810,28 +8545,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_session(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "workers":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_workers(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -9617,94 +9330,6 @@ func (ec *executionContext) _UpsertProjectSetupSuccess(ctx context.Context, sel 
 	return out
 }
 
-var workerSummaryImplementors = []string{"WorkerSummary"}
-
-func (ec *executionContext) _WorkerSummary(ctx context.Context, sel ast.SelectionSet, obj *models.WorkerSummary) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, workerSummaryImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("WorkerSummary")
-		case "workerID":
-			out.Values[i] = ec._WorkerSummary_workerID(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "capabilities":
-			out.Values[i] = ec._WorkerSummary_capabilities(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "lastHeartbeat":
-			out.Values[i] = ec._WorkerSummary_lastHeartbeat(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.ProcessDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var workersSuccessImplementors = []string{"WorkersSuccess", "WorkersResult"}
-
-func (ec *executionContext) _WorkersSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.WorkersSuccess) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, workersSuccessImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("WorkersSuccess")
-		case "workers":
-			out.Values[i] = ec._WorkersSuccess_workers(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.ProcessDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
 var workflowJobImplementors = []string{"WorkflowJob"}
 
 func (ec *executionContext) _WorkflowJob(ctx context.Context, sel ast.SelectionSet, obj *models.WorkflowJob) graphql.Marshaler {
@@ -10368,37 +9993,6 @@ func (ec *executionContext) marshalNJobKind2agenticᚑorchestratorᚋinternalᚋ
 	return v
 }
 
-func (ec *executionContext) unmarshalNJobKind2ᚕagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKindᚄ(ctx context.Context, v any) ([]models.JobKind, error) {
-	var vSlice []any
-	vSlice = graphql.CoerceList(v)
-	var err error
-	res := make([]models.JobKind, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) marshalNJobKind2ᚕagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKindᚄ(ctx context.Context, sel ast.SelectionSet, v []models.JobKind) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
 func (ec *executionContext) marshalNProjectSetup2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectSetup) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -10769,42 +10363,6 @@ func (ec *executionContext) marshalNUpsertProjectSetupResult2agenticᚑorchestra
 		return graphql.Null
 	}
 	return ec._UpsertProjectSetupResult(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNWorkerSummary2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.WorkerSummary) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNWorkerSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummary(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNWorkerSummary2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkerSummary(ctx context.Context, sel ast.SelectionSet, v *models.WorkerSummary) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._WorkerSummary(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNWorkersResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkersResult(ctx context.Context, sel ast.SelectionSet, v models.WorkersResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._WorkersResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNWorkflowJob2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐWorkflowJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.WorkflowJob) graphql.Marshaler {

@@ -64,12 +64,6 @@ func (repository *controlPlaneFakeQueryRepository) ListWorkflowJobs(ctx context.
 	return []applicationcontrolplane.WorkflowJob{{RunID: "run-1", TaskID: "task-1", JobID: "job-1", JobKind: taskengine.JobKindSCMWorkflow, IdempotencyKey: "idem-1", QueueTaskID: "q-1", Queue: "scm", Status: "queued", Duplicate: false, EnqueuedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}}, nil
 }
 
-func (repository *controlPlaneFakeQueryRepository) ListWorkers(ctx context.Context, limit int) ([]applicationcontrolplane.WorkerSummary, error) {
-	_ = ctx
-	_ = limit
-	return []applicationcontrolplane.WorkerSummary{{WorkerID: "worker-1", Capabilities: []taskengine.JobKind{taskengine.JobKindIngestionAgent}, LastHeartbeat: time.Now().UTC()}}, nil
-}
-
 func (repository *controlPlaneFakeQueryRepository) ListExecutionHistory(ctx context.Context, filter applicationcontrolplane.CorrelationFilter, limit int) ([]applicationcontrolplane.ExecutionHistoryRecord, error) {
 	_ = ctx
 	_ = filter

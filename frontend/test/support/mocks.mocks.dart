@@ -96,29 +96,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
           as _i5.Future<_i2.ApiResult<List<_i2.SessionSummary>>>);
 
   @override
-  _i5.Future<_i2.ApiResult<List<_i2.WorkerSummary>>> workers({
-    int? limit = 50,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#workers, [], {#limit: limit}),
-            returnValue:
-                _i5.Future<_i2.ApiResult<List<_i2.WorkerSummary>>>.value(
-                  _FakeApiResult_0<List<_i2.WorkerSummary>>(
-                    this,
-                    Invocation.method(#workers, [], {#limit: limit}),
-                  ),
-                ),
-            returnValueForMissingStub:
-                _i5.Future<_i2.ApiResult<List<_i2.WorkerSummary>>>.value(
-                  _FakeApiResult_0<List<_i2.WorkerSummary>>(
-                    this,
-                    Invocation.method(#workers, [], {#limit: limit}),
-                  ),
-                ),
-          )
-          as _i5.Future<_i2.ApiResult<List<_i2.WorkerSummary>>>);
-
-  @override
   _i5.Future<_i2.ApiResult<List<_i2.WorkflowJob>>> workflowJobs({
     required String? runID,
     String? taskID,

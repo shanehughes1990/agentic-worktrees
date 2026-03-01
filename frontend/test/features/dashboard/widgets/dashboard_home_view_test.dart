@@ -34,11 +34,6 @@ void main() {
         sampleSession(),
       ]),
     );
-    when(api.workers(limit: anyNamed('limit'))).thenAnswer(
-      (_) async => ApiResult<List<WorkerSummary>>.success(<WorkerSummary>[
-        sampleWorkerSummary(),
-      ]),
-    );
   });
 
   tearDown(() {
@@ -99,7 +94,6 @@ void main() {
 
     expect(find.text('Summary'), findsOneWidget);
     expect(find.text('Sessions'), findsOneWidget);
-    expect(find.text('Workers'), findsOneWidget);
     expect(find.text('Jobs'), findsOneWidget);
     expect(find.text('Activity'), findsOneWidget);
     expect(find.text('Configured Projects'), findsOneWidget);

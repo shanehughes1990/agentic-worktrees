@@ -32,13 +32,6 @@ func TestControlPlaneQueryRepositoryListsPersistedReadModels(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert admission record: %v", err)
 	}
-	workerRegistry, err := NewWorkerRegistry(db)
-	if err != nil {
-		t.Fatalf("new worker registry: %v", err)
-	}
-	if err := workerRegistry.Upsert(context.Background(), taskengine.WorkerCapabilityAdvertisement{WorkerID: "worker-1", Capabilities: []taskengine.WorkerCapability{{Kind: taskengine.JobKindSCMWorkflow}}}); err != nil {
-		t.Fatalf("upsert worker registry: %v", err)
-	}
 	executionJournal, err := NewPostgresExecutionJournal(db)
 	if err != nil {
 		t.Fatalf("new execution journal: %v", err)
@@ -76,13 +69,6 @@ func TestControlPlaneQueryRepositoryListsPersistedReadModels(t *testing.T) {
 	}
 	if len(jobs) != 1 || jobs[0].QueueTaskID != "queue-1" {
 		t.Fatalf("unexpected workflow jobs: %+v", jobs)
-	}
-	workers, err := repository.ListWorkers(context.Background(), 10)
-	if err != nil {
-		t.Fatalf("list workers: %v", err)
-	}
-	if len(workers) != 1 || workers[0].WorkerID != "worker-1" {
-		t.Fatalf("unexpected workers: %+v", workers)
 	}
 	executionHistory, err := repository.ListExecutionHistory(context.Background(), controlplane.CorrelationFilter{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, 10)
 	if err != nil {

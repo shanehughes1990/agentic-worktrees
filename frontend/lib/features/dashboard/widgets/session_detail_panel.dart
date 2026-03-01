@@ -54,37 +54,6 @@ class SessionDetailPanel extends StatelessWidget {
             'Session ${session.runID}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          const SizedBox(height: 8),
-          FutureBuilder<ApiResult<List<WorkerSummary>>>(
-            future: api.workers(limit: 50 + refreshToken),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<ApiResult<List<WorkerSummary>>> snapshot,
-                ) {
-                  if (!snapshot.hasData) {
-                    return const LinearProgressIndicator();
-                  }
-                  final value = snapshot.data!;
-                  if (!value.isSuccess || value.data == null) {
-                    return Text('Workers error: ${value.errorMessage}');
-                  }
-                  final workers = value.data!;
-                  return Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: workers
-                        .map(
-                          (WorkerSummary worker) => Chip(
-                            label: Text(
-                              '${worker.workerID} (${worker.capabilities.join(', ')})',
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  );
-                },
-          ),
           const SizedBox(height: 12),
           FutureBuilder<ApiResult<List<WorkflowJob>>>(
             future: api.workflowJobs(

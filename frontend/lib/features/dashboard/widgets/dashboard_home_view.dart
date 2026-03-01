@@ -56,23 +56,13 @@ class DashboardHomeView extends StatelessWidget {
 
   Future<_DashboardStatsData> _loadStats() async {
     final sessionsResult = await api.sessions(limit: 50 + refreshToken);
-    final workersResult = await api.workers(limit: 50 + refreshToken);
-
     if (!sessionsResult.isSuccess || sessionsResult.data == null) {
       return _DashboardStatsData.error(
         sessionsResult.errorMessage ?? 'Failed loading sessions',
       );
     }
-    if (!workersResult.isSuccess || workersResult.data == null) {
-      return _DashboardStatsData.error(
-        workersResult.errorMessage ?? 'Failed loading workers',
-      );
-    }
 
-    return _DashboardStatsData.success(
-      sessions: sessionsResult.data!,
-      workers: workersResult.data!,
-    );
+    return _DashboardStatsData.success(sessions: sessionsResult.data!);
   }
 
   @override
@@ -91,7 +81,6 @@ class DashboardHomeView extends StatelessWidget {
             }
 
             final sessions = stats.sessions;
-            final workers = stats.workers;
             final totalJobs = sessions.fold<int>(
               0,
               (int sum, SessionSummary item) => sum + item.jobCount,
@@ -126,12 +115,6 @@ class DashboardHomeView extends StatelessWidget {
                           label: 'Sessions',
                           value: sessions.length.toString(),
                           onTap: () => _showSessionsSheet(context, sessions),
-                        ),
-                        _StatCard(
-                          icon: Icons.memory_outlined,
-                          label: 'Workers',
-                          value: workers.length.toString(),
-                          onTap: () => _showWorkersSheet(context, workers),
                         ),
                         _StatCard(
                           icon: Icons.task_alt_outlined,
@@ -201,27 +184,6 @@ class DashboardHomeView extends StatelessWidget {
     );
   }
 
-  void _showWorkersSheet(BuildContext context, List<WorkerSummary> workers) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: ListView(
-            children: workers
-                .map((WorkerSummary item) {
-                  return ListTile(
-                    leading: const Icon(Icons.memory_outlined),
-                    title: Text(item.workerID),
-                    subtitle: Text(item.capabilities.join(', ')),
-                  );
-                })
-                .toList(growable: false),
-          ),
-        );
-      },
-    );
-  }
-
   void _showJobsSheet(BuildContext context, List<SessionSummary> sessions) {
     showModalBottomSheet<void>(
       context: context,
@@ -271,17 +233,13 @@ class DashboardHomeView extends StatelessWidget {
 }
 
 class _DashboardStatsData {
-  const _DashboardStatsData.success({
-    required this.sessions,
-    required this.workers,
-  }) : errorMessage = null;
+  const _DashboardStatsData.success({required this.sessions})
+    : errorMessage = null;
 
   const _DashboardStatsData.error(this.errorMessage)
-    : sessions = const <SessionSummary>[],
-      workers = const <WorkerSummary>[];
+    : sessions = const <SessionSummary>[];
 
   final List<SessionSummary> sessions;
-  final List<WorkerSummary> workers;
   final String? errorMessage;
 }
 

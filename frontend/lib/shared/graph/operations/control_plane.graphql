@@ -17,24 +17,6 @@ query Sessions($limit: Int!) {
   }
 }
 
-query Workers($limit: Int!) {
-  workers(limit: $limit) {
-    __typename
-    ... on WorkersSuccess {
-      workers {
-        workerID
-        capabilities
-        lastHeartbeat
-      }
-    }
-    ... on GraphError {
-      code
-      message
-      field
-    }
-  }
-}
-
 query WorkflowJobs($runID: String!, $taskID: String, $limit: Int!) {
   workflowJobs(runID: $runID, taskID: $taskID, limit: $limit) {
     __typename

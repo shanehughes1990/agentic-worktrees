@@ -128,30 +128,6 @@ func (r *queryResolver) Session(ctx context.Context, runID string) (models.Sessi
 	return models.SessionSuccess{Session: &models.SessionSummary{RunID: summary.RunID, TaskCount: int32(summary.TaskCount), JobCount: int32(summary.JobCount), UpdatedAt: summary.UpdatedAt.UTC()}}, nil
 }
 
-// Workers is the resolver for the workers field.
-func (r *queryResolver) Workers(ctx context.Context, limit *int32) (models.WorkersResult, error) {
-	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
-		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
-	}
-	workers, err := r.Resolver.ControlPlaneService.Workers(ctx, int32ToInt(limit))
-	if err != nil {
-		return graphErrorFromError(fmt.Errorf("load workers: %w", err)), nil
-	}
-	items := make([]*models.WorkerSummary, 0, len(workers))
-	for _, item := range workers {
-		capabilities := make([]models.JobKind, 0, len(item.Capabilities))
-		for _, capability := range item.Capabilities {
-			mappedCapability, mapErr := toGraphJobKind(capability)
-			if mapErr != nil {
-				return graphErrorFromError(mapErr), nil
-			}
-			capabilities = append(capabilities, mappedCapability)
-		}
-		items = append(items, &models.WorkerSummary{WorkerID: item.WorkerID, Capabilities: capabilities, LastHeartbeat: item.LastHeartbeat.UTC()})
-	}
-	return models.WorkersSuccess{Workers: items}, nil
-}
-
 // WorkflowJobs is the resolver for the workflowJobs field.
 func (r *queryResolver) WorkflowJobs(ctx context.Context, runID string, taskID *string, limit *int32) (models.WorkflowJobsResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {

@@ -21,7 +21,6 @@ Consolidate durable application state into PostgreSQL (single primary database),
 | SCM repository lease coordination | **Postgres-backed (implemented)** | `internal/infrastructure/scm/postgres_repo_lease_manager.go`, `internal/application/scm/coordinator.go` | Keep lease table as durable coordination layer across workers. |
 | Tracker canonical board model | **Postgres-backed (implemented: snapshots + normalized relational model)** | `internal/infrastructure/tracker/postgres_board_snapshot_provider.go`, `internal/infrastructure/tracker/postgres_normalized_provider.go`, tracker service/bootstrap wiring | Keep snapshot and normalized canonical persistence paths in Postgres. |
 | Session state snapshots | Derived at runtime; not durably stored | `internal/domain/agent/contracts.go`, `internal/application/agent/service.go` | Persist session snapshots and last-known SCM/task state for query/recovery. |
-| Worker capability + heartbeat registry | **Postgres-backed (implemented)** | `internal/infrastructure/taskengine/postgres/worker_registry.go`, worker bootstrap | Keep durable worker identity/capability/heartbeat records. |
 | Supervisor decision/event history | **Postgres-backed (implemented)** | `internal/infrastructure/supervisor/postgres/event_store.go`, `internal/application/supervisor/service.go`, `internal/bootstrap/api.go` | Keep state transitions + reason codes as append-only decision history. |
 | Stream replay store | Planned in roadmap, not implemented | `docs/roadmap/05-realtime-streams.md` | Persist stream events for replay/reconnect diagnostics. |
 | Control-plane query read models | GraphQL mostly dispatch-only today | `internal/interface/graphql/schema/scm.graphqls`, resolvers | Persist query-optimized read models in Postgres for GraphQL list/detail/status operations. |
@@ -44,7 +43,6 @@ Consolidate durable application state into PostgreSQL (single primary database),
 - `tracker_board_snapshots` — canonical board snapshots by run/board. **(implemented)**
 - `tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes` — full normalized tracker model. **(implemented)**
 - `agent_session_snapshots` — latest session view + resumable context.
-- `worker_registry` — worker capabilities + heartbeat. **(implemented)**
 - `supervisor_events` — policy decisions and transition history. **(implemented)**
 - `stream_events` (future slice dependency) — replayable event stream records.
 
@@ -78,7 +76,7 @@ Consolidate durable application state into PostgreSQL (single primary database),
 
 ### Phase 4 — Control Plane Read Models
 
-- [ ] Add query repositories for GraphQL run/task/job/worker views.
+- [ ] Add query repositories for GraphQL run/task/job views.
 - [ ] Expose historical execution and dead-letter status in control-plane queries.
 - [ ] Add pagination/filtering contracts backed by Postgres indexes.
 

@@ -19,12 +19,10 @@ Deliver one execution plane that supports local and remote workers with shared d
 - [x] Implement remote worker adapter contract and SCM-backed remote bootstrap sequence.
 - [x] Persist checkpoints in Postgres (`job_checkpoints`).
 - [x] Persist execution state in Postgres (`job_execution_events`).
-- [x] Persist worker capability heartbeat/advertisement in Postgres (`worker_registry`).
 - [x] Replace in-memory SCM lease coordination with Postgres lease manager (`scm_repo_leases`).
 
 ## Deliverables
 
-- Worker registration/capability contracts and runtime registration flow.
 - Dispatch + lease model with deterministic ownership semantics.
 - Checkpoint/resume contract with Postgres as durability layer.
 - Execution journal contract with Postgres as durability layer.
@@ -47,7 +45,6 @@ Deliver one execution plane that supports local and remote workers with shared d
 - Same job contract runs through local and remote execution paths.
 - Transient failures resume from persisted Postgres checkpoints.
 - Execution status is recoverable from Postgres after worker restart.
-- Worker capability state is queryable from durable persistence.
 
 ## Dependencies
 

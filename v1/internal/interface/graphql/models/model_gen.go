@@ -66,10 +66,6 @@ type UpsertProjectSetupResult interface {
 	IsUpsertProjectSetupResult()
 }
 
-type WorkersResult interface {
-	IsWorkersResult()
-}
-
 type WorkflowJobsResult interface {
 	IsWorkflowJobsResult()
 }
@@ -180,8 +176,6 @@ func (GraphError) IsSessionsResult() {}
 func (GraphError) IsSessionResult() {}
 
 func (GraphError) IsWorkflowJobsResult() {}
-
-func (GraphError) IsWorkersResult() {}
 
 func (GraphError) IsExecutionHistoryResult() {}
 
@@ -353,18 +347,6 @@ type UpsertProjectSetupSuccess struct {
 }
 
 func (UpsertProjectSetupSuccess) IsUpsertProjectSetupResult() {}
-
-type WorkerSummary struct {
-	WorkerID      string    `json:"workerID"`
-	Capabilities  []JobKind `json:"capabilities"`
-	LastHeartbeat time.Time `json:"lastHeartbeat"`
-}
-
-type WorkersSuccess struct {
-	Workers []*WorkerSummary `json:"workers"`
-}
-
-func (WorkersSuccess) IsWorkersResult() {}
 
 type WorkflowJob struct {
 	RunID          string    `json:"runID"`

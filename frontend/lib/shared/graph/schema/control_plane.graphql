@@ -43,18 +43,6 @@ type WorkflowJobsSuccess {
 
 union WorkflowJobsResult = WorkflowJobsSuccess | GraphError
 
-type WorkerSummary {
-  workerID: String!
-  capabilities: [JobKind!]!
-  lastHeartbeat: Time!
-}
-
-type WorkersSuccess {
-  workers: [WorkerSummary!]!
-}
-
-union WorkersResult = WorkersSuccess | GraphError
-
 type ExecutionHistoryRecord {
   runID: String!
   taskID: String!
@@ -216,7 +204,6 @@ union StreamEventResult = StreamEventSuccess | GraphError
 extend type Query {
   sessions(limit: Int = 50): SessionsResult!
   session(runID: String!): SessionResult!
-  workers(limit: Int = 50): WorkersResult!
   workflowJobs(runID: String!, taskID: String, limit: Int = 100): WorkflowJobsResult!
   executionHistory(correlation: SupervisorCorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!

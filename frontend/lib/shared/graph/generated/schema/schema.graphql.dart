@@ -241,7 +241,6 @@ const possibleTypesMap = <String, Set<String>>{
   'SessionsResult': {'SessionsSuccess', 'GraphError'},
   'SessionResult': {'SessionSuccess', 'GraphError'},
   'WorkflowJobsResult': {'WorkflowJobsSuccess', 'GraphError'},
-  'WorkersResult': {'WorkersSuccess', 'GraphError'},
   'ExecutionHistoryResult': {'ExecutionHistorySuccess', 'GraphError'},
   'DeadLetterHistoryResult': {'DeadLetterHistorySuccess', 'GraphError'},
   'EnqueueIngestionWorkflowResult': {

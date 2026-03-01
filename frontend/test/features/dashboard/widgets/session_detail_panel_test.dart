@@ -29,11 +29,6 @@ void main() {
     scmOwnerController = TextEditingController(text: 'acme');
     scmRepoController = TextEditingController(text: 'repo');
 
-    when(api.workers(limit: anyNamed('limit'))).thenAnswer(
-      (_) async => ApiResult<List<WorkerSummary>>.success(<WorkerSummary>[
-        sampleWorkerSummary(),
-      ]),
-    );
     when(
       api.workflowJobs(
         runID: anyNamed('runID'),

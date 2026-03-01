@@ -58,50 +58,6 @@ class ControlPlaneApi {
     return ApiResult<List<SessionSummary>>.success(items);
   }
 
-  Future<ApiResult<List<WorkerSummary>>> workers({int limit = 50}) async {
-    final result = await _client.query$Workers(
-      gql_ops.Options$Query$Workers(
-        variables: gql_ops.Variables$Query$Workers(limit: limit),
-      ),
-    );
-    final error = _extractOperationError(result, field: 'workers');
-    if (error != null) {
-      return ApiResult<List<WorkerSummary>>.failure(error);
-    }
-    final payload = result.parsedData?.workers;
-    if (payload == null) {
-      return const ApiResult<List<WorkerSummary>>.failure(
-        'workers returned no data',
-      );
-    }
-    if (payload is gql_ops.Query$Workers$workers$$GraphError) {
-      return ApiResult<List<WorkerSummary>>.failure(
-        _graphErrorMessageTyped(
-          code: payload.code.toJson(),
-          message: payload.message,
-          field: payload.field,
-        ),
-      );
-    }
-    if (payload is! gql_ops.Query$Workers$workers$$WorkersSuccess) {
-      return const ApiResult<List<WorkerSummary>>.failure(
-        'workers returned unexpected payload',
-      );
-    }
-    final items = payload.workers
-        .map(
-          (entry) => WorkerSummary(
-            workerID: entry.workerID,
-            capabilities: entry.capabilities
-                .map((capability) => capability.toJson())
-                .toList(growable: false),
-            lastHeartbeat: entry.lastHeartbeat.toLocal(),
-          ),
-        )
-        .toList(growable: false);
-    return ApiResult<List<WorkerSummary>>.success(items);
-  }
-
   Future<ApiResult<List<WorkflowJob>>> workflowJobs({
     required String runID,
     String? taskID,
