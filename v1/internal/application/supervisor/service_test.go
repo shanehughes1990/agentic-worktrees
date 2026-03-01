@@ -104,7 +104,11 @@ func TestServiceDeterministicTransitionFixtures(t *testing.T) {
 	})
 
 	t.Run("checks failed requests rework", func(t *testing.T) {
-		decision, fixtureErr := service.OnPRChecksEvaluated(context.Background(), taskengine.CorrelationIDs{RunID: "run-check-fail", TaskID: "task-check-fail", JobID: "job-check-fail"}, "github", "octo", "repo", 34, false, "checks_failed")
+		correlation := taskengine.CorrelationIDs{RunID: "run-check-fail", TaskID: "task-check-fail", JobID: "job-check-fail"}
+		if _, fixtureErr := service.OnIssueOpened(context.Background(), correlation, "octo/repo", "octo/repo#22"); fixtureErr != nil {
+			t.Fatalf("seed blocked state error = %v", fixtureErr)
+		}
+		decision, fixtureErr := service.OnPRChecksEvaluated(context.Background(), correlation, "github", "octo", "repo", 34, false, "checks_failed")
 		if fixtureErr != nil {
 			t.Fatalf("OnPRChecksEvaluated(false) error = %v", fixtureErr)
 		}
@@ -114,7 +118,11 @@ func TestServiceDeterministicTransitionFixtures(t *testing.T) {
 	})
 
 	t.Run("merge request refused when not ready", func(t *testing.T) {
-		decision, fixtureErr := service.OnPRMergeRequested(context.Background(), taskengine.CorrelationIDs{RunID: "run-refuse", TaskID: "task-refuse", JobID: "job-refuse"}, "github", "octo", "repo", 35, "squash")
+		correlation := taskengine.CorrelationIDs{RunID: "run-refuse", TaskID: "task-refuse", JobID: "job-refuse"}
+		if _, fixtureErr := service.OnIssueOpened(context.Background(), correlation, "octo/repo", "octo/repo#35"); fixtureErr != nil {
+			t.Fatalf("seed blocked state error = %v", fixtureErr)
+		}
+		decision, fixtureErr := service.OnPRMergeRequested(context.Background(), correlation, "github", "octo", "repo", 35, "squash")
 		if fixtureErr != nil {
 			t.Fatalf("OnPRMergeRequested(not-ready) error = %v", fixtureErr)
 		}
@@ -125,6 +133,32 @@ func TestServiceDeterministicTransitionFixtures(t *testing.T) {
 
 	t.Run("checks passed then merge request merges", func(t *testing.T) {
 		correlation := taskengine.CorrelationIDs{RunID: "run-merge", TaskID: "task-merge", JobID: "job-merge"}
+		now := time.Now().UTC()
+		if _, fixtureErr := service.OnAdmission(context.Background(), taskengine.AdmissionRecord{
+			RunID:          correlation.RunID,
+			TaskID:         correlation.TaskID,
+			JobID:          correlation.JobID,
+			JobKind:        taskengine.JobKindSCMWorkflow,
+			IdempotencyKey: "idem-merge",
+			QueueTaskID:    "qt-merge",
+			Queue:          "scm",
+			Status:         taskengine.AdmissionStatusQueued,
+			EnqueuedAt:     now,
+		}); fixtureErr != nil {
+			t.Fatalf("seed admitted state error = %v", fixtureErr)
+		}
+		if _, fixtureErr := service.OnExecution(context.Background(), taskengine.ExecutionRecord{
+			RunID:          correlation.RunID,
+			TaskID:         correlation.TaskID,
+			JobID:          correlation.JobID,
+			JobKind:        taskengine.JobKindSCMWorkflow,
+			IdempotencyKey: "idem-merge",
+			Step:           "checks",
+			Status:         taskengine.ExecutionStatusSucceeded,
+			UpdatedAt:      now.Add(time.Second),
+		}, 1, 3); fixtureErr != nil {
+			t.Fatalf("seed completed state error = %v", fixtureErr)
+		}
 		checksDecision, fixtureErr := service.OnPRChecksEvaluated(context.Background(), correlation, "github", "octo", "repo", 36, true, "merge_ready")
 		if fixtureErr != nil {
 			t.Fatalf("OnPRChecksEvaluated(true) error = %v", fixtureErr)
