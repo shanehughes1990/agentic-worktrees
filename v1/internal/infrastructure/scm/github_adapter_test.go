@@ -34,6 +34,9 @@ type recordingGitRunner struct {
 func (runner *recordingGitRunner) Run(ctx context.Context, directory string, arguments ...string) (string, error) {
 	_ = ctx
 	runner.calls = append(runner.calls, directory+"::"+fmt.Sprint(arguments))
+	if len(arguments) >= 3 && arguments[0] == "rev-parse" && arguments[1] == "--abbrev-ref" && arguments[2] == "HEAD" {
+		return "feature-one", nil
+	}
 	if len(arguments) >= 2 && arguments[0] == "rev-parse" && arguments[1] == "HEAD" {
 		return "abc123", nil
 	}

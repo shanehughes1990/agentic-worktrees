@@ -6,10 +6,12 @@ GraphQLClient buildGraphqlClient(String httpEndpoint) {
     'Building GraphQL client',
     error: {'http_endpoint': httpEndpoint},
   );
-  final parsed = Uri.parse(httpEndpoint);
-  final wsScheme = parsed.scheme == 'https' ? 'wss' : 'ws';
-  final wsUri = parsed.replace(scheme: wsScheme);
-  final httpLink = HttpLink(httpEndpoint);
+  final sanitizedEndpoint = httpEndpoint.trim().split('#').first;
+  final parsed = Uri.parse(sanitizedEndpoint);
+  final httpUri = parsed;
+  final wsScheme = httpUri.scheme == 'https' ? 'wss' : 'ws';
+  final wsUri = httpUri.replace(scheme: wsScheme);
+  final httpLink = HttpLink(httpUri.toString());
   final wsLink = WebSocketLink(
     wsUri.toString(),
     config: const SocketClientConfig(

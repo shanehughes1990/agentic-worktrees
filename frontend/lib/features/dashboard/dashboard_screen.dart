@@ -7,6 +7,8 @@ import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.da
 import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
 import 'package:agentic_worktrees/features/settings/logic/connection_settings_logic.dart';
 import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
+import 'package:agentic_worktrees/features/workers/screens/worker_sessions_screen.dart';
+import 'package:agentic_worktrees/features/workers/screens/worker_settings_screen.dart';
 import 'package:agentic_worktrees/shared/config/app_config.dart';
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:agentic_worktrees/shared/logging/app_logger.dart';
@@ -14,7 +16,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum _DashboardView { dashboard, projectSetup, settings }
+enum _DashboardView {
+  dashboard,
+  projectSetup,
+  workerSessions,
+  workerSettings,
+  settings,
+}
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({required this.initialEndpoint, super.key});
@@ -91,6 +99,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void _showSettings(BuildContext context) {
     Navigator.of(context).pop();
     setState(() => _activeView = _DashboardView.settings);
+  }
+
+  void _showWorkerSessions(BuildContext context) {
+    Navigator.of(context).pop();
+    setState(() => _activeView = _DashboardView.workerSessions);
+  }
+
+  void _showWorkerSettings(BuildContext context) {
+    Navigator.of(context).pop();
+    setState(() => _activeView = _DashboardView.workerSettings);
   }
 
   void _startNewProjectSetup(BuildContext context) {
@@ -426,10 +444,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final api = ControlPlaneApi(buildGraphqlClient(endpoint));
     final isDashboard = _activeView == _DashboardView.dashboard;
     final isProjectSetup = _activeView == _DashboardView.projectSetup;
+    final isWorkerSessions = _activeView == _DashboardView.workerSessions;
+    final isWorkerSettings = _activeView == _DashboardView.workerSettings;
     final title = isDashboard
         ? 'Dashboard'
         : isProjectSetup
         ? 'New Project Setup'
+        : isWorkerSessions
+        ? 'Worker Sessions'
+        : isWorkerSettings
+        ? 'Worker Settings'
         : 'Settings';
 
     return Scaffold(
@@ -460,6 +484,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       title: const Text('New Project Setup'),
                       selected: isProjectSetup,
                       onTap: () => _startNewProjectSetup(context),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.memory_outlined),
+                      title: const Text('Worker Sessions'),
+                      selected: isWorkerSessions,
+                      onTap: () => _showWorkerSessions(context),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.tune_outlined),
+                      title: const Text('Worker Settings'),
+                      selected: isWorkerSettings,
+                      onTap: () => _showWorkerSettings(context),
                     ),
                   ],
                 ),
@@ -498,6 +534,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ? _buildDashboardBody(api)
           : isProjectSetup
           ? _buildProjectSetupBody()
+          : isWorkerSessions
+          ? _buildWorkerSessionsBody(api)
+          : isWorkerSettings
+          ? _buildWorkerSettingsBody(api)
           : _buildSettingsBody(),
     );
   }
@@ -535,6 +575,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       onEnqueueIngestion: () => _runEnqueueIngestion(api),
       onApproveIssue: () => _runApproveIssue(api),
       onEnqueueScm: () => _runEnqueueScm(api),
+      onShowWorkerSessions: () {
+        setState(() => _activeView = _DashboardView.workerSessions);
+      },
     );
   }
 
@@ -576,6 +619,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         });
       },
       statusMessage: _statusMessage,
+    );
+  }
+
+  Widget _buildWorkerSessionsBody(ControlPlaneApi api) {
+    return WorkerSessionsScreen(
+      api: api,
+      statusMessage: _statusMessage,
+      onStatus: (String message) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _statusMessage = message);
+      },
+    );
+  }
+
+  Widget _buildWorkerSettingsBody(ControlPlaneApi api) {
+    return WorkerSettingsScreen(
+      api: api,
+      statusMessage: _statusMessage,
+      onStatus: (String message) {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _statusMessage = message);
+      },
     );
   }
 }

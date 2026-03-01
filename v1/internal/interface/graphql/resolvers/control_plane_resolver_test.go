@@ -186,7 +186,7 @@ func newControlPlaneResolverFixture(t *testing.T) *Resolver {
 	if err != nil {
 		t.Fatalf("new stream service: %v", err)
 	}
-	return NewResolver(scheduler, supervisorService, controlPlaneService, streamService)
+	return NewResolver(scheduler, supervisorService, controlPlaneService, streamService, nil)
 }
 
 func TestControlPlaneSessionsQueryReturnsTypedUnionSuccess(t *testing.T) {

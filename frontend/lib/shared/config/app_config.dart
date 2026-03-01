@@ -22,13 +22,13 @@ String normalizeGraphqlEndpoint(String endpoint) {
       ? parsed.path.replaceAll(RegExp(r'/+$'), '')
       : '/query';
 
-  return parsed
+  final normalized = parsed
       .replace(
         path: normalizedPath,
         query: parsed.query.isEmpty ? null : parsed.query,
-        fragment: parsed.fragment.isEmpty ? null : parsed.fragment,
       )
       .toString();
+  return normalized.split('#').first;
 }
 
 class AppConfigState {

@@ -102,6 +102,48 @@ class StreamEvent {
   final DateTime occurredAt;
 }
 
+class WorkerSession {
+  const WorkerSession({
+    required this.workerID,
+    required this.epoch,
+    required this.state,
+    required this.desiredState,
+    required this.lastHeartbeat,
+    required this.leaseExpiresAt,
+    required this.rogueReason,
+    required this.updatedAt,
+  });
+
+  final String workerID;
+  final int epoch;
+  final String state;
+  final String desiredState;
+  final DateTime lastHeartbeat;
+  final DateTime leaseExpiresAt;
+  final String? rogueReason;
+  final DateTime updatedAt;
+}
+
+class WorkerSettings {
+  const WorkerSettings({
+    required this.heartbeatIntervalSeconds,
+    required this.responseDeadlineSeconds,
+    required this.staleAfterSeconds,
+    required this.drainTimeoutSeconds,
+    required this.terminateTimeoutSeconds,
+    required this.rogueThreshold,
+    required this.updatedAt,
+  });
+
+  final int heartbeatIntervalSeconds;
+  final int responseDeadlineSeconds;
+  final int staleAfterSeconds;
+  final int drainTimeoutSeconds;
+  final int terminateTimeoutSeconds;
+  final int rogueThreshold;
+  final DateTime updatedAt;
+}
+
 String prettyJson(String raw) {
   final trimmed = raw.trim();
   if (trimmed.isEmpty) {

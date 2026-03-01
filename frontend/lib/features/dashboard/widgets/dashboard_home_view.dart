@@ -27,6 +27,7 @@ class DashboardHomeView extends StatelessWidget {
     required this.onEnqueueIngestion,
     required this.onApproveIssue,
     required this.onEnqueueScm,
+    required this.onShowWorkerSessions,
     super.key,
   });
 
@@ -53,6 +54,7 @@ class DashboardHomeView extends StatelessWidget {
   final VoidCallback onEnqueueIngestion;
   final VoidCallback onApproveIssue;
   final VoidCallback onEnqueueScm;
+  final VoidCallback onShowWorkerSessions;
 
   Future<_DashboardStatsData> _loadStats() async {
     final sessionsResult = await api.sessions(limit: 50 + refreshToken);
@@ -62,7 +64,20 @@ class DashboardHomeView extends StatelessWidget {
       );
     }
 
-    return _DashboardStatsData.success(sessions: sessionsResult.data!);
+    final workersResult = await api.workerSessions(limit: 100);
+    var healthyWorkerCount = 0;
+    if (workersResult.isSuccess && workersResult.data != null) {
+      healthyWorkerCount = workersResult.data!
+          .where(
+            (WorkerSession worker) => worker.state.toLowerCase() == 'healthy',
+          )
+          .length;
+    }
+
+    return _DashboardStatsData.success(
+      sessions: sessionsResult.data!,
+      healthyWorkerCount: healthyWorkerCount,
+    );
   }
 
   @override
@@ -81,6 +96,7 @@ class DashboardHomeView extends StatelessWidget {
             }
 
             final sessions = stats.sessions;
+            final healthyWorkerCount = stats.healthyWorkerCount;
             final totalJobs = sessions.fold<int>(
               0,
               (int sum, SessionSummary item) => sum + item.jobCount,
@@ -127,6 +143,12 @@ class DashboardHomeView extends StatelessWidget {
                           label: 'Activity',
                           value: streamEvents.length.toString(),
                           onTap: () => _showActivitySheet(context),
+                        ),
+                        _StatCard(
+                          icon: Icons.memory_outlined,
+                          label: 'Workers',
+                          value: healthyWorkerCount.toString(),
+                          onTap: onShowWorkerSessions,
                         ),
                       ],
                     ),
@@ -233,13 +255,17 @@ class DashboardHomeView extends StatelessWidget {
 }
 
 class _DashboardStatsData {
-  const _DashboardStatsData.success({required this.sessions})
-    : errorMessage = null;
+  const _DashboardStatsData.success({
+    required this.sessions,
+    required this.healthyWorkerCount,
+  }) : errorMessage = null;
 
   const _DashboardStatsData.error(this.errorMessage)
-    : sessions = const <SessionSummary>[];
+    : sessions = const <SessionSummary>[],
+      healthyWorkerCount = 0;
 
   final List<SessionSummary> sessions;
+  final int healthyWorkerCount;
   final String? errorMessage;
 }
 
@@ -260,6 +286,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 180,
+      height: 84,
       child: Card(
         child: InkWell(
           onTap: onTap,
@@ -277,9 +304,11 @@ class _StatCard extends StatelessWidget {
                       Text(
                         value,
                         style: Theme.of(context).textTheme.titleLarge,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(label),
+                      Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                   ),
                 ),

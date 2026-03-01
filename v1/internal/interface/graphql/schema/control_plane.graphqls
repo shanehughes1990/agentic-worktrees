@@ -201,6 +201,48 @@ type StreamEventSuccess {
 
 union StreamEventResult = StreamEventSuccess | GraphError
 
+type WorkerSession {
+  workerID: String!
+  epoch: Int!
+  state: String!
+  desiredState: String!
+  lastHeartbeat: Time!
+  leaseExpiresAt: Time!
+  rogueReason: String
+  updatedAt: Time!
+}
+
+type WorkerSessionsSuccess {
+  sessions: [WorkerSession!]!
+}
+
+union WorkerSessionsResult = WorkerSessionsSuccess | GraphError
+
+type WorkerSettings {
+  heartbeatIntervalSeconds: Int!
+  responseDeadlineSeconds: Int!
+  staleAfterSeconds: Int!
+  drainTimeoutSeconds: Int!
+  terminateTimeoutSeconds: Int!
+  rogueThreshold: Int!
+  updatedAt: Time!
+}
+
+type WorkerSettingsSuccess {
+  settings: WorkerSettings!
+}
+
+union WorkerSettingsResult = WorkerSettingsSuccess | GraphError
+
+input UpdateWorkerSettingsInput {
+  heartbeatIntervalSeconds: Int!
+  responseDeadlineSeconds: Int!
+  staleAfterSeconds: Int!
+  drainTimeoutSeconds: Int!
+  terminateTimeoutSeconds: Int!
+  rogueThreshold: Int!
+}
+
 extend type Query {
   sessions(limit: Int = 50): SessionsResult!
   session(runID: String!): SessionResult!
@@ -209,6 +251,8 @@ extend type Query {
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
   projectSetups(limit: Int = 50): ProjectSetupsResult!
   projectSetup(projectID: String!): ProjectSetupResult!
+  workerSessions(limit: Int = 100): WorkerSessionsResult!
+  workerSettings: WorkerSettingsResult!
 }
 
 extend type Mutation {
@@ -216,10 +260,12 @@ extend type Mutation {
   approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
+  updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }
 
 extend type Subscription {
   sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  workerSessionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
 }

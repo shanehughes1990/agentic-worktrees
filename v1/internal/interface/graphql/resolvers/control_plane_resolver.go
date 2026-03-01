@@ -8,9 +8,11 @@ package resolvers
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	domainstream "agentic-orchestrator/internal/domain/stream"
+	domainworker "agentic-orchestrator/internal/domain/worker"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
 	"fmt"
+	"time"
 )
 
 // EnqueueIngestionWorkflow is the resolver for the enqueueIngestionWorkflow field.
@@ -95,6 +97,26 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 		return graphErrorFromError(mapErr), nil
 	}
 	return models.UpsertProjectSetupSuccess{Project: mapped}, nil
+}
+
+// UpdateWorkerSettings is the resolver for the updateWorkerSettings field.
+func (r *mutationResolver) UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.WorkerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "worker service is not configured"}, nil
+	}
+	settings, err := r.Resolver.WorkerService.UpdateSettings(ctx, domainworker.Settings{
+		HeartbeatInterval: time.Duration(input.HeartbeatIntervalSeconds) * time.Second,
+		ResponseDeadline:  time.Duration(input.ResponseDeadlineSeconds) * time.Second,
+		StaleAfter:        time.Duration(input.StaleAfterSeconds) * time.Second,
+		DrainTimeout:      time.Duration(input.DrainTimeoutSeconds) * time.Second,
+		TerminateTimeout:  time.Duration(input.TerminateTimeoutSeconds) * time.Second,
+		RogueThreshold:    int(input.RogueThreshold),
+		UpdatedAt:         time.Now().UTC(),
+	})
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("update worker settings: %w", err)), nil
+	}
+	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), StaleAfterSeconds: int32(settings.StaleAfter.Seconds()), DrainTimeoutSeconds: int32(settings.DrainTimeout.Seconds()), TerminateTimeoutSeconds: int32(settings.TerminateTimeout.Seconds()), RogueThreshold: int32(settings.RogueThreshold), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
 }
 
 // Sessions is the resolver for the sessions field.
@@ -258,6 +280,34 @@ func (r *queryResolver) ProjectSetup(ctx context.Context, projectID string) (mod
 	return models.ProjectSetupSuccess{Project: mapped}, nil
 }
 
+// WorkerSessions is the resolver for the workerSessions field.
+func (r *queryResolver) WorkerSessions(ctx context.Context, limit *int32) (models.WorkerSessionsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.WorkerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "worker service is not configured"}, nil
+	}
+	workers, err := r.Resolver.WorkerService.ListWorkers(ctx, int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load worker sessions: %w", err)), nil
+	}
+	sessions := make([]*models.WorkerSession, 0, len(workers))
+	for _, worker := range workers {
+		sessions = append(sessions, &models.WorkerSession{WorkerID: worker.WorkerID, Epoch: int32(worker.Epoch), State: string(worker.State), DesiredState: string(worker.DesiredState), LastHeartbeat: worker.LastHeartbeat.UTC(), LeaseExpiresAt: worker.LeaseExpiresAt.UTC(), RogueReason: nilIfEmpty(worker.RogueReason), UpdatedAt: worker.UpdatedAt.UTC()})
+	}
+	return models.WorkerSessionsSuccess{Sessions: sessions}, nil
+}
+
+// WorkerSettings is the resolver for the workerSettings field.
+func (r *queryResolver) WorkerSettings(ctx context.Context) (models.WorkerSettingsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.WorkerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "worker service is not configured"}, nil
+	}
+	settings, err := r.Resolver.WorkerService.GetSettings(ctx)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load worker settings: %w", err)), nil
+	}
+	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), StaleAfterSeconds: int32(settings.StaleAfter.Seconds()), DrainTimeoutSeconds: int32(settings.DrainTimeout.Seconds()), TerminateTimeoutSeconds: int32(settings.TerminateTimeout.Seconds()), RogueThreshold: int32(settings.RogueThreshold), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
+}
+
 // SessionActivityStream is the resolver for the sessionActivityStream field.
 func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
@@ -287,6 +337,18 @@ func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlatio
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventAgentChunk, domainstream.EventAgentTurnCompleted:
+			return true
+		default:
+			return false
+		}
+	})
+}
+
+// WorkerSessionStream is the resolver for the workerSessionStream field.
+func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
+		switch eventType {
+		case domainstream.EventWorkerHeartbeat, domainstream.EventWorkerShutdown, domainstream.EventWorkerDeregistered, domainstream.EventWorkerRogueDetected:
 			return true
 		default:
 			return false

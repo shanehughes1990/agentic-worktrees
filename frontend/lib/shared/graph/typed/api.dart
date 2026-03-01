@@ -514,6 +514,324 @@ class ControlPlaneApi {
         .asBroadcastStream();
   }
 
+  Future<ApiResult<List<WorkerSession>>> workerSessions({
+    int limit = 100,
+  }) async {
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query WorkerSessions(
+            \$limit: Int!
+          ) {
+            workerSessions(limit: \$limit) {
+              __typename
+              ... on WorkerSessionsSuccess {
+                sessions {
+                  workerID
+                  epoch
+                  state
+                  desiredState
+                  lastHeartbeat
+                  leaseExpiresAt
+                  rogueReason
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{'limit': limit},
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'workerSessions');
+    if (error != null) {
+      return ApiResult<List<WorkerSession>>.failure(error);
+    }
+    final payload = result.data?['workerSessions'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<WorkerSession>>.failure(
+        'workerSessions returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<WorkerSession>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final sessions =
+        (payload['sessions'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (Map<String, dynamic> item) => WorkerSession(
+                workerID: item['workerID'] as String,
+                epoch: item['epoch'] as int,
+                state: item['state'] as String,
+                desiredState: item['desiredState'] as String,
+                lastHeartbeat: DateTime.parse(
+                  item['lastHeartbeat'] as String,
+                ).toLocal(),
+                leaseExpiresAt: DateTime.parse(
+                  item['leaseExpiresAt'] as String,
+                ).toLocal(),
+                rogueReason: item['rogueReason'] as String?,
+                updatedAt: DateTime.parse(
+                  item['updatedAt'] as String,
+                ).toLocal(),
+              ),
+            )
+            .toList(growable: false);
+    return ApiResult<List<WorkerSession>>.success(sessions);
+  }
+
+  Future<ApiResult<WorkerSettings>> workerSettings() async {
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query WorkerSettings {
+            workerSettings {
+              __typename
+              ... on WorkerSettingsSuccess {
+                settings {
+                  heartbeatIntervalSeconds
+                  responseDeadlineSeconds
+                  staleAfterSeconds
+                  drainTimeoutSeconds
+                  terminateTimeoutSeconds
+                  rogueThreshold
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'workerSettings');
+    if (error != null) {
+      return ApiResult<WorkerSettings>.failure(error);
+    }
+    final payload = result.data?['workerSettings'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<WorkerSettings>.failure(
+        'workerSettings returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<WorkerSettings>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final settings = payload['settings'] as Map<String, dynamic>?;
+    if (settings == null) {
+      return const ApiResult<WorkerSettings>.failure(
+        'workerSettings payload missing',
+      );
+    }
+    return ApiResult<WorkerSettings>.success(
+      WorkerSettings(
+        heartbeatIntervalSeconds: settings['heartbeatIntervalSeconds'] as int,
+        responseDeadlineSeconds: settings['responseDeadlineSeconds'] as int,
+        staleAfterSeconds: settings['staleAfterSeconds'] as int,
+        drainTimeoutSeconds: settings['drainTimeoutSeconds'] as int,
+        terminateTimeoutSeconds: settings['terminateTimeoutSeconds'] as int,
+        rogueThreshold: settings['rogueThreshold'] as int,
+        updatedAt: DateTime.parse(settings['updatedAt'] as String).toLocal(),
+      ),
+    );
+  }
+
+  Future<ApiResult<WorkerSettings>> updateWorkerSettings({
+    required int heartbeatIntervalSeconds,
+    required int responseDeadlineSeconds,
+    required int staleAfterSeconds,
+    required int drainTimeoutSeconds,
+    required int terminateTimeoutSeconds,
+    required int rogueThreshold,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+          mutation UpdateWorkerSettings(
+            \$input: UpdateWorkerSettingsInput!
+          ) {
+            updateWorkerSettings(input: \$input) {
+              __typename
+              ... on WorkerSettingsSuccess {
+                settings {
+                  heartbeatIntervalSeconds
+                  responseDeadlineSeconds
+                  staleAfterSeconds
+                  drainTimeoutSeconds
+                  terminateTimeoutSeconds
+                  rogueThreshold
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'heartbeatIntervalSeconds': heartbeatIntervalSeconds,
+            'responseDeadlineSeconds': responseDeadlineSeconds,
+            'staleAfterSeconds': staleAfterSeconds,
+            'drainTimeoutSeconds': drainTimeoutSeconds,
+            'terminateTimeoutSeconds': terminateTimeoutSeconds,
+            'rogueThreshold': rogueThreshold,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(result, field: 'updateWorkerSettings');
+    if (error != null) {
+      return ApiResult<WorkerSettings>.failure(error);
+    }
+    final payload =
+        result.data?['updateWorkerSettings'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<WorkerSettings>.failure(
+        'updateWorkerSettings returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<WorkerSettings>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final settings = payload['settings'] as Map<String, dynamic>?;
+    if (settings == null) {
+      return const ApiResult<WorkerSettings>.failure(
+        'updateWorkerSettings payload missing',
+      );
+    }
+    return ApiResult<WorkerSettings>.success(
+      WorkerSettings(
+        heartbeatIntervalSeconds: settings['heartbeatIntervalSeconds'] as int,
+        responseDeadlineSeconds: settings['responseDeadlineSeconds'] as int,
+        staleAfterSeconds: settings['staleAfterSeconds'] as int,
+        drainTimeoutSeconds: settings['drainTimeoutSeconds'] as int,
+        terminateTimeoutSeconds: settings['terminateTimeoutSeconds'] as int,
+        rogueThreshold: settings['rogueThreshold'] as int,
+        updatedAt: DateTime.parse(settings['updatedAt'] as String).toLocal(),
+      ),
+    );
+  }
+
+  Stream<ApiResult<StreamEvent>> workerSessionStream({int fromOffset = 0}) {
+    return _client
+        .subscribe(
+          SubscriptionOptions(
+            document: gql('''
+              subscription WorkerSessionStream(
+                \$runID: String!
+                \$taskID: String!
+                \$jobID: String!
+                \$fromOffset: Int!
+              ) {
+                workerSessionStream(
+                  correlation: {runID: \$runID, taskID: \$taskID, jobID: \$jobID}
+                  fromOffset: \$fromOffset
+                ) {
+                  __typename
+                  ... on StreamEventSuccess {
+                    event {
+                      eventID
+                      eventType
+                      source
+                      payload
+                      occurredAt
+                    }
+                  }
+                  ... on GraphError {
+                    code
+                    message
+                    field
+                  }
+                }
+              }
+            '''),
+            variables: <String, dynamic>{
+              'runID': '',
+              'taskID': '',
+              'jobID': '',
+              'fromOffset': fromOffset,
+            },
+          ),
+        )
+        .map((QueryResult result) {
+          final error = _extractOperationError(
+            result,
+            field: 'workerSessionStream',
+          );
+          if (error != null) {
+            return ApiResult<StreamEvent>.failure(error);
+          }
+          final payload =
+              result.data?['workerSessionStream'] as Map<String, dynamic>?;
+          if (payload == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'workerSessionStream returned no data',
+            );
+          }
+          if (payload['__typename'] == 'GraphError') {
+            return ApiResult<StreamEvent>.failure(
+              _graphErrorMessageTyped(
+                code: payload['code'] as String? ?? 'INTERNAL',
+                message: payload['message'] as String? ?? 'unknown error',
+                field: payload['field'] as String?,
+              ),
+            );
+          }
+          final eventData = payload['event'] as Map<String, dynamic>?;
+          if (eventData == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'workerSessionStream event payload missing',
+            );
+          }
+          return ApiResult<StreamEvent>.success(
+            StreamEvent(
+              eventID: eventData['eventID'] as String,
+              eventType: eventData['eventType'] as String,
+              source: eventData['source'] as String,
+              payload: eventData['payload'] as String,
+              occurredAt: DateTime.parse(
+                eventData['occurredAt'] as String,
+              ).toLocal(),
+            ),
+          );
+        })
+        .asBroadcastStream();
+  }
+
   String? _extractOperationError(QueryResult result, {required String field}) {
     if (result.hasException) {
       AppLogger.instance.logger.e(

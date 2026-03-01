@@ -10,17 +10,19 @@ void main() {
     });
 
     test('preserves explicit path and trims trailing slash', () {
-      final normalized = normalizeGraphqlEndpoint('https://example.com/graphql/');
+      final normalized = normalizeGraphqlEndpoint(
+        'https://example.com/graphql/',
+      );
 
       expect(normalized, 'https://example.com/graphql');
     });
 
-    test('preserves query and fragment', () {
+    test('preserves query and strips fragment', () {
       final normalized = normalizeGraphqlEndpoint(
         'https://example.com/query?x=1#anchor',
       );
 
-      expect(normalized, 'https://example.com/query?x=1#anchor');
+      expect(normalized, 'https://example.com/query?x=1');
     });
 
     test('returns empty string when input is empty', () {

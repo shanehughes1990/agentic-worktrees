@@ -13,6 +13,9 @@ const (
 	JobKindIngestionAgent JobKind = "ingestion.agent.run"
 	JobKindAgentWorkflow  JobKind = "agent.workflow.run"
 	JobKindSCMWorkflow    JobKind = "scm.workflow.run"
+	JobKindWorkerShutdownAgent JobKind = "worker.shutdown.agent"
+	JobKindWorkerShutdownRuntime JobKind = "worker.shutdown.runtime"
+	JobKindWorkerForceDeregister JobKind = "worker.force.deregister"
 )
 
 type CorrelationIDs struct {

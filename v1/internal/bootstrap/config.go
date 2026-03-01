@@ -77,8 +77,7 @@ type APIConfig struct {
 
 type WorkerConfig struct {
 	BaseConfig
-	WorkerPort              int           `envconfig:"WORKER_PORT" default:"8081" validate:"required,min=1,max=65535"`
-	WorkerHeartbeatInterval time.Duration `envconfig:"WORKER_HEARTBEAT_INTERVAL" default:"15s" validate:"required,gt=0"`
+	WorkerPort int `envconfig:"WORKER_PORT" default:"8081" validate:"required,min=1,max=65535"`
 }
 
 func LoadAPIConfigFromEnv() (APIConfig, error) {

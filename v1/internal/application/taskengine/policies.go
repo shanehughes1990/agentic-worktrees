@@ -28,5 +28,29 @@ func DefaultPolicies() map[JobKind]JobPolicy {
 			DefaultTimeout:        10 * time.Minute,
 			DefaultMaxRetry:       3,
 		},
+		JobKindWorkerShutdownAgent: {
+			DefaultQueue:          "control",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      30 * time.Minute,
+			DefaultTimeout:        2 * time.Minute,
+			DefaultMaxRetry:       2,
+		},
+		JobKindWorkerShutdownRuntime: {
+			DefaultQueue:          "control",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      30 * time.Minute,
+			DefaultTimeout:        2 * time.Minute,
+			DefaultMaxRetry:       2,
+		},
+		JobKindWorkerForceDeregister: {
+			DefaultQueue:          "control",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      30 * time.Minute,
+			DefaultTimeout:        2 * time.Minute,
+			DefaultMaxRetry:       2,
+		},
 	}
 }

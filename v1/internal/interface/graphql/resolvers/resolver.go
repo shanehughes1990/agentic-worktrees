@@ -5,6 +5,7 @@ import (
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationworker "agentic-orchestrator/internal/application/worker"
 )
 
 // This file will not be regenerated automatically.
@@ -17,8 +18,9 @@ type Resolver struct {
 	SupervisorService    *applicationsupervisor.Service
 	ControlPlaneService  *applicationcontrolplane.Service
 	StreamService        *applicationstream.Service
+	WorkerService        *applicationworker.Service
 }
 
-func NewResolver(taskScheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, controlPlaneService *applicationcontrolplane.Service, streamService *applicationstream.Service) *Resolver {
-	return &Resolver{TaskScheduler: taskScheduler, SupervisorService: supervisorService, ControlPlaneService: controlPlaneService, StreamService: streamService}
+func NewResolver(taskScheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, controlPlaneService *applicationcontrolplane.Service, streamService *applicationstream.Service, workerService *applicationworker.Service) *Resolver {
+	return &Resolver{TaskScheduler: taskScheduler, SupervisorService: supervisorService, ControlPlaneService: controlPlaneService, StreamService: streamService, WorkerService: workerService}
 }

@@ -5,6 +5,7 @@ import (
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationworker "agentic-orchestrator/internal/application/worker"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
@@ -24,6 +25,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
@@ -44,6 +46,7 @@ type APIApp struct {
 	streamService         *applicationstream.Service
 	sessionStateReader    *infraagent.SessionStateReader
 	acpClient             *infraagent.ACPClient
+	workerCoordinator     *applicationworker.Coordinator
 }
 
 func InitAPI() (*APIApp, error) {
@@ -106,6 +109,21 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
+	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init worker registry: %w", err)
+	}
+	workerService, err := applicationworker.NewService(workerRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("init worker service: %w", err)
+	}
+	if _, err := workerService.EnsureBaseSettings(context.Background(), applicationworker.DefaultSettings(time.Now().UTC())); err != nil {
+		return nil, fmt.Errorf("ensure base worker settings: %w", err)
+	}
+	workerCoordinator, err := applicationworker.NewCoordinator(workerService, taskScheduler)
+	if err != nil {
+		return nil, fmt.Errorf("init worker coordinator: %w", err)
+	}
 	sessionStateReader, err := infraagent.NewSessionStateReader(strings.TrimSpace(os.Getenv("API_COPILOT_SESSION_STATE_DIR")))
 	if err != nil {
 		return nil, fmt.Errorf("init session state reader: %w", err)
@@ -120,7 +138,7 @@ func InitAPI() (*APIApp, error) {
 		streamService.SetHealthEvaluator(acpClient)
 	}
 
-	resolver := resolvers.NewResolver(taskScheduler, supervisorService, controlPlaneService, streamService)
+	resolver := resolvers.NewResolver(taskScheduler, supervisorService, controlPlaneService, streamService, workerService)
 	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
@@ -147,6 +165,7 @@ func InitAPI() (*APIApp, error) {
 		streamService:         streamService,
 		sessionStateReader:    sessionStateReader,
 		acpClient:             acpClient,
+		workerCoordinator:     workerCoordinator,
 	}, nil
 }
 
@@ -173,6 +192,24 @@ func (app *APIApp) Run() error {
 		}
 	}
 
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if app.workerCoordinator != nil {
+		go func() {
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-signalCtx.Done():
+					return
+				case <-ticker.C:
+					_ = app.workerCoordinator.ProbeAndEscalate(context.Background())
+				}
+			}
+		}()
+	}
+
 	serverErrCh := make(chan error, 1)
 	go func() {
 		err := app.httpServer.ListenAndServe()
@@ -182,9 +219,6 @@ func (app *APIApp) Run() error {
 		}
 		serverErrCh <- nil
 	}()
-
-	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	select {
 	case err := <-serverErrCh:

@@ -10,3 +10,8 @@ tasks:
     desc: Generate GraphQL client code
     cmds:
     - go tool gqlgen generate
+
+  compose-up:
+    desc: Start the application using Docker Compose
+    cmds:
+    - docker-compose -f docker-compose.yml up -d --build

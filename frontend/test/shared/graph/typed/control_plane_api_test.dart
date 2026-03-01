@@ -209,4 +209,79 @@ void main() {
       expect(result.errorMessage, contains('enqueue failed'));
     });
   });
+
+  group('worker api', () {
+    test('maps workerSessions success payload', () async {
+      when(client.query<dynamic>(any)).thenAnswer((
+        Invocation invocation,
+      ) async {
+        final options =
+            invocation.positionalArguments.first
+                as graphql.QueryOptions<dynamic>;
+        return graphql.QueryResult<dynamic>(
+          options: options,
+          source: graphql.QueryResultSource.network,
+          data: <String, dynamic>{
+            '__typename': 'Query',
+            'workerSessions': <String, dynamic>{
+              '__typename': 'WorkerSessionsSuccess',
+              'sessions': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'workerID': 'worker-1',
+                  'epoch': 1,
+                  'state': 'healthy',
+                  'desiredState': 'healthy',
+                  'lastHeartbeat': '2026-03-01T12:00:00Z',
+                  'leaseExpiresAt': '2026-03-01T12:00:30Z',
+                  'rogueReason': null,
+                  'updatedAt': '2026-03-01T12:00:00Z',
+                },
+              ],
+            },
+          },
+        );
+      });
+
+      final result = await api.workerSessions(limit: 10);
+
+      expect(result.isSuccess, isTrue);
+      expect(result.data, isNotNull);
+      expect(result.data!.single.workerID, 'worker-1');
+    });
+
+    test('maps workerSettings success payload', () async {
+      when(client.query<dynamic>(any)).thenAnswer((
+        Invocation invocation,
+      ) async {
+        final options =
+            invocation.positionalArguments.first
+                as graphql.QueryOptions<dynamic>;
+        return graphql.QueryResult<dynamic>(
+          options: options,
+          source: graphql.QueryResultSource.network,
+          data: <String, dynamic>{
+            '__typename': 'Query',
+            'workerSettings': <String, dynamic>{
+              '__typename': 'WorkerSettingsSuccess',
+              'settings': <String, dynamic>{
+                'heartbeatIntervalSeconds': 15,
+                'responseDeadlineSeconds': 5,
+                'staleAfterSeconds': 45,
+                'drainTimeoutSeconds': 20,
+                'terminateTimeoutSeconds': 10,
+                'rogueThreshold': 3,
+                'updatedAt': '2026-03-01T12:00:00Z',
+              },
+            },
+          },
+        );
+      });
+
+      final result = await api.workerSettings();
+
+      expect(result.isSuccess, isTrue);
+      expect(result.data, isNotNull);
+      expect(result.data!.heartbeatIntervalSeconds, 15);
+    });
+  });
 }

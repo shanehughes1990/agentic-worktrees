@@ -6,7 +6,9 @@ import (
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
+	applicationworker "agentic-orchestrator/internal/application/worker"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
+	domainworker "agentic-orchestrator/internal/domain/worker"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
@@ -20,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -40,6 +43,7 @@ type WorkerApp struct {
 	scmService            *applicationscm.Service
 	trackerService        *applicationtracker.Service
 	supervisorService     *applicationsupervisor.Service
+	workerService         *applicationworker.Service
 }
 
 type workerJobRegistration struct {
@@ -157,6 +161,14 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init tracker service: %w", err)
 	}
+	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init worker registry: %w", err)
+	}
+	workerService, err := applicationworker.NewService(workerRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("init worker service: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	healthPlatform.Mount(mux)
@@ -175,6 +187,7 @@ func InitWorker() (*WorkerApp, error) {
 		scmService:            scmService,
 		trackerService:        trackerService,
 		supervisorService:     supervisorService,
+		workerService:         workerService,
 	}, nil
 }
 
@@ -205,7 +218,19 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}
-	workerID := fmt.Sprintf("%s-worker-%d", strings.TrimSpace(app.config.ServiceName), app.config.WorkerPort)
+	hostname, hostnameErr := os.Hostname()
+	if hostnameErr != nil {
+		hostname = "unknown-host"
+	}
+	workerID := buildWorkerID(strings.TrimSpace(app.config.ServiceName), hostname, app.config.WorkerPort)
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	settings, err := waitForWorkerSettings(signalCtx, app.workerService, 2*time.Second)
+	if err != nil {
+		return fmt.Errorf("wait for worker settings: %w", err)
+	}
+
 	registrations := []workerJobRegistration{
 		{kind: taskengine.JobKindIngestionAgent, handler: ingestionHandler, label: "ingestion agent"},
 		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
@@ -213,6 +238,11 @@ func (app *WorkerApp) Run() error {
 	}
 	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
 		return err
+	}
+	capabilities := workerCapabilities(registrations)
+	registeredWorker, err := app.workerService.Register(context.Background(), workerID, capabilities, settings.HeartbeatInterval)
+	if err != nil {
+		return fmt.Errorf("register worker lifecycle: %w", err)
 	}
 	if err := app.taskEnginePlatform.Start(); err != nil {
 		if entry != nil {
@@ -234,28 +264,53 @@ func (app *WorkerApp) Run() error {
 		serverErrCh <- nil
 	}()
 
-	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	heartbeatCtx, heartbeatCancel := context.WithCancel(signalCtx)
+	defer heartbeatCancel()
+	heartbeatErrCh := make(chan error, 1)
+	go func() {
+		err := runWorkerHeartbeat(heartbeatCtx, app.workerService, workerID, registeredWorker.Epoch, settings.HeartbeatInterval)
+		if err == nil || errors.Is(err, context.Canceled) {
+			return
+		}
+		heartbeatErrCh <- err
+	}()
+
+	shutdownReason := "shutdown signal"
+	var runErr error
 
 	select {
 	case err := <-serverErrCh:
 		if err != nil {
+			shutdownReason = "health server error"
+			runErr = fmt.Errorf("worker health server error: %w", err)
 			if entry != nil {
 				entry.WithError(err).WithField("runtime", "worker").Error("worker health server error")
 			}
-			return fmt.Errorf("worker health server error: %w", err)
+		} else {
+			return nil
 		}
-		return nil
+	case err := <-heartbeatErrCh:
+		shutdownReason = "application stopping"
+		runErr = err
+		if entry != nil {
+			entry.WithError(err).WithField("runtime", "worker").Warn("worker heartbeat loop stopped")
+		}
 	case <-signalCtx.Done():
 		if entry != nil {
 			entry.WithField("runtime", "worker").Info("shutdown signal received")
 		}
 	}
+	heartbeatCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
 	defer cancel()
 
 	var shutdownErr error
+	if app.workerService != nil {
+		if _, err := app.workerService.RequestShutdown(shutdownCtx, workerID, registeredWorker.Epoch, shutdownReason); err != nil {
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("request shutdown state: %w", err))
+		}
+	}
 	if err := app.httpServer.Shutdown(shutdownCtx); err != nil {
 		if entry != nil {
 			entry.WithError(err).WithField("runtime", "worker").Error("shutdown worker health server failed")
@@ -268,6 +323,14 @@ func (app *WorkerApp) Run() error {
 				entry.WithError(err).WithField("runtime", "worker").Error("shutdown task engine platform failed")
 			}
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown task engine platform: %w", err))
+		}
+	}
+	if app.workerService != nil {
+		if _, err := app.workerService.Deregister(shutdownCtx, workerID, registeredWorker.Epoch, shutdownReason); err != nil {
+			if _, forceErr := app.workerService.ForceDeregister(shutdownCtx, workerID, registeredWorker.Epoch, shutdownReason); forceErr != nil {
+				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("force deregister worker: %w", forceErr))
+			}
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("deregister worker: %w", err))
 		}
 	}
 	if app.databaseClient != nil {
@@ -287,7 +350,7 @@ func (app *WorkerApp) Run() error {
 	if err := app.observabilityPlatform.Shutdown(shutdownCtx); err != nil {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
-	return shutdownErr
+	return errors.Join(runErr, shutdownErr)
 }
 
 func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, registrations []workerJobRegistration) error {
@@ -321,5 +384,73 @@ func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, worke
 	return nil
 }
 
+func runWorkerHeartbeat(ctx context.Context, service *applicationworker.Service, workerID string, epoch int64, interval time.Duration) error {
+	if service == nil {
+		return fmt.Errorf("worker service is not initialized")
+	}
+	if interval <= 0 {
+		return fmt.Errorf("heartbeat interval must be greater than zero")
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			worker, err := service.Heartbeat(ctx, workerID, epoch, interval)
+			if err != nil {
+				if errors.Is(err, applicationworker.ErrApplicationStopping) {
+					return fmt.Errorf("%w: worker requested shutdown", applicationworker.ErrApplicationStopping)
+				}
+				return err
+			}
+			if worker != nil && (worker.DesiredState == domainworker.StateShutdownRequested || worker.DesiredState == domainworker.StateDraining || worker.DesiredState == domainworker.StateTerminated) {
+				return fmt.Errorf("%w: desired state is %s", applicationworker.ErrApplicationStopping, worker.DesiredState)
+			}
+		}
+	}
+}
+
+func workerCapabilities(registrations []workerJobRegistration) []taskengine.JobKind {
+	capabilities := make([]taskengine.JobKind, 0, len(registrations))
+	for _, registration := range registrations {
+		capabilities = append(capabilities, registration.kind)
+	}
+	return capabilities
+}
+
+func waitForWorkerSettings(ctx context.Context, service *applicationworker.Service, retryInterval time.Duration) (domainworker.Settings, error) {
+	if service == nil {
+		return domainworker.Settings{}, fmt.Errorf("worker service is not initialized")
+	}
+	if retryInterval <= 0 {
+		retryInterval = 2 * time.Second
+	}
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+	for {
+		settings, err := service.GetSettings(ctx)
+		if err == nil {
+			return settings, nil
+		}
+		if ctx.Err() != nil {
+			return domainworker.Settings{}, ctx.Err()
+		}
+		<-ticker.C
+	}
+}
+
+func buildWorkerID(serviceName string, hostname string, workerPort int) string {
+	trimmedServiceName := strings.TrimSpace(serviceName)
+	if trimmedServiceName == "" {
+		trimmedServiceName = "worker"
+	}
+	trimmedHostname := strings.TrimSpace(hostname)
+	if trimmedHostname == "" {
+		trimmedHostname = "unknown-host"
+	}
+	return fmt.Sprintf("%s-%s-worker-%d", trimmedServiceName, trimmedHostname, workerPort)
+}
 
 var _ = time.Second
