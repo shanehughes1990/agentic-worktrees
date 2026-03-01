@@ -8,7 +8,7 @@ class ConnectionSettingsLogic {
   }
 
   static String? validateEndpoint(String endpoint) {
-    if (endpoint.isEmpty) {
+    if (endpoint.trim().isEmpty) {
       return 'Endpoint cannot be empty.';
     }
     return null;
