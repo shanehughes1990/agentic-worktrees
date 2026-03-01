@@ -1,0 +1,37 @@
+type SupervisorDecisionMetadataEntry {
+  key: String!
+  value: String!
+}
+
+type SupervisorDecision {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  signalType: String!
+  fromState: String!
+  toState: String!
+  action: String!
+  reason: String!
+  ruleName: String!
+  rulePriority: Int!
+  occurredAt: String!
+  attentionZone: String!
+  attempt: Int!
+  maxRetry: Int!
+  failureClass: String!
+  metadata: [SupervisorDecisionMetadataEntry!]!
+}
+
+input SupervisorCorrelationInput {
+  runID: String!
+  taskID: String!
+  jobID: String!
+}
+
+extend type Query {
+  supervisorDecisionHistory(correlation: SupervisorCorrelationInput!): [SupervisorDecision!]!
+}
+
+extend type Subscription {
+  supervisorDecisionHistoryStream(correlation: SupervisorCorrelationInput!, intervalMS: Int = 1000): [SupervisorDecision!]!
+}

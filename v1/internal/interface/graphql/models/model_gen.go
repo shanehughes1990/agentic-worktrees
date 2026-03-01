@@ -32,3 +32,36 @@ type Mutation struct {
 
 type Query struct {
 }
+
+type Subscription struct {
+}
+
+type SupervisorCorrelationInput struct {
+	RunID  string `json:"runID"`
+	TaskID string `json:"taskID"`
+	JobID  string `json:"jobID"`
+}
+
+type SupervisorDecision struct {
+	RunID         string                             `json:"runID"`
+	TaskID        string                             `json:"taskID"`
+	JobID         string                             `json:"jobID"`
+	SignalType    string                             `json:"signalType"`
+	FromState     string                             `json:"fromState"`
+	ToState       string                             `json:"toState"`
+	Action        string                             `json:"action"`
+	Reason        string                             `json:"reason"`
+	RuleName      string                             `json:"ruleName"`
+	RulePriority  int32                              `json:"rulePriority"`
+	OccurredAt    string                             `json:"occurredAt"`
+	AttentionZone string                             `json:"attentionZone"`
+	Attempt       int32                              `json:"attempt"`
+	MaxRetry      int32                              `json:"maxRetry"`
+	FailureClass  string                             `json:"failureClass"`
+	Metadata      []*SupervisorDecisionMetadataEntry `json:"metadata"`
+}
+
+type SupervisorDecisionMetadataEntry struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}

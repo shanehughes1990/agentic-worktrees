@@ -29,6 +29,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -45,7 +46,36 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		ScmSupportedOperations func(childComplexity int) int
+		ScmSupportedOperations    func(childComplexity int) int
+		SupervisorDecisionHistory func(childComplexity int, correlation models.SupervisorCorrelationInput) int
+	}
+
+	Subscription struct {
+		SupervisorDecisionHistoryStream func(childComplexity int, correlation models.SupervisorCorrelationInput, intervalMs *int32) int
+	}
+
+	SupervisorDecision struct {
+		Action        func(childComplexity int) int
+		Attempt       func(childComplexity int) int
+		AttentionZone func(childComplexity int) int
+		FailureClass  func(childComplexity int) int
+		FromState     func(childComplexity int) int
+		JobID         func(childComplexity int) int
+		MaxRetry      func(childComplexity int) int
+		Metadata      func(childComplexity int) int
+		OccurredAt    func(childComplexity int) int
+		Reason        func(childComplexity int) int
+		RuleName      func(childComplexity int) int
+		RulePriority  func(childComplexity int) int
+		RunID         func(childComplexity int) int
+		SignalType    func(childComplexity int) int
+		TaskID        func(childComplexity int) int
+		ToState       func(childComplexity int) int
+	}
+
+	SupervisorDecisionMetadataEntry struct {
+		Key   func(childComplexity int) int
+		Value func(childComplexity int) int
 	}
 }
 
@@ -54,6 +84,10 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	ScmSupportedOperations(ctx context.Context) ([]string, error)
+	SupervisorDecisionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput) ([]*models.SupervisorDecision, error)
+}
+type SubscriptionResolver interface {
+	SupervisorDecisionHistoryStream(ctx context.Context, correlation models.SupervisorCorrelationInput, intervalMs *int32) (<-chan []*models.SupervisorDecision, error)
 }
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -101,6 +135,139 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ScmSupportedOperations(childComplexity), true
+	case "Query.supervisorDecisionHistory":
+		if e.ComplexityRoot.Query.SupervisorDecisionHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_supervisorDecisionHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SupervisorDecisionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput)), true
+
+	case "Subscription.supervisorDecisionHistoryStream":
+		if e.ComplexityRoot.Subscription.SupervisorDecisionHistoryStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_supervisorDecisionHistoryStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.SupervisorDecisionHistoryStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["intervalMS"].(*int32)), true
+
+	case "SupervisorDecision.action":
+		if e.ComplexityRoot.SupervisorDecision.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.Action(childComplexity), true
+	case "SupervisorDecision.attempt":
+		if e.ComplexityRoot.SupervisorDecision.Attempt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.Attempt(childComplexity), true
+	case "SupervisorDecision.attentionZone":
+		if e.ComplexityRoot.SupervisorDecision.AttentionZone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.AttentionZone(childComplexity), true
+	case "SupervisorDecision.failureClass":
+		if e.ComplexityRoot.SupervisorDecision.FailureClass == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.FailureClass(childComplexity), true
+	case "SupervisorDecision.fromState":
+		if e.ComplexityRoot.SupervisorDecision.FromState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.FromState(childComplexity), true
+	case "SupervisorDecision.jobID":
+		if e.ComplexityRoot.SupervisorDecision.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.JobID(childComplexity), true
+	case "SupervisorDecision.maxRetry":
+		if e.ComplexityRoot.SupervisorDecision.MaxRetry == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.MaxRetry(childComplexity), true
+	case "SupervisorDecision.metadata":
+		if e.ComplexityRoot.SupervisorDecision.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.Metadata(childComplexity), true
+	case "SupervisorDecision.occurredAt":
+		if e.ComplexityRoot.SupervisorDecision.OccurredAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.OccurredAt(childComplexity), true
+	case "SupervisorDecision.reason":
+		if e.ComplexityRoot.SupervisorDecision.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.Reason(childComplexity), true
+	case "SupervisorDecision.ruleName":
+		if e.ComplexityRoot.SupervisorDecision.RuleName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.RuleName(childComplexity), true
+	case "SupervisorDecision.rulePriority":
+		if e.ComplexityRoot.SupervisorDecision.RulePriority == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.RulePriority(childComplexity), true
+	case "SupervisorDecision.runID":
+		if e.ComplexityRoot.SupervisorDecision.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.RunID(childComplexity), true
+	case "SupervisorDecision.signalType":
+		if e.ComplexityRoot.SupervisorDecision.SignalType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.SignalType(childComplexity), true
+	case "SupervisorDecision.taskID":
+		if e.ComplexityRoot.SupervisorDecision.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.TaskID(childComplexity), true
+	case "SupervisorDecision.toState":
+		if e.ComplexityRoot.SupervisorDecision.ToState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecision.ToState(childComplexity), true
+
+	case "SupervisorDecisionMetadataEntry.key":
+		if e.ComplexityRoot.SupervisorDecisionMetadataEntry.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecisionMetadataEntry.Key(childComplexity), true
+	case "SupervisorDecisionMetadataEntry.value":
+		if e.ComplexityRoot.SupervisorDecisionMetadataEntry.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SupervisorDecisionMetadataEntry.Value(childComplexity), true
 
 	}
 	return 0, false
@@ -111,6 +278,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputEnqueueSCMWorkflowInput,
+		ec.unmarshalInputSupervisorCorrelationInput,
 	)
 	first := true
 
@@ -160,6 +328,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, opCtx.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -189,6 +374,8 @@ var sources = []*ast.Source{
 	{Name: "../schema/schema.graphqls", Input: `type Query
 
 type Mutation
+
+type Subscription
 `, BuiltIn: false},
 	{Name: "../schema/scm.graphqls", Input: `type EnqueueSCMWorkflowResult {
   queueTaskID: ID!
@@ -208,6 +395,7 @@ input EnqueueSCMWorkflowInput {
   baseBranch: String
   targetBranch: String
   pullRequestNumber: Int
+  mergeMethod: String
   pullRequestTitle: String
   pullRequestBody: String
   reviewDecision: String
@@ -220,6 +408,44 @@ extend type Query {
 
 extend type Mutation {
   enqueueScmWorkflow(input: EnqueueSCMWorkflowInput!): EnqueueSCMWorkflowResult!
+}
+`, BuiltIn: false},
+	{Name: "../schema/supervisor.graphqls", Input: `type SupervisorDecisionMetadataEntry {
+  key: String!
+  value: String!
+}
+
+type SupervisorDecision {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  signalType: String!
+  fromState: String!
+  toState: String!
+  action: String!
+  reason: String!
+  ruleName: String!
+  rulePriority: Int!
+  occurredAt: String!
+  attentionZone: String!
+  attempt: Int!
+  maxRetry: Int!
+  failureClass: String!
+  metadata: [SupervisorDecisionMetadataEntry!]!
+}
+
+input SupervisorCorrelationInput {
+  runID: String!
+  taskID: String!
+  jobID: String!
+}
+
+extend type Query {
+  supervisorDecisionHistory(correlation: SupervisorCorrelationInput!): [SupervisorDecision!]!
+}
+
+extend type Subscription {
+  supervisorDecisionHistoryStream(correlation: SupervisorCorrelationInput!, intervalMS: Int = 1000): [SupervisorDecision!]!
 }
 `, BuiltIn: false},
 }
@@ -248,6 +474,33 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_supervisorDecisionHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_supervisorDecisionHistoryStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "intervalMS", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["intervalMS"] = arg1
 	return args, nil
 }
 
@@ -437,6 +690,81 @@ func (ec *executionContext) fieldContext_Query_scmSupportedOperations(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_supervisorDecisionHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_supervisorDecisionHistory,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SupervisorDecisionHistory(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput))
+		},
+		nil,
+		ec.marshalNSupervisorDecision2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_supervisorDecisionHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_SupervisorDecision_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_SupervisorDecision_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_SupervisorDecision_jobID(ctx, field)
+			case "signalType":
+				return ec.fieldContext_SupervisorDecision_signalType(ctx, field)
+			case "fromState":
+				return ec.fieldContext_SupervisorDecision_fromState(ctx, field)
+			case "toState":
+				return ec.fieldContext_SupervisorDecision_toState(ctx, field)
+			case "action":
+				return ec.fieldContext_SupervisorDecision_action(ctx, field)
+			case "reason":
+				return ec.fieldContext_SupervisorDecision_reason(ctx, field)
+			case "ruleName":
+				return ec.fieldContext_SupervisorDecision_ruleName(ctx, field)
+			case "rulePriority":
+				return ec.fieldContext_SupervisorDecision_rulePriority(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_SupervisorDecision_occurredAt(ctx, field)
+			case "attentionZone":
+				return ec.fieldContext_SupervisorDecision_attentionZone(ctx, field)
+			case "attempt":
+				return ec.fieldContext_SupervisorDecision_attempt(ctx, field)
+			case "maxRetry":
+				return ec.fieldContext_SupervisorDecision_maxRetry(ctx, field)
+			case "failureClass":
+				return ec.fieldContext_SupervisorDecision_failureClass(ctx, field)
+			case "metadata":
+				return ec.fieldContext_SupervisorDecision_metadata(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SupervisorDecision", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_supervisorDecisionHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -540,6 +868,609 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_supervisorDecisionHistoryStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_supervisorDecisionHistoryStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().SupervisorDecisionHistoryStream(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["intervalMS"].(*int32))
+		},
+		nil,
+		ec.marshalNSupervisorDecision2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_supervisorDecisionHistoryStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "runID":
+				return ec.fieldContext_SupervisorDecision_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_SupervisorDecision_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_SupervisorDecision_jobID(ctx, field)
+			case "signalType":
+				return ec.fieldContext_SupervisorDecision_signalType(ctx, field)
+			case "fromState":
+				return ec.fieldContext_SupervisorDecision_fromState(ctx, field)
+			case "toState":
+				return ec.fieldContext_SupervisorDecision_toState(ctx, field)
+			case "action":
+				return ec.fieldContext_SupervisorDecision_action(ctx, field)
+			case "reason":
+				return ec.fieldContext_SupervisorDecision_reason(ctx, field)
+			case "ruleName":
+				return ec.fieldContext_SupervisorDecision_ruleName(ctx, field)
+			case "rulePriority":
+				return ec.fieldContext_SupervisorDecision_rulePriority(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_SupervisorDecision_occurredAt(ctx, field)
+			case "attentionZone":
+				return ec.fieldContext_SupervisorDecision_attentionZone(ctx, field)
+			case "attempt":
+				return ec.fieldContext_SupervisorDecision_attempt(ctx, field)
+			case "maxRetry":
+				return ec.fieldContext_SupervisorDecision_maxRetry(ctx, field)
+			case "failureClass":
+				return ec.fieldContext_SupervisorDecision_failureClass(ctx, field)
+			case "metadata":
+				return ec.fieldContext_SupervisorDecision_metadata(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SupervisorDecision", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_supervisorDecisionHistoryStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_runID(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_taskID(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_jobID(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_signalType(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_signalType,
+		func(ctx context.Context) (any, error) {
+			return obj.SignalType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_signalType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_fromState(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_fromState,
+		func(ctx context.Context) (any, error) {
+			return obj.FromState, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_fromState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_toState(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_toState,
+		func(ctx context.Context) (any, error) {
+			return obj.ToState, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_toState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_action(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_action,
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_reason(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_ruleName(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_ruleName,
+		func(ctx context.Context) (any, error) {
+			return obj.RuleName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_ruleName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_rulePriority(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_rulePriority,
+		func(ctx context.Context) (any, error) {
+			return obj.RulePriority, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_rulePriority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_occurredAt(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_occurredAt,
+		func(ctx context.Context) (any, error) {
+			return obj.OccurredAt, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_occurredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_attentionZone(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_attentionZone,
+		func(ctx context.Context) (any, error) {
+			return obj.AttentionZone, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_attentionZone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_attempt(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_attempt,
+		func(ctx context.Context) (any, error) {
+			return obj.Attempt, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_attempt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_maxRetry(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_maxRetry,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxRetry, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_maxRetry(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_failureClass(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_failureClass,
+		func(ctx context.Context) (any, error) {
+			return obj.FailureClass, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_failureClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecision_metadata(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecision_metadata,
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		ec.marshalNSupervisorDecisionMetadataEntry2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionMetadataEntryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecision_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "key":
+				return ec.fieldContext_SupervisorDecisionMetadataEntry_key(ctx, field)
+			case "value":
+				return ec.fieldContext_SupervisorDecisionMetadataEntry_value(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SupervisorDecisionMetadataEntry", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecisionMetadataEntry_key(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecisionMetadataEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecisionMetadataEntry_key,
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecisionMetadataEntry_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecisionMetadataEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SupervisorDecisionMetadataEntry_value(ctx context.Context, field graphql.CollectedField, obj *models.SupervisorDecisionMetadataEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SupervisorDecisionMetadataEntry_value,
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SupervisorDecisionMetadataEntry_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SupervisorDecisionMetadataEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1998,7 +2929,7 @@ func (ec *executionContext) unmarshalInputEnqueueSCMWorkflowInput(ctx context.Co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"operation", "provider", "owner", "repository", "runID", "taskID", "jobID", "idempotencyKey", "worktreePath", "baseBranch", "targetBranch", "pullRequestNumber", "pullRequestTitle", "pullRequestBody", "reviewDecision", "reviewBody"}
+	fieldsInOrder := [...]string{"operation", "provider", "owner", "repository", "runID", "taskID", "jobID", "idempotencyKey", "worktreePath", "baseBranch", "targetBranch", "pullRequestNumber", "mergeMethod", "pullRequestTitle", "pullRequestBody", "reviewDecision", "reviewBody"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -2089,6 +3020,13 @@ func (ec *executionContext) unmarshalInputEnqueueSCMWorkflowInput(ctx context.Co
 				return it, err
 			}
 			it.PullRequestNumber = data
+		case "mergeMethod":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mergeMethod"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MergeMethod = data
 		case "pullRequestTitle":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pullRequestTitle"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -2117,6 +3055,46 @@ func (ec *executionContext) unmarshalInputEnqueueSCMWorkflowInput(ctx context.Co
 				return it, err
 			}
 			it.ReviewBody = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSupervisorCorrelationInput(ctx context.Context, obj any) (models.SupervisorCorrelationInput, error) {
+	var it models.SupervisorCorrelationInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"runID", "taskID", "jobID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "runID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RunID = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
+		case "jobID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jobID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JobID = data
 		}
 	}
 	return it, nil
@@ -2264,6 +3242,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "supervisorDecisionHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_supervisorDecisionHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -2272,6 +3272,184 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		graphql.AddErrorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "supervisorDecisionHistoryStream":
+		return ec._Subscription_supervisorDecisionHistoryStream(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
+}
+
+var supervisorDecisionImplementors = []string{"SupervisorDecision"}
+
+func (ec *executionContext) _SupervisorDecision(ctx context.Context, sel ast.SelectionSet, obj *models.SupervisorDecision) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, supervisorDecisionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SupervisorDecision")
+		case "runID":
+			out.Values[i] = ec._SupervisorDecision_runID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskID":
+			out.Values[i] = ec._SupervisorDecision_taskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobID":
+			out.Values[i] = ec._SupervisorDecision_jobID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "signalType":
+			out.Values[i] = ec._SupervisorDecision_signalType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fromState":
+			out.Values[i] = ec._SupervisorDecision_fromState(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toState":
+			out.Values[i] = ec._SupervisorDecision_toState(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "action":
+			out.Values[i] = ec._SupervisorDecision_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._SupervisorDecision_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ruleName":
+			out.Values[i] = ec._SupervisorDecision_ruleName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rulePriority":
+			out.Values[i] = ec._SupervisorDecision_rulePriority(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "occurredAt":
+			out.Values[i] = ec._SupervisorDecision_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attentionZone":
+			out.Values[i] = ec._SupervisorDecision_attentionZone(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attempt":
+			out.Values[i] = ec._SupervisorDecision_attempt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxRetry":
+			out.Values[i] = ec._SupervisorDecision_maxRetry(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failureClass":
+			out.Values[i] = ec._SupervisorDecision_failureClass(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "metadata":
+			out.Values[i] = ec._SupervisorDecision_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var supervisorDecisionMetadataEntryImplementors = []string{"SupervisorDecisionMetadataEntry"}
+
+func (ec *executionContext) _SupervisorDecisionMetadataEntry(ctx context.Context, sel ast.SelectionSet, obj *models.SupervisorDecisionMetadataEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, supervisorDecisionMetadataEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SupervisorDecisionMetadataEntry")
+		case "key":
+			out.Values[i] = ec._SupervisorDecisionMetadataEntry_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._SupervisorDecisionMetadataEntry_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2681,6 +3859,22 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
+	res, err := graphql.UnmarshalInt32(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.SelectionSet, v int32) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt32(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2725,6 +3919,63 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput(ctx context.Context, v any) (models.SupervisorCorrelationInput, error) {
+	res, err := ec.unmarshalInputSupervisorCorrelationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNSupervisorDecision2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.SupervisorDecision) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSupervisorDecision2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecision(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSupervisorDecision2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecision(ctx context.Context, sel ast.SelectionSet, v *models.SupervisorDecision) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SupervisorDecision(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSupervisorDecisionMetadataEntry2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionMetadataEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.SupervisorDecisionMetadataEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSupervisorDecisionMetadataEntry2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionMetadataEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSupervisorDecisionMetadataEntry2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorDecisionMetadataEntry(ctx context.Context, sel ast.SelectionSet, v *models.SupervisorDecisionMetadataEntry) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SupervisorDecisionMetadataEntry(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
