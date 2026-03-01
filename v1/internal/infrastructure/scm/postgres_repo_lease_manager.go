@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type repoLeaseRecord struct {
@@ -48,24 +49,31 @@ func (manager *PostgresRepoLeaseManager) Acquire(ctx context.Context, request ap
 	cacheKey := strings.TrimSpace(string(request.CacheKey))
 	ownerID := strings.TrimSpace(request.OwnerID)
 	token := strings.TrimSpace(request.Token)
+	record := repoLeaseRecord{CacheKey: cacheKey, OwnerID: ownerID, Token: token}
+
+	createResult := manager.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "cache_key"}},
+		DoNothing: true,
+	}).Create(&record)
+	if createResult.Error != nil {
+		return domainscm.RepoLease{}, failures.WrapTransient(fmt.Errorf("create repo lease: %w", createResult.Error))
+	}
+	if createResult.RowsAffected > 0 {
+		return domainscm.RepoLease{CacheKey: request.CacheKey, OwnerID: ownerID, Token: token}, nil
+	}
 
 	var existing repoLeaseRecord
 	err := manager.db.WithContext(ctx).First(&existing, "cache_key = ?", cacheKey).Error
-	if err == nil {
-		if existing.OwnerID == ownerID && existing.Token == token {
-			return domainscm.RepoLease{CacheKey: request.CacheKey, OwnerID: ownerID, Token: token}, nil
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domainscm.RepoLease{}, failures.WrapTransient(fmt.Errorf("repository cache lease already held for %s", request.CacheKey))
 		}
-		return domainscm.RepoLease{}, failures.WrapTransient(fmt.Errorf("repository cache lease already held for %s", request.CacheKey))
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return domainscm.RepoLease{}, failures.WrapTransient(fmt.Errorf("load repo lease: %w", err))
 	}
-
-	record := repoLeaseRecord{CacheKey: cacheKey, OwnerID: ownerID, Token: token}
-	if createErr := manager.db.WithContext(ctx).Create(&record).Error; createErr != nil {
-		return domainscm.RepoLease{}, failures.WrapTransient(fmt.Errorf("create repo lease: %w", createErr))
+	if existing.OwnerID == ownerID && existing.Token == token {
+		return domainscm.RepoLease{CacheKey: request.CacheKey, OwnerID: ownerID, Token: token}, nil
 	}
-	return domainscm.RepoLease{CacheKey: request.CacheKey, OwnerID: ownerID, Token: token}, nil
+	return domainscm.RepoLease{}, failures.WrapTransient(fmt.Errorf("repository cache lease already held for %s", request.CacheKey))
 }
 
 func (manager *PostgresRepoLeaseManager) Release(ctx context.Context, lease domainscm.RepoLease) error {

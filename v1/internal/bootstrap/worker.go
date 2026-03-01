@@ -16,13 +16,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type WorkerApp struct {
 	config                WorkerConfig
+	httpServer            *http.Server
 	observabilityPlatform *observability.Platform
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
@@ -133,8 +136,12 @@ func InitWorker() (*WorkerApp, error) {
 		return nil, fmt.Errorf("init tracker service: %w", err)
 	}
 
+	mux := http.NewServeMux()
+	healthPlatform.Mount(mux)
+
 	return &WorkerApp{
 		config:                config,
+		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.WorkerPort), Handler: mux},
 		observabilityPlatform: observabilityPlatform,
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
@@ -158,6 +165,7 @@ func (app *WorkerApp) Run() error {
 	if entry != nil {
 		entry.WithFields(map[string]any{
 			"runtime":             "worker",
+			"addr":                app.httpServer.Addr,
 			"env":                 app.config.Environment,
 			"task_engine_backend": app.config.TaskEngineBackend,
 		}).Info("worker runtime starting")
@@ -181,14 +189,14 @@ func (app *WorkerApp) Run() error {
 		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
 		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
 	}
+	capabilities := make([]taskengine.WorkerCapability, 0, len(registrations))
+	for _, registration := range registrations {
+		capabilities = append(capabilities, taskengine.WorkerCapability{Kind: registration.kind})
+	}
 	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
 		return err
 	}
 	if app.workerRegistry != nil {
-		capabilities := make([]taskengine.WorkerCapability, 0, len(registrations))
-		for _, registration := range registrations {
-			capabilities = append(capabilities, taskengine.WorkerCapability{Kind: registration.kind})
-		}
 		if err := app.workerRegistry.Upsert(context.Background(), taskengine.WorkerCapabilityAdvertisement{WorkerID: workerID, Capabilities: capabilities}); err != nil {
 			return fmt.Errorf("persist worker capability advertisement: %w", err)
 		}
@@ -203,18 +211,46 @@ func (app *WorkerApp) Run() error {
 		entry.WithField("runtime", "worker").Info("task engine worker started")
 	}
 
+	serverErrCh := make(chan error, 1)
+	go func() {
+		err := app.httpServer.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrCh <- err
+			return
+		}
+		serverErrCh <- nil
+	}()
+
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	<-signalCtx.Done()
+	heartbeatCancel := app.startWorkerHeartbeat(signalCtx, entry, workerID, capabilities)
+	defer heartbeatCancel()
 
-	if entry != nil {
-		entry.WithField("runtime", "worker").Info("shutdown signal received")
+	select {
+	case err := <-serverErrCh:
+		if err != nil {
+			if entry != nil {
+				entry.WithError(err).WithField("runtime", "worker").Error("worker health server error")
+			}
+			return fmt.Errorf("worker health server error: %w", err)
+		}
+		return nil
+	case <-signalCtx.Done():
+		if entry != nil {
+			entry.WithField("runtime", "worker").Info("shutdown signal received")
+		}
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
 	defer cancel()
 
 	var shutdownErr error
+	if err := app.httpServer.Shutdown(shutdownCtx); err != nil {
+		if entry != nil {
+			entry.WithError(err).WithField("runtime", "worker").Error("shutdown worker health server failed")
+		}
+		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown worker health server: %w", err))
+	}
 	if app.taskEnginePlatform != nil {
 		if err := app.taskEnginePlatform.Shutdown(shutdownCtx); err != nil {
 			if entry != nil {
@@ -241,6 +277,33 @@ func (app *WorkerApp) Run() error {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
 	return shutdownErr
+}
+
+func (app *WorkerApp) startWorkerHeartbeat(parentCtx context.Context, entry *observability.Entry, workerID string, capabilities []taskengine.WorkerCapability) context.CancelFunc {
+	heartbeatCtx, cancel := context.WithCancel(parentCtx)
+	if app == nil || app.workerRegistry == nil || strings.TrimSpace(workerID) == "" || len(capabilities) == 0 {
+		return cancel
+	}
+	interval := app.config.WorkerHeartbeatInterval
+	if interval <= 0 {
+		interval = 15 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-ticker.C:
+				err := app.workerRegistry.Upsert(heartbeatCtx, taskengine.WorkerCapabilityAdvertisement{WorkerID: workerID, Capabilities: capabilities})
+				if err != nil && entry != nil {
+					entry.WithError(err).WithFields(map[string]any{"runtime": "worker", "worker_id": workerID}).Warn("worker heartbeat upsert failed")
+				}
+			}
+		}
+	}()
+	return cancel
 }
 
 func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, registrations []workerJobRegistration) error {
