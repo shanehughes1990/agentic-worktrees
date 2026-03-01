@@ -438,3 +438,29 @@ func (adapter *GitHubAdapter) doJSON(ctx context.Context, method, endpoint strin
 	}
 	return nil
 }
+
+func (adapter *GitHubAdapter) MergePullRequest(ctx context.Context, spec domainscm.MergePullRequestSpec) (domainscm.PullRequestState, error) {
+	if err := spec.Validate(); err != nil {
+		return domainscm.PullRequestState{}, err
+	}
+	requestPayload := map[string]any{"merge_method": string(spec.Method.Canonical())}
+	if strings.TrimSpace(spec.CommitTitle) != "" {
+		requestPayload["commit_title"] = strings.TrimSpace(spec.CommitTitle)
+	}
+	if strings.TrimSpace(spec.CommitMessage) != "" {
+		requestPayload["commit_message"] = strings.TrimSpace(spec.CommitMessage)
+	}
+	if err := adapter.doJSON(ctx, http.MethodPut, adapter.repoPathURL(spec.Repository, path.Join("pulls", strconv.Itoa(spec.PullRequestNumber), "merge")), requestPayload, nil); err != nil {
+		return domainscm.PullRequestState{}, err
+	}
+	state, err := adapter.GetPullRequest(ctx, spec.Repository, spec.PullRequestNumber)
+	if err != nil {
+		return domainscm.PullRequestState{}, err
+	}
+	state.Merged = true
+	state.State = "closed"
+	if err := state.Validate(); err != nil {
+		return domainscm.PullRequestState{}, err
+	}
+	return state, nil
+}

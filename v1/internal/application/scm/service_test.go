@@ -243,3 +243,7 @@ func TestCheckMergeReadinessReturnsMergeableResult(t *testing.T) {
 		t.Fatalf("expected mergeable result")
 	}
 }
+
+func (fake *fakeOrchestrator) MergePullRequest(_ context.Context, _ domainscm.MergePullRequestSpec) (domainscm.PullRequestState, error) {
+	return fake.pullRequestState, fake.createPullRequestErr
+}

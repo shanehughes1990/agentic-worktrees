@@ -64,11 +64,17 @@ func DefaultRules() []domainsupervisor.Rule {
 			}
 			return domainsupervisor.Decision{ToState: domainsupervisor.StateMergeReady, Action: domainsupervisor.ActionContinue, Reason: domainsupervisor.ReasonPRChecksPassed, AttentionZone: domainsupervisor.AttentionZoneSCM}, true
 		}},
-		rule{name: "issue-opened-kickoff", priority: 110, evaluate: func(state domainsupervisor.State, signal domainsupervisor.Signal) (domainsupervisor.Decision, bool) {
-			if signal.Type != domainsupervisor.SignalIssueOpened {
+		rule{name: "issue-approved-kickoff", priority: 111, evaluate: func(state domainsupervisor.State, signal domainsupervisor.Signal) (domainsupervisor.Decision, bool) {
+			if signal.Type != domainsupervisor.SignalIssueApproved {
 				return domainsupervisor.Decision{}, false
 			}
 			return domainsupervisor.Decision{ToState: domainsupervisor.StateExecuting, Action: domainsupervisor.ActionStartTask, Reason: domainsupervisor.ReasonIssueTaskKickoff, AttentionZone: domainsupervisor.AttentionZoneTracker}, true
+		}},
+		rule{name: "issue-opened-awaiting-approval", priority: 110, evaluate: func(state domainsupervisor.State, signal domainsupervisor.Signal) (domainsupervisor.Decision, bool) {
+			if signal.Type != domainsupervisor.SignalIssueOpened {
+				return domainsupervisor.Decision{}, false
+			}
+			return domainsupervisor.Decision{ToState: domainsupervisor.StateBlocked, Action: domainsupervisor.ActionBlock, Reason: domainsupervisor.ReasonIssueAwaitingApproval, AttentionZone: domainsupervisor.AttentionZoneTracker}, true
 		}},
 		rule{name: "tracker-attention-needed", priority: 100, evaluate: func(state domainsupervisor.State, signal domainsupervisor.Signal) (domainsupervisor.Decision, bool) {
 			if signal.Type != domainsupervisor.SignalTrackerAttentionNeeded {

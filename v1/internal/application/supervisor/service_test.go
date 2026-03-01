@@ -55,6 +55,37 @@ func TestServiceOnAdmission(t *testing.T) {
 	}
 }
 
+func TestServiceIssueRequiresApprovalBeforeKickoff(t *testing.T) {
+	store := &memoryEventStore{}
+	service, err := NewService(store, nil)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	correlation := taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}
+
+	openedDecision, err := service.OnIssueOpened(context.Background(), correlation, "octo/repo", "octo/repo#1")
+	if err != nil {
+		t.Fatalf("OnIssueOpened() error = %v", err)
+	}
+	if openedDecision.Action != domainsupervisor.ActionBlock {
+		t.Fatalf("expected action %q got %q", domainsupervisor.ActionBlock, openedDecision.Action)
+	}
+	if openedDecision.Reason != domainsupervisor.ReasonIssueAwaitingApproval {
+		t.Fatalf("expected reason %q got %q", domainsupervisor.ReasonIssueAwaitingApproval, openedDecision.Reason)
+	}
+
+	approvedDecision, err := service.OnIssueApproved(context.Background(), correlation, "octo/repo", "octo/repo#1", "human-1")
+	if err != nil {
+		t.Fatalf("OnIssueApproved() error = %v", err)
+	}
+	if approvedDecision.Action != domainsupervisor.ActionStartTask {
+		t.Fatalf("expected action %q got %q", domainsupervisor.ActionStartTask, approvedDecision.Action)
+	}
+	if approvedDecision.Reason != domainsupervisor.ReasonIssueTaskKickoff {
+		t.Fatalf("expected reason %q got %q", domainsupervisor.ReasonIssueTaskKickoff, approvedDecision.Reason)
+	}
+}
+
 func TestServiceExecutionFailureEscalatesOnMaxRetries(t *testing.T) {
 	store := &memoryEventStore{}
 	service, err := NewService(store, nil)

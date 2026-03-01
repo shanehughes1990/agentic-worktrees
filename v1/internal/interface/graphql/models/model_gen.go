@@ -15,6 +15,7 @@ type EnqueueSCMWorkflowInput struct {
 	BaseBranch        *string `json:"baseBranch,omitempty"`
 	TargetBranch      *string `json:"targetBranch,omitempty"`
 	PullRequestNumber *int32  `json:"pullRequestNumber,omitempty"`
+	MergeMethod       *string `json:"mergeMethod,omitempty"`
 	PullRequestTitle  *string `json:"pullRequestTitle,omitempty"`
 	PullRequestBody   *string `json:"pullRequestBody,omitempty"`
 	ReviewDecision    *string `json:"reviewDecision,omitempty"`

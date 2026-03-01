@@ -25,6 +25,7 @@ type SCMWorkflowPayload struct {
 	TargetBranch          string                 `json:"target_branch,omitempty"`
 	SyncStrategy          string                 `json:"sync_strategy,omitempty"`
 	PullRequestID         int                    `json:"pull_request_number,omitempty"`
+	MergeMethod           string                 `json:"merge_method,omitempty"`
 	PullRequestTitle      string                 `json:"pull_request_title,omitempty"`
 	PullRequestBody       string                 `json:"pull_request_body,omitempty"`
 	ReviewDecision        string                 `json:"review_decision,omitempty"`
@@ -46,6 +47,7 @@ type scmService interface {
 	GetPullRequest(ctx context.Context, request applicationscm.GetPullRequestRequest) (domainscm.PullRequestState, error)
 	SubmitReview(ctx context.Context, request applicationscm.SubmitReviewRequest) (domainscm.ReviewDecision, error)
 	CheckMergeReadiness(ctx context.Context, request applicationscm.CheckMergeReadinessRequest) (domainscm.MergeReadiness, error)
+	MergePullRequest(ctx context.Context, request applicationscm.MergePullRequestRequest) (domainscm.PullRequestState, error)
 }
 
 type SCMWorkflowHandler struct {
@@ -133,7 +135,16 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	case "submit_review":
 		_, executionErr = handler.service.SubmitReview(ctx, applicationscm.SubmitReviewRequest{Spec: domainscm.ReviewSpec{Repository: repository, PullRequestNumber: payload.PullRequestID, Decision: domainscm.ReviewDecision(payload.ReviewDecision), Body: payload.ReviewBody}, Metadata: metadata})
 	case "check_merge_readiness":
-		_, executionErr = handler.service.CheckMergeReadiness(ctx, applicationscm.CheckMergeReadinessRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
+		readiness, readinessErr := handler.service.CheckMergeReadiness(ctx, applicationscm.CheckMergeReadinessRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
+		executionErr = readinessErr
+		if readinessErr == nil {
+			handler.safeSupervisorPRChecksEvaluated(ctx, metadata.CorrelationIDs, repository, payload.PullRequestID, readiness)
+			if readiness.CanMerge {
+				handler.safeSupervisorPRMergeRequested(ctx, metadata.CorrelationIDs, repository, payload.PullRequestID, payload.MergeMethod)
+			}
+		}
+	case "merge_pull_request":
+		_, executionErr = handler.service.MergePullRequest(ctx, applicationscm.MergePullRequestRequest{Spec: domainscm.MergePullRequestSpec{Repository: repository, PullRequestNumber: payload.PullRequestID, Method: domainscm.MergeMethod(payload.MergeMethod)}, Metadata: metadata})
 	default:
 		return fmt.Errorf("unsupported scm operation %q", payload.Operation)
 	}
@@ -193,4 +204,18 @@ func (handler *SCMWorkflowHandler) safeSupervisorCheckpoint(ctx context.Context,
 		return
 	}
 	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, correlation, kind, idempotencyKey, step)
+}
+
+func (handler *SCMWorkflowHandler) safeSupervisorPRChecksEvaluated(ctx context.Context, correlation taskengine.CorrelationIDs, repository domainscm.Repository, pullRequestNumber int, readiness domainscm.MergeReadiness) {
+	if handler == nil || handler.supervisorService == nil {
+		return
+	}
+	_, _ = handler.supervisorService.OnPRChecksEvaluated(ctx, correlation, repository.Provider, repository.Owner, repository.Name, pullRequestNumber, readiness.CanMerge, readiness.Reason)
+}
+
+func (handler *SCMWorkflowHandler) safeSupervisorPRMergeRequested(ctx context.Context, correlation taskengine.CorrelationIDs, repository domainscm.Repository, pullRequestNumber int, mergeMethod string) {
+	if handler == nil || handler.supervisorService == nil {
+		return
+	}
+	_, _ = handler.supervisorService.OnPRMergeRequested(ctx, correlation, repository.Provider, repository.Owner, repository.Name, pullRequestNumber, mergeMethod)
 }

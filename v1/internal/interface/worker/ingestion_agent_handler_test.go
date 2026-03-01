@@ -71,6 +71,15 @@ func (service *fakeSupervisorSignalService) OnIssueOpened(ctx context.Context, c
 	return domainsupervisor.Decision{}, nil
 }
 
+func (service *fakeSupervisorSignalService) OnIssueApproved(ctx context.Context, correlation taskengine.CorrelationIDs, source string, issueReference string, approvedBy string) (domainsupervisor.Decision, error) {
+	_ = ctx
+	_ = correlation
+	_ = source
+	_ = issueReference
+	_ = approvedBy
+	return domainsupervisor.Decision{}, nil
+}
+
 func TestIngestionAgentHandlerDispatchesTrackerSync(t *testing.T) {
 	service := &fakeTrackerService{}
 	handler, err := NewIngestionAgentHandler(service)
@@ -177,4 +186,27 @@ func TestIngestionAgentHandlerEmitsIssueOpenedPerGitHubIssueTask(t *testing.T) {
 	if supervisorService.issueOpenedCalls[0].issueReference != "octo/repo#1" {
 		t.Fatalf("expected first issue reference octo/repo#1, got %q", supervisorService.issueOpenedCalls[0].issueReference)
 	}
+}
+
+func (service *fakeSupervisorSignalService) OnPRChecksEvaluated(ctx context.Context, correlation taskengine.CorrelationIDs, provider string, owner string, repository string, pullRequestNumber int, canMerge bool, reason string) (domainsupervisor.Decision, error) {
+	_ = ctx
+	_ = correlation
+	_ = provider
+	_ = owner
+	_ = repository
+	_ = pullRequestNumber
+	_ = canMerge
+	_ = reason
+	return domainsupervisor.Decision{}, nil
+}
+
+func (service *fakeSupervisorSignalService) OnPRMergeRequested(ctx context.Context, correlation taskengine.CorrelationIDs, provider string, owner string, repository string, pullRequestNumber int, mergeMethod string) (domainsupervisor.Decision, error) {
+	_ = ctx
+	_ = correlation
+	_ = provider
+	_ = owner
+	_ = repository
+	_ = pullRequestNumber
+	_ = mergeMethod
+	return domainsupervisor.Decision{}, nil
 }

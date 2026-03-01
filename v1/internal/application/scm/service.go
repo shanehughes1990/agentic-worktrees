@@ -178,6 +178,18 @@ func (request CheckMergeReadinessRequest) Validate() error {
 	return request.Metadata.Validate()
 }
 
+type MergePullRequestRequest struct {
+	Spec     domainscm.MergePullRequestSpec
+	Metadata Metadata
+}
+
+func (request MergePullRequestRequest) Validate() error {
+	if err := request.Spec.Validate(); err != nil {
+		return err
+	}
+	return request.Metadata.Validate()
+}
+
 type ensureWorktreeExecutor interface {
 	Ensure(ctx context.Context, request EnsureWorktreeRequest) (domainscm.WorktreeState, error)
 }
@@ -336,6 +348,20 @@ func (service *Service) CheckMergeReadiness(ctx context.Context, request CheckMe
 		return domainscm.MergeReadiness{}, err
 	}
 	return result, nil
+}
+
+func (service *Service) MergePullRequest(ctx context.Context, request MergePullRequestRequest) (domainscm.PullRequestState, error) {
+	if err := request.Validate(); err != nil {
+		return domainscm.PullRequestState{}, err
+	}
+	state, err := service.orchestrator.MergePullRequest(ctx, request.Spec)
+	if err != nil {
+		return domainscm.PullRequestState{}, ensureClassified(err)
+	}
+	if err := state.Validate(); err != nil {
+		return domainscm.PullRequestState{}, err
+	}
+	return state, nil
 }
 
 func ensureClassified(err error) error {

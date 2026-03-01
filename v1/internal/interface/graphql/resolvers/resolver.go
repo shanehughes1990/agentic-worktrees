@@ -1,6 +1,9 @@
 package resolvers
 
-import "agentic-orchestrator/internal/application/taskengine"
+import (
+	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
+	"agentic-orchestrator/internal/application/taskengine"
+)
 
 // This file will not be regenerated automatically.
 //
@@ -8,9 +11,10 @@ import "agentic-orchestrator/internal/application/taskengine"
 // here.
 
 type Resolver struct {
-	TaskScheduler *taskengine.Scheduler
+	TaskScheduler     *taskengine.Scheduler
+	SupervisorService *applicationsupervisor.Service
 }
 
-func NewResolver(taskScheduler *taskengine.Scheduler) *Resolver {
-	return &Resolver{TaskScheduler: taskScheduler}
+func NewResolver(taskScheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service) *Resolver {
+	return &Resolver{TaskScheduler: taskScheduler, SupervisorService: supervisorService}
 }

@@ -29,5 +29,6 @@ func (r *queryResolver) ScmSupportedOperations(ctx context.Context) ([]string, e
 		"get_pull_request",
 		"submit_review",
 		"check_merge_readiness",
+		"merge_pull_request",
 	}, nil
 }

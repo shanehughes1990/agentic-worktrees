@@ -274,3 +274,8 @@ func TestSCMWorkflowHandlerIgnoresExecutionJournalWriteErrors(t *testing.T) {
 		t.Fatalf("expected source_state to execute despite journal errors, got %q", service.called)
 	}
 }
+
+func (fake *fakeSCMService) MergePullRequest(ctx context.Context, request applicationscm.MergePullRequestRequest) (domainscm.PullRequestState, error) {
+	fake.called = "merge_pull_request"
+	return domainscm.PullRequestState{Number: request.Spec.PullRequestNumber, URL: "https://example/pull/1", State: "closed", Merged: true, HeadSHA: "abc"}, fake.err
+}

@@ -274,6 +274,45 @@ func (readiness MergeReadiness) Validate() error {
 	return nil
 }
 
+type MergeMethod string
+
+const (
+	MergeMethodMerge  MergeMethod = "merge"
+	MergeMethodSquash MergeMethod = "squash"
+	MergeMethodRebase MergeMethod = "rebase"
+)
+
+func (method MergeMethod) Canonical() MergeMethod {
+	normalized := strings.ToLower(strings.TrimSpace(string(method)))
+	if normalized == "" {
+		return MergeMethodSquash
+	}
+	return MergeMethod(normalized)
+}
+
+type MergePullRequestSpec struct {
+	Repository        Repository
+	PullRequestNumber int
+	Method            MergeMethod
+	CommitTitle       string
+	CommitMessage     string
+}
+
+func (spec MergePullRequestSpec) Validate() error {
+	if err := spec.Repository.Validate(); err != nil {
+		return err
+	}
+	if spec.PullRequestNumber <= 0 {
+		return failures.WrapTerminal(errors.New("pull_request_number is required"))
+	}
+	switch spec.Method.Canonical() {
+	case MergeMethodMerge, MergeMethodSquash, MergeMethodRebase:
+	default:
+		return failures.WrapTerminal(fmt.Errorf("unsupported merge method %q", spec.Method))
+	}
+	return nil
+}
+
 type Orchestrator interface {
 	SourceState(ctx context.Context, repository Repository) (SourceState, error)
 	EnsureWorktree(ctx context.Context, repository Repository, spec WorktreeSpec) (WorktreeState, error)
@@ -285,4 +324,5 @@ type Orchestrator interface {
 	GetPullRequest(ctx context.Context, repository Repository, pullRequestNumber int) (PullRequestState, error)
 	SubmitReview(ctx context.Context, spec ReviewSpec) (ReviewDecision, error)
 	CheckMergeReadiness(ctx context.Context, repository Repository, pullRequestNumber int) (MergeReadiness, error)
+	MergePullRequest(ctx context.Context, spec MergePullRequestSpec) (PullRequestState, error)
 }

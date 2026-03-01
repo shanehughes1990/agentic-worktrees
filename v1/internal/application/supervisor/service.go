@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -17,9 +18,14 @@ type EventStore interface {
 	ListByCorrelation(ctx context.Context, correlation domainsupervisor.CorrelationIDs) ([]domainsupervisor.Decision, error)
 }
 
+type DecisionDispatcher interface {
+	Dispatch(ctx context.Context, decision domainsupervisor.Decision) error
+}
+
 type Service struct {
 	eventStore EventStore
 	rules      []domainsupervisor.Rule
+	dispatcher DecisionDispatcher
 }
 
 func NewService(eventStore EventStore, rules []domainsupervisor.Rule) (*Service, error) {
@@ -30,6 +36,13 @@ func NewService(eventStore EventStore, rules []domainsupervisor.Rule) (*Service,
 		rules = DefaultRules()
 	}
 	return &Service{eventStore: eventStore, rules: rules}, nil
+}
+
+func (service *Service) SetDispatcher(dispatcher DecisionDispatcher) {
+	if service == nil {
+		return
+	}
+	service.dispatcher = dispatcher
 }
 
 func (service *Service) EvaluateSignal(ctx context.Context, signal domainsupervisor.Signal) (domainsupervisor.Decision, error) {
@@ -50,6 +63,11 @@ func (service *Service) EvaluateSignal(ctx context.Context, signal domainsupervi
 	}
 	if err := service.eventStore.Append(ctx, decision); err != nil {
 		return domainsupervisor.Decision{}, fmt.Errorf("append supervisor decision: %w", err)
+	}
+	if service.dispatcher != nil {
+		if err := service.dispatcher.Dispatch(ctx, decision); err != nil {
+			return domainsupervisor.Decision{}, fmt.Errorf("dispatch supervisor decision: %w", err)
+		}
 	}
 	return decision, nil
 }
@@ -148,6 +166,59 @@ func (service *Service) OnIssueOpened(ctx context.Context, correlation taskengin
 		Metadata: map[string]string{
 			"source":          strings.TrimSpace(source),
 			"issue_reference": strings.TrimSpace(issueReference),
+		},
+	}
+	return service.EvaluateSignal(ctx, signal)
+}
+
+func (service *Service) OnIssueApproved(ctx context.Context, correlation taskengine.CorrelationIDs, source string, issueReference string, approvedBy string) (domainsupervisor.Decision, error) {
+	signal := domainsupervisor.Signal{
+		Type:           domainsupervisor.SignalIssueApproved,
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		AttentionZone:  domainsupervisor.AttentionZoneTracker,
+		OccurredAt:     time.Now().UTC(),
+		Metadata: map[string]string{
+			"source":          strings.TrimSpace(source),
+			"issue_reference": strings.TrimSpace(issueReference),
+			"approved_by":     strings.TrimSpace(approvedBy),
+		},
+	}
+	return service.EvaluateSignal(ctx, signal)
+}
+
+func (service *Service) OnPRChecksEvaluated(ctx context.Context, correlation taskengine.CorrelationIDs, provider string, owner string, repository string, pullRequestNumber int, canMerge bool, reason string) (domainsupervisor.Decision, error) {
+	signalType := domainsupervisor.SignalPRChecksPassed
+	if !canMerge {
+		signalType = domainsupervisor.SignalPRChecksFailed
+	}
+	signal := domainsupervisor.Signal{
+		Type:           signalType,
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		AttentionZone:  domainsupervisor.AttentionZoneSCM,
+		OccurredAt:     time.Now().UTC(),
+		Metadata: map[string]string{
+			"provider":            strings.TrimSpace(provider),
+			"owner":               strings.TrimSpace(owner),
+			"repository":          strings.TrimSpace(repository),
+			"pull_request_number": strconv.Itoa(pullRequestNumber),
+			"reason":              strings.TrimSpace(reason),
+		},
+	}
+	return service.EvaluateSignal(ctx, signal)
+}
+
+func (service *Service) OnPRMergeRequested(ctx context.Context, correlation taskengine.CorrelationIDs, provider string, owner string, repository string, pullRequestNumber int, mergeMethod string) (domainsupervisor.Decision, error) {
+	signal := domainsupervisor.Signal{
+		Type:           domainsupervisor.SignalPRMergeRequested,
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		AttentionZone:  domainsupervisor.AttentionZoneSCM,
+		OccurredAt:     time.Now().UTC(),
+		Metadata: map[string]string{
+			"provider":            strings.TrimSpace(provider),
+			"owner":               strings.TrimSpace(owner),
+			"repository":          strings.TrimSpace(repository),
+			"pull_request_number": strconv.Itoa(pullRequestNumber),
+			"merge_method":        strings.TrimSpace(mergeMethod),
 		},
 	}
 	return service.EvaluateSignal(ctx, signal)

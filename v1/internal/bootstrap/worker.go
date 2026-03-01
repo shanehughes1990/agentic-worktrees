@@ -12,6 +12,7 @@ import (
 	"agentic-orchestrator/internal/infrastructure/observability"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
+	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	infratracker "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
@@ -101,6 +102,11 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init supervisor service: %w", err)
 	}
+	supervisorDispatcher, err := infrasupervisortaskengine.NewDispatcher(taskScheduler)
+	if err != nil {
+		return nil, fmt.Errorf("init supervisor task dispatcher: %w", err)
+	}
+	supervisorService.SetDispatcher(supervisorDispatcher)
 	taskScheduler.SetAdmissionSignalSink(supervisorService)
 
 	repoLeaseManager, err := infrascm.NewPostgresRepoLeaseManager(databaseClient.DB())

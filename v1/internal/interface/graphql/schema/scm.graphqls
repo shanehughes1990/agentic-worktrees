@@ -16,6 +16,7 @@ input EnqueueSCMWorkflowInput {
   baseBranch: String
   targetBranch: String
   pullRequestNumber: Int
+  mergeMethod: String
   pullRequestTitle: String
   pullRequestBody: String
   reviewDecision: String

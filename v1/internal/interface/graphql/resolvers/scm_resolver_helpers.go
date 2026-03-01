@@ -21,6 +21,7 @@ type scmWorkflowPayload struct {
 	BaseBranch       string `json:"base_branch,omitempty"`
 	TargetBranch     string `json:"target_branch,omitempty"`
 	PullRequestID    int    `json:"pull_request_number,omitempty"`
+	MergeMethod      string `json:"merge_method,omitempty"`
 	PullRequestTitle string `json:"pull_request_title,omitempty"`
 	PullRequestBody  string `json:"pull_request_body,omitempty"`
 	ReviewDecision   string `json:"review_decision,omitempty"`
@@ -52,6 +53,9 @@ func enqueueSCMWorkflow(ctx context.Context, resolver *Resolver, input models.En
 	}
 	if input.PullRequestNumber != nil {
 		payload.PullRequestID = int(*input.PullRequestNumber)
+	}
+	if input.MergeMethod != nil {
+		payload.MergeMethod = *input.MergeMethod
 	}
 	if input.PullRequestTitle != nil {
 		payload.PullRequestTitle = *input.PullRequestTitle

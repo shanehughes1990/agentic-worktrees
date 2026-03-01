@@ -56,46 +56,48 @@ const (
 type ReasonCode string
 
 const (
-	ReasonJobAdmitted                ReasonCode = "job_admitted"
-	ReasonExecutionProgressed        ReasonCode = "execution_progressed"
-	ReasonExecutionSucceeded         ReasonCode = "execution_succeeded"
-	ReasonExecutionFailedRetry       ReasonCode = "execution_failed_retry"
-	ReasonExecutionFailedMaxed       ReasonCode = "execution_failed_max_retries"
-	ReasonExecutionFailedFatal       ReasonCode = "execution_failed_terminal"
-	ReasonTrackerAttention           ReasonCode = "tracker_attention_required"
-	ReasonTrackerAttentionClear      ReasonCode = "tracker_attention_cleared"
-	ReasonSCMAttention               ReasonCode = "scm_attention_required"
-	ReasonSCMAttentionClear          ReasonCode = "scm_attention_cleared"
-	ReasonPRConflictDetected         ReasonCode = "pr_conflict_detected"
-	ReasonPRReviewChangesRequested   ReasonCode = "pr_review_changes_requested"
-	ReasonPRChecksFailed             ReasonCode = "pr_checks_failed"
-	ReasonPRChecksPassed             ReasonCode = "pr_checks_passed"
-	ReasonPRMergeApproved            ReasonCode = "pr_merge_approved"
-	ReasonPRMergeRefused             ReasonCode = "pr_merge_refused"
-	ReasonIssueTaskKickoff           ReasonCode = "issue_task_kickoff"
-	ReasonManualOverride             ReasonCode = "manual_override"
-	ReasonPolicyDefault              ReasonCode = "policy_default_continue"
+	ReasonJobAdmitted              ReasonCode = "job_admitted"
+	ReasonExecutionProgressed      ReasonCode = "execution_progressed"
+	ReasonExecutionSucceeded       ReasonCode = "execution_succeeded"
+	ReasonExecutionFailedRetry     ReasonCode = "execution_failed_retry"
+	ReasonExecutionFailedMaxed     ReasonCode = "execution_failed_max_retries"
+	ReasonExecutionFailedFatal     ReasonCode = "execution_failed_terminal"
+	ReasonTrackerAttention         ReasonCode = "tracker_attention_required"
+	ReasonTrackerAttentionClear    ReasonCode = "tracker_attention_cleared"
+	ReasonSCMAttention             ReasonCode = "scm_attention_required"
+	ReasonSCMAttentionClear        ReasonCode = "scm_attention_cleared"
+	ReasonPRConflictDetected       ReasonCode = "pr_conflict_detected"
+	ReasonPRReviewChangesRequested ReasonCode = "pr_review_changes_requested"
+	ReasonPRChecksFailed           ReasonCode = "pr_checks_failed"
+	ReasonPRChecksPassed           ReasonCode = "pr_checks_passed"
+	ReasonPRMergeApproved          ReasonCode = "pr_merge_approved"
+	ReasonPRMergeRefused           ReasonCode = "pr_merge_refused"
+	ReasonIssueAwaitingApproval    ReasonCode = "issue_awaiting_approval"
+	ReasonIssueTaskKickoff         ReasonCode = "issue_task_kickoff"
+	ReasonManualOverride           ReasonCode = "manual_override"
+	ReasonPolicyDefault            ReasonCode = "policy_default_continue"
 )
 
 type SignalType string
 
 const (
-	SignalJobAdmitted               SignalType = "job_admitted"
-	SignalExecutionProgressed       SignalType = "execution_progressed"
-	SignalExecutionFailed           SignalType = "execution_failed"
-	SignalExecutionSucceeded        SignalType = "execution_succeeded"
-	SignalCheckpointSaved           SignalType = "checkpoint_saved"
-	SignalTrackerAttentionNeeded    SignalType = "tracker_attention_needed"
-	SignalTrackerAttentionCleared   SignalType = "tracker_attention_cleared"
-	SignalSCMAttentionNeeded        SignalType = "scm_attention_needed"
-	SignalSCMAttentionCleared       SignalType = "scm_attention_cleared"
-	SignalPRConflictDetected        SignalType = "pr_conflict_detected"
-	SignalPRReviewChangesRequested  SignalType = "pr_review_changes_requested"
-	SignalPRChecksFailed            SignalType = "pr_checks_failed"
-	SignalPRChecksPassed            SignalType = "pr_checks_passed"
-	SignalPRMergeRequested          SignalType = "pr_merge_requested"
-	SignalIssueOpened               SignalType = "issue_opened"
-	SignalManualOverride            SignalType = "manual_override"
+	SignalJobAdmitted              SignalType = "job_admitted"
+	SignalExecutionProgressed      SignalType = "execution_progressed"
+	SignalExecutionFailed          SignalType = "execution_failed"
+	SignalExecutionSucceeded       SignalType = "execution_succeeded"
+	SignalCheckpointSaved          SignalType = "checkpoint_saved"
+	SignalTrackerAttentionNeeded   SignalType = "tracker_attention_needed"
+	SignalTrackerAttentionCleared  SignalType = "tracker_attention_cleared"
+	SignalSCMAttentionNeeded       SignalType = "scm_attention_needed"
+	SignalSCMAttentionCleared      SignalType = "scm_attention_cleared"
+	SignalPRConflictDetected       SignalType = "pr_conflict_detected"
+	SignalPRReviewChangesRequested SignalType = "pr_review_changes_requested"
+	SignalPRChecksFailed           SignalType = "pr_checks_failed"
+	SignalPRChecksPassed           SignalType = "pr_checks_passed"
+	SignalPRMergeRequested         SignalType = "pr_merge_requested"
+	SignalIssueOpened              SignalType = "issue_opened"
+	SignalIssueApproved            SignalType = "issue_approved"
+	SignalManualOverride           SignalType = "manual_override"
 )
 
 type CorrelationIDs struct {
@@ -162,6 +164,7 @@ func (signal Signal) Validate() error {
 		SignalPRChecksPassed,
 		SignalPRMergeRequested,
 		SignalIssueOpened,
+		SignalIssueApproved,
 		SignalManualOverride,
 	}
 	if !slices.Contains(supportedTypes, signal.Type) {
