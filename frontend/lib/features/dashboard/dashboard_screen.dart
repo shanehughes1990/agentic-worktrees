@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:agentic_worktrees/shared/config/app_config.dart';
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+import 'package:agentic_worktrees/features/dashboard/widgets/dashboard_home_view.dart';
+import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
+import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
 import 'package:agentic_worktrees/shared/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -484,625 +487,79 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildDashboardBody(ControlPlaneApi api) {
-    return Column(
-      children: <Widget>[
-        if (_statusMessage != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                _statusMessage!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        Expanded(
-          child: Row(
-            children: <Widget>[
-              SizedBox(
-                width: 330,
-                child: Column(
-                  children: <Widget>[
-                    Card(
-                      margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const ListTile(
-                              dense: true,
-                              title: Text('Configured Projects'),
-                            ),
-                            if (_projectSetups.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-                                child: Text('No project setups configured.'),
-                              )
-                            else
-                              ..._projectSetups.map((ProjectSetupConfig setup) {
-                                final selected =
-                                    _projectController.text.trim() ==
-                                    setup.projectID;
-                                return ListTile(
-                                  dense: true,
-                                  selected: selected,
-                                  title: Text(setup.projectID),
-                                  subtitle: Text(
-                                    '${setup.projectName}\n${setup.repositoryURL}',
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      _applyProjectSetup(setup);
-                                      _statusMessage =
-                                          'Selected project ${setup.projectID}';
-                                    });
-                                  },
-                                );
-                              }),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Card(
-                        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                        child: FutureBuilder<ApiResult<List<SessionSummary>>>(
-                          future: api.sessions(limit: 50 + _refreshToken),
-                          builder:
-                              (
-                                BuildContext context,
-                                AsyncSnapshot<ApiResult<List<SessionSummary>>>
-                                snapshot,
-                              ) {
-                                if (!snapshot.hasData) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                }
-                                final value = snapshot.data!;
-                                if (!value.isSuccess || value.data == null) {
-                                  return Center(
-                                    child: Text(
-                                      value.errorMessage ??
-                                          'Failed loading sessions',
-                                    ),
-                                  );
-                                }
-                                final sessions = value.data!;
-                                if (sessions.isEmpty) {
-                                  return const Center(
-                                    child: Text('No sessions found.'),
-                                  );
-                                }
-                                return ListView.builder(
-                                  itemCount: sessions.length,
-                                  itemBuilder: (BuildContext context, int index) {
-                                    final item = sessions[index];
-                                    final selected =
-                                        _selectedSession?.runID == item.runID;
-                                    return ListTile(
-                                      selected: selected,
-                                      title: Text(item.runID),
-                                      subtitle: Text(
-                                        'tasks: ${item.taskCount} jobs: ${item.jobCount}\nupdated: ${item.updatedAt}',
-                                      ),
-                                      onTap: () => _selectSession(api, item),
-                                    );
-                                  },
-                                );
-                              },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: _selectedSession == null
-                    ? const Center(
-                        child: Text('Select a session to view details.'),
-                      )
-                    : _SessionDetailPanel(
-                        api: api,
-                        refreshToken: _refreshToken,
-                        session: _selectedSession!,
-                        selectedJob: _selectedJob,
-                        streamEvents: _streamEvents,
-                        sourceController: _sourceController,
-                        issueReferenceController: _issueReferenceController,
-                        approvedByController: _approvedByController,
-                        projectController: _projectController,
-                        workflowController: _workflowController,
-                        promptController: _promptController,
-                        scmOwnerController: _scmOwnerController,
-                        scmRepoController: _scmRepoController,
-                        isRunningAction: _isRunningAction,
-                        onJobSelected: (WorkflowJob job) {
-                          setState(() => _selectedJob = job);
-                        },
-                        onEnqueueIngestion: () => _runEnqueueIngestion(api),
-                        onApproveIssue: () => _runApproveIssue(api),
-                        onEnqueueScm: () => _runEnqueueScm(api),
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return DashboardHomeView(
+      api: api,
+      refreshToken: _refreshToken,
+      statusMessage: _statusMessage,
+      projectSetups: _projectSetups,
+      selectedProjectID: _projectController.text.trim(),
+      onProjectSelected: (ProjectSetupConfig setup) {
+        setState(() {
+          _applyProjectSetup(setup);
+          _statusMessage = 'Selected project ${setup.projectID}';
+        });
+      },
+      selectedSession: _selectedSession,
+      onSessionSelected: (SessionSummary session) =>
+          _selectSession(api, session),
+      selectedJob: _selectedJob,
+      streamEvents: _streamEvents,
+      sourceController: _sourceController,
+      issueReferenceController: _issueReferenceController,
+      approvedByController: _approvedByController,
+      projectController: _projectController,
+      workflowController: _workflowController,
+      promptController: _promptController,
+      scmOwnerController: _scmOwnerController,
+      scmRepoController: _scmRepoController,
+      isRunningAction: _isRunningAction,
+      onJobSelected: (WorkflowJob job) {
+        setState(() => _selectedJob = job);
+      },
+      onEnqueueIngestion: () => _runEnqueueIngestion(api),
+      onApproveIssue: () => _runApproveIssue(api),
+      onEnqueueScm: () => _runEnqueueScm(api),
     );
   }
 
   Widget _buildSettingsBody() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text(
-            'Connection Settings',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _endpointController,
-                  decoration: const InputDecoration(
-                    labelText: 'GraphQL HTTP Endpoint',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _isSavingEndpoint ? null : _saveEndpoint,
-                child: const Text('Save'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: _isRunningAction ? null : _testConnection,
-                child: const Text('Test'),
-              ),
-            ],
-          ),
-          if (_statusMessage != null) ...<Widget>[
-            const SizedBox(height: 12),
-            Text(_statusMessage!, maxLines: 2, overflow: TextOverflow.ellipsis),
-          ],
-        ],
-      ),
+    return SettingsScreen(
+      endpointController: _endpointController,
+      isSavingEndpoint: _isSavingEndpoint,
+      isRunningAction: _isRunningAction,
+      onSaveEndpoint: _saveEndpoint,
+      onTestConnection: _testConnection,
+      statusMessage: _statusMessage,
     );
   }
 
   Widget _buildProjectSetupBody() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text(
-            'Project Setup',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _projectController,
-            decoration: const InputDecoration(
-              labelText: 'Project ID',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _projectNameController,
-            decoration: const InputDecoration(
-              labelText: 'Project Name',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _setupScmProvider,
-            decoration: const InputDecoration(
-              labelText: 'SCM Provider',
-              border: OutlineInputBorder(),
-            ),
-            items: const <DropdownMenuItem<String>>[
-              DropdownMenuItem<String>(value: 'GITHUB', child: Text('GitHub')),
-            ],
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              setState(() => _setupScmProvider = value);
-            },
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _repositoryUrlController,
-            decoration: const InputDecoration(
-              labelText: 'Repository URL',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _setupTrackerProvider,
-            decoration: const InputDecoration(
-              labelText: 'Tracker Provider',
-              border: OutlineInputBorder(),
-            ),
-            items: const <DropdownMenuItem<String>>[
-              DropdownMenuItem<String>(
-                value: 'GITHUB_ISSUES',
-                child: Text('GitHub Issues'),
-              ),
-              DropdownMenuItem<String>(value: 'JIRA', child: Text('Jira')),
-              DropdownMenuItem<String>(
-                value: 'LOCAL_JSON',
-                child: Text('Local JSON'),
-              ),
-              DropdownMenuItem<String>(value: 'LINEAR', child: Text('Linear')),
-            ],
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              setState(() => _setupTrackerProvider = value);
-            },
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _trackerLocationController,
-            decoration: const InputDecoration(
-              labelText: 'Tracker Location',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _trackerBoardIDController,
-            decoration: const InputDecoration(
-              labelText: 'Tracker Board ID (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              FilledButton(
-                onPressed: _isSavingProjectSetup ? null : _saveProjectSetup,
-                child: const Text('Save Project Setup'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: _loadProjectSetups,
-                child: const Text('Reload'),
-              ),
-            ],
-          ),
-          if (_projectSetups.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            const Text(
-              'Configured Projects',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            ..._projectSetups.map((ProjectSetupConfig setup) {
-              return Card(
-                child: ListTile(
-                  dense: true,
-                  selected: _projectController.text.trim() == setup.projectID,
-                  title: Text(setup.projectID),
-                  subtitle: Text(
-                    '${setup.projectName}\n${setup.repositoryURL}',
-                  ),
-                  onTap: () {
-                    setState(() {
-                      _applyProjectSetup(setup);
-                      _statusMessage =
-                          'Loaded project setup ${setup.projectID}';
-                    });
-                  },
-                ),
-              );
-            }),
-          ],
-          if (_statusMessage != null) ...<Widget>[
-            const SizedBox(height: 12),
-            Text(_statusMessage!, maxLines: 2, overflow: TextOverflow.ellipsis),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SessionDetailPanel extends StatelessWidget {
-  const _SessionDetailPanel({
-    required this.api,
-    required this.refreshToken,
-    required this.session,
-    required this.selectedJob,
-    required this.streamEvents,
-    required this.sourceController,
-    required this.issueReferenceController,
-    required this.approvedByController,
-    required this.projectController,
-    required this.workflowController,
-    required this.promptController,
-    required this.scmOwnerController,
-    required this.scmRepoController,
-    required this.isRunningAction,
-    required this.onJobSelected,
-    required this.onEnqueueIngestion,
-    required this.onApproveIssue,
-    required this.onEnqueueScm,
-  });
-
-  final ControlPlaneApi api;
-  final int refreshToken;
-  final SessionSummary session;
-  final WorkflowJob? selectedJob;
-  final List<StreamEvent> streamEvents;
-  final TextEditingController sourceController;
-  final TextEditingController issueReferenceController;
-  final TextEditingController approvedByController;
-  final TextEditingController projectController;
-  final TextEditingController workflowController;
-  final TextEditingController promptController;
-  final TextEditingController scmOwnerController;
-  final TextEditingController scmRepoController;
-  final bool isRunningAction;
-  final ValueChanged<WorkflowJob> onJobSelected;
-  final VoidCallback onEnqueueIngestion;
-  final VoidCallback onApproveIssue;
-  final VoidCallback onEnqueueScm;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Session ${session.runID}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          FutureBuilder<ApiResult<List<WorkerSummary>>>(
-            future: api.workers(limit: 50 + refreshToken),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<ApiResult<List<WorkerSummary>>> snapshot,
-                ) {
-                  if (!snapshot.hasData) {
-                    return const LinearProgressIndicator();
-                  }
-                  final value = snapshot.data!;
-                  if (!value.isSuccess || value.data == null) {
-                    return Text('Workers error: ${value.errorMessage}');
-                  }
-                  final workers = value.data!;
-                  return Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: workers
-                        .map(
-                          (WorkerSummary worker) => Chip(
-                            label: Text(
-                              '${worker.workerID} (${worker.capabilities.join(', ')})',
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  );
-                },
-          ),
-          const SizedBox(height: 12),
-          FutureBuilder<ApiResult<List<WorkflowJob>>>(
-            future: api.workflowJobs(
-              runID: session.runID,
-              limit: 100 + refreshToken,
-            ),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<ApiResult<List<WorkflowJob>>> snapshot,
-                ) {
-                  if (!snapshot.hasData) {
-                    return const LinearProgressIndicator();
-                  }
-                  final value = snapshot.data!;
-                  if (!value.isSuccess || value.data == null) {
-                    return Text('Workflow jobs error: ${value.errorMessage}');
-                  }
-                  final jobs = value.data!;
-                  if (jobs.isEmpty) {
-                    return const Text(
-                      'No workflow jobs found for this session.',
-                    );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: jobs
-                        .map(
-                          (WorkflowJob job) => Card(
-                            child: ListTile(
-                              selected: selectedJob?.jobID == job.jobID,
-                              title: Text(
-                                '${job.taskID}/${job.jobID} • ${job.jobKind}',
-                              ),
-                              subtitle: Text('${job.status} • ${job.queue}'),
-                              trailing: Text(job.updatedAt.toString()),
-                              onTap: () => onJobSelected(job),
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  );
-                },
-          ),
-          const SizedBox(height: 12),
-          if (selectedJob != null)
-            FutureBuilder<ApiResult<List<SupervisorDecision>>>(
-              future: api.supervisorHistory(
-                runID: session.runID,
-                taskID: selectedJob!.taskID,
-                jobID: selectedJob!.jobID,
-              ),
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<ApiResult<List<SupervisorDecision>>> snapshot,
-                  ) {
-                    if (!snapshot.hasData) {
-                      return const LinearProgressIndicator();
-                    }
-                    final value = snapshot.data!;
-                    if (!value.isSuccess || value.data == null) {
-                      return Text(
-                        'Supervisor history error: ${value.errorMessage}',
-                      );
-                    }
-                    final history = value.data!;
-                    return ExpansionTile(
-                      title: Text('Supervisor History (${history.length})'),
-                      children: history
-                          .map(
-                            (SupervisorDecision decision) => ListTile(
-                              dense: true,
-                              title: Text(
-                                '${decision.signalType} → ${decision.action}',
-                              ),
-                              subtitle: Text(
-                                '${decision.reason} • ${decision.occurredAt}',
-                              ),
-                            ),
-                          )
-                          .toList(growable: false),
-                    );
-                  },
-            ),
-          const SizedBox(height: 12),
-          ExpansionTile(
-            initiallyExpanded: true,
-            title: Text('Realtime Session Events (${streamEvents.length})'),
-            children: streamEvents
-                .map(
-                  (StreamEvent event) => ListTile(
-                    dense: true,
-                    title: Text('${event.eventType} • ${event.source}'),
-                    subtitle: Text(
-                      '${event.occurredAt}\n${prettyJson(event.payload)}',
-                    ),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Control Actions',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              SizedBox(
-                width: 260,
-                child: TextField(
-                  controller: sourceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Source (owner/repo)',
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 260,
-                child: TextField(
-                  controller: issueReferenceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Issue reference',
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: TextField(
-                  controller: approvedByController,
-                  decoration: const InputDecoration(labelText: 'Approved by'),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: TextField(
-                  controller: projectController,
-                  decoration: const InputDecoration(labelText: 'Project ID'),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: TextField(
-                  controller: workflowController,
-                  decoration: const InputDecoration(labelText: 'Workflow ID'),
-                ),
-              ),
-              SizedBox(
-                width: 420,
-                child: TextField(
-                  controller: promptController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ingestion prompt',
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: TextField(
-                  controller: scmOwnerController,
-                  decoration: const InputDecoration(labelText: 'SCM owner'),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: TextField(
-                  controller: scmRepoController,
-                  decoration: const InputDecoration(
-                    labelText: 'SCM repository',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              FilledButton(
-                onPressed: isRunningAction ? null : onEnqueueIngestion,
-                child: const Text('Enqueue Ingestion'),
-              ),
-              FilledButton(
-                onPressed: isRunningAction ? null : onApproveIssue,
-                child: const Text('Approve Issue Intake'),
-              ),
-              FilledButton(
-                onPressed: isRunningAction ? null : onEnqueueScm,
-                child: const Text('Enqueue SCM Source State'),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return ProjectSetupScreen(
+      projectController: _projectController,
+      projectNameController: _projectNameController,
+      repositoryUrlController: _repositoryUrlController,
+      trackerLocationController: _trackerLocationController,
+      trackerBoardIDController: _trackerBoardIDController,
+      setupScmProvider: _setupScmProvider,
+      setupTrackerProvider: _setupTrackerProvider,
+      onSetupScmProviderChanged: (String value) {
+        setState(() => _setupScmProvider = value);
+      },
+      onSetupTrackerProviderChanged: (String value) {
+        setState(() => _setupTrackerProvider = value);
+      },
+      isSavingProjectSetup: _isSavingProjectSetup,
+      onSaveProjectSetup: _saveProjectSetup,
+      onReloadProjectSetups: _loadProjectSetups,
+      projectSetups: _projectSetups,
+      selectedProjectID: _projectController.text.trim(),
+      onProjectSelected: (ProjectSetupConfig setup) {
+        setState(() {
+          _applyProjectSetup(setup);
+          _statusMessage = 'Loaded project setup ${setup.projectID}';
+        });
+      },
+      statusMessage: _statusMessage,
     );
   }
 }
