@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:agentic_worktrees/features/dashboard/logic/dashboard_workflow_logic.dart';
+import 'package:agentic_worktrees/features/dashboard/widgets/dashboard_home_view.dart';
+import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
+import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
+import 'package:agentic_worktrees/features/settings/logic/connection_settings_logic.dart';
+import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
 import 'package:agentic_worktrees/shared/config/app_config.dart';
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
-import 'package:agentic_worktrees/features/dashboard/widgets/dashboard_home_view.dart';
-import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
-import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
 import 'package:agentic_worktrees/shared/logging/app_logger.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum _DashboardView { dashboard, projectSetup, settings }
 
@@ -67,8 +70,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _isRunningAction = false;
   int _refreshToken = 0;
   _DashboardView _activeView = _DashboardView.dashboard;
-  String _setupScmProvider = 'GITHUB';
-  String _setupTrackerProvider = 'GITHUB_ISSUES';
+  String _setupScmProvider = ProjectSetupLogic.defaultScmProvider;
+  String _setupTrackerProvider = ProjectSetupLogic.defaultTrackerProvider;
   List<ProjectSetupConfig> _projectSetups = const <ProjectSetupConfig>[];
   final List<StreamEvent> _streamEvents = <StreamEvent>[];
   StreamSubscription<ApiResult<StreamEvent>>? _streamSubscription;
@@ -99,8 +102,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _repositoryUrlController.text = '';
       _trackerLocationController.text = '';
       _trackerBoardIDController.text = '';
-      _setupScmProvider = 'GITHUB';
-      _setupTrackerProvider = 'GITHUB_ISSUES';
+      _setupScmProvider = ProjectSetupLogic.defaultScmProvider;
+      _setupTrackerProvider = ProjectSetupLogic.defaultTrackerProvider;
       _statusMessage = 'Creating a new project setup';
     });
   }
@@ -133,9 +136,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _saveEndpoint() async {
-    final endpoint = normalizeGraphqlEndpoint(_endpointController.text);
-    if (endpoint.isEmpty) {
-      setState(() => _statusMessage = 'Endpoint cannot be empty.');
+    final endpoint = ConnectionSettingsLogic.normalizeEndpoint(
+      _endpointController.text,
+    );
+    final validationError = ConnectionSettingsLogic.validateEndpoint(endpoint);
+    if (validationError != null) {
+      setState(() => _statusMessage = validationError);
       return;
     }
     setState(() {
@@ -152,9 +158,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _testConnection() async {
-    final endpoint = normalizeGraphqlEndpoint(_endpointController.text);
-    if (endpoint.isEmpty) {
-      setState(() => _statusMessage = 'Endpoint cannot be empty.');
+    final endpoint = ConnectionSettingsLogic.normalizeEndpoint(
+      _endpointController.text,
+    );
+    final validationError = ConnectionSettingsLogic.validateEndpoint(endpoint);
+    if (validationError != null) {
+      setState(() => _statusMessage = validationError);
       return;
     }
 
@@ -179,12 +188,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
     }
 
+    final nextStatus = result.isSuccess
+        ? ConnectionSettingsLogic.successMessage(result.data?.length ?? 0)
+        : ConnectionSettingsLogic.failureMessage(
+            endpoint: endpoint,
+            compactError: DashboardWorkflowLogic.compactError(
+              result.errorMessage,
+            ),
+          );
+
     setState(() {
       _endpointController.text = endpoint;
       _isRunningAction = false;
-      _statusMessage = result.isSuccess
-          ? 'Connection successful (${result.data?.length ?? 0} session rows returned).'
-          : 'Connection failed at $endpoint: ${_compactError(result.errorMessage)}';
+      _statusMessage = nextStatus;
       _refreshToken++;
     });
 
@@ -194,7 +210,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _loadProjectSetups() async {
-    final endpoint = normalizeGraphqlEndpoint(_endpointController.text);
+    final endpoint = ConnectionSettingsLogic.normalizeEndpoint(
+      _endpointController.text,
+    );
     if (endpoint.isEmpty) {
       return;
     }
@@ -206,7 +224,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (!response.isSuccess || response.data == null) {
       setState(() {
         _statusMessage =
-            'Loading project setups failed: ${_compactError(response.errorMessage)}';
+            'Loading project setups failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
       });
       return;
     }
@@ -227,7 +245,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _saveProjectSetup() async {
-    final endpoint = normalizeGraphqlEndpoint(_endpointController.text);
+    final endpoint = ConnectionSettingsLogic.normalizeEndpoint(
+      _endpointController.text,
+    );
     if (endpoint.isEmpty) {
       setState(() => _statusMessage = 'Save endpoint settings first.');
       return;
@@ -235,11 +255,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final projectID = _projectController.text.trim();
     final projectName = _projectNameController.text.trim();
     final repositoryURL = _repositoryUrlController.text.trim();
-    if (projectID.isEmpty || projectName.isEmpty || repositoryURL.isEmpty) {
-      setState(
-        () => _statusMessage =
-            'Project ID, Project Name, and Repository URL are required.',
-      );
+    final validationError = ProjectSetupLogic.validateRequiredFields(
+      projectID: projectID,
+      projectName: projectName,
+      repositoryURL: repositoryURL,
+    );
+    if (validationError != null) {
+      setState(() => _statusMessage = validationError);
       return;
     }
     setState(() => _isSavingProjectSetup = true);
@@ -260,7 +282,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (!response.isSuccess || response.data == null) {
       setState(
         () => _statusMessage =
-            'Saving project setup failed: ${_compactError(response.errorMessage)}',
+            'Saving project setup failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}',
       );
       return;
     }
@@ -271,26 +293,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _applyProjectSetup(ProjectSetupConfig setup) {
-    _projectController.text = setup.projectID;
-    _projectNameController.text = setup.projectName;
-    _repositoryUrlController.text = setup.repositoryURL;
-    _setupScmProvider = setup.scmProvider;
-    _setupTrackerProvider = setup.trackerProvider;
-    _trackerLocationController.text = setup.trackerLocation;
-    _trackerBoardIDController.text = setup.trackerBoardID;
-  }
-
-  String _compactError(String? message) {
-    final fallback = 'unknown error';
-    final raw = (message ?? fallback).trim();
-    if (raw.isEmpty) {
-      return fallback;
-    }
-    final firstLine = raw.split('\n').first.trim();
-    if (firstLine.length <= 180) {
-      return firstLine;
-    }
-    return '${firstLine.substring(0, 177)}...';
+    ProjectSetupLogic.applySetupToForm(
+      setup: setup,
+      projectController: _projectController,
+      projectNameController: _projectNameController,
+      repositoryUrlController: _repositoryUrlController,
+      trackerLocationController: _trackerLocationController,
+      trackerBoardIDController: _trackerBoardIDController,
+      onScmProviderChanged: (String provider) {
+        _setupScmProvider = provider;
+      },
+      onTrackerProviderChanged: (String provider) {
+        _setupTrackerProvider = provider;
+      },
+    );
   }
 
   Future<void> _runEnqueueIngestion(ControlPlaneApi api) async {
@@ -300,13 +316,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
       return;
     }
-    final now = DateTime.now().millisecondsSinceEpoch;
     setState(() => _isRunningAction = true);
     final response = await api.enqueueIngestionWorkflow(
       runID: _selectedSession!.runID,
       taskID: _selectedJob?.taskID ?? 'task-ingestion',
       jobID: _selectedJob?.jobID ?? 'job-ingestion',
-      idempotencyKey: 'ingest-$now',
+      idempotencyKey: DashboardWorkflowLogic.ingestionIdempotencyKey(
+        DateTime.now(),
+      ),
       prompt: _promptController.text.trim(),
       projectID: _projectController.text.trim(),
       workflowID: _workflowController.text.trim(),
@@ -316,7 +333,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _isRunningAction = false;
       _statusMessage = response.isSuccess
           ? 'Enqueued ingestion task ${response.data}'
-          : 'Enqueue ingestion failed: ${response.errorMessage}';
+          : 'Enqueue ingestion failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
       _refreshToken++;
     });
   }
@@ -342,7 +359,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _isRunningAction = false;
       _statusMessage = response.isSuccess
           ? 'Issue approval decision: ${response.data}'
-          : 'Approve issue failed: ${response.errorMessage}';
+          : 'Approve issue failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
       _refreshToken++;
     });
   }
@@ -354,13 +371,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
       return;
     }
-    final now = DateTime.now().millisecondsSinceEpoch;
     setState(() => _isRunningAction = true);
     final response = await api.enqueueScmWorkflow(
       runID: _selectedSession!.runID,
       taskID: _selectedJob?.taskID ?? 'task-scm',
       jobID: _selectedJob?.jobID ?? 'job-scm',
-      idempotencyKey: 'scm-$now',
+      idempotencyKey: DashboardWorkflowLogic.scmIdempotencyKey(DateTime.now()),
       owner: _scmOwnerController.text.trim(),
       repository: _scmRepoController.text.trim(),
     );
@@ -368,7 +384,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _isRunningAction = false;
       _statusMessage = response.isSuccess
           ? 'Enqueued SCM task ${response.data}'
-          : 'Enqueue SCM failed: ${response.errorMessage}';
+          : 'Enqueue SCM failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
       _refreshToken++;
     });
   }
@@ -390,15 +406,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           if (!eventResult.isSuccess || eventResult.data == null) {
             setState(
               () =>
-                  _statusMessage = 'Stream error: ${eventResult.errorMessage}',
+                  _statusMessage = 'Stream error: ${DashboardWorkflowLogic.compactError(eventResult.errorMessage)}',
             );
             return;
           }
           setState(() {
-            _streamEvents.insert(0, eventResult.data!);
-            if (_streamEvents.length > 100) {
-              _streamEvents.removeRange(100, _streamEvents.length);
-            }
+            DashboardWorkflowLogic.appendStreamEvent(
+              _streamEvents,
+              eventResult.data!,
+            );
           });
         });
   }

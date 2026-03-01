@@ -1,3 +1,4 @@
+import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
 import 'package:agentic_worktrees/features/projects/widgets/project_setups_list.dart';
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
@@ -99,18 +100,14 @@ class ProjectSetupScreen extends StatelessWidget {
               labelText: 'Tracker Provider',
               border: OutlineInputBorder(),
             ),
-            items: const <DropdownMenuItem<String>>[
-              DropdownMenuItem<String>(
-                value: 'GITHUB_ISSUES',
-                child: Text('GitHub Issues'),
-              ),
-              DropdownMenuItem<String>(value: 'JIRA', child: Text('Jira')),
-              DropdownMenuItem<String>(
-                value: 'LOCAL_JSON',
-                child: Text('Local JSON'),
-              ),
-              DropdownMenuItem<String>(value: 'LINEAR', child: Text('Linear')),
-            ],
+            items: ProjectSetupLogic.trackerProviderOptions
+                .map(
+                  (String provider) => DropdownMenuItem<String>(
+                    value: provider,
+                    child: Text(_trackerLabel(provider)),
+                  ),
+                )
+                .toList(growable: false),
             onChanged: (String? value) {
               if (value == null) {
                 return;
@@ -168,5 +165,20 @@ class ProjectSetupScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _trackerLabel(String provider) {
+    switch (provider) {
+      case 'GITHUB_ISSUES':
+        return 'GitHub Issues';
+      case 'JIRA':
+        return 'Jira';
+      case 'LOCAL_JSON':
+        return 'Local JSON';
+      case 'LINEAR':
+        return 'Linear';
+      default:
+        return provider;
+    }
   }
 }
