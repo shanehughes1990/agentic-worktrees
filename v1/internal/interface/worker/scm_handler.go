@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type SCMWorkflowPayload struct {
@@ -48,14 +49,24 @@ type scmService interface {
 }
 
 type SCMWorkflowHandler struct {
-	service scmService
+	service          scmService
+	checkpointStore  taskengine.CheckpointStore
+	executionJournal taskengine.ExecutionJournal
 }
 
 func NewSCMWorkflowHandler(service scmService) (*SCMWorkflowHandler, error) {
+	return NewSCMWorkflowHandlerWithCheckpointStore(service, nil)
+}
+
+func NewSCMWorkflowHandlerWithCheckpointStore(service scmService, checkpointStore taskengine.CheckpointStore) (*SCMWorkflowHandler, error) {
+	return NewSCMWorkflowHandlerWithReliability(service, checkpointStore, nil)
+}
+
+func NewSCMWorkflowHandlerWithReliability(service scmService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*SCMWorkflowHandler, error) {
 	if service == nil {
 		return nil, fmt.Errorf("scm service is required")
 	}
-	return &SCMWorkflowHandler{service: service}, nil
+	return &SCMWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal}, nil
 }
 
 func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -64,49 +75,96 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 		return fmt.Errorf("decode scm workflow payload: %w", err)
 	}
 	operation := strings.TrimSpace(payload.Operation)
+	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
+	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}
+	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID}, IdempotencyKey: payload.IdempotencyKey}
+
+	if err := handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusRunning, ""); err != nil {
+		return err
+	}
+
 	retryCheckpoint := taskengine.RetryCheckpointContract{
 		ResumeCheckpoint:      payload.ResumeCheckpoint,
 		CompletedCheckpoint:   payload.CompletedCheckpoint,
 		ResumeCheckpointStep:  payload.ResumeCheckpointStep,
 		ResumeCheckpointToken: payload.ResumeCheckpointToken,
 	}
-	if retryCheckpoint.Matches(operation, payload.IdempotencyKey) {
+	effectiveCheckpoint := retryCheckpoint.Checkpoint()
+	if handler.checkpointStore != nil && idempotencyKey != "" {
+		persistedCheckpoint, err := handler.checkpointStore.Load(ctx, idempotencyKey)
+		if err != nil {
+			_ = handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
+			return fmt.Errorf("load persisted checkpoint: %w", err)
+		}
+		if persistedCheckpoint != nil {
+			effectiveCheckpoint = persistedCheckpoint
+		}
+	}
+	if taskengine.CheckpointMatches(effectiveCheckpoint, operation, idempotencyKey) {
+		if err := handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSkipped, ""); err != nil {
+			return err
+		}
 		return nil
 	}
-	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}
-	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID}, IdempotencyKey: payload.IdempotencyKey}
 
+	var executionErr error
 	switch operation {
 	case "source_state":
-		_, err := handler.service.SourceState(ctx, applicationscm.SourceStateRequest{Repository: repository, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.SourceState(ctx, applicationscm.SourceStateRequest{Repository: repository, Metadata: metadata})
 	case "ensure_worktree":
-		_, err := handler.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: domainscm.WorktreeSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch, Path: payload.WorktreePath, SyncStrategy: domainscm.SyncStrategy(payload.SyncStrategy)}, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: domainscm.WorktreeSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch, Path: payload.WorktreePath, SyncStrategy: domainscm.SyncStrategy(payload.SyncStrategy)}, Metadata: metadata})
 	case "sync_worktree":
-		_, err := handler.service.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})
 	case "cleanup_worktree":
-		return handler.service.CleanupWorktree(ctx, applicationscm.CleanupWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})
+		executionErr = handler.service.CleanupWorktree(ctx, applicationscm.CleanupWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})
 	case "ensure_branch":
-		_, err := handler.service.EnsureBranch(ctx, applicationscm.EnsureBranchRequest{Repository: repository, Spec: domainscm.BranchSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch}, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.EnsureBranch(ctx, applicationscm.EnsureBranchRequest{Repository: repository, Spec: domainscm.BranchSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch}, Metadata: metadata})
 	case "sync_branch":
-		_, err := handler.service.SyncBranch(ctx, applicationscm.SyncBranchRequest{Repository: repository, BranchName: payload.TargetBranch, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.SyncBranch(ctx, applicationscm.SyncBranchRequest{Repository: repository, BranchName: payload.TargetBranch, Metadata: metadata})
 	case "upsert_pull_request":
-		_, err := handler.service.CreateOrUpdatePullRequest(ctx, applicationscm.CreateOrUpdatePullRequestRequest{Spec: domainscm.PullRequestSpec{Repository: repository, SourceBranch: payload.TargetBranch, TargetBranch: payload.BaseBranch, Title: payload.PullRequestTitle, Body: payload.PullRequestBody}, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.CreateOrUpdatePullRequest(ctx, applicationscm.CreateOrUpdatePullRequestRequest{Spec: domainscm.PullRequestSpec{Repository: repository, SourceBranch: payload.TargetBranch, TargetBranch: payload.BaseBranch, Title: payload.PullRequestTitle, Body: payload.PullRequestBody}, Metadata: metadata})
 	case "get_pull_request":
-		_, err := handler.service.GetPullRequest(ctx, applicationscm.GetPullRequestRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.GetPullRequest(ctx, applicationscm.GetPullRequestRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
 	case "submit_review":
-		_, err := handler.service.SubmitReview(ctx, applicationscm.SubmitReviewRequest{Spec: domainscm.ReviewSpec{Repository: repository, PullRequestNumber: payload.PullRequestID, Decision: domainscm.ReviewDecision(payload.ReviewDecision), Body: payload.ReviewBody}, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.SubmitReview(ctx, applicationscm.SubmitReviewRequest{Spec: domainscm.ReviewSpec{Repository: repository, PullRequestNumber: payload.PullRequestID, Decision: domainscm.ReviewDecision(payload.ReviewDecision), Body: payload.ReviewBody}, Metadata: metadata})
 	case "check_merge_readiness":
-		_, err := handler.service.CheckMergeReadiness(ctx, applicationscm.CheckMergeReadinessRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
-		return err
+		_, executionErr = handler.service.CheckMergeReadiness(ctx, applicationscm.CheckMergeReadinessRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
 	default:
 		return fmt.Errorf("unsupported scm operation %q", payload.Operation)
 	}
+	if executionErr != nil {
+		_ = handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, executionErr.Error())
+		return executionErr
+	}
+	if handler.checkpointStore != nil && idempotencyKey != "" {
+		if err := handler.checkpointStore.Save(ctx, idempotencyKey, taskengine.Checkpoint{Step: operation, Token: idempotencyKey}); err != nil {
+			_ = handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
+			return fmt.Errorf("persist completed checkpoint: %w", err)
+		}
+	}
+	if err := handler.recordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSucceeded, ""); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) error {
+	if handler == nil || handler.executionJournal == nil {
+		return nil
+	}
+	record := taskengine.ExecutionRecord{
+		RunID:          correlationIDs.RunID,
+		TaskID:         correlationIDs.TaskID,
+		JobID:          correlationIDs.JobID,
+		JobKind:        kind,
+		IdempotencyKey: idempotencyKey,
+		Step:           step,
+		Status:         status,
+		ErrorMessage:   strings.TrimSpace(errorMessage),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	if err := handler.executionJournal.Upsert(ctx, record); err != nil {
+		return fmt.Errorf("record execution journal: %w", err)
+	}
+	return nil
 }

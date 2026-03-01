@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 )
 
 type AgentWorkflowPayload struct {
@@ -32,14 +34,24 @@ type agentService interface {
 var _ agentService = (*applicationagent.Service)(nil)
 
 type AgentWorkflowHandler struct {
-	service agentService
+	service          agentService
+	checkpointStore  taskengine.CheckpointStore
+	executionJournal taskengine.ExecutionJournal
 }
 
 func NewAgentWorkflowHandler(service agentService) (*AgentWorkflowHandler, error) {
+	return NewAgentWorkflowHandlerWithCheckpointStore(service, nil)
+}
+
+func NewAgentWorkflowHandlerWithCheckpointStore(service agentService, checkpointStore taskengine.CheckpointStore) (*AgentWorkflowHandler, error) {
+	return NewAgentWorkflowHandlerWithReliability(service, checkpointStore, nil)
+}
+
+func NewAgentWorkflowHandlerWithReliability(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
 	if service == nil {
 		return nil, fmt.Errorf("agent service is required")
 	}
-	return &AgentWorkflowHandler{service: service}, nil
+	return &AgentWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal}, nil
 }
 
 func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -66,16 +78,68 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 			IdempotencyKey: payload.IdempotencyKey,
 		},
 	}
-	resumeCheckpoint := (taskengine.RetryCheckpointContract{
+
+	step := "source_state"
+	if err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, ""); err != nil {
+		return err
+	}
+
+	retryCheckpoint := (taskengine.RetryCheckpointContract{
 		ResumeCheckpoint:      payload.ResumeCheckpoint,
 		ResumeCheckpointStep:  payload.ResumeCheckpointStep,
 		ResumeCheckpointToken: payload.ResumeCheckpointToken,
 	}).Checkpoint()
-	if resumeCheckpoint != nil {
-		request.ResumeCheckpoint = &domainagent.Checkpoint{
-			Step:  resumeCheckpoint.Step,
-			Token: resumeCheckpoint.Token,
+
+	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
+	resumeCheckpoint := retryCheckpoint
+	if handler.checkpointStore != nil && idempotencyKey != "" {
+		persistedCheckpoint, err := handler.checkpointStore.Load(ctx, idempotencyKey)
+		if err != nil {
+			_ = handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
+			return fmt.Errorf("load persisted checkpoint: %w", err)
+		}
+		if persistedCheckpoint != nil {
+			resumeCheckpoint = persistedCheckpoint
 		}
 	}
-	return handler.service.Execute(ctx, request)
+	if resumeCheckpoint != nil {
+		request.ResumeCheckpoint = &domainagent.Checkpoint{Step: resumeCheckpoint.Step, Token: resumeCheckpoint.Token}
+	}
+
+	if err := handler.service.Execute(ctx, request); err != nil {
+		_ = handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
+		return err
+	}
+
+	if handler.checkpointStore != nil && idempotencyKey != "" {
+		if err := handler.checkpointStore.Save(ctx, idempotencyKey, taskengine.Checkpoint{Step: step, Token: idempotencyKey}); err != nil {
+			_ = handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
+			return fmt.Errorf("persist completed checkpoint: %w", err)
+		}
+	}
+	if err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusSucceeded, ""); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) error {
+	if handler == nil || handler.executionJournal == nil {
+		return nil
+	}
+	record := taskengine.ExecutionRecord{
+		RunID:          request.Metadata.CorrelationIDs.RunID,
+		TaskID:         request.Metadata.CorrelationIDs.TaskID,
+		JobID:          request.Metadata.CorrelationIDs.JobID,
+		JobKind:        kind,
+		IdempotencyKey: request.Metadata.IdempotencyKey,
+		Step:           step,
+		Status:         status,
+		ErrorMessage:   strings.TrimSpace(errorMessage),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	if err := handler.executionJournal.Upsert(ctx, record); err != nil {
+		return fmt.Errorf("record execution journal: %w", err)
+	}
+	return nil
 }

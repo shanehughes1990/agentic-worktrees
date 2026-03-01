@@ -8,4 +8,6 @@ var (
 	ErrInvalidWorkerCapabilityAdvertisement = errors.New("taskengine: invalid worker capability advertisement")
 	ErrInvalidLeaseContract                 = errors.New("taskengine: invalid lease contract")
 	ErrInvalidLeaseRenewal                  = errors.New("taskengine: invalid lease renewal")
+	ErrInvalidExecutionRecord               = errors.New("taskengine: invalid execution record")
+	ErrInvalidDeadLetterRequest             = errors.New("taskengine: invalid dead letter request")
 )

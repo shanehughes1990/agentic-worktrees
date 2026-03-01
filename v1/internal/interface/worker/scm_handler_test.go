@@ -11,10 +11,10 @@ import (
 )
 
 type fakeSCMService struct {
-	called                  string
-	err                     error
-	lastMetadata            applicationscm.Metadata
-	lastEnsureWorktreeSpec  domainscm.WorktreeSpec
+	called                 string
+	err                    error
+	lastMetadata           applicationscm.Metadata
+	lastEnsureWorktreeSpec domainscm.WorktreeSpec
 }
 
 func (fake *fakeSCMService) SourceState(ctx context.Context, request applicationscm.SourceStateRequest) (domainscm.SourceState, error) {
@@ -168,5 +168,93 @@ func TestSCMWorkflowHandlerSkipsOperationWhenResumeCheckpointMatches(t *testing.
 	}
 	if service.called != "" {
 		t.Fatalf("expected no service call when resume checkpoint matches, got %q", service.called)
+	}
+}
+
+func TestSCMWorkflowHandlerSkipsOperationWhenPersistedCheckpointMatches(t *testing.T) {
+	service := &fakeSCMService{}
+	store := &fakeCheckpointStore{loadedCheckpoint: &taskengine.Checkpoint{Step: "source_state", Token: "id-1"}}
+	handler, err := NewSCMWorkflowHandlerWithCheckpointStore(service, store)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1"})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.called != "" {
+		t.Fatalf("expected no service call when persisted checkpoint matches, got %q", service.called)
+	}
+}
+
+func TestSCMWorkflowHandlerPersistsCheckpointAfterSuccess(t *testing.T) {
+	service := &fakeSCMService{}
+	store := &fakeCheckpointStore{}
+	handler, err := NewSCMWorkflowHandlerWithCheckpointStore(service, store)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1"})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if store.savedCheckpoint == nil {
+		t.Fatalf("expected checkpoint persisted")
+	}
+	if store.savedCheckpoint.Step != "source_state" || store.savedCheckpoint.Token != "id-1" {
+		t.Fatalf("expected source_state checkpoint, got %+v", store.savedCheckpoint)
+	}
+}
+
+func TestSCMWorkflowHandlerReturnsSaveError(t *testing.T) {
+	service := &fakeSCMService{}
+	store := &fakeCheckpointStore{saveErr: errors.New("save failed")}
+	handler, err := NewSCMWorkflowHandlerWithCheckpointStore(service, store)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1"})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err == nil {
+		t.Fatalf("expected checkpoint save error")
+	}
+}
+
+
+func TestSCMWorkflowHandlerRecordsExecutionJournalSkipped(t *testing.T) {
+	service := &fakeSCMService{}
+	store := &fakeCheckpointStore{loadedCheckpoint: &taskengine.Checkpoint{Step: "source_state", Token: "id-1"}}
+	journal := &fakeExecutionJournal{}
+	handler, err := NewSCMWorkflowHandlerWithReliability(service, store, journal)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1"})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if len(journal.records) < 2 {
+		t.Fatalf("expected at least 2 journal records, got %d", len(journal.records))
+	}
+	if journal.records[len(journal.records)-1].Status != taskengine.ExecutionStatusSkipped {
+		t.Fatalf("expected last status skipped, got %q", journal.records[len(journal.records)-1].Status)
+	}
+}
+
+func TestSCMWorkflowHandlerRecordsExecutionJournalFailure(t *testing.T) {
+	service := &fakeSCMService{err: errors.New("boom")}
+	journal := &fakeExecutionJournal{}
+	handler, err := NewSCMWorkflowHandlerWithReliability(service, nil, journal)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1"})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err == nil {
+		t.Fatalf("expected error")
+	}
+	if len(journal.records) < 2 {
+		t.Fatalf("expected at least 2 journal records, got %d", len(journal.records))
+	}
+	if journal.records[len(journal.records)-1].Status != taskengine.ExecutionStatusFailed {
+		t.Fatalf("expected last status failed, got %q", journal.records[len(journal.records)-1].Status)
 	}
 }

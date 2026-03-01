@@ -8,6 +8,7 @@ import (
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
+	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infratracker "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
@@ -25,6 +26,8 @@ type WorkerApp struct {
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
 	taskEnginePlatform    taskengine.Consumer
+	checkpointStore       taskengine.CheckpointStore
+	executionJournal      taskengine.ExecutionJournal
 	agentService          *applicationagent.Service
 	scmService            *applicationscm.Service
 	trackerService        *applicationtracker.Service
@@ -54,14 +57,22 @@ func InitWorker() (*WorkerApp, error) {
 	if err != nil {
 		return nil, err
 	}
+	queueConfig := asynqengine.Config{
+		RedisAddress:  config.TaskEngineRedisAddress,
+		RedisPassword: config.TaskEngineRedisPassword,
+		RedisDatabase: config.TaskEngineRedisDatabase,
+		Concurrency:   config.TaskEngineConcurrency,
+	}
+	checkpointStore := asynqengine.NewRedisCheckpointStoreFromConfig(queueConfig, 0)
+	executionJournal := asynqengine.NewRedisExecutionJournalFromConfig(queueConfig, 0)
 
 	if strings.TrimSpace(config.SCMGitHubToken) == "" {
 		return nil, fmt.Errorf("worker requires SCM_GITHUB_TOKEN for github scm execution")
 	}
 
 	githubAdapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
-		APIBaseURL:      config.SCMGitHubAPIBaseURL,
-		RepoPath:        config.RepositorySourcePath(),
+		APIBaseURL:       config.SCMGitHubAPIBaseURL,
+		RepoPath:         config.RepositorySourcePath(),
 		WorktreeRootPath: config.WorktreesPath(),
 	}, nil, infrascm.NewStaticTokenProvider(config.SCMGitHubToken), infrascm.NewExecGitRunner())
 	if err != nil {
@@ -99,6 +110,8 @@ func InitWorker() (*WorkerApp, error) {
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
 		taskEnginePlatform:    taskEnginePlatform,
+		checkpointStore:       checkpointStore,
+		executionJournal:      executionJournal,
 		agentService:          agentService,
 		scmService:            scmService,
 		trackerService:        trackerService,
@@ -123,11 +136,11 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("create ingestion agent handler: %w", err)
 	}
-	agentHandler, err := workerinterface.NewAgentWorkflowHandler(app.agentService)
+	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithReliability(app.agentService, app.checkpointStore, app.executionJournal)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)
 	}
-	scmHandler, err := workerinterface.NewSCMWorkflowHandler(app.scmService)
+	scmHandler, err := workerinterface.NewSCMWorkflowHandlerWithReliability(app.scmService, app.checkpointStore, app.executionJournal)
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}
