@@ -7,8 +7,8 @@ package resolvers
 
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domainstream "agentic-orchestrator/internal/domain/stream"
-	domainworker "agentic-orchestrator/internal/domain/worker"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
 	"fmt"
@@ -104,7 +104,7 @@ func (r *mutationResolver) UpdateWorkerSettings(ctx context.Context, input model
 	if r == nil || r.Resolver == nil || r.Resolver.WorkerService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "worker service is not configured"}, nil
 	}
-	settings, err := r.Resolver.WorkerService.UpdateSettings(ctx, domainworker.Settings{
+	settings, err := r.Resolver.WorkerService.UpdateSettings(ctx, domainrealtime.Settings{
 		HeartbeatInterval: time.Duration(input.HeartbeatIntervalSeconds) * time.Second,
 		ResponseDeadline:  time.Duration(input.ResponseDeadlineSeconds) * time.Second,
 		StaleAfter:        time.Duration(input.StaleAfterSeconds) * time.Second,

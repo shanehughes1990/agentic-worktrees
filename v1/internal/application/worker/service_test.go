@@ -8,38 +8,38 @@ import (
 	"time"
 
 	"agentic-orchestrator/internal/application/taskengine"
-	domainworker "agentic-orchestrator/internal/domain/worker"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 )
 
 type fakeRepository struct {
-	worker   *domainworker.Worker
-	settings domainworker.Settings
-	updated  *domainworker.Worker
-	getSettingsErr error
+	worker           *domainrealtime.Worker
+	settings         domainrealtime.Settings
+	updated          *domainrealtime.Worker
+	getSettingsErr   error
 	renewHeartbeatErr error
-	removedWorkerID string
-	removedEpoch int64
+	removedWorkerID  string
+	removedEpoch     int64
 }
 
-func (repository *fakeRepository) Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainworker.Worker, error) {
-	repository.worker = &domainworker.Worker{WorkerID: workerID, Epoch: 1, State: domainworker.StateHealthy, DesiredState: domainworker.StateHealthy, Capabilities: capabilities, LastHeartbeat: heartbeatAt, LeaseExpiresAt: leaseExpiresAt, UpdatedAt: heartbeatAt}
+func (repository *fakeRepository) Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
+	repository.worker = &domainrealtime.Worker{WorkerID: workerID, Epoch: 1, State: domainrealtime.StateHealthy, DesiredState: domainrealtime.StateHealthy, Capabilities: capabilities, LastHeartbeat: heartbeatAt, LeaseExpiresAt: leaseExpiresAt, UpdatedAt: heartbeatAt}
 	return repository.worker, nil
 }
 
-func (repository *fakeRepository) RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainworker.Worker, error) {
+func (repository *fakeRepository) RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
 	if repository.renewHeartbeatErr != nil {
 		return nil, repository.renewHeartbeatErr
 	}
 	if repository.worker == nil {
-		repository.worker = &domainworker.Worker{WorkerID: workerID, Epoch: epoch, State: domainworker.StateHealthy, DesiredState: domainworker.StateHealthy, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, UpdatedAt: heartbeatAt}
+		repository.worker = &domainrealtime.Worker{WorkerID: workerID, Epoch: epoch, State: domainrealtime.StateHealthy, DesiredState: domainrealtime.StateHealthy, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, UpdatedAt: heartbeatAt}
 	}
 	repository.worker.LastHeartbeat = heartbeatAt
 	repository.worker.LeaseExpiresAt = leaseExpiresAt
 	return repository.worker, nil
 }
 
-func (repository *fakeRepository) UpdateState(ctx context.Context, workerID string, epoch int64, state domainworker.State, desiredState domainworker.State, reason string, changedAt time.Time) (*domainworker.Worker, error) {
-	repository.updated = &domainworker.Worker{WorkerID: workerID, Epoch: epoch, State: state, DesiredState: desiredState, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: changedAt.Add(-time.Second), LeaseExpiresAt: changedAt.Add(time.Second), RogueReason: reason, UpdatedAt: changedAt}
+func (repository *fakeRepository) UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, desiredState domainrealtime.State, reason string, changedAt time.Time) (*domainrealtime.Worker, error) {
+	repository.updated = &domainrealtime.Worker{WorkerID: workerID, Epoch: epoch, State: state, DesiredState: desiredState, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: changedAt.Add(-time.Second), LeaseExpiresAt: changedAt.Add(time.Second), RogueReason: reason, UpdatedAt: changedAt}
 	return repository.updated, nil
 }
 
@@ -49,31 +49,31 @@ func (repository *fakeRepository) RemoveRegistration(ctx context.Context, worker
 	return nil
 }
 
-func (repository *fakeRepository) ListWorkers(ctx context.Context, limit int) ([]domainworker.Worker, error) {
+func (repository *fakeRepository) ListWorkers(ctx context.Context, limit int) ([]domainrealtime.Worker, error) {
 	if repository.worker == nil {
-		return []domainworker.Worker{}, nil
+		return []domainrealtime.Worker{}, nil
 	}
-	return []domainworker.Worker{*repository.worker}, nil
+	return []domainrealtime.Worker{*repository.worker}, nil
 }
 
-func (repository *fakeRepository) ListStaleWorkers(ctx context.Context, staleBefore time.Time, limit int) ([]domainworker.Worker, error) {
+func (repository *fakeRepository) ListStaleWorkers(ctx context.Context, staleBefore time.Time, limit int) ([]domainrealtime.Worker, error) {
 	if repository.worker == nil {
-		return []domainworker.Worker{}, nil
+		return []domainrealtime.Worker{}, nil
 	}
-	return []domainworker.Worker{*repository.worker}, nil
+	return []domainrealtime.Worker{*repository.worker}, nil
 }
 
-func (repository *fakeRepository) GetSettings(ctx context.Context) (domainworker.Settings, error) {
+func (repository *fakeRepository) GetSettings(ctx context.Context) (domainrealtime.Settings, error) {
 	if repository.getSettingsErr != nil {
-		return domainworker.Settings{}, repository.getSettingsErr
+		return domainrealtime.Settings{}, repository.getSettingsErr
 	}
 	if repository.settings.HeartbeatInterval == 0 {
-		repository.settings = domainworker.Settings{HeartbeatInterval: 15 * time.Second, ResponseDeadline: 5 * time.Second, StaleAfter: 45 * time.Second, DrainTimeout: 20 * time.Second, TerminateTimeout: 10 * time.Second, RogueThreshold: 3, UpdatedAt: time.Now().UTC()}
+		repository.settings = domainrealtime.Settings{HeartbeatInterval: 15 * time.Second, ResponseDeadline: 5 * time.Second, StaleAfter: 45 * time.Second, DrainTimeout: 20 * time.Second, TerminateTimeout: 10 * time.Second, RogueThreshold: 3, UpdatedAt: time.Now().UTC()}
 	}
 	return repository.settings, nil
 }
 
-func (repository *fakeRepository) UpsertSettings(ctx context.Context, settings domainworker.Settings) (domainworker.Settings, error) {
+func (repository *fakeRepository) UpsertSettings(ctx context.Context, settings domainrealtime.Settings) (domainrealtime.Settings, error) {
 	repository.settings = settings
 	return settings, nil
 }
@@ -88,7 +88,7 @@ func (engine *fakeEngine) Enqueue(ctx context.Context, request taskengine.Enqueu
 }
 
 func TestServiceHeartbeatReturnsStoppingForShutdownState(t *testing.T) {
-	repository := &fakeRepository{worker: &domainworker.Worker{WorkerID: "worker-1", Epoch: 1, State: domainworker.StateDraining, DesiredState: domainworker.StateShutdownRequested, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC(), LeaseExpiresAt: time.Now().UTC().Add(time.Minute), UpdatedAt: time.Now().UTC()}}
+	repository := &fakeRepository{worker: &domainrealtime.Worker{WorkerID: "worker-1", Epoch: 1, State: domainrealtime.StateDraining, DesiredState: domainrealtime.StateShutdownRequested, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC(), LeaseExpiresAt: time.Now().UTC().Add(time.Minute), UpdatedAt: time.Now().UTC()}}
 	service, err := NewService(repository)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
@@ -103,7 +103,7 @@ func TestServiceHeartbeatReturnsStoppingForShutdownState(t *testing.T) {
 }
 
 func TestServiceHeartbeatReturnsStoppingForDeregisteredDesiredState(t *testing.T) {
-	repository := &fakeRepository{worker: &domainworker.Worker{WorkerID: "worker-1", Epoch: 1, State: domainworker.StateHealthy, DesiredState: domainworker.StateDeregistered, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC(), LeaseExpiresAt: time.Now().UTC().Add(time.Minute), UpdatedAt: time.Now().UTC()}}
+	repository := &fakeRepository{worker: &domainrealtime.Worker{WorkerID: "worker-1", Epoch: 1, State: domainrealtime.StateHealthy, DesiredState: domainrealtime.StateDeregistered, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC(), LeaseExpiresAt: time.Now().UTC().Add(time.Minute), UpdatedAt: time.Now().UTC()}}
 	service, err := NewService(repository)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
@@ -148,7 +148,7 @@ func TestServiceHeartbeatReturnsStoppingForDeregisteredWorker(t *testing.T) {
 }
 
 func TestCoordinatorEnqueuesShutdownTasksForStaleWorker(t *testing.T) {
-	repository := &fakeRepository{worker: &domainworker.Worker{WorkerID: "worker-1", Epoch: 1, State: domainworker.StateStale, DesiredState: domainworker.StateHealthy, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC().Add(-time.Minute), LeaseExpiresAt: time.Now().UTC().Add(-time.Second), UpdatedAt: time.Now().UTC()}}
+	repository := &fakeRepository{worker: &domainrealtime.Worker{WorkerID: "worker-1", Epoch: 1, State: domainrealtime.StateStale, DesiredState: domainrealtime.StateHealthy, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC().Add(-time.Minute), LeaseExpiresAt: time.Now().UTC().Add(-time.Second), UpdatedAt: time.Now().UTC()}}
 	service, err := NewService(repository)
 	if err != nil {
 		t.Fatalf("new service: %v", err)

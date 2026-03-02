@@ -1,4 +1,4 @@
-package worker
+package realtime
 
 import (
 	"fmt"
@@ -11,14 +11,14 @@ import (
 type State string
 
 const (
-	StateRegistered       State = "registered"
-	StateHealthy          State = "healthy"
-	StateDegraded         State = "degraded"
-	StateStale            State = "stale"
-	StateDraining         State = "draining"
+	StateRegistered        State = "registered"
+	StateHealthy           State = "healthy"
+	StateDegraded          State = "degraded"
+	StateStale             State = "stale"
+	StateDraining          State = "draining"
 	StateShutdownRequested State = "shutdown_requested"
-	StateDeregistered     State = "deregistered"
-	StateTerminated       State = "terminated"
+	StateDeregistered      State = "deregistered"
+	StateTerminated        State = "terminated"
 )
 
 func (state State) Validate() error {

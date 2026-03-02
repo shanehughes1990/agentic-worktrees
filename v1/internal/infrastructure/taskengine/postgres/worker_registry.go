@@ -10,7 +10,7 @@ import (
 
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationworker "agentic-orchestrator/internal/application/worker"
-	domainworker "agentic-orchestrator/internal/domain/worker"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -75,7 +75,7 @@ func (registry *WorkerRegistry) Upsert(ctx context.Context, advertisement tasken
 	return err
 }
 
-func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainworker.Worker, error) {
+func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")
 	}
@@ -97,8 +97,8 @@ func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, c
 		if err != nil {
 			return err
 		}
-		record.State = string(domainworker.StateHealthy)
-		record.DesiredState = string(domainworker.StateHealthy)
+		record.State = string(domainrealtime.StateHealthy)
+		record.DesiredState = string(domainrealtime.StateHealthy)
 		record.CapabilitiesJSON = encodedCapabilities
 		record.LastHeartbeatUnix = heartbeatAt.UTC().Unix()
 		record.LeaseExpiresUnix = leaseExpiresAt.UTC().Unix()
@@ -114,7 +114,7 @@ func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, c
 	return registry.toDomain(record)
 }
 
-func (registry *WorkerRegistry) RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainworker.Worker, error) {
+func (registry *WorkerRegistry) RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")
 	}
@@ -131,14 +131,14 @@ func (registry *WorkerRegistry) RenewHeartbeat(ctx context.Context, workerID str
 	}
 	record.LastHeartbeatUnix = heartbeatAt.UTC().Unix()
 	record.LeaseExpiresUnix = leaseExpiresAt.UTC().Unix()
-	record.State = string(domainworker.StateHealthy)
+	record.State = string(domainrealtime.StateHealthy)
 	if err := registry.db.WithContext(ctx).Model(&workerRegistryRecord{}).Where("worker_id = ?", strings.TrimSpace(workerID)).Updates(map[string]any{"state": record.State, "last_heartbeat_unix": record.LastHeartbeatUnix, "lease_expires_unix": record.LeaseExpiresUnix, "updated_at": time.Now().UTC()}).Error; err != nil {
 		return nil, fmt.Errorf("update worker heartbeat: %w", err)
 	}
 	return registry.toDomain(record)
 }
 
-func (registry *WorkerRegistry) UpdateState(ctx context.Context, workerID string, epoch int64, state domainworker.State, desiredState domainworker.State, reason string, changedAt time.Time) (*domainworker.Worker, error) {
+func (registry *WorkerRegistry) UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, desiredState domainrealtime.State, reason string, changedAt time.Time) (*domainrealtime.Worker, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")
 	}
@@ -187,7 +187,7 @@ func (registry *WorkerRegistry) RemoveRegistration(ctx context.Context, workerID
 	return nil
 }
 
-func (registry *WorkerRegistry) ListWorkers(ctx context.Context, limit int) ([]domainworker.Worker, error) {
+func (registry *WorkerRegistry) ListWorkers(ctx context.Context, limit int) ([]domainrealtime.Worker, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")
 	}
@@ -198,7 +198,7 @@ func (registry *WorkerRegistry) ListWorkers(ctx context.Context, limit int) ([]d
 	if err := registry.db.WithContext(ctx).Order("updated_at DESC").Limit(limit).Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
-	workers := make([]domainworker.Worker, 0, len(records))
+	workers := make([]domainrealtime.Worker, 0, len(records))
 	for _, record := range records {
 		worker, err := registry.toDomain(record)
 		if err != nil {
@@ -209,7 +209,7 @@ func (registry *WorkerRegistry) ListWorkers(ctx context.Context, limit int) ([]d
 	return workers, nil
 }
 
-func (registry *WorkerRegistry) ListStaleWorkers(ctx context.Context, staleBefore time.Time, limit int) ([]domainworker.Worker, error) {
+func (registry *WorkerRegistry) ListStaleWorkers(ctx context.Context, staleBefore time.Time, limit int) ([]domainrealtime.Worker, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")
 	}
@@ -217,10 +217,10 @@ func (registry *WorkerRegistry) ListStaleWorkers(ctx context.Context, staleBefor
 		limit = 100
 	}
 	records := make([]workerRegistryRecord, 0)
-	if err := registry.db.WithContext(ctx).Where("lease_expires_unix < ? AND state IN ?", staleBefore.UTC().Unix(), []string{string(domainworker.StateHealthy), string(domainworker.StateDegraded), string(domainworker.StateDraining)}).Order("lease_expires_unix ASC").Limit(limit).Find(&records).Error; err != nil {
+	if err := registry.db.WithContext(ctx).Where("lease_expires_unix < ? AND state IN ?", staleBefore.UTC().Unix(), []string{string(domainrealtime.StateHealthy), string(domainrealtime.StateDegraded), string(domainrealtime.StateDraining)}).Order("lease_expires_unix ASC").Limit(limit).Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("list stale workers: %w", err)
 	}
-	workers := make([]domainworker.Worker, 0, len(records))
+	workers := make([]domainrealtime.Worker, 0, len(records))
 	for _, record := range records {
 		worker, err := registry.toDomain(record)
 		if err != nil {
@@ -231,34 +231,34 @@ func (registry *WorkerRegistry) ListStaleWorkers(ctx context.Context, staleBefor
 	return workers, nil
 }
 
-func (registry *WorkerRegistry) GetSettings(ctx context.Context) (domainworker.Settings, error) {
+func (registry *WorkerRegistry) GetSettings(ctx context.Context) (domainrealtime.Settings, error) {
 	if registry == nil || registry.db == nil {
-		return domainworker.Settings{}, fmt.Errorf("worker registry is not initialized")
+		return domainrealtime.Settings{}, fmt.Errorf("worker registry is not initialized")
 	}
 	record := workerRegistrySettingsRecord{}
 	err := registry.db.WithContext(ctx).Where("id = 1").Take(&record).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return domainworker.Settings{}, applicationworker.ErrSettingsNotFound
+		return domainrealtime.Settings{}, applicationworker.ErrSettingsNotFound
 	} else if err != nil {
-		return domainworker.Settings{}, fmt.Errorf("load worker settings: %w", err)
+		return domainrealtime.Settings{}, fmt.Errorf("load worker settings: %w", err)
 	}
-	settings := domainworker.Settings{HeartbeatInterval: time.Duration(record.HeartbeatIntervalSeconds) * time.Second, ResponseDeadline: time.Duration(record.ResponseDeadlineSeconds) * time.Second, StaleAfter: time.Duration(record.StaleAfterSeconds) * time.Second, DrainTimeout: time.Duration(record.DrainTimeoutSeconds) * time.Second, TerminateTimeout: time.Duration(record.TerminateTimeoutSeconds) * time.Second, RogueThreshold: int(record.RogueThreshold), UpdatedAt: time.Unix(record.UpdatedAtUnix, 0).UTC()}
+	settings := domainrealtime.Settings{HeartbeatInterval: time.Duration(record.HeartbeatIntervalSeconds) * time.Second, ResponseDeadline: time.Duration(record.ResponseDeadlineSeconds) * time.Second, StaleAfter: time.Duration(record.StaleAfterSeconds) * time.Second, DrainTimeout: time.Duration(record.DrainTimeoutSeconds) * time.Second, TerminateTimeout: time.Duration(record.TerminateTimeoutSeconds) * time.Second, RogueThreshold: int(record.RogueThreshold), UpdatedAt: time.Unix(record.UpdatedAtUnix, 0).UTC()}
 	if err := settings.Validate(); err != nil {
-		return domainworker.Settings{}, err
+		return domainrealtime.Settings{}, err
 	}
 	return settings, nil
 }
 
-func (registry *WorkerRegistry) UpsertSettings(ctx context.Context, settings domainworker.Settings) (domainworker.Settings, error) {
+func (registry *WorkerRegistry) UpsertSettings(ctx context.Context, settings domainrealtime.Settings) (domainrealtime.Settings, error) {
 	if registry == nil || registry.db == nil {
-		return domainworker.Settings{}, fmt.Errorf("worker registry is not initialized")
+		return domainrealtime.Settings{}, fmt.Errorf("worker registry is not initialized")
 	}
 	if err := settings.Validate(); err != nil {
-		return domainworker.Settings{}, err
+		return domainrealtime.Settings{}, err
 	}
 	record := workerRegistrySettingsRecord{ID: 1, HeartbeatIntervalSeconds: int64(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int64(settings.ResponseDeadline.Seconds()), StaleAfterSeconds: int64(settings.StaleAfter.Seconds()), DrainTimeoutSeconds: int64(settings.DrainTimeout.Seconds()), TerminateTimeoutSeconds: int64(settings.TerminateTimeout.Seconds()), RogueThreshold: int64(settings.RogueThreshold), UpdatedAtUnix: settings.UpdatedAt.UTC().Unix()}
 	if err := registry.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"heartbeat_interval_seconds", "response_deadline_seconds", "stale_after_seconds", "drain_timeout_seconds", "terminate_timeout_seconds", "rogue_threshold", "updated_at_unix", "updated_at"})}).Create(&record).Error; err != nil {
-		return domainworker.Settings{}, fmt.Errorf("upsert worker settings: %w", err)
+		return domainrealtime.Settings{}, fmt.Errorf("upsert worker settings: %w", err)
 	}
 	return settings, nil
 }
@@ -295,16 +295,16 @@ func decodeCapabilities(raw []byte) ([]taskengine.JobKind, error) {
 	return capabilities, nil
 }
 
-func (registry *WorkerRegistry) toDomain(record workerRegistryRecord) (*domainworker.Worker, error) {
+func (registry *WorkerRegistry) toDomain(record workerRegistryRecord) (*domainrealtime.Worker, error) {
 	capabilities, err := decodeCapabilities(record.CapabilitiesJSON)
 	if err != nil {
 		return nil, err
 	}
-	worker := &domainworker.Worker{
+	worker := &domainrealtime.Worker{
 		WorkerID:       strings.TrimSpace(record.WorkerID),
 		Epoch:          record.Epoch,
-		State:          domainworker.State(strings.TrimSpace(record.State)),
-		DesiredState:   domainworker.State(strings.TrimSpace(record.DesiredState)),
+		State:          domainrealtime.State(strings.TrimSpace(record.State)),
+		DesiredState:   domainrealtime.State(strings.TrimSpace(record.DesiredState)),
 		Capabilities:   capabilities,
 		LastHeartbeat:  time.Unix(record.LastHeartbeatUnix, 0).UTC(),
 		LeaseExpiresAt: time.Unix(record.LeaseExpiresUnix, 0).UTC(),

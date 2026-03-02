@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"agentic-orchestrator/internal/application/taskengine"
-	domainworker "agentic-orchestrator/internal/domain/worker"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 )
 
 type Coordinator struct {
@@ -52,7 +52,7 @@ func (coordinator *Coordinator) ProbeAndEscalate(ctx context.Context) error {
 	return nil
 }
 
-func (coordinator *Coordinator) enqueueShutdownTasks(ctx context.Context, worker domainworker.Worker, reason string) error {
+func (coordinator *Coordinator) enqueueShutdownTasks(ctx context.Context, worker domainrealtime.Worker, reason string) error {
 	if err := coordinator.enqueueShutdownTask(ctx, taskengine.JobKindWorkerShutdownAgent, worker, reason); err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (coordinator *Coordinator) enqueueShutdownTasks(ctx context.Context, worker
 	return nil
 }
 
-func (coordinator *Coordinator) enqueueShutdownTask(ctx context.Context, kind taskengine.JobKind, worker domainworker.Worker, reason string) error {
+func (coordinator *Coordinator) enqueueShutdownTask(ctx context.Context, kind taskengine.JobKind, worker domainrealtime.Worker, reason string) error {
 	payload, err := json.Marshal(map[string]any{
 		"worker_id": worker.WorkerID,
 		"epoch":     worker.Epoch,

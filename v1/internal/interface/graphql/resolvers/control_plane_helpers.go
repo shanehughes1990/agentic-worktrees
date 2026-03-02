@@ -17,7 +17,6 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 	if streamService == nil {
 		return singleEventStream(models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "stream service is not configured"}), nil
 	}
-	output := make(chan models.StreamEventResult, 64)
 	offset := int32ToInt(fromOffset)
 	if offset < 0 {
 		offset = 0
@@ -26,16 +25,23 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 	if err != nil {
 		return singleEventStream(graphErrorFromError(fmt.Errorf("replay stream events: %w", err))), nil
 	}
-	for _, event := range replay {
-		if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
-			continue
-		}
-		output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}
-	}
+	output := make(chan models.StreamEventResult, 64)
 	_, live, cancel := streamService.Subscribe(256)
 	go func() {
 		defer cancel()
 		defer close(output)
+
+		for _, event := range replay {
+			if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
+				continue
+			}
+			select {
+			case output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}:
+			case <-ctx.Done():
+				return
+			}
+		}
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -59,6 +65,10 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 }
 
 func matchesCorrelation(event domainstream.Event, correlation models.SupervisorCorrelationInput) bool {
+	switch event.EventType {
+	case domainstream.EventWorkerHeartbeat, domainstream.EventWorkerShutdown, domainstream.EventWorkerDeregistered, domainstream.EventWorkerRogueDetected:
+		return true
+	}
 	if strings.TrimSpace(correlation.RunID) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(correlation.RunID) {
 		return false
 	}

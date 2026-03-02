@@ -7,8 +7,8 @@ import (
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
-	domainworker "agentic-orchestrator/internal/domain/worker"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
@@ -405,7 +405,7 @@ func runWorkerHeartbeat(ctx context.Context, service *applicationworker.Service,
 				}
 				return err
 			}
-			if worker != nil && (worker.DesiredState == domainworker.StateShutdownRequested || worker.DesiredState == domainworker.StateDraining || worker.DesiredState == domainworker.StateTerminated || worker.DesiredState == domainworker.StateDeregistered) {
+			if worker != nil && (worker.DesiredState == domainrealtime.StateShutdownRequested || worker.DesiredState == domainrealtime.StateDraining || worker.DesiredState == domainrealtime.StateTerminated || worker.DesiredState == domainrealtime.StateDeregistered) {
 				return fmt.Errorf("%w: desired state is %s", applicationworker.ErrApplicationStopping, worker.DesiredState)
 			}
 		}
@@ -420,9 +420,9 @@ func workerCapabilities(registrations []workerJobRegistration) []taskengine.JobK
 	return capabilities
 }
 
-func waitForWorkerSettings(ctx context.Context, service *applicationworker.Service, retryInterval time.Duration) (domainworker.Settings, error) {
+func waitForWorkerSettings(ctx context.Context, service *applicationworker.Service, retryInterval time.Duration) (domainrealtime.Settings, error) {
 	if service == nil {
-		return domainworker.Settings{}, fmt.Errorf("worker service is not initialized")
+		return domainrealtime.Settings{}, fmt.Errorf("worker service is not initialized")
 	}
 	if retryInterval <= 0 {
 		retryInterval = 2 * time.Second
@@ -435,7 +435,7 @@ func waitForWorkerSettings(ctx context.Context, service *applicationworker.Servi
 			return settings, nil
 		}
 		if ctx.Err() != nil {
-			return domainworker.Settings{}, ctx.Err()
+			return domainrealtime.Settings{}, ctx.Err()
 		}
 		<-ticker.C
 	}

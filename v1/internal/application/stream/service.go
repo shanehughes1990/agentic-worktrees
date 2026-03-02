@@ -25,12 +25,12 @@ type SessionHealthEvaluator interface {
 }
 
 type Service struct {
-	store          EventStore
-	injector       PromptInjector
+	store           EventStore
+	injector        PromptInjector
 	healthEvaluator SessionHealthEvaluator
-	mu             sync.Mutex
-	subscribers    map[uint64]chan domainstream.Event
-	nextID         uint64
+	mu              sync.Mutex
+	subscribers     map[uint64]chan domainstream.Event
+	nextID          uint64
 }
 
 func NewService(store EventStore) (*Service, error) {
@@ -116,10 +116,10 @@ func (service *Service) InjectPrompt(ctx context.Context, sessionID string, prom
 		return domainstream.Event{}, err
 	}
 	event := domainstream.Event{
-		EventID:       fmt.Sprintf("inject-%d", time.Now().UTC().UnixNano()),
-		OccurredAt:    time.Now().UTC(),
-		Source:        domainstream.SourceWorker,
-		EventType:     domainstream.EventSessionInjectedPrompt,
+		EventID:        fmt.Sprintf("inject-%d", time.Now().UTC().UnixNano()),
+		OccurredAt:     time.Now().UTC(),
+		Source:         domainstream.SourceWorker,
+		EventType:      domainstream.EventSessionInjectedPrompt,
 		CorrelationIDs: correlationIDs,
 		Payload: map[string]any{
 			"session_id": normalizedSessionID,
@@ -141,30 +141,31 @@ func (service *Service) PublishHealth(ctx context.Context, sessionID string, cor
 		return domainstream.Event{}, err
 	}
 	event := domainstream.Event{
-		EventID:       fmt.Sprintf("health-%d", time.Now().UTC().UnixNano()),
-		OccurredAt:    time.Now().UTC(),
-		Source:        domainstream.SourceWorker,
-		EventType:     domainstream.EventSessionHealth,
+		EventID:        fmt.Sprintf("health-%d", time.Now().UTC().UnixNano()),
+		OccurredAt:     time.Now().UTC(),
+		Source:         domainstream.SourceWorker,
+		EventType:      domainstream.EventSessionHealth,
 		CorrelationIDs: correlationIDs,
-		Payload:       status,
+		Payload:        status,
 	}
 	return service.AppendAndPublish(ctx, event)
 }
 
 func (service *Service) broadcast(event domainstream.Event) {
 	service.mu.Lock()
-	deferredDrops := make([]uint64, 0)
-	for id, channel := range service.subscribers {
+	for _, channel := range service.subscribers {
 		select {
 		case channel <- event:
 		default:
-			deferredDrops = append(deferredDrops, id)
+			select {
+			case <-channel:
+			default:
+			}
+			select {
+			case channel <- event:
+			default:
+			}
 		}
-	}
-	for _, id := range deferredDrops {
-		channel := service.subscribers[id]
-		delete(service.subscribers, id)
-		close(channel)
 	}
 	service.mu.Unlock()
 }

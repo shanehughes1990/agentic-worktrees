@@ -1,4 +1,4 @@
-package worker
+package realtime
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	applicationworker "agentic-orchestrator/internal/application/worker"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 
 	"github.com/jackc/pgx/v5"
 	"gorm.io/gorm"
@@ -32,9 +32,12 @@ func NewPGNotifyTransport(db *gorm.DB, dsn string) (*PGNotifyTransport, error) {
 	return &PGNotifyTransport{db: db, dsn: strings.TrimSpace(dsn)}, nil
 }
 
-func (transport *PGNotifyTransport) PublishRequest(ctx context.Context, request applicationworker.HeartbeatRequest) error {
+func (transport *PGNotifyTransport) PublishRequest(ctx context.Context, request domainrealtime.HeartbeatRequest) error {
 	if transport == nil || transport.db == nil {
 		return fmt.Errorf("pg notify transport is not initialized")
+	}
+	if err := request.Validate(); err != nil {
+		return err
 	}
 	payload, err := json.Marshal(request)
 	if err != nil {
@@ -46,9 +49,12 @@ func (transport *PGNotifyTransport) PublishRequest(ctx context.Context, request 
 	return nil
 }
 
-func (transport *PGNotifyTransport) PublishResponse(ctx context.Context, response applicationworker.HeartbeatResponse) error {
+func (transport *PGNotifyTransport) PublishResponse(ctx context.Context, response domainrealtime.HeartbeatResponse) error {
 	if transport == nil || transport.db == nil {
 		return fmt.Errorf("pg notify transport is not initialized")
+	}
+	if err := response.Validate(); err != nil {
+		return err
 	}
 	payload, err := json.Marshal(response)
 	if err != nil {
@@ -60,21 +66,27 @@ func (transport *PGNotifyTransport) PublishResponse(ctx context.Context, respons
 	return nil
 }
 
-func (transport *PGNotifyTransport) ListenRequests(ctx context.Context, handler func(applicationworker.HeartbeatRequest) error) error {
+func (transport *PGNotifyTransport) ListenRequests(ctx context.Context, handler func(domainrealtime.HeartbeatRequest) error) error {
 	return transport.listen(ctx, heartbeatRequestChannel, func(payload []byte) error {
-		request := applicationworker.HeartbeatRequest{}
+		request := domainrealtime.HeartbeatRequest{}
 		if err := json.Unmarshal(payload, &request); err != nil {
 			return fmt.Errorf("decode heartbeat request: %w", err)
+		}
+		if err := request.Validate(); err != nil {
+			return err
 		}
 		return handler(request)
 	})
 }
 
-func (transport *PGNotifyTransport) ListenResponses(ctx context.Context, handler func(applicationworker.HeartbeatResponse) error) error {
+func (transport *PGNotifyTransport) ListenResponses(ctx context.Context, handler func(domainrealtime.HeartbeatResponse) error) error {
 	return transport.listen(ctx, heartbeatResponseChannel, func(payload []byte) error {
-		response := applicationworker.HeartbeatResponse{}
+		response := domainrealtime.HeartbeatResponse{}
 		if err := json.Unmarshal(payload, &response); err != nil {
 			return fmt.Errorf("decode heartbeat response: %w", err)
+		}
+		if err := response.Validate(); err != nil {
+			return err
 		}
 		return handler(response)
 	})
@@ -106,4 +118,4 @@ func (transport *PGNotifyTransport) listen(ctx context.Context, channel string, 
 	}
 }
 
-var _ applicationworker.HeartbeatTransport = (*PGNotifyTransport)(nil)
+var _ domainrealtime.HeartbeatTransport = (*PGNotifyTransport)(nil)
