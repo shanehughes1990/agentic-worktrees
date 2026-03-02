@@ -118,8 +118,7 @@ void main() {
                         '__typename': 'ProjectBoard',
                         'boardID': 'board-1',
                         'trackerProvider': 'GITHUB_ISSUES',
-                        'trackerLocation': 'acme/repo',
-                        'trackerBoardID': 'board-1',
+                        'taskboardName': 'Acme Repo Board',
                         'appliesToAllRepositories': true,
                         'repositoryIDs': <String>[],
                       },
@@ -308,8 +307,7 @@ void main() {
         scmProvider: 'UNSUPPORTED',
         repositoryURLs: const <String>['https://example.com/acme/repo'],
         trackerProvider: 'GITHUB_ISSUES',
-        trackerLocation: 'acme/repo',
-        trackerBoardID: 'board-1',
+        taskboardName: 'Acme Repo Board',
       );
 
       expect(result.isSuccess, isFalse);

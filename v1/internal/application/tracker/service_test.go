@@ -38,7 +38,7 @@ func TestServiceSyncBoardUsesResolvedProvider(t *testing.T) {
 		board: domaintracker.Board{
 			BoardID: "board-1",
 			RunID:   "run-1",
-			Source:  domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"},
+			Source:  domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"},
 			Status:  domaintracker.StatusInProgress,
 			Epics: []domaintracker.Epic{
 				{
@@ -63,7 +63,7 @@ func TestServiceSyncBoardUsesResolvedProvider(t *testing.T) {
 		Prompt:     "ingest tracker board",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"},
+		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"},
 	})
 	if err != nil {
 		t.Fatalf("sync board: %v", err)
@@ -71,8 +71,8 @@ func TestServiceSyncBoardUsesResolvedProvider(t *testing.T) {
 	if resolver.request.ProjectID != "project-1" || resolver.request.WorkflowID != "workflow-1" {
 		t.Fatalf("expected project/workflow boundary selection to propagate, got %+v", resolver.request)
 	}
-	if provider.request.Source.Kind != domaintracker.SourceKindLocalJSON {
-		t.Fatalf("expected local_json source kind, got %q", provider.request.Source.Kind)
+	if provider.request.Source.Kind != domaintracker.SourceKindInternal {
+		t.Fatalf("expected internal source kind, got %q", provider.request.Source.Kind)
 	}
 }
 
@@ -88,7 +88,7 @@ func TestServiceSyncBoardClassifiesUnknownProviderErrorsAsTransient(t *testing.T
 		Prompt:     "ingest tracker board",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"},
+		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"},
 	})
 	if !failures.IsClass(err, failures.ClassTransient) {
 		t.Fatalf("expected transient error classification, got %q (%v)", failures.ClassOf(err), err)
@@ -106,7 +106,7 @@ func TestServiceSyncBoardRejectsInvalidBoundarySelection(t *testing.T) {
 		Prompt:     "ingest tracker board",
 		ProjectID:  "",
 		WorkflowID: "workflow-1",
-		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"},
+		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"},
 	})
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)

@@ -29,13 +29,13 @@ func (status Status) Validate() error {
 type SourceKind string
 
 const (
-	SourceKindLocalJSON    SourceKind = "local_json"
+	SourceKindInternal     SourceKind = "internal"
 	SourceKindGitHubIssues SourceKind = "github_issues"
 )
 
 func (kind SourceKind) Validate() error {
 	switch kind {
-	case SourceKindLocalJSON, SourceKindGitHubIssues:
+	case SourceKindInternal, SourceKindGitHubIssues:
 		return nil
 	default:
 		return failures.WrapTerminal(fmt.Errorf("unsupported source kind %q", kind))
@@ -55,9 +55,9 @@ func (source SourceRef) Validate() error {
 		return err
 	}
 	switch source.Kind {
-	case SourceKindLocalJSON:
+	case SourceKindInternal:
 		if strings.TrimSpace(source.Location) == "" {
-			return failures.WrapTerminal(errors.New("location is required for local_json source"))
+			return failures.WrapTerminal(errors.New("location is required for internal source"))
 		}
 	case SourceKindGitHubIssues:
 		if strings.TrimSpace(source.Location) == "" {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -69,8 +70,7 @@ type ProjectRepository struct {
 type ProjectBoard struct {
 	BoardID                  string
 	TrackerProvider          string
-	TrackerLocation          string
-	TrackerBoardID           string
+	TaskboardName            string
 	AppliesToAllRepositories bool
 	RepositoryIDs            []string
 }
@@ -92,7 +92,7 @@ type UpsertProjectSetupRequest struct {
 }
 
 var supportedTrackerProviders = map[string]struct{}{
-	"local_json":    {},
+	"internal":      {},
 	"github_issues": {},
 }
 
@@ -126,12 +126,9 @@ func (request UpsertProjectSetupRequest) Validate() error {
 		return fmt.Errorf("exactly one board is required")
 	}
 	for index, board := range request.Boards {
-		if strings.TrimSpace(board.BoardID) == "" {
-			return fmt.Errorf("boards[%d].board_id is required", index)
-		}
 		trackerProvider := strings.ToLower(strings.TrimSpace(board.TrackerProvider))
 		if _, supported := supportedTrackerProviders[trackerProvider]; !supported {
-			return fmt.Errorf("boards[%d].tracker_provider must be one of: local_json, github_issues", index)
+			return fmt.Errorf("boards[%d].tracker_provider must be one of: internal, github_issues", index)
 		}
 		if !board.AppliesToAllRepositories {
 			return fmt.Errorf("boards[%d].applies_to_all_repositories must be true", index)
@@ -139,8 +136,8 @@ func (request UpsertProjectSetupRequest) Validate() error {
 		if len(board.RepositoryIDs) > 0 {
 			return fmt.Errorf("boards[%d].repository_ids is not supported", index)
 		}
-		if strings.TrimSpace(board.TrackerLocation) == "" {
-			return fmt.Errorf("boards[%d].tracker_location is required", index)
+		if strings.TrimSpace(board.TaskboardName) == "" {
+			return fmt.Errorf("boards[%d].taskboard_name is required", index)
 		}
 	}
 	return nil
@@ -176,7 +173,6 @@ type IngestionBoardSource struct {
 	BoardID                  string
 	Kind                     string
 	Location                 string
-	ExternalBoardID          string
 	AppliesToAllRepositories bool
 	RepositoryIDs            []string
 	Config                   map[string]any
@@ -363,10 +359,9 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 		request.Repositories[index].RepositoryURL = strings.TrimSpace(request.Repositories[index].RepositoryURL)
 	}
 	for index := range request.Boards {
-		request.Boards[index].BoardID = strings.TrimSpace(request.Boards[index].BoardID)
 		request.Boards[index].TrackerProvider = strings.ToLower(strings.TrimSpace(request.Boards[index].TrackerProvider))
-		request.Boards[index].TrackerLocation = strings.TrimSpace(request.Boards[index].TrackerLocation)
-		request.Boards[index].TrackerBoardID = strings.TrimSpace(request.Boards[index].TrackerBoardID)
+		request.Boards[index].TaskboardName = strings.TrimSpace(request.Boards[index].TaskboardName)
+		request.Boards[index].BoardID = boardIDFromName(request.Boards[index].TaskboardName)
 		request.Boards[index].AppliesToAllRepositories = true
 		request.Boards[index].RepositoryIDs = nil
 	}
@@ -425,7 +420,6 @@ func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request En
 			"board_id":                     strings.TrimSpace(source.BoardID),
 			"kind":                         strings.TrimSpace(source.Kind),
 			"location":                     strings.TrimSpace(source.Location),
-			"external_board_id":            strings.TrimSpace(source.ExternalBoardID),
 			"applies_to_all_repositories":  source.AppliesToAllRepositories,
 			"repository_ids":               source.RepositoryIDs,
 			"config":                       source.Config,
@@ -454,6 +448,17 @@ func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request En
 		return taskengine.EnqueueResult{}, fmt.Errorf("enqueue ingestion workflow: %w", err)
 	}
 	return result, nil
+}
+
+var boardNameSanitizer = regexp.MustCompile(`[^a-z0-9]+`)
+
+func boardIDFromName(name string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(name))
+	if trimmed == "" {
+		return ""
+	}
+	cleaned := boardNameSanitizer.ReplaceAllString(trimmed, "_")
+	return strings.Trim(cleaned, "_")
 }
 
 func (service *Service) ApproveIssueIntake(ctx context.Context, request ApproveIssueIntakeRequest) (domainsupervisor.Decision, error) {

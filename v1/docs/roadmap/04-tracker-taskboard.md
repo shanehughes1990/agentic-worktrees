@@ -13,7 +13,7 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 
 - [x] Define canonical tracker/taskboard domain model in `internal/domain/tracker`.
 - [x] Define tracker provider port contracts in application layer.
-- [x] Implement local JSON tracker/taskboard adapter in infrastructure.
+- [x] Implement Postgres-backed internal tracker/taskboard adapter in infrastructure.
 - [x] Add board-source selection at project/workflow boundary.
 - [x] Define external provider adapter boundary (Jira/Linear-ready contract).
 - [x] Add ingestion/sync integration tests against canonical model.
@@ -24,7 +24,7 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 
 - Canonical tracker/taskboard domain model.
 - `tracker` provider contract for board/task lifecycle operations.
-- Local JSON tracker/taskboard adapter (V1-authored).
+- Postgres-backed internal tracker/taskboard adapter (V1-authored).
 - Postgres snapshot persistence for board sync events.
 - Postgres normalized relational tracker persistence model.
 
@@ -43,7 +43,7 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 ## Acceptance Criteria
 
 - Orchestration consumes canonical model only.
-- Local JSON workflows run through canonical contract and persist board snapshots in Postgres.
+- Internal tracker workflows run through canonical contract and persist board snapshots in Postgres.
 - Normalized relational tracker persistence path is implemented without orchestration rewrites.
 
 ## Dependencies

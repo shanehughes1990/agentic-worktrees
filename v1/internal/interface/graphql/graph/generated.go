@@ -107,8 +107,7 @@ type ComplexityRoot struct {
 		AppliesToAllRepositories func(childComplexity int) int
 		BoardID                  func(childComplexity int) int
 		RepositoryIDs            func(childComplexity int) int
-		TrackerBoardID           func(childComplexity int) int
-		TrackerLocation          func(childComplexity int) int
+		TaskboardName            func(childComplexity int) int
 		TrackerProvider          func(childComplexity int) int
 	}
 
@@ -605,18 +604,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectBoard.RepositoryIDs(childComplexity), true
-	case "ProjectBoard.trackerBoardID":
-		if e.ComplexityRoot.ProjectBoard.TrackerBoardID == nil {
+	case "ProjectBoard.taskboardName":
+		if e.ComplexityRoot.ProjectBoard.TaskboardName == nil {
 			break
 		}
 
-		return e.ComplexityRoot.ProjectBoard.TrackerBoardID(childComplexity), true
-	case "ProjectBoard.trackerLocation":
-		if e.ComplexityRoot.ProjectBoard.TrackerLocation == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ProjectBoard.TrackerLocation(childComplexity), true
+		return e.ComplexityRoot.ProjectBoard.TaskboardName(childComplexity), true
 	case "ProjectBoard.trackerProvider":
 		if e.ComplexityRoot.ProjectBoard.TrackerProvider == nil {
 			break
@@ -1512,7 +1505,7 @@ type DeadLetterHistorySuccess {
 union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
 
 enum TrackerSourceKind {
-  LOCAL_JSON
+  INTERNAL
   GITHUB_ISSUES
 }
 
@@ -1520,7 +1513,6 @@ input IngestionBoardSourceInput {
   boardID: String!
   kind: TrackerSourceKind!
   location: String
-  externalBoardID: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]
 }
@@ -1580,8 +1572,7 @@ type ProjectRepository {
 type ProjectBoard {
   boardID: String!
   trackerProvider: TrackerSourceKind!
-  trackerLocation: String
-  trackerBoardID: String
+  taskboardName: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]!
 }
@@ -1615,10 +1606,8 @@ input ProjectRepositoryInput {
 }
 
 input ProjectBoardInput {
-  boardID: String!
   trackerProvider: TrackerSourceKind!
-  trackerLocation: String
-  trackerBoardID: String
+  taskboardName: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]
 }
@@ -3573,14 +3562,14 @@ func (ec *executionContext) fieldContext_ProjectBoard_trackerProvider(_ context.
 	return fc, nil
 }
 
-func (ec *executionContext) _ProjectBoard_trackerLocation(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+func (ec *executionContext) _ProjectBoard_taskboardName(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_ProjectBoard_trackerLocation,
+		ec.fieldContext_ProjectBoard_taskboardName,
 		func(ctx context.Context) (any, error) {
-			return obj.TrackerLocation, nil
+			return obj.TaskboardName, nil
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -3589,36 +3578,7 @@ func (ec *executionContext) _ProjectBoard_trackerLocation(ctx context.Context, f
 	)
 }
 
-func (ec *executionContext) fieldContext_ProjectBoard_trackerLocation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ProjectBoard",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ProjectBoard_trackerBoardID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ProjectBoard_trackerBoardID,
-		func(ctx context.Context) (any, error) {
-			return obj.TrackerBoardID, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_ProjectBoard_trackerBoardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ProjectBoard_taskboardName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ProjectBoard",
 		Field:      field,
@@ -3930,10 +3890,8 @@ func (ec *executionContext) fieldContext_ProjectSetup_boards(_ context.Context, 
 				return ec.fieldContext_ProjectBoard_boardID(ctx, field)
 			case "trackerProvider":
 				return ec.fieldContext_ProjectBoard_trackerProvider(ctx, field)
-			case "trackerLocation":
-				return ec.fieldContext_ProjectBoard_trackerLocation(ctx, field)
-			case "trackerBoardID":
-				return ec.fieldContext_ProjectBoard_trackerBoardID(ctx, field)
+			case "taskboardName":
+				return ec.fieldContext_ProjectBoard_taskboardName(ctx, field)
 			case "appliesToAllRepositories":
 				return ec.fieldContext_ProjectBoard_appliesToAllRepositories(ctx, field)
 			case "repositoryIDs":
@@ -8846,7 +8804,7 @@ func (ec *executionContext) unmarshalInputIngestionBoardSourceInput(ctx context.
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"boardID", "kind", "location", "externalBoardID", "appliesToAllRepositories", "repositoryIDs"}
+	fieldsInOrder := [...]string{"boardID", "kind", "location", "appliesToAllRepositories", "repositoryIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8874,13 +8832,6 @@ func (ec *executionContext) unmarshalInputIngestionBoardSourceInput(ctx context.
 				return it, err
 			}
 			it.Location = data
-		case "externalBoardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("externalBoardID"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ExternalBoardID = data
 		case "appliesToAllRepositories":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appliesToAllRepositories"))
 			data, err := ec.unmarshalNBoolean2bool(ctx, v)
@@ -8907,20 +8858,13 @@ func (ec *executionContext) unmarshalInputProjectBoardInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"boardID", "trackerProvider", "trackerLocation", "trackerBoardID", "appliesToAllRepositories", "repositoryIDs"}
+	fieldsInOrder := [...]string{"trackerProvider", "taskboardName", "appliesToAllRepositories", "repositoryIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "boardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.BoardID = data
 		case "trackerProvider":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerProvider"))
 			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
@@ -8928,20 +8872,13 @@ func (ec *executionContext) unmarshalInputProjectBoardInput(ctx context.Context,
 				return it, err
 			}
 			it.TrackerProvider = data
-		case "trackerLocation":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerLocation"))
+		case "taskboardName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskboardName"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.TrackerLocation = data
-		case "trackerBoardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerBoardID"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TrackerBoardID = data
+			it.TaskboardName = data
 		case "appliesToAllRepositories":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appliesToAllRepositories"))
 			data, err := ec.unmarshalNBoolean2bool(ctx, v)
@@ -10238,10 +10175,8 @@ func (ec *executionContext) _ProjectBoard(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "trackerLocation":
-			out.Values[i] = ec._ProjectBoard_trackerLocation(ctx, field, obj)
-		case "trackerBoardID":
-			out.Values[i] = ec._ProjectBoard_trackerBoardID(ctx, field, obj)
+		case "taskboardName":
+			out.Values[i] = ec._ProjectBoard_taskboardName(ctx, field, obj)
 		case "appliesToAllRepositories":
 			out.Values[i] = ec._ProjectBoard_appliesToAllRepositories(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

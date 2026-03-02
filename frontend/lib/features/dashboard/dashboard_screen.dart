@@ -53,10 +53,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final TextEditingController _repositoryUrlController = TextEditingController(
     text: 'https://github.com/acme/repo',
   );
-  final TextEditingController _trackerLocationController =
-      TextEditingController(text: 'acme/repo');
-  final TextEditingController _trackerBoardIDController =
-      TextEditingController();
+  final TextEditingController _taskboardNameController = TextEditingController(
+    text: 'acme/repo',
+  );
   final TextEditingController _workflowController = TextEditingController(
     text: 'workflow-1',
   );
@@ -126,8 +125,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _projectController.text = '';
       _projectNameController.text = '';
       _repositoryUrlController.text = '';
-      _trackerLocationController.text = '';
-      _trackerBoardIDController.text = '';
+      _taskboardNameController.text = '';
       _setupScmProvider = ProjectSetupLogic.defaultScmProvider;
       _setupTrackerProvider = ProjectSetupLogic.defaultTrackerProvider;
       _statusMessage = 'Creating a new project setup';
@@ -151,8 +149,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _projectController.dispose();
     _projectNameController.dispose();
     _repositoryUrlController.dispose();
-    _trackerLocationController.dispose();
-    _trackerBoardIDController.dispose();
+    _taskboardNameController.dispose();
     _workflowController.dispose();
     _promptController.dispose();
     _scmOwnerController.dispose();
@@ -313,13 +310,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final repositoryURLs = ProjectSetupLogic.parseMultilineEntries(
       _repositoryUrlController.text,
     );
-    final trackerLocation = _trackerLocationController.text.trim();
-    final trackerBoardID = _trackerBoardIDController.text.trim();
+    final taskboardName = _taskboardNameController.text.trim();
     final validationError = ProjectSetupLogic.validateRequiredFields(
       projectID: projectID,
       projectName: projectName,
       repositoryURLs: repositoryURLs,
-      trackerLocation: trackerLocation,
+      taskboardName: taskboardName,
     );
     if (validationError != null) {
       setState(() => _statusMessage = validationError);
@@ -333,8 +329,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       scmProvider: _setupScmProvider,
       repositoryURLs: repositoryURLs,
       trackerProvider: _setupTrackerProvider,
-      trackerLocation: trackerLocation,
-      trackerBoardID: trackerBoardID,
+      taskboardName: taskboardName,
     );
     if (!mounted) {
       return;
@@ -359,8 +354,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectController: _projectController,
       projectNameController: _projectNameController,
       repositoryUrlController: _repositoryUrlController,
-      trackerLocationController: _trackerLocationController,
-      trackerBoardIDController: _trackerBoardIDController,
+      taskboardNameController: _taskboardNameController,
       onScmProviderChanged: (String provider) {
         _setupScmProvider = provider;
       },
@@ -643,8 +637,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectController: _projectController,
       projectNameController: _projectNameController,
       repositoryUrlController: _repositoryUrlController,
-      trackerLocationController: _trackerLocationController,
-      trackerBoardIDController: _trackerBoardIDController,
+      taskboardNameController: _taskboardNameController,
       setupScmProvider: _setupScmProvider,
       setupTrackerProvider: _setupTrackerProvider,
       onSetupScmProviderChanged: (String value) {

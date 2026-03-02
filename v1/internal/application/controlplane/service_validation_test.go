@@ -18,8 +18,7 @@ func validProjectSetupRequest() UpsertProjectSetupRequest {
 			{
 				BoardID:                  "board-1",
 				TrackerProvider:          "github_issues",
-				TrackerLocation:          "acme/repo",
-				TrackerBoardID:           "",
+				TaskboardName:            "Acme Repo Board",
 				AppliesToAllRepositories: true,
 				RepositoryIDs:            nil,
 			},
@@ -31,8 +30,8 @@ func TestUpsertProjectSetupValidateRequiresExactlyOneBoard(t *testing.T) {
 	request := validProjectSetupRequest()
 	request.Boards = append(request.Boards, ProjectBoard{
 		BoardID:                  "board-2",
-		TrackerProvider:          "local_json",
-		TrackerLocation:          "taskboard.json",
+		TrackerProvider:          "internal",
+		TaskboardName:            "Main Board",
 		AppliesToAllRepositories: true,
 	})
 
@@ -47,7 +46,7 @@ func TestUpsertProjectSetupValidateRejectsUnsupportedTrackerProvider(t *testing.
 	request.Boards[0].TrackerProvider = "jira"
 
 	err := request.Validate()
-	if err == nil || err.Error() != "boards[0].tracker_provider must be one of: local_json, github_issues" {
+	if err == nil || err.Error() != "boards[0].tracker_provider must be one of: internal, github_issues" {
 		t.Fatalf("expected tracker-provider validation error, got %v", err)
 	}
 }
@@ -85,7 +84,7 @@ func validIngestionRequest() EnqueueIngestionWorkflowRequest {
 
 func TestEnqueueIngestionWorkflowValidateRequiresExactlyOneBoardSource(t *testing.T) {
 	request := validIngestionRequest()
-	request.BoardSources = append(request.BoardSources, IngestionBoardSource{BoardID: "board-2", Kind: "local_json", Location: "taskboard.json", AppliesToAllRepositories: true})
+	request.BoardSources = append(request.BoardSources, IngestionBoardSource{BoardID: "board-2", Kind: "internal", Location: "taskboard.json", AppliesToAllRepositories: true})
 
 	err := request.Validate()
 	if err == nil || err.Error() != "exactly one board_source is required" {

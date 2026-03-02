@@ -8,9 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 type queuedIngestionEngine struct {
@@ -36,15 +37,15 @@ func (engine *queuedIngestionEngine) dispatchNext(ctx context.Context, handler t
 	})
 }
 
-func newIngestionTrackerService(t *testing.T, baseDirectory string) *applicationtracker.Service {
+func newIngestionTrackerService(t *testing.T, db *gorm.DB) *applicationtracker.Service {
 	t.Helper()
 
-	localProvider, err := infratracker.NewLocalJSONProvider(baseDirectory)
+	internalProvider, err := infratracker.NewPostgresInternalProvider(db)
 	if err != nil {
-		t.Fatalf("new local json provider: %v", err)
+		t.Fatalf("new postgres internal provider: %v", err)
 	}
 	registry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON:    localProvider,
+		domaintracker.SourceKindInternal:     internalProvider,
 		domaintracker.SourceKindGitHubIssues: infratracker.NewGitHubIssuesProvider(),
 	})
 	if err != nil {
@@ -57,41 +58,53 @@ func newIngestionTrackerService(t *testing.T, baseDirectory string) *application
 	return service
 }
 
-func TestIngestionWorkflowSyncsLocalJSONBoardThroughCanonicalModel(t *testing.T) {
-	root := t.TempDir()
-	boardDir := filepath.Join(root, "project-1", "tracker")
-	if err := os.MkdirAll(boardDir, 0o755); err != nil {
-		t.Fatalf("create board dir: %v", err)
+func newIntegrationDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
 	}
-	boardPath := filepath.Join(boardDir, "board-1.json")
-	boardJSON := []byte(`{
-  "board_id": "board-1",
-  "run_id": "run-1",
-  "status": "in-progress",
-  "epics": [
-    {
-      "id": "epic-1",
-      "board_id": "board-1",
-      "title": "Implement tracker",
-      "status": "in-progress",
-      "tasks": [
-        {
-          "id": "task-1",
-          "board_id": "board-1",
-          "title": "Build canonical model",
-          "status": "in-progress"
-        }
-      ]
-    }
-  ],
-  "created_at": "2026-02-25T03:15:00Z",
-  "updated_at": "2026-02-25T03:30:00Z"
-}`)
-	if err := os.WriteFile(boardPath, boardJSON, 0o644); err != nil {
-		t.Fatalf("write board json: %v", err)
-	}
+	return db
+}
 
-	service := newIngestionTrackerService(t, root)
+func seedInternalBoardSnapshot(t *testing.T, db *gorm.DB, projectID string, board domaintracker.Board) {
+	t.Helper()
+	payload, err := json.Marshal(board)
+	if err != nil {
+		t.Fatalf("marshal board payload: %v", err)
+	}
+	row := map[string]any{
+		"run_id":      projectID,
+		"board_id":    board.BoardID,
+		"source_kind": "internal",
+		"source_ref":  board.BoardID,
+		"payload":     payload,
+	}
+	if err := db.Table("tracker_board_snapshots").Create(row).Error; err != nil {
+		t.Fatalf("seed snapshot: %v", err)
+	}
+}
+
+func TestIngestionWorkflowSyncsInternalBoardThroughCanonicalModel(t *testing.T) {
+	db := newIntegrationDB(t)
+	service := newIngestionTrackerService(t, db)
+	seedInternalBoardSnapshot(t, db, "project-1", domaintracker.Board{
+		BoardID: "board-1",
+		RunID:   "seed-run",
+		Source: domaintracker.SourceRef{
+			Kind:     domaintracker.SourceKindInternal,
+			Location: "board-1",
+			BoardID:  "board-1",
+		},
+		Status: domaintracker.StatusInProgress,
+		Epics: []domaintracker.Epic{{
+			WorkItem: domaintracker.WorkItem{ID: "epic-1", BoardID: "board-1", Title: "Implement tracker", Status: domaintracker.StatusInProgress},
+			Tasks: []domaintracker.Task{{
+				WorkItem: domaintracker.WorkItem{ID: "task-1", BoardID: "board-1", Title: "Build canonical model", Status: domaintracker.StatusInProgress},
+			}},
+		}},
+	})
+
 	handler, err := NewIngestionAgentHandler(service)
 	if err != nil {
 		t.Fatalf("new ingestion handler: %v", err)
@@ -112,8 +125,8 @@ func TestIngestionWorkflowSyncsLocalJSONBoardThroughCanonicalModel(t *testing.T)
 		WorkflowID:     "workflow-1",
 		BoardSources: []IngestionBoardSourcePayload{{
 			BoardID:                  "board-1",
-			Kind:                     "local_json",
-			Location:                 "board-1.json",
+			Kind:                     "internal",
+			Location:                 "board-1",
 			AppliesToAllRepositories: true,
 		}},
 	})
@@ -142,40 +155,25 @@ func TestIngestionWorkflowSyncsLocalJSONBoardThroughCanonicalModel(t *testing.T)
 }
 
 func TestIngestionWorkflowRejectsInvalidCanonicalBoardDuringSync(t *testing.T) {
-	root := t.TempDir()
-	boardDir := filepath.Join(root, "project-1", "tracker")
-	if err := os.MkdirAll(boardDir, 0o755); err != nil {
-		t.Fatalf("create board dir: %v", err)
-	}
-	boardPath := filepath.Join(boardDir, "board-invalid.json")
-	invalidBoardJSON := []byte(`{
-  "board_id": "board-1",
-  "run_id": "run-1",
-  "status": "in-progress",
-  "epics": [
-    {
-      "id": "epic-1",
-      "board_id": "board-1",
-      "title": "Implement tracker",
-      "status": "in-progress",
-      "tasks": [
-        {
-          "id": "task-1",
-          "board_id": "board-1",
-          "title": "",
-          "status": "in-progress"
-        }
-      ]
-    }
-  ],
-  "created_at": "2026-02-25T03:15:00Z",
-  "updated_at": "2026-02-25T03:30:00Z"
-}`)
-	if err := os.WriteFile(boardPath, invalidBoardJSON, 0o644); err != nil {
-		t.Fatalf("write board json: %v", err)
-	}
+	db := newIntegrationDB(t)
+	service := newIngestionTrackerService(t, db)
+	seedInternalBoardSnapshot(t, db, "project-1", domaintracker.Board{
+		BoardID: "board-invalid",
+		RunID:   "seed-run",
+		Source: domaintracker.SourceRef{
+			Kind:     domaintracker.SourceKindInternal,
+			Location: "board-invalid",
+			BoardID:  "board-invalid",
+		},
+		Status: domaintracker.StatusInProgress,
+		Epics: []domaintracker.Epic{{
+			WorkItem: domaintracker.WorkItem{ID: "epic-1", BoardID: "board-invalid", Title: "Implement tracker", Status: domaintracker.StatusInProgress},
+			Tasks: []domaintracker.Task{{
+				WorkItem: domaintracker.WorkItem{ID: "task-1", BoardID: "board-invalid", Title: "", Status: domaintracker.StatusInProgress},
+			}},
+		}},
+	})
 
-	service := newIngestionTrackerService(t, root)
 	handler, err := NewIngestionAgentHandler(service)
 	if err != nil {
 		t.Fatalf("new ingestion handler: %v", err)
@@ -187,9 +185,9 @@ func TestIngestionWorkflowRejectsInvalidCanonicalBoardDuringSync(t *testing.T) {
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
 		BoardSources: []IngestionBoardSourcePayload{{
-			BoardID:                  "board-1",
-			Kind:                     "local_json",
-			Location:                 "board-invalid.json",
+			BoardID:                  "board-invalid",
+			Kind:                     "internal",
+			Location:                 "board-invalid",
 			AppliesToAllRepositories: true,
 		}},
 	})

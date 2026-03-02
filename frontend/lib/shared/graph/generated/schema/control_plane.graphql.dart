@@ -5,14 +5,12 @@ class Input$IngestionBoardSourceInput {
     required String boardID,
     required Enum$TrackerSourceKind kind,
     String? location,
-    String? externalBoardID,
     required bool appliesToAllRepositories,
     List<String>? repositoryIDs,
   }) => Input$IngestionBoardSourceInput._({
     r'boardID': boardID,
     r'kind': kind,
     if (location != null) r'location': location,
-    if (externalBoardID != null) r'externalBoardID': externalBoardID,
     r'appliesToAllRepositories': appliesToAllRepositories,
     if (repositoryIDs != null) r'repositoryIDs': repositoryIDs,
   });
@@ -28,10 +26,6 @@ class Input$IngestionBoardSourceInput {
     if (data.containsKey('location')) {
       final l$location = data['location'];
       result$data['location'] = (l$location as String?);
-    }
-    if (data.containsKey('externalBoardID')) {
-      final l$externalBoardID = data['externalBoardID'];
-      result$data['externalBoardID'] = (l$externalBoardID as String?);
     }
     final l$appliesToAllRepositories = data['appliesToAllRepositories'];
     result$data['appliesToAllRepositories'] =
@@ -53,8 +47,6 @@ class Input$IngestionBoardSourceInput {
 
   String? get location => (_$data['location'] as String?);
 
-  String? get externalBoardID => (_$data['externalBoardID'] as String?);
-
   bool get appliesToAllRepositories =>
       (_$data['appliesToAllRepositories'] as bool);
 
@@ -69,10 +61,6 @@ class Input$IngestionBoardSourceInput {
     if (_$data.containsKey('location')) {
       final l$location = location;
       result$data['location'] = l$location;
-    }
-    if (_$data.containsKey('externalBoardID')) {
-      final l$externalBoardID = externalBoardID;
-      result$data['externalBoardID'] = l$externalBoardID;
     }
     final l$appliesToAllRepositories = appliesToAllRepositories;
     result$data['appliesToAllRepositories'] = l$appliesToAllRepositories;
@@ -114,15 +102,6 @@ class Input$IngestionBoardSourceInput {
     if (l$location != lOther$location) {
       return false;
     }
-    final l$externalBoardID = externalBoardID;
-    final lOther$externalBoardID = other.externalBoardID;
-    if (_$data.containsKey('externalBoardID') !=
-        other._$data.containsKey('externalBoardID')) {
-      return false;
-    }
-    if (l$externalBoardID != lOther$externalBoardID) {
-      return false;
-    }
     final l$appliesToAllRepositories = appliesToAllRepositories;
     final lOther$appliesToAllRepositories = other.appliesToAllRepositories;
     if (l$appliesToAllRepositories != lOther$appliesToAllRepositories) {
@@ -156,14 +135,12 @@ class Input$IngestionBoardSourceInput {
     final l$boardID = boardID;
     final l$kind = kind;
     final l$location = location;
-    final l$externalBoardID = externalBoardID;
     final l$appliesToAllRepositories = appliesToAllRepositories;
     final l$repositoryIDs = repositoryIDs;
     return Object.hashAll([
       l$boardID,
       l$kind,
       _$data.containsKey('location') ? l$location : const {},
-      _$data.containsKey('externalBoardID') ? l$externalBoardID : const {},
       l$appliesToAllRepositories,
       _$data.containsKey('repositoryIDs')
           ? l$repositoryIDs == null
@@ -187,7 +164,6 @@ abstract class CopyWith$Input$IngestionBoardSourceInput<TRes> {
     String? boardID,
     Enum$TrackerSourceKind? kind,
     String? location,
-    String? externalBoardID,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
   });
@@ -207,7 +183,6 @@ class _CopyWithImpl$Input$IngestionBoardSourceInput<TRes>
     Object? boardID = _undefined,
     Object? kind = _undefined,
     Object? location = _undefined,
-    Object? externalBoardID = _undefined,
     Object? appliesToAllRepositories = _undefined,
     Object? repositoryIDs = _undefined,
   }) => _then(
@@ -218,8 +193,6 @@ class _CopyWithImpl$Input$IngestionBoardSourceInput<TRes>
       if (kind != _undefined && kind != null)
         'kind': (kind as Enum$TrackerSourceKind),
       if (location != _undefined) 'location': (location as String?),
-      if (externalBoardID != _undefined)
-        'externalBoardID': (externalBoardID as String?),
       if (appliesToAllRepositories != _undefined &&
           appliesToAllRepositories != null)
         'appliesToAllRepositories': (appliesToAllRepositories as bool),
@@ -239,7 +212,6 @@ class _CopyWithStubImpl$Input$IngestionBoardSourceInput<TRes>
     String? boardID,
     Enum$TrackerSourceKind? kind,
     String? location,
-    String? externalBoardID,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
   }) => _res;
@@ -1022,17 +994,13 @@ class _CopyWithStubImpl$Input$ProjectRepositoryInput<TRes>
 
 class Input$ProjectBoardInput {
   factory Input$ProjectBoardInput({
-    required String boardID,
     required Enum$TrackerSourceKind trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     required bool appliesToAllRepositories,
     List<String>? repositoryIDs,
   }) => Input$ProjectBoardInput._({
-    r'boardID': boardID,
     r'trackerProvider': trackerProvider,
-    if (trackerLocation != null) r'trackerLocation': trackerLocation,
-    if (trackerBoardID != null) r'trackerBoardID': trackerBoardID,
+    if (taskboardName != null) r'taskboardName': taskboardName,
     r'appliesToAllRepositories': appliesToAllRepositories,
     if (repositoryIDs != null) r'repositoryIDs': repositoryIDs,
   });
@@ -1041,19 +1009,13 @@ class Input$ProjectBoardInput {
 
   factory Input$ProjectBoardInput.fromJson(Map<String, dynamic> data) {
     final result$data = <String, dynamic>{};
-    final l$boardID = data['boardID'];
-    result$data['boardID'] = (l$boardID as String);
     final l$trackerProvider = data['trackerProvider'];
     result$data['trackerProvider'] = fromJson$Enum$TrackerSourceKind(
       (l$trackerProvider as String),
     );
-    if (data.containsKey('trackerLocation')) {
-      final l$trackerLocation = data['trackerLocation'];
-      result$data['trackerLocation'] = (l$trackerLocation as String?);
-    }
-    if (data.containsKey('trackerBoardID')) {
-      final l$trackerBoardID = data['trackerBoardID'];
-      result$data['trackerBoardID'] = (l$trackerBoardID as String?);
+    if (data.containsKey('taskboardName')) {
+      final l$taskboardName = data['taskboardName'];
+      result$data['taskboardName'] = (l$taskboardName as String?);
     }
     final l$appliesToAllRepositories = data['appliesToAllRepositories'];
     result$data['appliesToAllRepositories'] =
@@ -1069,14 +1031,10 @@ class Input$ProjectBoardInput {
 
   Map<String, dynamic> _$data;
 
-  String get boardID => (_$data['boardID'] as String);
-
   Enum$TrackerSourceKind get trackerProvider =>
       (_$data['trackerProvider'] as Enum$TrackerSourceKind);
 
-  String? get trackerLocation => (_$data['trackerLocation'] as String?);
-
-  String? get trackerBoardID => (_$data['trackerBoardID'] as String?);
+  String? get taskboardName => (_$data['taskboardName'] as String?);
 
   bool get appliesToAllRepositories =>
       (_$data['appliesToAllRepositories'] as bool);
@@ -1085,19 +1043,13 @@ class Input$ProjectBoardInput {
 
   Map<String, dynamic> toJson() {
     final result$data = <String, dynamic>{};
-    final l$boardID = boardID;
-    result$data['boardID'] = l$boardID;
     final l$trackerProvider = trackerProvider;
     result$data['trackerProvider'] = toJson$Enum$TrackerSourceKind(
       l$trackerProvider,
     );
-    if (_$data.containsKey('trackerLocation')) {
-      final l$trackerLocation = trackerLocation;
-      result$data['trackerLocation'] = l$trackerLocation;
-    }
-    if (_$data.containsKey('trackerBoardID')) {
-      final l$trackerBoardID = trackerBoardID;
-      result$data['trackerBoardID'] = l$trackerBoardID;
+    if (_$data.containsKey('taskboardName')) {
+      final l$taskboardName = taskboardName;
+      result$data['taskboardName'] = l$taskboardName;
     }
     final l$appliesToAllRepositories = appliesToAllRepositories;
     result$data['appliesToAllRepositories'] = l$appliesToAllRepositories;
@@ -1119,32 +1071,18 @@ class Input$ProjectBoardInput {
     if (other is! Input$ProjectBoardInput || runtimeType != other.runtimeType) {
       return false;
     }
-    final l$boardID = boardID;
-    final lOther$boardID = other.boardID;
-    if (l$boardID != lOther$boardID) {
-      return false;
-    }
     final l$trackerProvider = trackerProvider;
     final lOther$trackerProvider = other.trackerProvider;
     if (l$trackerProvider != lOther$trackerProvider) {
       return false;
     }
-    final l$trackerLocation = trackerLocation;
-    final lOther$trackerLocation = other.trackerLocation;
-    if (_$data.containsKey('trackerLocation') !=
-        other._$data.containsKey('trackerLocation')) {
+    final l$taskboardName = taskboardName;
+    final lOther$taskboardName = other.taskboardName;
+    if (_$data.containsKey('taskboardName') !=
+        other._$data.containsKey('taskboardName')) {
       return false;
     }
-    if (l$trackerLocation != lOther$trackerLocation) {
-      return false;
-    }
-    final l$trackerBoardID = trackerBoardID;
-    final lOther$trackerBoardID = other.trackerBoardID;
-    if (_$data.containsKey('trackerBoardID') !=
-        other._$data.containsKey('trackerBoardID')) {
-      return false;
-    }
-    if (l$trackerBoardID != lOther$trackerBoardID) {
+    if (l$taskboardName != lOther$taskboardName) {
       return false;
     }
     final l$appliesToAllRepositories = appliesToAllRepositories;
@@ -1177,17 +1115,13 @@ class Input$ProjectBoardInput {
 
   @override
   int get hashCode {
-    final l$boardID = boardID;
     final l$trackerProvider = trackerProvider;
-    final l$trackerLocation = trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
+    final l$taskboardName = taskboardName;
     final l$appliesToAllRepositories = appliesToAllRepositories;
     final l$repositoryIDs = repositoryIDs;
     return Object.hashAll([
-      l$boardID,
       l$trackerProvider,
-      _$data.containsKey('trackerLocation') ? l$trackerLocation : const {},
-      _$data.containsKey('trackerBoardID') ? l$trackerBoardID : const {},
+      _$data.containsKey('taskboardName') ? l$taskboardName : const {},
       l$appliesToAllRepositories,
       _$data.containsKey('repositoryIDs')
           ? l$repositoryIDs == null
@@ -1208,10 +1142,8 @@ abstract class CopyWith$Input$ProjectBoardInput<TRes> {
       _CopyWithStubImpl$Input$ProjectBoardInput;
 
   TRes call({
-    String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
   });
@@ -1228,23 +1160,17 @@ class _CopyWithImpl$Input$ProjectBoardInput<TRes>
   static const _undefined = <dynamic, dynamic>{};
 
   TRes call({
-    Object? boardID = _undefined,
     Object? trackerProvider = _undefined,
-    Object? trackerLocation = _undefined,
-    Object? trackerBoardID = _undefined,
+    Object? taskboardName = _undefined,
     Object? appliesToAllRepositories = _undefined,
     Object? repositoryIDs = _undefined,
   }) => _then(
     Input$ProjectBoardInput._({
       ..._instance._$data,
-      if (boardID != _undefined && boardID != null)
-        'boardID': (boardID as String),
       if (trackerProvider != _undefined && trackerProvider != null)
         'trackerProvider': (trackerProvider as Enum$TrackerSourceKind),
-      if (trackerLocation != _undefined)
-        'trackerLocation': (trackerLocation as String?),
-      if (trackerBoardID != _undefined)
-        'trackerBoardID': (trackerBoardID as String?),
+      if (taskboardName != _undefined)
+        'taskboardName': (taskboardName as String?),
       if (appliesToAllRepositories != _undefined &&
           appliesToAllRepositories != null)
         'appliesToAllRepositories': (appliesToAllRepositories as bool),
@@ -1261,10 +1187,8 @@ class _CopyWithStubImpl$Input$ProjectBoardInput<TRes>
   TRes _res;
 
   call({
-    String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
   }) => _res;
@@ -1751,7 +1675,7 @@ Enum$JobKind fromJson$Enum$JobKind(String value) {
 }
 
 enum Enum$TrackerSourceKind {
-  LOCAL_JSON,
+  INTERNAL,
   GITHUB_ISSUES,
   $unknown;
 
@@ -1763,8 +1687,8 @@ enum Enum$TrackerSourceKind {
 
 String toJson$Enum$TrackerSourceKind(Enum$TrackerSourceKind e) {
   switch (e) {
-    case Enum$TrackerSourceKind.LOCAL_JSON:
-      return r'LOCAL_JSON';
+    case Enum$TrackerSourceKind.INTERNAL:
+      return r'INTERNAL';
     case Enum$TrackerSourceKind.GITHUB_ISSUES:
       return r'GITHUB_ISSUES';
     case Enum$TrackerSourceKind.$unknown:
@@ -1774,8 +1698,8 @@ String toJson$Enum$TrackerSourceKind(Enum$TrackerSourceKind e) {
 
 Enum$TrackerSourceKind fromJson$Enum$TrackerSourceKind(String value) {
   switch (value) {
-    case r'LOCAL_JSON':
-      return Enum$TrackerSourceKind.LOCAL_JSON;
+    case r'INTERNAL':
+      return Enum$TrackerSourceKind.INTERNAL;
     case r'GITHUB_ISSUES':
       return Enum$TrackerSourceKind.GITHUB_ISSUES;
     default:

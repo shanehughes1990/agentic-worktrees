@@ -43,7 +43,7 @@ Based on `.docs/agent-orchestrator` review, Slice 03 implementation must follow 
 Supervisor issue-intake orchestration in this slice is explicitly sourced from tracker ingestion pathways for:
 
 - `github_issues` (GitHub Issues tracker source), and
-- `local_json` (local taskboard source).
+- `internal` (Postgres-backed internal taskboard source).
 
 Additional tracker providers may exist as boundaries, but they are not required for this slice’s supervisor issue-intake completion target.
 
@@ -81,7 +81,7 @@ Additional tracker providers may exist as boundaries, but they are not required 
 - Durable persistence of supervisor history for replay/audit.
 - AO-aligned escalation/reaction and policy-evaluation semantics.
 - Supervisor-triggered rework dispatch to task agents.
-- Supervisor-triggered issue intake orchestration for task kickoff via tracker `github_issues` and `local_json` sources.
+- Supervisor-triggered issue intake orchestration for task kickoff via tracker `github_issues` and `internal` sources.
 
 ## Out of Scope
 
@@ -99,7 +99,7 @@ Additional tracker providers may exist as boundaries, but they are not required 
 - Supervisor can gate merge outcomes with explicit merge/refuse/rework decisions.
 - Supervisor can route failed merge gates (conflicts/comments/policy gaps) back to task agents with deterministic remediation actions.
 - Supervisor can start task workflows from issue-intake signals under policy control.
-- Issue-intake kickoff is demonstrably wired from tracker `github_issues` and `local_json` source pathways.
+- Issue-intake kickoff is demonstrably wired from tracker `github_issues` and `internal` source pathways.
 
 ## Dependencies
 

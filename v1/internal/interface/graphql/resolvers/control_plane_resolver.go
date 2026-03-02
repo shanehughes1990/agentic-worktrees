@@ -29,7 +29,6 @@ func (r *mutationResolver) EnqueueIngestionWorkflow(ctx context.Context, input m
 			BoardID:                  boardSource.BoardID,
 			Kind:                     toTrackerSourceKindString(boardSource.Kind),
 			Location:                 derefString(boardSource.Location),
-			ExternalBoardID:          derefString(boardSource.ExternalBoardID),
 			AppliesToAllRepositories: boardSource.AppliesToAllRepositories,
 			RepositoryIDs:            boardSource.RepositoryIDs,
 			Config:                   map[string]any{},
@@ -104,10 +103,8 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 			repositoryIDs = append(repositoryIDs, repositoryID)
 		}
 		boards = append(boards, applicationcontrolplane.ProjectBoard{
-			BoardID:                  board.BoardID,
 			TrackerProvider:          toTrackerSourceKindString(board.TrackerProvider),
-			TrackerLocation:          derefString(board.TrackerLocation),
-			TrackerBoardID:           derefString(board.TrackerBoardID),
+			TaskboardName:            derefString(board.TaskboardName),
 			AppliesToAllRepositories: board.AppliesToAllRepositories,
 			RepositoryIDs:            repositoryIDs,
 		})

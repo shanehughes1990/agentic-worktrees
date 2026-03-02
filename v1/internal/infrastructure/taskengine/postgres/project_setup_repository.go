@@ -3,8 +3,10 @@ package postgres
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -38,14 +40,26 @@ type projectBoardRecord struct {
 	ProjectID                  string   `gorm:"column:project_id;size:255;not null;index"`
 	BoardID                    string   `gorm:"column:board_id;size:255;not null"`
 	TrackerProvider            string   `gorm:"column:tracker_provider;size:64;not null"`
-	TrackerLocation            string   `gorm:"column:tracker_location;size:1024"`
-	TrackerBoardID             string   `gorm:"column:tracker_board_id;size:255"`
+	TaskboardName              string   `gorm:"column:taskboard_name;size:255"`
 	AppliesToAllRepositories   bool     `gorm:"column:applies_to_all_repositories;not null;default:true"`
 	RepositoryIDs              []string `gorm:"column:repository_ids;serializer:json"`
 }
 
 func (projectBoardRecord) TableName() string {
 	return "project_boards"
+}
+
+type trackerBoardSnapshotRecord struct {
+	gorm.Model
+	RunID      string `gorm:"column:run_id;size:255;not null;uniqueIndex:idx_tracker_board_snapshot,priority:1"`
+	BoardID    string `gorm:"column:board_id;size:255;not null;uniqueIndex:idx_tracker_board_snapshot,priority:2"`
+	SourceKind string `gorm:"column:source_kind;size:64;not null"`
+	SourceRef  string `gorm:"column:source_ref"`
+	Payload    []byte `gorm:"column:payload;not null"`
+}
+
+func (trackerBoardSnapshotRecord) TableName() string {
+	return "tracker_board_snapshots"
 }
 
 type ProjectSetupRepository struct {
@@ -56,7 +70,7 @@ func NewProjectSetupRepository(db *gorm.DB) (*ProjectSetupRepository, error) {
 	if db == nil {
 		return nil, fmt.Errorf("project setup repository db is required")
 	}
-	if err := db.AutoMigrate(&projectSetupRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}); err != nil {
+	if err := db.AutoMigrate(&projectSetupRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}, &trackerBoardSnapshotRecord{}); err != nil {
 		return nil, fmt.Errorf("project setup repository migrate: %w", err)
 	}
 	return &ProjectSetupRepository{db: db}, nil
@@ -145,19 +159,53 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 		}
 		if len(setup.Boards) > 0 {
 			boards := make([]projectBoardRecord, 0, len(setup.Boards))
+			snapshots := make([]trackerBoardSnapshotRecord, 0)
 			for _, boardSetup := range setup.Boards {
+				trimmedTrackerProvider := strings.TrimSpace(boardSetup.TrackerProvider)
+				trimmedBoardID := strings.TrimSpace(boardSetup.BoardID)
 				boards = append(boards, projectBoardRecord{
 					ProjectID:                projectRecord.ProjectID,
-					BoardID:                  strings.TrimSpace(boardSetup.BoardID),
-					TrackerProvider:          strings.TrimSpace(boardSetup.TrackerProvider),
-					TrackerLocation:          strings.TrimSpace(boardSetup.TrackerLocation),
-					TrackerBoardID:           strings.TrimSpace(boardSetup.TrackerBoardID),
+					BoardID:                  trimmedBoardID,
+					TrackerProvider:          trimmedTrackerProvider,
+					TaskboardName:            strings.TrimSpace(boardSetup.TaskboardName),
 					AppliesToAllRepositories: boardSetup.AppliesToAllRepositories,
 					RepositoryIDs:            boardSetup.RepositoryIDs,
 				})
+				if trimmedTrackerProvider == "internal" {
+					now := time.Now().UTC()
+					payload, err := json.Marshal(map[string]any{
+						"board_id":   trimmedBoardID,
+						"run_id":     projectRecord.ProjectID,
+						"title":      strings.TrimSpace(boardSetup.TaskboardName),
+						"status":     "not-started",
+						"epics":      []any{},
+						"created_at": now,
+						"updated_at": now,
+					})
+					if err != nil {
+						return fmt.Errorf("encode internal tracker board snapshot payload: %w", err)
+					}
+					snapshots = append(snapshots, trackerBoardSnapshotRecord{
+						RunID:      projectRecord.ProjectID,
+						BoardID:    trimmedBoardID,
+						SourceKind: "internal",
+						SourceRef:  trimmedBoardID,
+						Payload:    payload,
+					})
+				}
 			}
 			if err := tx.Create(&boards).Error; err != nil {
 				return fmt.Errorf("insert project boards: %w", err)
+			}
+			if len(snapshots) > 0 {
+				for _, snapshot := range snapshots {
+					if err := tx.Clauses(clause.OnConflict{
+						Columns:   []clause.Column{{Name: "run_id"}, {Name: "board_id"}},
+						DoUpdates: clause.AssignmentColumns([]string{"source_kind", "source_ref", "payload", "updated_at"}),
+					}).Create(&snapshot).Error; err != nil {
+						return fmt.Errorf("insert internal tracker snapshot: %w", err)
+					}
+				}
 			}
 		}
 		return nil
@@ -233,8 +281,7 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 		boards = append(boards, applicationcontrolplane.ProjectBoard{
 			BoardID:                  strings.TrimSpace(boardRecord.BoardID),
 			TrackerProvider:          strings.TrimSpace(boardRecord.TrackerProvider),
-			TrackerLocation:          strings.TrimSpace(boardRecord.TrackerLocation),
-			TrackerBoardID:           strings.TrimSpace(boardRecord.TrackerBoardID),
+			TaskboardName:            strings.TrimSpace(boardRecord.TaskboardName),
 			AppliesToAllRepositories: boardRecord.AppliesToAllRepositories,
 			RepositoryIDs:            repositoryIDs,
 		})

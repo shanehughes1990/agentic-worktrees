@@ -81,7 +81,7 @@ type DeadLetterHistorySuccess {
 union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
 
 enum TrackerSourceKind {
-  LOCAL_JSON
+  INTERNAL
   GITHUB_ISSUES
 }
 
@@ -89,7 +89,6 @@ input IngestionBoardSourceInput {
   boardID: String!
   kind: TrackerSourceKind!
   location: String
-  externalBoardID: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]
 }
@@ -149,8 +148,7 @@ type ProjectRepository {
 type ProjectBoard {
   boardID: String!
   trackerProvider: TrackerSourceKind!
-  trackerLocation: String
-  trackerBoardID: String
+  taskboardName: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]!
 }
@@ -184,10 +182,8 @@ input ProjectRepositoryInput {
 }
 
 input ProjectBoardInput {
-  boardID: String!
   trackerProvider: TrackerSourceKind!
-  trackerLocation: String
-  trackerBoardID: String
+  taskboardName: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]
 }

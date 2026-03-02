@@ -21,8 +21,7 @@ ProjectSetupConfig sampleProjectSetup({
       ProjectBoardConfig(
         boardID: 'board-1',
         trackerProvider: 'GITHUB_ISSUES',
-        trackerLocation: 'acme/repo',
-        trackerBoardID: 'board-1',
+        taskboardName: 'Acme Repo Board',
         appliesToAllRepositories: true,
         repositoryIDs: <String>[],
       ),

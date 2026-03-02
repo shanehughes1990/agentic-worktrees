@@ -9,23 +9,20 @@ void main() {
   late TextEditingController projectController;
   late TextEditingController projectNameController;
   late TextEditingController repositoryController;
-  late TextEditingController trackerLocationController;
-  late TextEditingController trackerBoardController;
+  late TextEditingController taskboardNameController;
 
   setUp(() {
     projectController = TextEditingController();
     projectNameController = TextEditingController();
     repositoryController = TextEditingController();
-    trackerLocationController = TextEditingController();
-    trackerBoardController = TextEditingController();
+    taskboardNameController = TextEditingController();
   });
 
   tearDown(() {
     projectController.dispose();
     projectNameController.dispose();
     repositoryController.dispose();
-    trackerLocationController.dispose();
-    trackerBoardController.dispose();
+    taskboardNameController.dispose();
   });
 
   Future<void> pumpSubject(
@@ -44,8 +41,7 @@ void main() {
             projectController: projectController,
             projectNameController: projectNameController,
             repositoryUrlController: repositoryController,
-            trackerLocationController: trackerLocationController,
-            trackerBoardIDController: trackerBoardController,
+            taskboardNameController: taskboardNameController,
             setupScmProvider: 'GITHUB',
             setupTrackerProvider: 'GITHUB_ISSUES',
             onSetupScmProviderChanged: onScmProviderChanged,

@@ -7635,14 +7635,7 @@ const documentNodeQueryProjectSetups = DocumentNode(
                                     selectionSet: null,
                                   ),
                                   FieldNode(
-                                    name: NameNode(value: 'trackerLocation'),
-                                    alias: null,
-                                    arguments: [],
-                                    directives: [],
-                                    selectionSet: null,
-                                  ),
-                                  FieldNode(
-                                    name: NameNode(value: 'trackerBoardID'),
+                                    name: NameNode(value: 'taskboardName'),
                                     alias: null,
                                     arguments: [],
                                     directives: [],
@@ -8853,8 +8846,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
   Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards({
     required this.boardID,
     required this.trackerProvider,
-    this.trackerLocation,
-    this.trackerBoardID,
+    this.taskboardName,
     required this.appliesToAllRepositories,
     required this.repositoryIDs,
     this.$__typename = 'ProjectBoard',
@@ -8865,8 +8857,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
   ) {
     final l$boardID = json['boardID'];
     final l$trackerProvider = json['trackerProvider'];
-    final l$trackerLocation = json['trackerLocation'];
-    final l$trackerBoardID = json['trackerBoardID'];
+    final l$taskboardName = json['taskboardName'];
     final l$appliesToAllRepositories = json['appliesToAllRepositories'];
     final l$repositoryIDs = json['repositoryIDs'];
     final l$$__typename = json['__typename'];
@@ -8875,8 +8866,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
       trackerProvider: fromJson$Enum$TrackerSourceKind(
         (l$trackerProvider as String),
       ),
-      trackerLocation: (l$trackerLocation as String?),
-      trackerBoardID: (l$trackerBoardID as String?),
+      taskboardName: (l$taskboardName as String?),
       appliesToAllRepositories: (l$appliesToAllRepositories as bool),
       repositoryIDs: (l$repositoryIDs as List<dynamic>)
           .map((e) => (e as String))
@@ -8889,9 +8879,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
 
   final Enum$TrackerSourceKind trackerProvider;
 
-  final String? trackerLocation;
-
-  final String? trackerBoardID;
+  final String? taskboardName;
 
   final bool appliesToAllRepositories;
 
@@ -8907,10 +8895,8 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
     _resultData['trackerProvider'] = toJson$Enum$TrackerSourceKind(
       l$trackerProvider,
     );
-    final l$trackerLocation = trackerLocation;
-    _resultData['trackerLocation'] = l$trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
-    _resultData['trackerBoardID'] = l$trackerBoardID;
+    final l$taskboardName = taskboardName;
+    _resultData['taskboardName'] = l$taskboardName;
     final l$appliesToAllRepositories = appliesToAllRepositories;
     _resultData['appliesToAllRepositories'] = l$appliesToAllRepositories;
     final l$repositoryIDs = repositoryIDs;
@@ -8924,16 +8910,14 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
   int get hashCode {
     final l$boardID = boardID;
     final l$trackerProvider = trackerProvider;
-    final l$trackerLocation = trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
+    final l$taskboardName = taskboardName;
     final l$appliesToAllRepositories = appliesToAllRepositories;
     final l$repositoryIDs = repositoryIDs;
     final l$$__typename = $__typename;
     return Object.hashAll([
       l$boardID,
       l$trackerProvider,
-      l$trackerLocation,
-      l$trackerBoardID,
+      l$taskboardName,
       l$appliesToAllRepositories,
       Object.hashAll(l$repositoryIDs.map((v) => v)),
       l$$__typename,
@@ -8960,14 +8944,9 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
     if (l$trackerProvider != lOther$trackerProvider) {
       return false;
     }
-    final l$trackerLocation = trackerLocation;
-    final lOther$trackerLocation = other.trackerLocation;
-    if (l$trackerLocation != lOther$trackerLocation) {
-      return false;
-    }
-    final l$trackerBoardID = trackerBoardID;
-    final lOther$trackerBoardID = other.trackerBoardID;
-    if (l$trackerBoardID != lOther$trackerBoardID) {
+    final l$taskboardName = taskboardName;
+    final lOther$taskboardName = other.taskboardName;
+    if (l$taskboardName != lOther$taskboardName) {
       return false;
     }
     final l$appliesToAllRepositories = appliesToAllRepositories;
@@ -9027,8 +9006,7 @@ abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
   TRes call({
     String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
     String? $__typename,
@@ -9060,8 +9038,7 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
   TRes call({
     Object? boardID = _undefined,
     Object? trackerProvider = _undefined,
-    Object? trackerLocation = _undefined,
-    Object? trackerBoardID = _undefined,
+    Object? taskboardName = _undefined,
     Object? appliesToAllRepositories = _undefined,
     Object? repositoryIDs = _undefined,
     Object? $__typename = _undefined,
@@ -9073,12 +9050,9 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
       trackerProvider: trackerProvider == _undefined || trackerProvider == null
           ? _instance.trackerProvider
           : (trackerProvider as Enum$TrackerSourceKind),
-      trackerLocation: trackerLocation == _undefined
-          ? _instance.trackerLocation
-          : (trackerLocation as String?),
-      trackerBoardID: trackerBoardID == _undefined
-          ? _instance.trackerBoardID
-          : (trackerBoardID as String?),
+      taskboardName: taskboardName == _undefined
+          ? _instance.taskboardName
+          : (taskboardName as String?),
       appliesToAllRepositories:
           appliesToAllRepositories == _undefined ||
               appliesToAllRepositories == null
@@ -9110,8 +9084,7 @@ class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
   call({
     String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
     String? $__typename,
@@ -9655,14 +9628,7 @@ const documentNodeMutationUpsertProjectSetup = DocumentNode(
                                     selectionSet: null,
                                   ),
                                   FieldNode(
-                                    name: NameNode(value: 'trackerLocation'),
-                                    alias: null,
-                                    arguments: [],
-                                    directives: [],
-                                    selectionSet: null,
-                                  ),
-                                  FieldNode(
-                                    name: NameNode(value: 'trackerBoardID'),
+                                    name: NameNode(value: 'taskboardName'),
                                     alias: null,
                                     arguments: [],
                                     directives: [],
@@ -10846,8 +10812,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards({
     required this.boardID,
     required this.trackerProvider,
-    this.trackerLocation,
-    this.trackerBoardID,
+    this.taskboardName,
     required this.appliesToAllRepositories,
     required this.repositoryIDs,
     this.$__typename = 'ProjectBoard',
@@ -10858,8 +10823,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   ) {
     final l$boardID = json['boardID'];
     final l$trackerProvider = json['trackerProvider'];
-    final l$trackerLocation = json['trackerLocation'];
-    final l$trackerBoardID = json['trackerBoardID'];
+    final l$taskboardName = json['taskboardName'];
     final l$appliesToAllRepositories = json['appliesToAllRepositories'];
     final l$repositoryIDs = json['repositoryIDs'];
     final l$$__typename = json['__typename'];
@@ -10868,8 +10832,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
       trackerProvider: fromJson$Enum$TrackerSourceKind(
         (l$trackerProvider as String),
       ),
-      trackerLocation: (l$trackerLocation as String?),
-      trackerBoardID: (l$trackerBoardID as String?),
+      taskboardName: (l$taskboardName as String?),
       appliesToAllRepositories: (l$appliesToAllRepositories as bool),
       repositoryIDs: (l$repositoryIDs as List<dynamic>)
           .map((e) => (e as String))
@@ -10882,9 +10845,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
 
   final Enum$TrackerSourceKind trackerProvider;
 
-  final String? trackerLocation;
-
-  final String? trackerBoardID;
+  final String? taskboardName;
 
   final bool appliesToAllRepositories;
 
@@ -10900,10 +10861,8 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     _resultData['trackerProvider'] = toJson$Enum$TrackerSourceKind(
       l$trackerProvider,
     );
-    final l$trackerLocation = trackerLocation;
-    _resultData['trackerLocation'] = l$trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
-    _resultData['trackerBoardID'] = l$trackerBoardID;
+    final l$taskboardName = taskboardName;
+    _resultData['taskboardName'] = l$taskboardName;
     final l$appliesToAllRepositories = appliesToAllRepositories;
     _resultData['appliesToAllRepositories'] = l$appliesToAllRepositories;
     final l$repositoryIDs = repositoryIDs;
@@ -10917,16 +10876,14 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   int get hashCode {
     final l$boardID = boardID;
     final l$trackerProvider = trackerProvider;
-    final l$trackerLocation = trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
+    final l$taskboardName = taskboardName;
     final l$appliesToAllRepositories = appliesToAllRepositories;
     final l$repositoryIDs = repositoryIDs;
     final l$$__typename = $__typename;
     return Object.hashAll([
       l$boardID,
       l$trackerProvider,
-      l$trackerLocation,
-      l$trackerBoardID,
+      l$taskboardName,
       l$appliesToAllRepositories,
       Object.hashAll(l$repositoryIDs.map((v) => v)),
       l$$__typename,
@@ -10953,14 +10910,9 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     if (l$trackerProvider != lOther$trackerProvider) {
       return false;
     }
-    final l$trackerLocation = trackerLocation;
-    final lOther$trackerLocation = other.trackerLocation;
-    if (l$trackerLocation != lOther$trackerLocation) {
-      return false;
-    }
-    final l$trackerBoardID = trackerBoardID;
-    final lOther$trackerBoardID = other.trackerBoardID;
-    if (l$trackerBoardID != lOther$trackerBoardID) {
+    final l$taskboardName = taskboardName;
+    final lOther$taskboardName = other.taskboardName;
+    if (l$taskboardName != lOther$taskboardName) {
       return false;
     }
     final l$appliesToAllRepositories = appliesToAllRepositories;
@@ -11021,8 +10973,7 @@ abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
   TRes call({
     String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
     String? $__typename,
@@ -11054,8 +11005,7 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
   TRes call({
     Object? boardID = _undefined,
     Object? trackerProvider = _undefined,
-    Object? trackerLocation = _undefined,
-    Object? trackerBoardID = _undefined,
+    Object? taskboardName = _undefined,
     Object? appliesToAllRepositories = _undefined,
     Object? repositoryIDs = _undefined,
     Object? $__typename = _undefined,
@@ -11067,12 +11017,9 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
       trackerProvider: trackerProvider == _undefined || trackerProvider == null
           ? _instance.trackerProvider
           : (trackerProvider as Enum$TrackerSourceKind),
-      trackerLocation: trackerLocation == _undefined
-          ? _instance.trackerLocation
-          : (trackerLocation as String?),
-      trackerBoardID: trackerBoardID == _undefined
-          ? _instance.trackerBoardID
-          : (trackerBoardID as String?),
+      taskboardName: taskboardName == _undefined
+          ? _instance.taskboardName
+          : (taskboardName as String?),
       appliesToAllRepositories:
           appliesToAllRepositories == _undefined ||
               appliesToAllRepositories == null
@@ -11104,8 +11051,7 @@ class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
   call({
     String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    String? taskboardName,
     bool? appliesToAllRepositories,
     List<String>? repositoryIDs,
     String? $__typename,

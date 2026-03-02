@@ -31,8 +31,8 @@ func normalizedSampleBoard() domaintracker.Board {
 		Title:   "Roadmap",
 		Goal:    "Ship slices",
 		Source: domaintracker.SourceRef{
-			Kind:     domaintracker.SourceKindLocalJSON,
-			Location: "board-1.json",
+			Kind:     domaintracker.SourceKindInternal,
+			Location: "board-1",
 			BoardID:  "board-1",
 		},
 		Status: domaintracker.StatusInProgress,
@@ -55,7 +55,7 @@ func TestPostgresNormalizedProviderPersistsBoardHierarchy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}
-	request := applicationtracker.ProviderSyncRequest{RunID: "run-1", ProjectID: "project-1", WorkflowID: "workflow-1", Source: domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"}}
+	request := applicationtracker.ProviderSyncRequest{RunID: "run-1", ProjectID: "project-1", WorkflowID: "workflow-1", Source: domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"}}
 	board, err := provider.SyncBoard(context.Background(), request)
 	if err != nil {
 		t.Fatalf("sync board: %v", err)
@@ -99,7 +99,7 @@ func TestPostgresNormalizedProviderPropagatesUpstreamError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new provider: %v", err)
 	}
-	request := applicationtracker.ProviderSyncRequest{RunID: "run-1", ProjectID: "project-1", WorkflowID: "workflow-1", Source: domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"}}
+	request := applicationtracker.ProviderSyncRequest{RunID: "run-1", ProjectID: "project-1", WorkflowID: "workflow-1", Source: domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"}}
 	if _, err := provider.SyncBoard(context.Background(), request); err == nil {
 		t.Fatalf("expected upstream error")
 	}

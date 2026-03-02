@@ -11,7 +11,7 @@ void main() {
         projectID: '',
         projectName: 'name',
         repositoryURLs: const <String>['https://example.com/repo'],
-        trackerLocation: 'acme/repo',
+        taskboardName: 'Main Board',
       );
 
       expect(
@@ -25,21 +25,21 @@ void main() {
         projectID: 'projectOne',
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
-        trackerLocation: 'acme/repo',
+        taskboardName: 'Main Board',
       );
 
       expect(error, isNull);
     });
 
-    test('returns error when tracker location is empty', () {
+    test('returns error when taskboard name is empty', () {
       final error = ProjectSetupLogic.validateRequiredFields(
         projectID: 'projectOne',
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
-        trackerLocation: '   ',
+        taskboardName: '   ',
       );
 
-      expect(error, 'Tracker Location is required.');
+      expect(error, 'Taskboard Name is required.');
     });
   });
 
@@ -48,8 +48,7 @@ void main() {
     final projectController = TextEditingController();
     final projectNameController = TextEditingController();
     final repositoryController = TextEditingController();
-    final trackerLocationController = TextEditingController();
-    final trackerBoardController = TextEditingController();
+    final taskboardNameController = TextEditingController();
     String scmProvider = '';
     String trackerProvider = '';
 
@@ -58,8 +57,7 @@ void main() {
       projectController: projectController,
       projectNameController: projectNameController,
       repositoryUrlController: repositoryController,
-      trackerLocationController: trackerLocationController,
-      trackerBoardIDController: trackerBoardController,
+      taskboardNameController: taskboardNameController,
       onScmProviderChanged: (String value) => scmProvider = value,
       onTrackerProviderChanged: (String value) => trackerProvider = value,
     );
@@ -67,16 +65,14 @@ void main() {
     expect(projectController.text, setup.projectID);
     expect(projectNameController.text, setup.projectName);
     expect(repositoryController.text, setup.repositories.first.repositoryURL);
-    expect(trackerLocationController.text, setup.boards.first.trackerLocation);
-    expect(trackerBoardController.text, setup.boards.first.trackerBoardID);
+    expect(taskboardNameController.text, setup.boards.first.taskboardName);
     expect(scmProvider, setup.repositories.first.scmProvider);
     expect(trackerProvider, setup.boards.first.trackerProvider);
 
     projectController.dispose();
     projectNameController.dispose();
     repositoryController.dispose();
-    trackerLocationController.dispose();
-    trackerBoardController.dispose();
+    taskboardNameController.dispose();
   });
 
   test('parseMultilineEntries filters blanks and trims', () {

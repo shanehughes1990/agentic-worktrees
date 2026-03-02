@@ -97,7 +97,7 @@ func TestIngestionAgentHandlerDispatchesTrackerSync(t *testing.T) {
 		WorkflowID:     "workflow-1",
 		BoardSources: []IngestionBoardSourcePayload{{
 			BoardID:                  "board-1",
-			Kind:                     "local_json",
+			Kind:                     "internal",
 			Location:                 "board-1.json",
 			AppliesToAllRepositories: true,
 		}},
@@ -115,11 +115,14 @@ func TestIngestionAgentHandlerDispatchesTrackerSync(t *testing.T) {
 	if service.request.ProjectID != "project-1" || service.request.WorkflowID != "workflow-1" {
 		t.Fatalf("expected project/workflow boundary propagation, got %+v", service.request)
 	}
-	if service.request.Source.Kind != domaintracker.SourceKindLocalJSON {
-		t.Fatalf("expected source kind local_json, got %q", service.request.Source.Kind)
+	if service.request.Source.Kind != domaintracker.SourceKindInternal {
+		t.Fatalf("expected source kind internal, got %q", service.request.Source.Kind)
 	}
-	if service.request.Source.Location != "project-1/tracker/board-1.json" {
-		t.Fatalf("expected project-scoped location, got %q", service.request.Source.Location)
+	if service.request.Source.Location != "board-1.json" {
+		t.Fatalf("expected unmodified location, got %q", service.request.Source.Location)
+	}
+	if service.request.Source.BoardID != "board-1" {
+		t.Fatalf("expected board id fallback to payload board_id, got %q", service.request.Source.BoardID)
 	}
 }
 
@@ -137,7 +140,7 @@ func TestIngestionAgentHandlerReturnsServiceError(t *testing.T) {
 		WorkflowID: "workflow-1",
 		BoardSources: []IngestionBoardSourcePayload{{
 			BoardID:                  "board-1",
-			Kind:                     "local_json",
+			Kind:                     "internal",
 			Location:                 "board-1.json",
 			AppliesToAllRepositories: true,
 		}},
@@ -162,8 +165,8 @@ func TestIngestionAgentHandlerRejectsMultipleBoardSources(t *testing.T) {
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
 		BoardSources: []IngestionBoardSourcePayload{
-			{BoardID: "board-1", Kind: "local_json", Location: "board-1.json", AppliesToAllRepositories: true},
-			{BoardID: "board-2", Kind: "local_json", Location: "board-2.json", AppliesToAllRepositories: true},
+			{BoardID: "board-1", Kind: "internal", Location: "board-1.json", AppliesToAllRepositories: true},
+			{BoardID: "board-2", Kind: "internal", Location: "board-2.json", AppliesToAllRepositories: true},
 		},
 	})
 

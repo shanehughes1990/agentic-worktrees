@@ -8,8 +8,7 @@ class ProjectSetupScreen extends StatefulWidget {
     required this.projectController,
     required this.projectNameController,
     required this.repositoryUrlController,
-    required this.trackerLocationController,
-    required this.trackerBoardIDController,
+    required this.taskboardNameController,
     required this.setupScmProvider,
     required this.setupTrackerProvider,
     required this.onSetupScmProviderChanged,
@@ -27,8 +26,7 @@ class ProjectSetupScreen extends StatefulWidget {
   final TextEditingController projectController;
   final TextEditingController projectNameController;
   final TextEditingController repositoryUrlController;
-  final TextEditingController trackerLocationController;
-  final TextEditingController trackerBoardIDController;
+  final TextEditingController taskboardNameController;
   final String setupScmProvider;
   final String setupTrackerProvider;
   final ValueChanged<String> onSetupScmProviderChanged;
@@ -48,14 +46,11 @@ class ProjectSetupScreen extends StatefulWidget {
 class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
   final List<TextEditingController> _repositoryControllers =
       <TextEditingController>[];
-  final TextEditingController _trackerLocationController =
-      TextEditingController();
-  final TextEditingController _trackerBoardIDController =
+  final TextEditingController _taskboardNameController =
       TextEditingController();
 
   String _lastRepositoryRaw = '';
-  String _lastTrackerLocationRaw = '';
-  String _lastTrackerBoardIDRaw = '';
+  String _lastTaskboardNameRaw = '';
 
   @override
   void initState() {
@@ -74,26 +69,22 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
     for (final TextEditingController controller in _repositoryControllers) {
       controller.dispose();
     }
-    _trackerLocationController.dispose();
-    _trackerBoardIDController.dispose();
+    _taskboardNameController.dispose();
     super.dispose();
   }
 
   void _syncDraftControllersFromForm({bool force = false}) {
     final repositoryRaw = widget.repositoryUrlController.text;
-    final trackerLocationRaw = widget.trackerLocationController.text;
-    final trackerBoardIDRaw = widget.trackerBoardIDController.text;
+    final taskboardNameRaw = widget.taskboardNameController.text;
 
     if (!force &&
         repositoryRaw == _lastRepositoryRaw &&
-        trackerLocationRaw == _lastTrackerLocationRaw &&
-        trackerBoardIDRaw == _lastTrackerBoardIDRaw) {
+        taskboardNameRaw == _lastTaskboardNameRaw) {
       return;
     }
 
     _lastRepositoryRaw = repositoryRaw;
-    _lastTrackerLocationRaw = trackerLocationRaw;
-    _lastTrackerBoardIDRaw = trackerBoardIDRaw;
+    _lastTaskboardNameRaw = taskboardNameRaw;
 
     for (final TextEditingController controller in _repositoryControllers) {
       controller.dispose();
@@ -111,17 +102,11 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
       );
     }
 
-    final trackerLocations = ProjectSetupLogic.parseMultilineEntries(
-      trackerLocationRaw,
+    final taskboardNames = ProjectSetupLogic.parseMultilineEntries(
+      taskboardNameRaw,
     );
-    final trackerBoardIDs = ProjectSetupLogic.parseMultilineEntries(
-      trackerBoardIDRaw,
-    );
-    _trackerLocationController.text = trackerLocations.isNotEmpty
-        ? trackerLocations.first
-        : '';
-    _trackerBoardIDController.text = trackerBoardIDs.isNotEmpty
-        ? trackerBoardIDs.first
+    _taskboardNameController.text = taskboardNames.isNotEmpty
+        ? taskboardNames.first
         : '';
 
     if (mounted) {
@@ -135,14 +120,10 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
         .where((String value) => value.isNotEmpty)
         .join('\n');
 
-    widget.trackerLocationController.text = _trackerLocationController.text
-        .trim();
-    widget.trackerBoardIDController.text = _trackerBoardIDController.text
-        .trim();
+    widget.taskboardNameController.text = _taskboardNameController.text.trim();
 
     _lastRepositoryRaw = widget.repositoryUrlController.text;
-    _lastTrackerLocationRaw = widget.trackerLocationController.text;
-    _lastTrackerBoardIDRaw = widget.trackerBoardIDController.text;
+    _lastTaskboardNameRaw = widget.taskboardNameController.text;
   }
 
   void _onProjectNameChanged(String value) {
@@ -265,8 +246,7 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
             _TrackerSetupSection(
               trackerProvider: widget.setupTrackerProvider,
               onTrackerProviderChanged: widget.onSetupTrackerProviderChanged,
-              locationController: _trackerLocationController,
-              boardIDController: _trackerBoardIDController,
+              taskboardNameController: _taskboardNameController,
             ),
           ],
           const SizedBox(height: 12),
@@ -390,14 +370,12 @@ class _TrackerSetupSection extends StatelessWidget {
   const _TrackerSetupSection({
     required this.trackerProvider,
     required this.onTrackerProviderChanged,
-    required this.locationController,
-    required this.boardIDController,
+    required this.taskboardNameController,
   });
 
   final String trackerProvider;
   final ValueChanged<String> onTrackerProviderChanged;
-  final TextEditingController locationController;
-  final TextEditingController boardIDController;
+  final TextEditingController taskboardNameController;
 
   @override
   Widget build(BuildContext context) {
@@ -424,8 +402,8 @@ class _TrackerSetupSection extends StatelessWidget {
                   child: Text('GitHub Issues'),
                 ),
                 DropdownMenuItem<String>(
-                  value: 'LOCAL_JSON',
-                  child: Text('Local JSON Taskboard'),
+                  value: 'INTERNAL',
+                  child: Text('Internal Taskboard'),
                 ),
               ],
               onChanged: (String? value) {
@@ -437,17 +415,9 @@ class _TrackerSetupSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: locationController,
+              controller: taskboardNameController,
               decoration: const InputDecoration(
-                labelText: 'Tracker Location',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: boardIDController,
-              decoration: const InputDecoration(
-                labelText: 'Tracker Board ID (optional)',
+                labelText: 'Taskboard Name',
                 border: OutlineInputBorder(),
               ),
             ),

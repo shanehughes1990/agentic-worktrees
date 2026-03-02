@@ -236,7 +236,6 @@ type IngestionBoardSourceInput struct {
 	BoardID                  string            `json:"boardID"`
 	Kind                     TrackerSourceKind `json:"kind"`
 	Location                 *string           `json:"location,omitempty"`
-	ExternalBoardID          *string           `json:"externalBoardID,omitempty"`
 	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
 	RepositoryIDs            []string          `json:"repositoryIDs,omitempty"`
 }
@@ -247,17 +246,14 @@ type Mutation struct {
 type ProjectBoard struct {
 	BoardID                  string            `json:"boardID"`
 	TrackerProvider          TrackerSourceKind `json:"trackerProvider"`
-	TrackerLocation          *string           `json:"trackerLocation,omitempty"`
-	TrackerBoardID           *string           `json:"trackerBoardID,omitempty"`
+	TaskboardName            *string           `json:"taskboardName,omitempty"`
 	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
 	RepositoryIDs            []string          `json:"repositoryIDs"`
 }
 
 type ProjectBoardInput struct {
-	BoardID                  string            `json:"boardID"`
 	TrackerProvider          TrackerSourceKind `json:"trackerProvider"`
-	TrackerLocation          *string           `json:"trackerLocation,omitempty"`
-	TrackerBoardID           *string           `json:"trackerBoardID,omitempty"`
+	TaskboardName            *string           `json:"taskboardName,omitempty"`
 	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
 	RepositoryIDs            []string          `json:"repositoryIDs,omitempty"`
 }
@@ -1326,18 +1322,18 @@ func (e SupervisorState) MarshalJSON() ([]byte, error) {
 type TrackerSourceKind string
 
 const (
-	TrackerSourceKindLocalJSON    TrackerSourceKind = "LOCAL_JSON"
+	TrackerSourceKindInternal     TrackerSourceKind = "INTERNAL"
 	TrackerSourceKindGithubIssues TrackerSourceKind = "GITHUB_ISSUES"
 )
 
 var AllTrackerSourceKind = []TrackerSourceKind{
-	TrackerSourceKindLocalJSON,
+	TrackerSourceKindInternal,
 	TrackerSourceKindGithubIssues,
 }
 
 func (e TrackerSourceKind) IsValid() bool {
 	switch e {
-	case TrackerSourceKindLocalJSON, TrackerSourceKindGithubIssues:
+	case TrackerSourceKindInternal, TrackerSourceKindGithubIssues:
 		return true
 	}
 	return false

@@ -141,8 +141,8 @@ func toGraphJobKind(value taskengine.JobKind) (models.JobKind, error) {
 
 func toTrackerSourceKindString(kind models.TrackerSourceKind) string {
 	switch kind {
-	case models.TrackerSourceKindLocalJSON:
-		return "local_json"
+	case models.TrackerSourceKindInternal:
+		return "internal"
 	case models.TrackerSourceKindGithubIssues:
 		return "github_issues"
 	default:
@@ -152,8 +152,8 @@ func toTrackerSourceKindString(kind models.TrackerSourceKind) string {
 
 func toGraphTrackerSourceKind(kind string) (models.TrackerSourceKind, error) {
 	switch strings.TrimSpace(kind) {
-	case "local_json":
-		return models.TrackerSourceKindLocalJSON, nil
+	case "internal":
+		return models.TrackerSourceKindInternal, nil
 	case "github_issues":
 		return models.TrackerSourceKindGithubIssues, nil
 	default:
@@ -209,8 +209,7 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 		boards = append(boards, &models.ProjectBoard{
 			BoardID:                  board.BoardID,
 			TrackerProvider:          trackerProvider,
-			TrackerLocation:          nilIfEmpty(board.TrackerLocation),
-			TrackerBoardID:           nilIfEmpty(board.TrackerBoardID),
+			TaskboardName:            nilIfEmpty(board.TaskboardName),
 			AppliesToAllRepositories: board.AppliesToAllRepositories,
 			RepositoryIDs:            repositoryIDs,
 		})

@@ -125,8 +125,7 @@ query ProjectSetups($limit: Int!) {
         boards {
           boardID
           trackerProvider
-          trackerLocation
-          trackerBoardID
+          taskboardName
           appliesToAllRepositories
           repositoryIDs
         }
@@ -158,8 +157,7 @@ mutation UpsertProjectSetup($input: UpsertProjectSetupInput!) {
         boards {
           boardID
           trackerProvider
-          trackerLocation
-          trackerBoardID
+          taskboardName
           appliesToAllRepositories
           repositoryIDs
         }

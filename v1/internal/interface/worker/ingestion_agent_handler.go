@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -15,7 +14,6 @@ type IngestionBoardSourcePayload struct {
 	BoardID                  string         `json:"board_id"`
 	Kind                     string         `json:"kind"`
 	Location                 string         `json:"location,omitempty"`
-	ExternalBoardID          string         `json:"external_board_id,omitempty"`
 	AppliesToAllRepositories bool           `json:"applies_to_all_repositories"`
 	RepositoryIDs            []string       `json:"repository_ids,omitempty"`
 	Config                   map[string]any `json:"config,omitempty"`
@@ -64,9 +62,7 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 	boardSource := payload.BoardSources[0]
 	sourceKind := domaintracker.SourceKind(strings.TrimSpace(boardSource.Kind))
 	sourceLocation := strings.TrimSpace(boardSource.Location)
-	if sourceKind == domaintracker.SourceKindLocalJSON {
-		sourceLocation = scopedLocalTrackerLocation(payload.ProjectID, sourceLocation)
-	}
+	sourceBoardID := strings.TrimSpace(boardSource.BoardID)
 	request := applicationtracker.SyncBoardRequest{
 		RunID:      strings.TrimSpace(payload.RunID),
 		Prompt:     strings.TrimSpace(payload.Prompt),
@@ -75,7 +71,7 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		Source: domaintracker.SourceRef{
 			Kind:     sourceKind,
 			Location: sourceLocation,
-			BoardID:  strings.TrimSpace(boardSource.ExternalBoardID),
+			BoardID:  sourceBoardID,
 			Config:   boardSource.Config,
 		},
 	}
@@ -95,23 +91,6 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		}
 	}
 	return nil
-}
-
-func scopedLocalTrackerLocation(projectID string, location string) string {
-	trimmedLocation := strings.TrimSpace(location)
-	if trimmedLocation == "" || filepath.IsAbs(trimmedLocation) {
-		return trimmedLocation
-	}
-	cleanLocation := filepath.Clean(trimmedLocation)
-	trimmedProjectID := strings.TrimSpace(projectID)
-	if trimmedProjectID == "" {
-		return cleanLocation
-	}
-	projectRoot := filepath.Join(trimmedProjectID, "tracker")
-	if cleanLocation == projectRoot || strings.HasPrefix(cleanLocation, projectRoot+string(filepath.Separator)) {
-		return cleanLocation
-	}
-	return filepath.Join(projectRoot, cleanLocation)
 }
 
 func issueReferencesFromBoard(board domaintracker.Board) []string {

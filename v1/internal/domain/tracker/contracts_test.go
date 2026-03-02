@@ -11,7 +11,7 @@ func TestBoardValidateAcceptsCanonicalBoard(t *testing.T) {
 		BoardID: "board-1",
 		RunID:   "run-1",
 		Source: SourceRef{
-			Kind:     SourceKindLocalJSON,
+			Kind:     SourceKindInternal,
 			Location: "taskboards/board-1.json",
 		},
 		Status: StatusInProgress,
@@ -52,7 +52,7 @@ func TestBoardValidateRejectsMissingDependency(t *testing.T) {
 		BoardID: "board-1",
 		RunID:   "run-1",
 		Source: SourceRef{
-			Kind:     SourceKindLocalJSON,
+			Kind:     SourceKindInternal,
 			Location: "taskboards/board-1.json",
 		},
 		Status: StatusInProgress,

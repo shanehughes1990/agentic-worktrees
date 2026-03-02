@@ -42,16 +42,14 @@ class ProjectBoardConfig {
   const ProjectBoardConfig({
     required this.boardID,
     required this.trackerProvider,
-    required this.trackerLocation,
-    required this.trackerBoardID,
+    required this.taskboardName,
     required this.appliesToAllRepositories,
     required this.repositoryIDs,
   });
 
   final String boardID;
   final String trackerProvider;
-  final String trackerLocation;
-  final String trackerBoardID;
+  final String taskboardName;
   final bool appliesToAllRepositories;
   final List<String> repositoryIDs;
 }

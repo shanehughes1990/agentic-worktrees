@@ -19,7 +19,7 @@ func (provider *fakeInfraTrackerProvider) SyncBoard(ctx context.Context, request
 func TestProviderRegistryResolveReturnsRegisteredProvider(t *testing.T) {
 	registeredProvider := &fakeInfraTrackerProvider{}
 	registry, err := NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON: registeredProvider,
+		domaintracker.SourceKindInternal: registeredProvider,
 	})
 	if err != nil {
 		t.Fatalf("new provider registry: %v", err)
@@ -29,7 +29,7 @@ func TestProviderRegistryResolveReturnsRegisteredProvider(t *testing.T) {
 		RunID:      "run-1",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindLocalJSON, Location: "board-1.json"},
+		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindInternal, Location: "board-1"},
 	})
 	if err != nil {
 		t.Fatalf("resolve provider: %v", err)
@@ -41,7 +41,7 @@ func TestProviderRegistryResolveReturnsRegisteredProvider(t *testing.T) {
 
 func TestProviderRegistryResolveRejectsUnregisteredKind(t *testing.T) {
 	registry, err := NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindLocalJSON: &fakeInfraTrackerProvider{},
+		domaintracker.SourceKindInternal: &fakeInfraTrackerProvider{},
 	})
 	if err != nil {
 		t.Fatalf("new provider registry: %v", err)

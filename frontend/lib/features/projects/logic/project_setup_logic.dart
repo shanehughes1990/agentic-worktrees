@@ -11,13 +11,13 @@ class ProjectSetupLogic {
     required String projectID,
     required String projectName,
     required List<String> repositoryURLs,
-    required String trackerLocation,
+    required String taskboardName,
   }) {
     if (projectID.isEmpty || projectName.isEmpty || repositoryURLs.isEmpty) {
       return 'Project ID, Project Name, and at least one Repository URL are required.';
     }
-    if (trackerLocation.trim().isEmpty) {
-      return 'Tracker Location is required.';
+    if (taskboardName.trim().isEmpty) {
+      return 'Taskboard Name is required.';
     }
     return null;
   }
@@ -48,8 +48,7 @@ class ProjectSetupLogic {
     required TextEditingController projectController,
     required TextEditingController projectNameController,
     required TextEditingController repositoryUrlController,
-    required TextEditingController trackerLocationController,
-    required TextEditingController trackerBoardIDController,
+    required TextEditingController taskboardNameController,
     required ValueChanged<String> onScmProviderChanged,
     required ValueChanged<String> onTrackerProviderChanged,
   }) {
@@ -67,8 +66,7 @@ class ProjectSetupLogic {
     onScmProviderChanged(repository?.scmProvider ?? defaultScmProvider);
 
     final board = setup.boards.isNotEmpty ? setup.boards.first : null;
-    trackerLocationController.text = board?.trackerLocation ?? '';
-    trackerBoardIDController.text = board?.trackerBoardID ?? '';
+    taskboardNameController.text = board?.taskboardName ?? '';
     onTrackerProviderChanged(board?.trackerProvider ?? defaultTrackerProvider);
   }
 }

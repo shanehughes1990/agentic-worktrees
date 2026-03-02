@@ -100,8 +100,7 @@ func baseProjectSetup() applicationcontrolplane.ProjectSetup {
 		Boards: []applicationcontrolplane.ProjectBoard{{
 			BoardID:                  "board-1",
 			TrackerProvider:          "github_issues",
-			TrackerLocation:          "acme/repo",
-			TrackerBoardID:           "",
+			TaskboardName:            "Acme Repo Board",
 			AppliesToAllRepositories: true,
 			RepositoryIDs:            []string{},
 		}},

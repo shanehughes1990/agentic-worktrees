@@ -399,8 +399,7 @@ class ControlPlaneApi {
                   (board) => ProjectBoardConfig(
                     boardID: board.boardID,
                     trackerProvider: board.trackerProvider.toJson(),
-                    trackerLocation: board.trackerLocation ?? '',
-                    trackerBoardID: board.trackerBoardID ?? '',
+                    taskboardName: board.taskboardName ?? '',
                     appliesToAllRepositories: board.appliesToAllRepositories,
                     repositoryIDs: board.repositoryIDs.toList(growable: false),
                   ),
@@ -420,15 +419,13 @@ class ControlPlaneApi {
     required String scmProvider,
     required List<String> repositoryURLs,
     required String trackerProvider,
-    required String trackerLocation,
-    required String trackerBoardID,
+    required String taskboardName,
   }) async {
     final repositories = repositoryURLs
         .map((String repositoryURL) => repositoryURL.trim())
         .where((String repositoryURL) => repositoryURL.isNotEmpty)
         .toList(growable: false);
-    final normalizedTrackerLocation = trackerLocation.trim();
-    final normalizedTrackerBoardID = trackerBoardID.trim();
+    final normalizedTaskboardName = taskboardName.trim();
     final projectScmProvider = _toProjectScmProvider(scmProvider);
     if (projectScmProvider == null) {
       return ApiResult<ProjectSetupConfig>.failure(
@@ -449,12 +446,12 @@ class ControlPlaneApi {
         ),
       );
     }
-    if (normalizedTrackerLocation.isEmpty) {
+    if (normalizedTaskboardName.isEmpty) {
       return ApiResult<ProjectSetupConfig>.failure(
         _graphErrorMessageTyped(
           code: 'VALIDATION',
-          message: 'tracker location is required',
-          field: 'trackerLocation',
+          message: 'taskboard name is required',
+          field: 'taskboardName',
         ),
       );
     }
@@ -479,12 +476,8 @@ class ControlPlaneApi {
                 .toList(growable: false),
             boards: <gql_cp.Input$ProjectBoardInput>[
               gql_cp.Input$ProjectBoardInput(
-                boardID: '${projectID.isEmpty ? 'project' : projectID}-board-1',
                 trackerProvider: projectTrackerProvider,
-                trackerLocation: normalizedTrackerLocation,
-                trackerBoardID: normalizedTrackerBoardID.isEmpty
-                    ? null
-                    : normalizedTrackerBoardID,
+                taskboardName: normalizedTaskboardName,
                 appliesToAllRepositories: true,
                 repositoryIDs: const <String>[],
               ),
@@ -539,8 +532,7 @@ class ControlPlaneApi {
               (board) => ProjectBoardConfig(
                 boardID: board.boardID,
                 trackerProvider: board.trackerProvider.toJson(),
-                trackerLocation: board.trackerLocation ?? '',
-                trackerBoardID: board.trackerBoardID ?? '',
+                taskboardName: board.taskboardName ?? '',
                 appliesToAllRepositories: board.appliesToAllRepositories,
                 repositoryIDs: board.repositoryIDs.toList(growable: false),
               ),
@@ -957,8 +949,8 @@ class ControlPlaneApi {
 
   gql_cp.Enum$TrackerSourceKind? _toTrackerSourceKind(String value) {
     switch (value.toUpperCase()) {
-      case 'LOCAL_JSON':
-        return gql_cp.Enum$TrackerSourceKind.LOCAL_JSON;
+      case 'INTERNAL':
+        return gql_cp.Enum$TrackerSourceKind.INTERNAL;
       case 'GITHUB_ISSUES':
         return gql_cp.Enum$TrackerSourceKind.GITHUB_ISSUES;
       default:
