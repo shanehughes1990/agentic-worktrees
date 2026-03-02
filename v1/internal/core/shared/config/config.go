@@ -32,6 +32,7 @@ type LoggerConfig struct {
 }
 
 type AppConfig struct {
+	Port 					int    `envconfig:"APP_PORT" default:"8080" validate:"required,min=1,max=65535"`
 	DatabaseDSN     string        `envconfig:"DATABASE_DSN" validate:"required,database_dsn"`
 	RedisURL        string        `envconfig:"REDIS_URL" validate:"required,redis_url"`
 	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
