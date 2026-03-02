@@ -15,6 +15,7 @@ var (
 	ErrRepositoryRequired = errors.New("worker repository is required")
 	ErrEpochMismatch      = errors.New("worker epoch mismatch")
 	ErrApplicationStopping = errors.New("application stopping")
+	ErrWorkerNotRegistered = errors.New("worker not registered")
 	ErrSettingsNotFound   = errors.New("worker settings not found")
 )
 
@@ -80,9 +81,15 @@ func (service *Service) Heartbeat(ctx context.Context, workerID string, epoch in
 	now := time.Now().UTC()
 	worker, err := service.repository.RenewHeartbeat(ctx, strings.TrimSpace(workerID), epoch, now, now.Add(heartbeatInterval*3))
 	if err != nil {
+		if errors.Is(err, ErrEpochMismatch) || errors.Is(err, ErrWorkerNotRegistered) {
+			return nil, ErrApplicationStopping
+		}
 		return nil, err
 	}
-	if worker.DesiredState == domainworker.StateShutdownRequested || worker.DesiredState == domainworker.StateDraining || worker.DesiredState == domainworker.StateTerminated {
+	if worker.DesiredState == domainworker.StateShutdownRequested || worker.DesiredState == domainworker.StateDraining || worker.DesiredState == domainworker.StateTerminated || worker.DesiredState == domainworker.StateDeregistered {
+		return worker, ErrApplicationStopping
+	}
+	if worker.State == domainworker.StateDeregistered {
 		return worker, ErrApplicationStopping
 	}
 	return worker, nil

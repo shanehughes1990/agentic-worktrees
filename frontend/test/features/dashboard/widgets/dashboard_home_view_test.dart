@@ -2,13 +2,41 @@ import 'package:agentic_worktrees/features/dashboard/widgets/dashboard_home_view
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
+import 'package:graphql/client.dart';
 
-import '../../../support/mocks.mocks.dart';
 import '../../../support/test_data.dart';
 
+class _StubControlPlaneApi extends ControlPlaneApi {
+  _StubControlPlaneApi()
+    : super(
+        GraphQLClient(
+          link: HttpLink('http://localhost/query'),
+          cache: GraphQLCache(),
+        ),
+      );
+
+  ApiResult<List<SessionSummary>> sessionsResult =
+      ApiResult<List<SessionSummary>>.success(<SessionSummary>[
+        sampleSession(),
+      ]);
+  ApiResult<List<WorkerSession>> workerSessionsResult =
+      ApiResult<List<WorkerSession>>.success(<WorkerSession>[]);
+
+  @override
+  Future<ApiResult<List<SessionSummary>>> sessions({int limit = 50}) async {
+    return sessionsResult;
+  }
+
+  @override
+  Future<ApiResult<List<WorkerSession>>> workerSessions({
+    int limit = 100,
+  }) async {
+    return workerSessionsResult;
+  }
+}
+
 void main() {
-  late MockControlPlaneApi api;
+  late _StubControlPlaneApi api;
   late TextEditingController sourceController;
   late TextEditingController issueController;
   late TextEditingController approvedByController;
@@ -19,7 +47,7 @@ void main() {
   late TextEditingController scmRepoController;
 
   setUp(() {
-    api = MockControlPlaneApi();
+    api = _StubControlPlaneApi();
     sourceController = TextEditingController(text: 'acme/repo');
     issueController = TextEditingController(text: 'acme/repo#1');
     approvedByController = TextEditingController(text: 'operator');
@@ -28,12 +56,6 @@ void main() {
     promptController = TextEditingController(text: 'prompt');
     scmOwnerController = TextEditingController(text: 'acme');
     scmRepoController = TextEditingController(text: 'repo');
-
-    when(api.sessions(limit: anyNamed('limit'))).thenAnswer(
-      (_) async => ApiResult<List<SessionSummary>>.success(<SessionSummary>[
-        sampleSession(),
-      ]),
-    );
   });
 
   tearDown(() {
@@ -79,6 +101,8 @@ void main() {
             onEnqueueIngestion: () {},
             onApproveIssue: () {},
             onEnqueueScm: () {},
+            onShowWorkerSessions: () {},
+            onCreateProject: () {},
           ),
         ),
       ),
@@ -96,7 +120,7 @@ void main() {
     expect(find.text('Sessions'), findsOneWidget);
     expect(find.text('Jobs'), findsOneWidget);
     expect(find.text('Activity'), findsOneWidget);
-    expect(find.text('Configured Projects'), findsOneWidget);
+    expect(find.text('Select a Project'), findsOneWidget);
   });
 
   testWidgets('traverses into sessions card and selects a session', (

@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ type fakeRepository struct {
 	settings domainworker.Settings
 	updated  *domainworker.Worker
 	getSettingsErr error
+	renewHeartbeatErr error
 	removedWorkerID string
 	removedEpoch int64
 }
@@ -25,6 +27,9 @@ func (repository *fakeRepository) Register(ctx context.Context, workerID string,
 }
 
 func (repository *fakeRepository) RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainworker.Worker, error) {
+	if repository.renewHeartbeatErr != nil {
+		return nil, repository.renewHeartbeatErr
+	}
 	if repository.worker == nil {
 		repository.worker = &domainworker.Worker{WorkerID: workerID, Epoch: epoch, State: domainworker.StateHealthy, DesiredState: domainworker.StateHealthy, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, UpdatedAt: heartbeatAt}
 	}
@@ -84,6 +89,51 @@ func (engine *fakeEngine) Enqueue(ctx context.Context, request taskengine.Enqueu
 
 func TestServiceHeartbeatReturnsStoppingForShutdownState(t *testing.T) {
 	repository := &fakeRepository{worker: &domainworker.Worker{WorkerID: "worker-1", Epoch: 1, State: domainworker.StateDraining, DesiredState: domainworker.StateShutdownRequested, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC(), LeaseExpiresAt: time.Now().UTC().Add(time.Minute), UpdatedAt: time.Now().UTC()}}
+	service, err := NewService(repository)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	_, err = service.Heartbeat(context.Background(), "worker-1", 1, 15*time.Second)
+	if err == nil {
+		t.Fatalf("expected heartbeat error")
+	}
+	if err != ErrApplicationStopping {
+		t.Fatalf("expected ErrApplicationStopping, got %v", err)
+	}
+}
+
+func TestServiceHeartbeatReturnsStoppingForDeregisteredDesiredState(t *testing.T) {
+	repository := &fakeRepository{worker: &domainworker.Worker{WorkerID: "worker-1", Epoch: 1, State: domainworker.StateHealthy, DesiredState: domainworker.StateDeregistered, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: time.Now().UTC(), LeaseExpiresAt: time.Now().UTC().Add(time.Minute), UpdatedAt: time.Now().UTC()}}
+	service, err := NewService(repository)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	_, err = service.Heartbeat(context.Background(), "worker-1", 1, 15*time.Second)
+	if err == nil {
+		t.Fatalf("expected heartbeat error")
+	}
+	if err != ErrApplicationStopping {
+		t.Fatalf("expected ErrApplicationStopping, got %v", err)
+	}
+}
+
+func TestServiceHeartbeatReturnsStoppingForEpochMismatch(t *testing.T) {
+	repository := &fakeRepository{renewHeartbeatErr: fmt.Errorf("%w: expected=1 actual=2", ErrEpochMismatch)}
+	service, err := NewService(repository)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	_, err = service.Heartbeat(context.Background(), "worker-1", 1, 15*time.Second)
+	if err == nil {
+		t.Fatalf("expected heartbeat error")
+	}
+	if err != ErrApplicationStopping {
+		t.Fatalf("expected ErrApplicationStopping, got %v", err)
+	}
+}
+
+func TestServiceHeartbeatReturnsStoppingForDeregisteredWorker(t *testing.T) {
+	repository := &fakeRepository{renewHeartbeatErr: fmt.Errorf("%w: %q", ErrWorkerNotRegistered, "worker-1")}
 	service, err := NewService(repository)
 	if err != nil {
 		t.Fatalf("new service: %v", err)

@@ -122,7 +122,7 @@ func (registry *WorkerRegistry) RenewHeartbeat(ctx context.Context, workerID str
 	err := registry.db.WithContext(ctx).Where("worker_id = ?", strings.TrimSpace(workerID)).Take(&record).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("worker %q is not registered", strings.TrimSpace(workerID))
+			return nil, fmt.Errorf("%w: %q", applicationworker.ErrWorkerNotRegistered, strings.TrimSpace(workerID))
 		}
 		return nil, fmt.Errorf("load worker heartbeat: %w", err)
 	}

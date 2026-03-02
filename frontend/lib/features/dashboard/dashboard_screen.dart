@@ -117,6 +117,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   void _startNewProjectSetup(BuildContext context) {
     Navigator.of(context).pop();
+    _beginNewProjectSetup();
+  }
+
+  void _beginNewProjectSetup() {
     setState(() {
       _activeView = _DashboardView.projectSetup;
       _projectController.text = '';
@@ -613,6 +617,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       onShowWorkerSessions: () {
         setState(() => _activeView = _DashboardView.workerSessions);
       },
+      onCreateProject: _beginNewProjectSetup,
     );
   }
 

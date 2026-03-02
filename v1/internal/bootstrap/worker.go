@@ -405,7 +405,7 @@ func runWorkerHeartbeat(ctx context.Context, service *applicationworker.Service,
 				}
 				return err
 			}
-			if worker != nil && (worker.DesiredState == domainworker.StateShutdownRequested || worker.DesiredState == domainworker.StateDraining || worker.DesiredState == domainworker.StateTerminated) {
+			if worker != nil && (worker.DesiredState == domainworker.StateShutdownRequested || worker.DesiredState == domainworker.StateDraining || worker.DesiredState == domainworker.StateTerminated || worker.DesiredState == domainworker.StateDeregistered) {
 				return fmt.Errorf("%w: desired state is %s", applicationworker.ErrApplicationStopping, worker.DesiredState)
 			}
 		}

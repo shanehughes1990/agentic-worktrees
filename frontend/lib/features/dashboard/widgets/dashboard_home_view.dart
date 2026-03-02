@@ -1,4 +1,3 @@
-import 'package:agentic_worktrees/features/projects/widgets/project_setups_list.dart';
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
 
@@ -28,6 +27,7 @@ class DashboardHomeView extends StatelessWidget {
     required this.onApproveIssue,
     required this.onEnqueueScm,
     required this.onShowWorkerSessions,
+    required this.onCreateProject,
     super.key,
   });
 
@@ -55,6 +55,7 @@ class DashboardHomeView extends StatelessWidget {
   final VoidCallback onApproveIssue;
   final VoidCallback onEnqueueScm;
   final VoidCallback onShowWorkerSessions;
+  final VoidCallback onCreateProject;
 
   Future<_DashboardStatsData> _loadStats() async {
     final sessionsResult = await api.sessions(limit: 50 + refreshToken);
@@ -105,7 +106,7 @@ class DashboardHomeView extends StatelessWidget {
               (int sum, SessionSummary item) => sum + item.jobCount,
             );
 
-            return SingleChildScrollView(
+            return Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,19 +159,55 @@ class DashboardHomeView extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Configured Projects',
+                    'Select a Project',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: ProjectSetupsList(
-                        dense: true,
-                        projectSetups: projectSetups,
-                        selectedProjectID: selectedProjectID,
-                        onProjectSelected: onProjectSelected,
-                      ),
+                  Expanded(
+                    child: Card(
+                      child: projectSetups.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    'No project setups configured.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ElevatedButton(
+                                    onPressed: onCreateProject,
+                                    child: const Text('Create New Project'),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: projectSetups.length,
+                              separatorBuilder:
+                                  (BuildContext context, int index) {
+                                    return const Divider(height: 1);
+                                  },
+                              itemBuilder: (BuildContext context, int index) {
+                                final setup = projectSetups[index];
+                                final selected =
+                                    selectedProjectID == setup.projectID;
+                                return ListTile(
+                                  selected: selected,
+                                  title: Text(setup.projectID),
+                                  subtitle: Text(
+                                    '${setup.projectName}\n${setup.repositoryURL}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () => onProjectSelected(setup),
+                                );
+                              },
+                            ),
                     ),
                   ),
                 ],
