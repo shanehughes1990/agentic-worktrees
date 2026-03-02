@@ -201,7 +201,7 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 				for _, snapshot := range snapshots {
 					if err := tx.Clauses(clause.OnConflict{
 						Columns:   []clause.Column{{Name: "run_id"}, {Name: "board_id"}},
-						DoUpdates: clause.AssignmentColumns([]string{"source_kind", "source_ref", "payload", "updated_at"}),
+						DoNothing: true,
 					}).Create(&snapshot).Error; err != nil {
 						return fmt.Errorf("insert internal tracker snapshot: %w", err)
 					}

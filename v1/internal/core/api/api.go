@@ -365,10 +365,6 @@ func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Pla
 	}, entry)
 
 	policies := taskengine.DefaultPolicies()
-	ingestionPolicy := policies[taskengine.JobKindIngestionAgent]
-	ingestionPolicy.DefaultQueue = config.TaskEngineIngestionQueue
-	policies[taskengine.JobKindIngestionAgent] = ingestionPolicy
-
 	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
 	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
 	policies[taskengine.JobKindSCMWorkflow] = scmPolicy

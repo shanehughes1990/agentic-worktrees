@@ -5,19 +5,16 @@ import (
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
-	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
-	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
-	infratracker "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
 	"context"
 	"errors"
@@ -42,7 +39,6 @@ type WorkerApp struct {
 	executionJournal      taskengine.ExecutionJournal
 	agentService          *applicationagent.Service
 	scmService            *applicationscm.Service
-	trackerService        *applicationtracker.Service
 	supervisorService     *applicationsupervisor.Service
 	workerService         *applicationworker.Service
 }
@@ -134,26 +130,6 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init agent service: %w", err)
 	}
-	internalTrackerProvider, err := infratracker.NewPostgresInternalProvider(databaseClient.DB())
-	if err != nil {
-		return nil, fmt.Errorf("init postgres internal tracker provider: %w", err)
-	}
-	githubIssuesProvider := infratracker.NewGitHubIssuesProvider()
-	normalizedGitHubIssuesProvider, err := infratracker.NewPostgresNormalizedProvider(databaseClient.DB(), githubIssuesProvider)
-	if err != nil {
-		return nil, fmt.Errorf("init postgres normalized github issues tracker provider: %w", err)
-	}
-	trackerProviderRegistry, err := infratracker.NewProviderRegistry(map[domaintracker.SourceKind]applicationtracker.Provider{
-		domaintracker.SourceKindInternal:     internalTrackerProvider,
-		domaintracker.SourceKindGitHubIssues: normalizedGitHubIssuesProvider,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init tracker provider registry: %w", err)
-	}
-	trackerService, err := applicationtracker.NewService(trackerProviderRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("init tracker service: %w", err)
-	}
 	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init worker registry: %w", err)
@@ -178,7 +154,6 @@ func New() (*WorkerApp, error) {
 		executionJournal:      executionJournal,
 		agentService:          agentService,
 		scmService:            scmService,
-		trackerService:        trackerService,
 		supervisorService:     supervisorService,
 		workerService:         workerService,
 	}, nil
@@ -199,10 +174,6 @@ func (app *WorkerApp) Run() error {
 		}).Info("worker runtime starting")
 	}
 
-	ingestionHandler, err := workerinterface.NewIngestionAgentHandlerWithSupervisor(app.trackerService, app.supervisorService)
-	if err != nil {
-		return fmt.Errorf("create ingestion agent handler: %w", err)
-	}
 	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithSupervisor(app.agentService, app.checkpointStore, app.executionJournal, app.supervisorService)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)
@@ -225,7 +196,6 @@ func (app *WorkerApp) Run() error {
 	}
 
 	registrations := []workerJobRegistration{
-		{kind: taskengine.JobKindIngestionAgent, handler: ingestionHandler, label: "ingestion agent"},
 		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
 		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
 	}
@@ -511,10 +481,6 @@ func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Pla
 	}, entry)
 
 	policies := taskengine.DefaultPolicies()
-	ingestionPolicy := policies[taskengine.JobKindIngestionAgent]
-	ingestionPolicy.DefaultQueue = config.TaskEngineIngestionQueue
-	policies[taskengine.JobKindIngestionAgent] = ingestionPolicy
-
 	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
 	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
 	policies[taskengine.JobKindSCMWorkflow] = scmPolicy

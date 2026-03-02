@@ -209,9 +209,6 @@ func (board Board) Validate() error {
 	if err := board.Status.Validate(); err != nil {
 		return err
 	}
-	if len(board.Epics) == 0 {
-		return failures.WrapTerminal(errors.New("epics are required"))
-	}
 
 	epicIDs := make(map[WorkItemID]struct{}, len(board.Epics))
 	taskIDs := map[WorkItemID]struct{}{}

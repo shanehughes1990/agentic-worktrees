@@ -9,14 +9,14 @@ import (
 	"strings"
 )
 
-type ProviderSyncRequest struct {
+type IngestionSourceRequest struct {
 	RunID      string
 	ProjectID  string
 	WorkflowID string
 	Source     domaintracker.SourceRef
 }
 
-func (request ProviderSyncRequest) Validate() error {
+func (request IngestionSourceRequest) Validate() error {
 	if strings.TrimSpace(request.RunID) == "" {
 		return failures.WrapTerminal(errors.New("run_id is required"))
 	}
@@ -29,12 +29,16 @@ func (request ProviderSyncRequest) Validate() error {
 	return request.Source.Validate()
 }
 
-type Provider interface {
-	SyncBoard(ctx context.Context, request ProviderSyncRequest) (domaintracker.Board, error)
+type IngestionSource interface {
+	SyncBoard(ctx context.Context, request IngestionSourceRequest) (domaintracker.Board, error)
 }
 
-type ProviderResolver interface {
-	Resolve(ctx context.Context, request ProviderSyncRequest) (Provider, error)
+type IngestionSourceResolver interface {
+	Resolve(ctx context.Context, request IngestionSourceRequest) (IngestionSource, error)
+}
+
+type BoardStore interface {
+	UpsertBoard(ctx context.Context, board domaintracker.Board) error
 }
 
 type SyncBoardRequest struct {
@@ -49,11 +53,11 @@ func (request SyncBoardRequest) Validate() error {
 	if strings.TrimSpace(request.Prompt) == "" {
 		return failures.WrapTerminal(errors.New("prompt is required"))
 	}
-	return request.ProviderSyncRequest().Validate()
+	return request.IngestionSourceRequest().Validate()
 }
 
-func (request SyncBoardRequest) ProviderSyncRequest() ProviderSyncRequest {
-	return ProviderSyncRequest{
+func (request SyncBoardRequest) IngestionSourceRequest() IngestionSourceRequest {
+	return IngestionSourceRequest{
 		RunID:      request.RunID,
 		ProjectID:  request.ProjectID,
 		WorkflowID: request.WorkflowID,
@@ -62,29 +66,33 @@ func (request SyncBoardRequest) ProviderSyncRequest() ProviderSyncRequest {
 }
 
 type Service struct {
-	providerResolver ProviderResolver
+	sourceResolver IngestionSourceResolver
+	boardStore       BoardStore
 }
 
-func NewService(providerResolver ProviderResolver) (*Service, error) {
-	if providerResolver == nil {
-		return nil, failures.WrapTerminal(errors.New("tracker provider resolver is required"))
+func NewService(sourceResolver IngestionSourceResolver, boardStore BoardStore) (*Service, error) {
+	if sourceResolver == nil {
+		return nil, failures.WrapTerminal(errors.New("tracker ingestion source resolver is required"))
 	}
-	return &Service{providerResolver: providerResolver}, nil
+	if boardStore == nil {
+		return nil, failures.WrapTerminal(errors.New("tracker board store is required"))
+	}
+	return &Service{sourceResolver: sourceResolver, boardStore: boardStore}, nil
 }
 
 func (service *Service) SyncBoard(ctx context.Context, request SyncBoardRequest) (domaintracker.Board, error) {
 	if err := request.Validate(); err != nil {
 		return domaintracker.Board{}, err
 	}
-	providerRequest := request.ProviderSyncRequest()
-	provider, err := service.providerResolver.Resolve(ctx, providerRequest)
+	sourceRequest := request.IngestionSourceRequest()
+	source, err := service.sourceResolver.Resolve(ctx, sourceRequest)
 	if err != nil {
 		return domaintracker.Board{}, ensureClassified(err)
 	}
-	if provider == nil {
-		return domaintracker.Board{}, failures.WrapTerminal(errors.New("tracker provider resolver returned nil provider"))
+	if source == nil {
+		return domaintracker.Board{}, failures.WrapTerminal(errors.New("tracker ingestion source resolver returned nil source"))
 	}
-	board, err := provider.SyncBoard(ctx, providerRequest)
+	board, err := source.SyncBoard(ctx, sourceRequest)
 	if err != nil {
 		return domaintracker.Board{}, ensureClassified(err)
 	}
@@ -93,6 +101,9 @@ func (service *Service) SyncBoard(ctx context.Context, request SyncBoardRequest)
 	}
 	if board.RunID != request.RunID {
 		return domaintracker.Board{}, failures.WrapTerminal(fmt.Errorf("board run_id %q does not match request run_id %q", board.RunID, request.RunID))
+	}
+	if err := service.boardStore.UpsertBoard(ctx, board); err != nil {
+		return domaintracker.Board{}, ensureClassified(err)
 	}
 	return board, nil
 }

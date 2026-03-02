@@ -90,46 +90,91 @@ func (trackerTaskOutcomeRecord) TableName() string {
 	return "tracker_task_outcomes"
 }
 
-type PostgresNormalizedProvider struct {
-	db       *gorm.DB
-	upstream applicationtracker.Provider
+type boardSnapshotRecord struct {
+	gorm.Model
+	RunID      string `gorm:"column:run_id;size:255;not null;uniqueIndex:idx_tracker_board_snapshot,priority:1"`
+	BoardID    string `gorm:"column:board_id;size:255;not null;uniqueIndex:idx_tracker_board_snapshot,priority:2"`
+	SourceKind string `gorm:"column:source_kind;size:64;not null"`
+	SourceRef  string `gorm:"column:source_ref"`
+	Payload    []byte `gorm:"column:payload;not null"`
 }
 
-func NewPostgresNormalizedProvider(db *gorm.DB, upstream applicationtracker.Provider) (*PostgresNormalizedProvider, error) {
+func (boardSnapshotRecord) TableName() string {
+	return "tracker_board_snapshots"
+}
+
+type PostgresTaskboardStore struct {
+	db *gorm.DB
+}
+
+func NewPostgresTaskboardStore(db *gorm.DB) (*PostgresTaskboardStore, error) {
 	if db == nil {
-		return nil, failures.WrapTerminal(errors.New("postgres normalized provider db is required"))
+		return nil, failures.WrapTerminal(errors.New("postgres taskboard store db is required"))
 	}
-	if upstream == nil {
-		return nil, failures.WrapTerminal(errors.New("postgres normalized provider upstream is required"))
+	if err := db.AutoMigrate(&boardSnapshotRecord{}, &trackerBoardRecord{}, &trackerEpicRecord{}, &trackerTaskRecord{}, &trackerTaskOutcomeRecord{}); err != nil {
+		return nil, failures.WrapTerminal(fmt.Errorf("migrate tracker taskboard tables: %w", err))
 	}
-	if err := db.AutoMigrate(&trackerBoardRecord{}, &trackerEpicRecord{}, &trackerTaskRecord{}, &trackerTaskOutcomeRecord{}); err != nil {
-		return nil, failures.WrapTerminal(fmt.Errorf("migrate normalized tracker tables: %w", err))
-	}
-	return &PostgresNormalizedProvider{db: db, upstream: upstream}, nil
+	return &PostgresTaskboardStore{db: db}, nil
 }
 
-func (provider *PostgresNormalizedProvider) SyncBoard(ctx context.Context, request applicationtracker.ProviderSyncRequest) (domaintracker.Board, error) {
-	if provider == nil || provider.db == nil || provider.upstream == nil {
-		return domaintracker.Board{}, failures.WrapTerminal(errors.New("postgres normalized provider is not initialized"))
+func (store *PostgresTaskboardStore) LoadBoard(ctx context.Context, projectID string, boardRef string) (domaintracker.Board, error) {
+	if store == nil || store.db == nil {
+		return domaintracker.Board{}, failures.WrapTerminal(errors.New("postgres taskboard store is not initialized"))
 	}
-	board, err := provider.upstream.SyncBoard(ctx, request)
+	cleanProjectID := strings.TrimSpace(projectID)
+	cleanBoardRef := strings.TrimSpace(boardRef)
+	if cleanProjectID == "" || cleanBoardRef == "" {
+		return domaintracker.Board{}, failures.WrapTerminal(errors.New("project_id and board_ref are required"))
+	}
+
+	var record boardSnapshotRecord
+	err := store.db.WithContext(ctx).
+		Where("run_id = ? AND board_id = ?", cleanProjectID, cleanBoardRef).
+		Take(&record).Error
 	if err != nil {
-		return domaintracker.Board{}, err
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domaintracker.Board{}, failures.WrapTerminal(fmt.Errorf("internal tracker board %q not found for project %q", cleanBoardRef, cleanProjectID))
+		}
+		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("load internal tracker board snapshot: %w", err))
 	}
-	if err := board.Validate(); err != nil {
-		return domaintracker.Board{}, err
+
+	var board domaintracker.Board
+	if err := json.Unmarshal(record.Payload, &board); err != nil {
+		return domaintracker.Board{}, failures.WrapTerminal(fmt.Errorf("decode internal tracker board snapshot: %w", err))
 	}
-	if err := provider.persistBoard(ctx, board); err != nil {
-		return domaintracker.Board{}, err
+	if strings.TrimSpace(board.BoardID) == "" {
+		board.BoardID = cleanBoardRef
+	}
+	if strings.TrimSpace(board.RunID) == "" {
+		board.RunID = cleanProjectID
 	}
 	return board, nil
 }
 
-func (provider *PostgresNormalizedProvider) persistBoard(ctx context.Context, board domaintracker.Board) error {
+func (store *PostgresTaskboardStore) UpsertBoard(ctx context.Context, board domaintracker.Board) error {
+	if store == nil || store.db == nil {
+		return failures.WrapTerminal(errors.New("postgres taskboard store is not initialized"))
+	}
+	if err := board.Validate(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(board)
+	if err != nil {
+		return failures.WrapTerminal(fmt.Errorf("encode board snapshot payload: %w", err))
+	}
 	boardMetadata, err := json.Marshal(board.Metadata)
 	if err != nil {
 		return failures.WrapTerminal(fmt.Errorf("encode board metadata: %w", err))
 	}
+
+	sourceRef := strings.TrimSpace(board.Source.BoardID)
+	if sourceRef == "" {
+		sourceRef = strings.TrimSpace(board.Source.Location)
+	}
+	if sourceRef == "" {
+		sourceRef = strings.TrimSpace(board.BoardID)
+	}
+
 	boardRecord := trackerBoardRecord{
 		RunID:           strings.TrimSpace(board.RunID),
 		BoardID:         strings.TrimSpace(board.BoardID),
@@ -143,7 +188,21 @@ func (provider *PostgresNormalizedProvider) persistBoard(ctx context.Context, bo
 		CreatedAtSource: board.CreatedAt,
 		UpdatedAtSource: board.UpdatedAt,
 	}
-	return provider.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	snapshot := boardSnapshotRecord{
+		RunID:      strings.TrimSpace(board.RunID),
+		BoardID:    strings.TrimSpace(board.BoardID),
+		SourceKind: strings.TrimSpace(string(board.Source.Kind)),
+		SourceRef:  sourceRef,
+		Payload:    payload,
+	}
+
+	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "run_id"}, {Name: "board_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"source_kind", "source_ref", "payload", "updated_at"}),
+		}).Create(&snapshot).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("persist board snapshot: %w", err))
+		}
 		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "run_id"}, {Name: "board_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{"source_kind", "source_location", "source_board_id", "title", "goal", "status", "metadata_json", "created_at_source", "updated_at_source", "updated_at"}),
@@ -242,4 +301,4 @@ func (provider *PostgresNormalizedProvider) persistBoard(ctx context.Context, bo
 	})
 }
 
-var _ applicationtracker.Provider = (*PostgresNormalizedProvider)(nil)
+var _ applicationtracker.BoardStore = (*PostgresTaskboardStore)(nil)

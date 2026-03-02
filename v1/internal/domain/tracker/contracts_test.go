@@ -84,6 +84,24 @@ func TestBoardValidateRejectsMissingDependency(t *testing.T) {
 	}
 }
 
+func TestBoardValidateAcceptsBlankInitialBoard(t *testing.T) {
+	board := Board{
+		BoardID: "board-1",
+		RunID:   "run-1",
+		Source: SourceRef{
+			Kind:     SourceKindInternal,
+			Location: "board-1",
+		},
+		Status:    StatusNotStarted,
+		Epics:     []Epic{},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := board.Validate(); err != nil {
+		t.Fatalf("expected blank board to validate, got %v", err)
+	}
+}
+
 func TestWorkItemValidateRejectsUnsupportedPriority(t *testing.T) {
 	item := WorkItem{ID: "task-1", BoardID: "board-1", Title: "Task", Status: StatusInProgress, Priority: Priority("urgent")}
 	err := item.Validate()
