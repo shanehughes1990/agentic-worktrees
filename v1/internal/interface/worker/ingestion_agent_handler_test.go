@@ -3,8 +3,8 @@ package worker
 import (
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
-	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
+	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
 	"encoding/json"
 	"errors"
@@ -95,10 +95,12 @@ func TestIngestionAgentHandlerDispatchesTrackerSync(t *testing.T) {
 		Prompt:         "ingest tracker board",
 		ProjectID:      "project-1",
 		WorkflowID:     "workflow-1",
-		BoardSource: IngestionBoardSourcePayload{
-			Kind:     "local_json",
-			Location: "board-1.json",
-		},
+		BoardSources: []IngestionBoardSourcePayload{{
+			BoardID:                  "board-1",
+			Kind:                     "local_json",
+			Location:                 "board-1.json",
+			AppliesToAllRepositories: true,
+		}},
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -116,6 +118,9 @@ func TestIngestionAgentHandlerDispatchesTrackerSync(t *testing.T) {
 	if service.request.Source.Kind != domaintracker.SourceKindLocalJSON {
 		t.Fatalf("expected source kind local_json, got %q", service.request.Source.Kind)
 	}
+	if service.request.Source.Location != "project-1/tracker/board-1.json" {
+		t.Fatalf("expected project-scoped location, got %q", service.request.Source.Location)
+	}
 }
 
 func TestIngestionAgentHandlerReturnsServiceError(t *testing.T) {
@@ -130,10 +135,12 @@ func TestIngestionAgentHandlerReturnsServiceError(t *testing.T) {
 		Prompt:     "ingest tracker board",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		BoardSource: IngestionBoardSourcePayload{
-			Kind:     "local_json",
-			Location: "board-1.json",
-		},
+		BoardSources: []IngestionBoardSourcePayload{{
+			BoardID:                  "board-1",
+			Kind:                     "local_json",
+			Location:                 "board-1.json",
+			AppliesToAllRepositories: true,
+		}},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payload}); err == nil {
 		t.Fatalf("expected service error")
@@ -166,10 +173,12 @@ func TestIngestionAgentHandlerEmitsIssueOpenedPerGitHubIssueTask(t *testing.T) {
 		Prompt:     "ingest tracker board",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		BoardSource: IngestionBoardSourcePayload{
-			Kind:     "github_issues",
-			Location: "octo/repo",
-		},
+		BoardSources: []IngestionBoardSourcePayload{{
+			BoardID:                  "board-1",
+			Kind:                     "github_issues",
+			Location:                 "octo/repo",
+			AppliesToAllRepositories: true,
+		}},
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)

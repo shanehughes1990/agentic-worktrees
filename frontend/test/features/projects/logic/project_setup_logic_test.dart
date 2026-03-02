@@ -10,20 +10,36 @@ void main() {
       final error = ProjectSetupLogic.validateRequiredFields(
         projectID: '',
         projectName: 'name',
-        repositoryURL: 'https://example.com/repo',
+        repositoryURLs: const <String>['https://example.com/repo'],
+        trackerLocations: const <String>['acme/repo'],
       );
 
-      expect(error, 'Project ID, Project Name, and Repository URL are required.');
+      expect(
+        error,
+        'Project ID, Project Name, and at least one Repository URL are required.',
+      );
     });
 
     test('returns null for valid input', () {
       final error = ProjectSetupLogic.validateRequiredFields(
-        projectID: 'project-1',
-        projectName: 'Project',
-        repositoryURL: 'https://example.com/repo',
+        projectID: 'projectOne',
+        projectName: 'Project One',
+        repositoryURLs: const <String>['https://example.com/repo'],
+        trackerLocations: const <String>['acme/repo'],
       );
 
       expect(error, isNull);
+    });
+
+    test('returns error when tracker list is empty', () {
+      final error = ProjectSetupLogic.validateRequiredFields(
+        projectID: 'projectOne',
+        projectName: 'Project One',
+        repositoryURLs: const <String>['https://example.com/repo'],
+        trackerLocations: const <String>[],
+      );
+
+      expect(error, 'At least one Tracker Location is required.');
     });
   });
 
@@ -50,11 +66,11 @@ void main() {
 
     expect(projectController.text, setup.projectID);
     expect(projectNameController.text, setup.projectName);
-    expect(repositoryController.text, setup.repositoryURL);
-    expect(trackerLocationController.text, setup.trackerLocation);
-    expect(trackerBoardController.text, setup.trackerBoardID);
-    expect(scmProvider, setup.scmProvider);
-    expect(trackerProvider, setup.trackerProvider);
+    expect(repositoryController.text, setup.repositories.first.repositoryURL);
+    expect(trackerLocationController.text, setup.boards.first.trackerLocation);
+    expect(trackerBoardController.text, setup.boards.first.trackerBoardID);
+    expect(scmProvider, setup.repositories.first.scmProvider);
+    expect(trackerProvider, setup.boards.first.trackerProvider);
 
     projectController.dispose();
     projectNameController.dispose();
@@ -63,10 +79,27 @@ void main() {
     trackerBoardController.dispose();
   });
 
-  test('tracker provider options include supported values', () {
-    expect(
-      ProjectSetupLogic.trackerProviderOptions,
-      containsAll(<String>['GITHUB_ISSUES', 'JIRA', 'LOCAL_JSON', 'LINEAR']),
+  test('parseMultilineEntries filters blanks and trims', () {
+    final entries = ProjectSetupLogic.parseMultilineEntries(
+      '  https://github.com/acme/repo-1  \n\n https://github.com/acme/repo-2 ',
     );
+
+    expect(entries, <String>[
+      'https://github.com/acme/repo-1',
+      'https://github.com/acme/repo-2',
+    ]);
+  });
+
+  test('projectIDFromName converts name to lower snake case', () {
+    expect(ProjectSetupLogic.projectIDFromName('Project One'), 'project_one');
+    expect(
+      ProjectSetupLogic.projectIDFromName('My cool_project 42'),
+      'my_cool_project_42',
+    );
+    expect(
+      ProjectSetupLogic.projectIDFromName('Project ABC 123'),
+      'project_abc_123',
+    );
+    expect(ProjectSetupLogic.projectIDFromName('   '), '');
   });
 }

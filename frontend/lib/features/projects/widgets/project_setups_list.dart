@@ -27,11 +27,17 @@ class ProjectSetupsList extends StatelessWidget {
     return Column(
       children: projectSetups.map((ProjectSetupConfig setup) {
         final selected = selectedProjectID == setup.projectID;
+        final repositorySummary = setup.repositories.isNotEmpty
+            ? setup.repositories.first.repositoryURL
+            : 'No repository configured';
+        final boardSummary = setup.boards.isNotEmpty
+            ? setup.boards.first.boardID
+            : 'No board configured';
         return ListTile(
           dense: dense,
           selected: selected,
           title: Text(setup.projectID),
-          subtitle: Text('${setup.projectName}\n${setup.repositoryURL}'),
+          subtitle: Text('${setup.projectName}\n$repositorySummary • $boardSummary'),
           onTap: () => onProjectSelected(setup),
         );
       }).toList(growable: false),

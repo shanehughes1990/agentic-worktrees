@@ -80,6 +80,36 @@ func TestSCMWorkflowHandlerDispatchesEnsureWorktree(t *testing.T) {
 	}
 }
 
+func TestSCMWorkflowHandlerScopesRelativeWorktreePathByProject(t *testing.T) {
+	service := &fakeSCMService{}
+	handler, err := NewSCMWorkflowHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+
+	payload, _ := json.Marshal(SCMWorkflowPayload{
+		Operation:      "ensure_worktree",
+		Provider:       "github",
+		Owner:          "acme",
+		Repository:     "repo",
+		RunID:          "run-1",
+		TaskID:         "task-1",
+		JobID:          "job-1",
+		ProjectID:      "project-1",
+		IdempotencyKey: "id-1",
+		BaseBranch:     "main",
+		TargetBranch:   "feature",
+		WorktreePath:   "task-1",
+		SyncStrategy:   "merge",
+	})
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if service.lastEnsureWorktreeSpec.Path != "project-1/worktrees/task-1" {
+		t.Fatalf("expected project-scoped worktree path, got %q", service.lastEnsureWorktreeSpec.Path)
+	}
+}
+
 func TestSCMWorkflowHandlerReturnsServiceError(t *testing.T) {
 	service := &fakeSCMService{err: errors.New("boom")}
 	handler, err := NewSCMWorkflowHandler(service)

@@ -12,17 +12,40 @@ import (
 
 type projectSetupRecord struct {
 	gorm.Model
-	ProjectID       string `gorm:"column:project_id;size:255;not null;uniqueIndex"`
-	ProjectName     string `gorm:"column:project_name;size:255;not null"`
-	SCMProvider     string `gorm:"column:scm_provider;size:64;not null"`
-	RepositoryURL   string `gorm:"column:repository_url;size:1024;not null"`
-	TrackerProvider string `gorm:"column:tracker_provider;size:64;not null"`
-	TrackerLocation string `gorm:"column:tracker_location;size:1024"`
-	TrackerBoardID  string `gorm:"column:tracker_board_id;size:255"`
+	ProjectID   string `gorm:"column:project_id;size:255;not null;uniqueIndex"`
+	ProjectName string `gorm:"column:project_name;size:255;not null"`
 }
 
 func (projectSetupRecord) TableName() string {
 	return "project_setups"
+}
+
+type projectRepositoryRecord struct {
+	gorm.Model
+	ProjectID    string `gorm:"column:project_id;size:255;not null;index"`
+	RepositoryID string `gorm:"column:repository_id;size:255;not null"`
+	SCMProvider  string `gorm:"column:scm_provider;size:64;not null"`
+	RepositoryURL string `gorm:"column:repository_url;size:1024;not null"`
+	IsPrimary    bool   `gorm:"column:is_primary;not null;default:false"`
+}
+
+func (projectRepositoryRecord) TableName() string {
+	return "project_repositories"
+}
+
+type projectBoardRecord struct {
+	gorm.Model
+	ProjectID                  string   `gorm:"column:project_id;size:255;not null;index"`
+	BoardID                    string   `gorm:"column:board_id;size:255;not null"`
+	TrackerProvider            string   `gorm:"column:tracker_provider;size:64;not null"`
+	TrackerLocation            string   `gorm:"column:tracker_location;size:1024"`
+	TrackerBoardID             string   `gorm:"column:tracker_board_id;size:255"`
+	AppliesToAllRepositories   bool     `gorm:"column:applies_to_all_repositories;not null;default:true"`
+	RepositoryIDs              []string `gorm:"column:repository_ids;serializer:json"`
+}
+
+func (projectBoardRecord) TableName() string {
+	return "project_boards"
 }
 
 type ProjectSetupRepository struct {
@@ -33,7 +56,7 @@ func NewProjectSetupRepository(db *gorm.DB) (*ProjectSetupRepository, error) {
 	if db == nil {
 		return nil, fmt.Errorf("project setup repository db is required")
 	}
-	if err := db.AutoMigrate(&projectSetupRecord{}); err != nil {
+	if err := db.AutoMigrate(&projectSetupRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}); err != nil {
 		return nil, fmt.Errorf("project setup repository migrate: %w", err)
 	}
 	return &ProjectSetupRepository{db: db}, nil
@@ -52,7 +75,11 @@ func (repository *ProjectSetupRepository) ListProjectSetups(ctx context.Context,
 	}
 	result := make([]applicationcontrolplane.ProjectSetup, 0, len(records))
 	for _, record := range records {
-		result = append(result, mapProjectSetupRecord(record))
+		setup, err := repository.loadProjectSetup(ctx, record)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, setup)
 	}
 	return result, nil
 }
@@ -73,30 +100,72 @@ func (repository *ProjectSetupRepository) GetProjectSetup(ctx context.Context, p
 		}
 		return nil, fmt.Errorf("get project setup: %w", err)
 	}
-	mapped := mapProjectSetupRecord(record)
-	return &mapped, nil
+	setup, err := repository.loadProjectSetup(ctx, record)
+	if err != nil {
+		return nil, err
+	}
+	return &setup, nil
 }
 
 func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context, setup applicationcontrolplane.ProjectSetup) (*applicationcontrolplane.ProjectSetup, error) {
 	if repository == nil || repository.db == nil {
 		return nil, fmt.Errorf("project setup repository is not initialized")
 	}
-	record := projectSetupRecord{
-		ProjectID:       strings.TrimSpace(setup.ProjectID),
-		ProjectName:     strings.TrimSpace(setup.ProjectName),
-		SCMProvider:     strings.TrimSpace(setup.SCMProvider),
-		RepositoryURL:   strings.TrimSpace(setup.RepositoryURL),
-		TrackerProvider: strings.TrimSpace(setup.TrackerProvider),
-		TrackerLocation: strings.TrimSpace(setup.TrackerLocation),
-		TrackerBoardID:  strings.TrimSpace(setup.TrackerBoardID),
+	projectRecord := projectSetupRecord{
+		ProjectID:   strings.TrimSpace(setup.ProjectID),
+		ProjectName: strings.TrimSpace(setup.ProjectName),
 	}
-	if err := repository.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "project_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"project_name", "scm_provider", "repository_url", "tracker_provider", "tracker_location", "tracker_board_id", "updated_at"}),
-	}).Create(&record).Error; err != nil {
-		return nil, fmt.Errorf("upsert project setup: %w", err)
+	err := repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "project_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"project_name", "updated_at"}),
+		}).Create(&projectRecord).Error; err != nil {
+			return fmt.Errorf("upsert project setup: %w", err)
+		}
+		if err := tx.Where("project_id = ?", projectRecord.ProjectID).Delete(&projectRepositoryRecord{}).Error; err != nil {
+			return fmt.Errorf("delete project repositories: %w", err)
+		}
+		if err := tx.Where("project_id = ?", projectRecord.ProjectID).Delete(&projectBoardRecord{}).Error; err != nil {
+			return fmt.Errorf("delete project boards: %w", err)
+		}
+		if len(setup.Repositories) > 0 {
+			repositories := make([]projectRepositoryRecord, 0, len(setup.Repositories))
+			for _, repositorySetup := range setup.Repositories {
+				repositories = append(repositories, projectRepositoryRecord{
+					ProjectID:    projectRecord.ProjectID,
+					RepositoryID: strings.TrimSpace(repositorySetup.RepositoryID),
+					SCMProvider:  strings.TrimSpace(repositorySetup.SCMProvider),
+					RepositoryURL: strings.TrimSpace(repositorySetup.RepositoryURL),
+					IsPrimary:    repositorySetup.IsPrimary,
+				})
+			}
+			if err := tx.Create(&repositories).Error; err != nil {
+				return fmt.Errorf("insert project repositories: %w", err)
+			}
+		}
+		if len(setup.Boards) > 0 {
+			boards := make([]projectBoardRecord, 0, len(setup.Boards))
+			for _, boardSetup := range setup.Boards {
+				boards = append(boards, projectBoardRecord{
+					ProjectID:                projectRecord.ProjectID,
+					BoardID:                  strings.TrimSpace(boardSetup.BoardID),
+					TrackerProvider:          strings.TrimSpace(boardSetup.TrackerProvider),
+					TrackerLocation:          strings.TrimSpace(boardSetup.TrackerLocation),
+					TrackerBoardID:           strings.TrimSpace(boardSetup.TrackerBoardID),
+					AppliesToAllRepositories: boardSetup.AppliesToAllRepositories,
+					RepositoryIDs:            boardSetup.RepositoryIDs,
+				})
+			}
+			if err := tx.Create(&boards).Error; err != nil {
+				return fmt.Errorf("insert project boards: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	stored, err := repository.GetProjectSetup(ctx, record.ProjectID)
+	stored, err := repository.GetProjectSetup(ctx, projectRecord.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,28 +180,73 @@ func (repository *ProjectSetupRepository) DeleteProjectSetup(ctx context.Context
 	if projectID == "" {
 		return fmt.Errorf("project_id is required")
 	}
-	result := repository.db.WithContext(ctx).Where("project_id = ?", projectID).Delete(&projectSetupRecord{})
-	if result.Error != nil {
-		return fmt.Errorf("delete project setup: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("project setup not found")
+	result := repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ?", projectID).Delete(&projectRepositoryRecord{}).Error; err != nil {
+			return fmt.Errorf("delete project repositories: %w", err)
+		}
+		if err := tx.Where("project_id = ?", projectID).Delete(&projectBoardRecord{}).Error; err != nil {
+			return fmt.Errorf("delete project boards: %w", err)
+		}
+		deleteResult := tx.Where("project_id = ?", projectID).Delete(&projectSetupRecord{})
+		if deleteResult.Error != nil {
+			return fmt.Errorf("delete project setup: %w", deleteResult.Error)
+		}
+		if deleteResult.RowsAffected == 0 {
+			return fmt.Errorf("project setup not found")
+		}
+		return nil
+	})
+	if result != nil {
+		return result
 	}
 	return nil
 }
 
-func mapProjectSetupRecord(record projectSetupRecord) applicationcontrolplane.ProjectSetup {
-	return applicationcontrolplane.ProjectSetup{
-		ProjectID:       record.ProjectID,
-		ProjectName:     record.ProjectName,
-		SCMProvider:     record.SCMProvider,
-		RepositoryURL:   record.RepositoryURL,
-		TrackerProvider: record.TrackerProvider,
-		TrackerLocation: record.TrackerLocation,
-		TrackerBoardID:  record.TrackerBoardID,
-		CreatedAt:       record.CreatedAt.UTC(),
-		UpdatedAt:       record.UpdatedAt.UTC(),
+func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, projectRecord projectSetupRecord) (applicationcontrolplane.ProjectSetup, error) {
+	repositoryRecords := make([]projectRepositoryRecord, 0)
+	if err := repository.db.WithContext(ctx).Model(&projectRepositoryRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&repositoryRecords).Error; err != nil {
+		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project repositories: %w", err)
 	}
+	boardRecords := make([]projectBoardRecord, 0)
+	if err := repository.db.WithContext(ctx).Model(&projectBoardRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&boardRecords).Error; err != nil {
+		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project boards: %w", err)
+	}
+	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(repositoryRecords))
+	for _, repositoryRecord := range repositoryRecords {
+		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
+			RepositoryID: strings.TrimSpace(repositoryRecord.RepositoryID),
+			SCMProvider:  strings.TrimSpace(repositoryRecord.SCMProvider),
+			RepositoryURL: strings.TrimSpace(repositoryRecord.RepositoryURL),
+			IsPrimary:    repositoryRecord.IsPrimary,
+		})
+	}
+	boards := make([]applicationcontrolplane.ProjectBoard, 0, len(boardRecords))
+	for _, boardRecord := range boardRecords {
+		repositoryIDs := make([]string, 0, len(boardRecord.RepositoryIDs))
+		for _, repositoryID := range boardRecord.RepositoryIDs {
+			trimmedRepositoryID := strings.TrimSpace(repositoryID)
+			if trimmedRepositoryID == "" {
+				continue
+			}
+			repositoryIDs = append(repositoryIDs, trimmedRepositoryID)
+		}
+		boards = append(boards, applicationcontrolplane.ProjectBoard{
+			BoardID:                  strings.TrimSpace(boardRecord.BoardID),
+			TrackerProvider:          strings.TrimSpace(boardRecord.TrackerProvider),
+			TrackerLocation:          strings.TrimSpace(boardRecord.TrackerLocation),
+			TrackerBoardID:           strings.TrimSpace(boardRecord.TrackerBoardID),
+			AppliesToAllRepositories: boardRecord.AppliesToAllRepositories,
+			RepositoryIDs:            repositoryIDs,
+		})
+	}
+	return applicationcontrolplane.ProjectSetup{
+		ProjectID:    projectRecord.ProjectID,
+		ProjectName:  projectRecord.ProjectName,
+		Repositories: repositories,
+		Boards:       boards,
+		CreatedAt:    projectRecord.CreatedAt.UTC(),
+		UpdatedAt:    projectRecord.UpdatedAt.UTC(),
+	}, nil
 }
 
 var _ applicationcontrolplane.ProjectSetupRepository = (*ProjectSetupRepository)(nil)

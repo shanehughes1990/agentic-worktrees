@@ -24,26 +24,52 @@ class SessionSummary {
   final DateTime updatedAt;
 }
 
+class ProjectRepositoryConfig {
+  const ProjectRepositoryConfig({
+    required this.repositoryID,
+    required this.scmProvider,
+    required this.repositoryURL,
+    required this.isPrimary,
+  });
+
+  final String repositoryID;
+  final String scmProvider;
+  final String repositoryURL;
+  final bool isPrimary;
+}
+
+class ProjectBoardConfig {
+  const ProjectBoardConfig({
+    required this.boardID,
+    required this.trackerProvider,
+    required this.trackerLocation,
+    required this.trackerBoardID,
+    required this.appliesToAllRepositories,
+    required this.repositoryIDs,
+  });
+
+  final String boardID;
+  final String trackerProvider;
+  final String trackerLocation;
+  final String trackerBoardID;
+  final bool appliesToAllRepositories;
+  final List<String> repositoryIDs;
+}
+
 class ProjectSetupConfig {
   const ProjectSetupConfig({
     required this.projectID,
     required this.projectName,
-    required this.scmProvider,
-    required this.repositoryURL,
-    required this.trackerProvider,
-    required this.trackerLocation,
-    required this.trackerBoardID,
+    required this.repositories,
+    required this.boards,
     required this.createdAt,
     required this.updatedAt,
   });
 
   final String projectID;
   final String projectName;
-  final String scmProvider;
-  final String repositoryURL;
-  final String trackerProvider;
-  final String trackerLocation;
-  final String trackerBoardID;
+  final List<ProjectRepositoryConfig> repositories;
+  final List<ProjectBoardConfig> boards;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

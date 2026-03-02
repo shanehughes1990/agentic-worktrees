@@ -195,11 +195,15 @@ class DashboardHomeView extends StatelessWidget {
                                 final setup = projectSetups[index];
                                 final selected =
                                     selectedProjectID == setup.projectID;
+                                final repositoryURL =
+                                    setup.repositories.isNotEmpty
+                                    ? setup.repositories.first.repositoryURL
+                                    : 'No repository configured';
                                 return ListTile(
                                   selected: selected,
                                   title: Text(setup.projectID),
                                   subtitle: Text(
-                                    '${setup.projectName}\n${setup.repositoryURL}',
+                                    '${setup.projectName}\n$repositoryURL',
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),

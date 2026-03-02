@@ -126,14 +126,14 @@ type DeleteProjectSetupSuccess struct {
 func (DeleteProjectSetupSuccess) IsDeleteProjectSetupResult() {}
 
 type EnqueueIngestionWorkflowInput struct {
-	RunID          string                     `json:"runID"`
-	TaskID         string                     `json:"taskID"`
-	JobID          string                     `json:"jobID"`
-	IdempotencyKey string                     `json:"idempotencyKey"`
-	Prompt         string                     `json:"prompt"`
-	ProjectID      string                     `json:"projectID"`
-	WorkflowID     string                     `json:"workflowID"`
-	BoardSource    *IngestionBoardSourceInput `json:"boardSource"`
+	RunID          string                       `json:"runID"`
+	TaskID         string                       `json:"taskID"`
+	JobID          string                       `json:"jobID"`
+	IdempotencyKey string                       `json:"idempotencyKey"`
+	Prompt         string                       `json:"prompt"`
+	ProjectID      string                       `json:"projectID"`
+	WorkflowID     string                       `json:"workflowID"`
+	BoardSources   []*IngestionBoardSourceInput `json:"boardSources"`
 }
 
 type EnqueueIngestionWorkflowSuccess struct {
@@ -233,24 +233,56 @@ func (GraphError) IsScmSupportedOperationsResult() {}
 func (GraphError) IsSupervisorDecisionHistoryResult() {}
 
 type IngestionBoardSourceInput struct {
-	Kind     TrackerSourceKind `json:"kind"`
-	Location *string           `json:"location,omitempty"`
-	BoardID  *string           `json:"boardID,omitempty"`
+	BoardID                  string            `json:"boardID"`
+	Kind                     TrackerSourceKind `json:"kind"`
+	Location                 *string           `json:"location,omitempty"`
+	ExternalBoardID          *string           `json:"externalBoardID,omitempty"`
+	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
+	RepositoryIDs            []string          `json:"repositoryIDs,omitempty"`
 }
 
 type Mutation struct {
 }
 
+type ProjectBoard struct {
+	BoardID                  string            `json:"boardID"`
+	TrackerProvider          TrackerSourceKind `json:"trackerProvider"`
+	TrackerLocation          *string           `json:"trackerLocation,omitempty"`
+	TrackerBoardID           *string           `json:"trackerBoardID,omitempty"`
+	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
+	RepositoryIDs            []string          `json:"repositoryIDs"`
+}
+
+type ProjectBoardInput struct {
+	BoardID                  string            `json:"boardID"`
+	TrackerProvider          TrackerSourceKind `json:"trackerProvider"`
+	TrackerLocation          *string           `json:"trackerLocation,omitempty"`
+	TrackerBoardID           *string           `json:"trackerBoardID,omitempty"`
+	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
+	RepositoryIDs            []string          `json:"repositoryIDs,omitempty"`
+}
+
+type ProjectRepository struct {
+	RepositoryID  string      `json:"repositoryID"`
+	ScmProvider   SCMProvider `json:"scmProvider"`
+	RepositoryURL string      `json:"repositoryURL"`
+	IsPrimary     bool        `json:"isPrimary"`
+}
+
+type ProjectRepositoryInput struct {
+	RepositoryID  string      `json:"repositoryID"`
+	ScmProvider   SCMProvider `json:"scmProvider"`
+	RepositoryURL string      `json:"repositoryURL"`
+	IsPrimary     bool        `json:"isPrimary"`
+}
+
 type ProjectSetup struct {
-	ProjectID       string            `json:"projectID"`
-	ProjectName     string            `json:"projectName"`
-	ScmProvider     SCMProvider       `json:"scmProvider"`
-	RepositoryURL   string            `json:"repositoryURL"`
-	TrackerProvider TrackerSourceKind `json:"trackerProvider"`
-	TrackerLocation *string           `json:"trackerLocation,omitempty"`
-	TrackerBoardID  *string           `json:"trackerBoardID,omitempty"`
-	CreatedAt       time.Time         `json:"createdAt"`
-	UpdatedAt       time.Time         `json:"updatedAt"`
+	ProjectID    string               `json:"projectID"`
+	ProjectName  string               `json:"projectName"`
+	Repositories []*ProjectRepository `json:"repositories"`
+	Boards       []*ProjectBoard      `json:"boards"`
+	CreatedAt    time.Time            `json:"createdAt"`
+	UpdatedAt    time.Time            `json:"updatedAt"`
 }
 
 type ProjectSetupSuccess struct {
@@ -376,13 +408,10 @@ type UpdateWorkerSettingsInput struct {
 }
 
 type UpsertProjectSetupInput struct {
-	ProjectID       string            `json:"projectID"`
-	ProjectName     string            `json:"projectName"`
-	ScmProvider     SCMProvider       `json:"scmProvider"`
-	RepositoryURL   string            `json:"repositoryURL"`
-	TrackerProvider TrackerSourceKind `json:"trackerProvider"`
-	TrackerLocation *string           `json:"trackerLocation,omitempty"`
-	TrackerBoardID  *string           `json:"trackerBoardID,omitempty"`
+	ProjectID    string                    `json:"projectID"`
+	ProjectName  string                    `json:"projectName"`
+	Repositories []*ProjectRepositoryInput `json:"repositories"`
+	Boards       []*ProjectBoardInput      `json:"boards"`
 }
 
 type UpsertProjectSetupSuccess struct {

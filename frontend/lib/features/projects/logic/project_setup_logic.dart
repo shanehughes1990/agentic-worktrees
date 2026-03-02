@@ -7,22 +7,40 @@ class ProjectSetupLogic {
   static const String defaultScmProvider = 'GITHUB';
   static const String defaultTrackerProvider = 'GITHUB_ISSUES';
 
-  static const List<String> trackerProviderOptions = <String>[
-    'GITHUB_ISSUES',
-    'JIRA',
-    'LOCAL_JSON',
-    'LINEAR',
-  ];
-
   static String? validateRequiredFields({
     required String projectID,
     required String projectName,
-    required String repositoryURL,
+    required List<String> repositoryURLs,
+    required List<String> trackerLocations,
   }) {
-    if (projectID.isEmpty || projectName.isEmpty || repositoryURL.isEmpty) {
-      return 'Project ID, Project Name, and Repository URL are required.';
+    if (projectID.isEmpty || projectName.isEmpty || repositoryURLs.isEmpty) {
+      return 'Project ID, Project Name, and at least one Repository URL are required.';
+    }
+    if (trackerLocations.isEmpty) {
+      return 'At least one Tracker Location is required.';
     }
     return null;
+  }
+
+  static List<String> parseMultilineEntries(String rawValue) {
+    return rawValue
+        .split('\n')
+        .map((String line) => line.trim())
+        .where((String line) => line.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static String projectIDFromName(String projectName) {
+    final parts = projectName
+        .trim()
+        .split(RegExp(r'[^A-Za-z0-9]+'))
+        .where((String part) => part.isNotEmpty)
+        .map((String part) => part.toLowerCase())
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return '';
+    }
+    return parts.join('_');
   }
 
   static void applySetupToForm({
@@ -37,10 +55,27 @@ class ProjectSetupLogic {
   }) {
     projectController.text = setup.projectID;
     projectNameController.text = setup.projectName;
-    repositoryUrlController.text = setup.repositoryURL;
-    onScmProviderChanged(setup.scmProvider);
-    onTrackerProviderChanged(setup.trackerProvider);
-    trackerLocationController.text = setup.trackerLocation;
-    trackerBoardIDController.text = setup.trackerBoardID;
+
+    final repositoryURLs = setup.repositories
+        .map((ProjectRepositoryConfig repository) => repository.repositoryURL)
+        .where((String repositoryURL) => repositoryURL.trim().isNotEmpty)
+        .toList(growable: false);
+    repositoryUrlController.text = repositoryURLs.join('\n');
+    final repository = setup.repositories.isNotEmpty
+        ? setup.repositories.first
+        : null;
+    onScmProviderChanged(repository?.scmProvider ?? defaultScmProvider);
+
+    final boardLocations = setup.boards
+        .map((ProjectBoardConfig board) => board.trackerLocation)
+        .where((String trackerLocation) => trackerLocation.trim().isNotEmpty)
+        .toList(growable: false);
+    trackerLocationController.text = boardLocations.join('\n');
+    trackerBoardIDController.text = setup.boards
+        .map((ProjectBoardConfig board) => board.trackerBoardID)
+        .toList(growable: false)
+        .join('\n');
+    final board = setup.boards.isNotEmpty ? setup.boards.first : null;
+    onTrackerProviderChanged(board?.trackerProvider ?? defaultTrackerProvider);
   }
 }

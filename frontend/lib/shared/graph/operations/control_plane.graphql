@@ -116,11 +116,20 @@ query ProjectSetups($limit: Int!) {
       projects {
         projectID
         projectName
-        scmProvider
-        repositoryURL
-        trackerProvider
-        trackerLocation
-        trackerBoardID
+        repositories {
+          repositoryID
+          scmProvider
+          repositoryURL
+          isPrimary
+        }
+        boards {
+          boardID
+          trackerProvider
+          trackerLocation
+          trackerBoardID
+          appliesToAllRepositories
+          repositoryIDs
+        }
         createdAt
         updatedAt
       }
@@ -140,11 +149,20 @@ mutation UpsertProjectSetup($input: UpsertProjectSetupInput!) {
       project {
         projectID
         projectName
-        scmProvider
-        repositoryURL
-        trackerProvider
-        trackerLocation
-        trackerBoardID
+        repositories {
+          repositoryID
+          scmProvider
+          repositoryURL
+          isPrimary
+        }
+        boards {
+          boardID
+          trackerProvider
+          trackerLocation
+          trackerBoardID
+          appliesToAllRepositories
+          repositoryIDs
+        }
         createdAt
         updatedAt
       }

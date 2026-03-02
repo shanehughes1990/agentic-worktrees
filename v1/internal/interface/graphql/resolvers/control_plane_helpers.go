@@ -191,24 +191,45 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 	if project == nil {
 		return nil, fmt.Errorf("project setup is required")
 	}
-	scmProvider, scmErr := toGraphSCMProvider(project.SCMProvider)
-	if scmErr != nil {
-		return nil, scmErr
+	repositories := make([]*models.ProjectRepository, 0, len(project.Repositories))
+	for _, repository := range project.Repositories {
+		scmProvider, scmErr := toGraphSCMProvider(repository.SCMProvider)
+		if scmErr != nil {
+			return nil, scmErr
+		}
+		repositories = append(repositories, &models.ProjectRepository{
+			RepositoryID: repository.RepositoryID,
+			ScmProvider:  scmProvider,
+			RepositoryURL: repository.RepositoryURL,
+			IsPrimary:    repository.IsPrimary,
+		})
 	}
-	trackerProvider, trackerErr := toGraphTrackerSourceKind(project.TrackerProvider)
-	if trackerErr != nil {
-		return nil, trackerErr
+	boards := make([]*models.ProjectBoard, 0, len(project.Boards))
+	for _, board := range project.Boards {
+		trackerProvider, trackerErr := toGraphTrackerSourceKind(board.TrackerProvider)
+		if trackerErr != nil {
+			return nil, trackerErr
+		}
+		repositoryIDs := make([]string, 0, len(board.RepositoryIDs))
+		for _, repositoryID := range board.RepositoryIDs {
+			repositoryIDs = append(repositoryIDs, strings.TrimSpace(repositoryID))
+		}
+		boards = append(boards, &models.ProjectBoard{
+			BoardID:                  board.BoardID,
+			TrackerProvider:          trackerProvider,
+			TrackerLocation:          nilIfEmpty(board.TrackerLocation),
+			TrackerBoardID:           nilIfEmpty(board.TrackerBoardID),
+			AppliesToAllRepositories: board.AppliesToAllRepositories,
+			RepositoryIDs:            repositoryIDs,
+		})
 	}
 	return &models.ProjectSetup{
-		ProjectID:       project.ProjectID,
-		ProjectName:     project.ProjectName,
-		ScmProvider:     scmProvider,
-		RepositoryURL:   project.RepositoryURL,
-		TrackerProvider: trackerProvider,
-		TrackerLocation: nilIfEmpty(project.TrackerLocation),
-		TrackerBoardID:  nilIfEmpty(project.TrackerBoardID),
-		CreatedAt:       project.CreatedAt.UTC(),
-		UpdatedAt:       project.UpdatedAt.UTC(),
+		ProjectID:     project.ProjectID,
+		ProjectName:   project.ProjectName,
+		Repositories:  repositories,
+		Boards:        boards,
+		CreatedAt:     project.CreatedAt.UTC(),
+		UpdatedAt:     project.UpdatedAt.UTC(),
 	}, nil
 }
 

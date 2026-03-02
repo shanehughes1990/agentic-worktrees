@@ -59,7 +59,11 @@ func newIngestionTrackerService(t *testing.T, baseDirectory string) *application
 
 func TestIngestionWorkflowSyncsLocalJSONBoardThroughCanonicalModel(t *testing.T) {
 	root := t.TempDir()
-	boardPath := filepath.Join(root, "board-1.json")
+	boardDir := filepath.Join(root, "project-1", "tracker")
+	if err := os.MkdirAll(boardDir, 0o755); err != nil {
+		t.Fatalf("create board dir: %v", err)
+	}
+	boardPath := filepath.Join(boardDir, "board-1.json")
 	boardJSON := []byte(`{
   "board_id": "board-1",
   "run_id": "run-1",
@@ -106,10 +110,12 @@ func TestIngestionWorkflowSyncsLocalJSONBoardThroughCanonicalModel(t *testing.T)
 		Prompt:         "ingest board",
 		ProjectID:      "project-1",
 		WorkflowID:     "workflow-1",
-		BoardSource: IngestionBoardSourcePayload{
-			Kind:     "local_json",
-			Location: "board-1.json",
-		},
+		BoardSources: []IngestionBoardSourcePayload{{
+			BoardID:                  "board-1",
+			Kind:                     "local_json",
+			Location:                 "board-1.json",
+			AppliesToAllRepositories: true,
+		}},
 	})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
@@ -137,7 +143,11 @@ func TestIngestionWorkflowSyncsLocalJSONBoardThroughCanonicalModel(t *testing.T)
 
 func TestIngestionWorkflowRejectsInvalidCanonicalBoardDuringSync(t *testing.T) {
 	root := t.TempDir()
-	boardPath := filepath.Join(root, "board-invalid.json")
+	boardDir := filepath.Join(root, "project-1", "tracker")
+	if err := os.MkdirAll(boardDir, 0o755); err != nil {
+		t.Fatalf("create board dir: %v", err)
+	}
+	boardPath := filepath.Join(boardDir, "board-invalid.json")
 	invalidBoardJSON := []byte(`{
   "board_id": "board-1",
   "run_id": "run-1",
@@ -176,10 +186,12 @@ func TestIngestionWorkflowRejectsInvalidCanonicalBoardDuringSync(t *testing.T) {
 		Prompt:     "ingest board",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		BoardSource: IngestionBoardSourcePayload{
-			Kind:     "local_json",
-			Location: "board-invalid.json",
-		},
+		BoardSources: []IngestionBoardSourcePayload{{
+			BoardID:                  "board-1",
+			Kind:                     "local_json",
+			Location:                 "board-invalid.json",
+			AppliesToAllRepositories: true,
+		}},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payload}); err == nil {
 		t.Fatalf("expected canonical model validation error")

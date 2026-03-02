@@ -275,6 +275,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
     required String? runID,
     required String? taskID,
     required String? jobID,
+    required String? projectID,
     required String? source,
     required String? issueReference,
     required String? approvedBy,
@@ -284,6 +285,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
               #runID: runID,
               #taskID: taskID,
               #jobID: jobID,
+              #projectID: projectID,
               #source: source,
               #issueReference: issueReference,
               #approvedBy: approvedBy,
@@ -295,6 +297,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                   #runID: runID,
                   #taskID: taskID,
                   #jobID: jobID,
+                  #projectID: projectID,
                   #source: source,
                   #issueReference: issueReference,
                   #approvedBy: approvedBy,
@@ -308,6 +311,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                   #runID: runID,
                   #taskID: taskID,
                   #jobID: jobID,
+                  #projectID: projectID,
                   #source: source,
                   #issueReference: issueReference,
                   #approvedBy: approvedBy,
@@ -345,20 +349,20 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
     required String? projectID,
     required String? projectName,
     required String? scmProvider,
-    required String? repositoryURL,
+    required List<String>? repositoryURLs,
     required String? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    required List<String>? trackerLocations,
+    required List<String>? trackerBoardIDs,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#upsertProjectSetup, [], {
               #projectID: projectID,
               #projectName: projectName,
               #scmProvider: scmProvider,
-              #repositoryURL: repositoryURL,
+              #repositoryURLs: repositoryURLs,
               #trackerProvider: trackerProvider,
-              #trackerLocation: trackerLocation,
-              #trackerBoardID: trackerBoardID,
+              #trackerLocations: trackerLocations,
+              #trackerBoardIDs: trackerBoardIDs,
             }),
             returnValue:
                 _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>.value(
@@ -368,10 +372,10 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #projectID: projectID,
                       #projectName: projectName,
                       #scmProvider: scmProvider,
-                      #repositoryURL: repositoryURL,
+                      #repositoryURLs: repositoryURLs,
                       #trackerProvider: trackerProvider,
-                      #trackerLocation: trackerLocation,
-                      #trackerBoardID: trackerBoardID,
+                      #trackerLocations: trackerLocations,
+                      #trackerBoardIDs: trackerBoardIDs,
                     }),
                   ),
                 ),
@@ -383,10 +387,10 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #projectID: projectID,
                       #projectName: projectName,
                       #scmProvider: scmProvider,
-                      #repositoryURL: repositoryURL,
+                      #repositoryURLs: repositoryURLs,
                       #trackerProvider: trackerProvider,
-                      #trackerLocation: trackerLocation,
-                      #trackerBoardID: trackerBoardID,
+                      #trackerLocations: trackerLocations,
+                      #trackerBoardIDs: trackerBoardIDs,
                     }),
                   ),
                 ),
@@ -401,6 +405,111 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
       (super.noSuchMethod(
             Invocation.method(#sessionActivityStream, [], {
               #runID: runID,
+              #fromOffset: fromOffset,
+            }),
+            returnValue: _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+            returnValueForMissingStub:
+                _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+          )
+          as _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.WorkerSession>>> workerSessions({
+    int? limit = 100,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#workerSessions, [], {#limit: limit}),
+            returnValue:
+                _i5.Future<_i2.ApiResult<List<_i2.WorkerSession>>>.value(
+                  _FakeApiResult_0<List<_i2.WorkerSession>>(
+                    this,
+                    Invocation.method(#workerSessions, [], {#limit: limit}),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<List<_i2.WorkerSession>>>.value(
+                  _FakeApiResult_0<List<_i2.WorkerSession>>(
+                    this,
+                    Invocation.method(#workerSessions, [], {#limit: limit}),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.WorkerSession>>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.WorkerSettings>> workerSettings() =>
+      (super.noSuchMethod(
+            Invocation.method(#workerSettings, []),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>.value(
+              _FakeApiResult_0<_i2.WorkerSettings>(
+                this,
+                Invocation.method(#workerSettings, []),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>.value(
+                  _FakeApiResult_0<_i2.WorkerSettings>(
+                    this,
+                    Invocation.method(#workerSettings, []),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.WorkerSettings>> updateWorkerSettings({
+    required int? heartbeatIntervalSeconds,
+    required int? responseDeadlineSeconds,
+    required int? staleAfterSeconds,
+    required int? drainTimeoutSeconds,
+    required int? terminateTimeoutSeconds,
+    required int? rogueThreshold,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateWorkerSettings, [], {
+              #heartbeatIntervalSeconds: heartbeatIntervalSeconds,
+              #responseDeadlineSeconds: responseDeadlineSeconds,
+              #staleAfterSeconds: staleAfterSeconds,
+              #drainTimeoutSeconds: drainTimeoutSeconds,
+              #terminateTimeoutSeconds: terminateTimeoutSeconds,
+              #rogueThreshold: rogueThreshold,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>.value(
+              _FakeApiResult_0<_i2.WorkerSettings>(
+                this,
+                Invocation.method(#updateWorkerSettings, [], {
+                  #heartbeatIntervalSeconds: heartbeatIntervalSeconds,
+                  #responseDeadlineSeconds: responseDeadlineSeconds,
+                  #staleAfterSeconds: staleAfterSeconds,
+                  #drainTimeoutSeconds: drainTimeoutSeconds,
+                  #terminateTimeoutSeconds: terminateTimeoutSeconds,
+                  #rogueThreshold: rogueThreshold,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>.value(
+                  _FakeApiResult_0<_i2.WorkerSettings>(
+                    this,
+                    Invocation.method(#updateWorkerSettings, [], {
+                      #heartbeatIntervalSeconds: heartbeatIntervalSeconds,
+                      #responseDeadlineSeconds: responseDeadlineSeconds,
+                      #staleAfterSeconds: staleAfterSeconds,
+                      #drainTimeoutSeconds: drainTimeoutSeconds,
+                      #terminateTimeoutSeconds: terminateTimeoutSeconds,
+                      #rogueThreshold: rogueThreshold,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>);
+
+  @override
+  _i5.Stream<_i2.ApiResult<_i2.StreamEvent>> workerSessionStream({
+    int? fromOffset = 0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#workerSessionStream, [], {
               #fromOffset: fromOffset,
             }),
             returnValue: _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),

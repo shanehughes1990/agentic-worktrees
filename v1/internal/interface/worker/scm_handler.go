@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -88,6 +89,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	}
 	operation := strings.TrimSpace(payload.Operation)
 	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
+	worktreePath := scopedWorktreePath(payload.ProjectID, payload.WorktreePath)
 	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}
 	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID, ProjectID: payload.ProjectID}, IdempotencyKey: idempotencyKey}
 
@@ -120,11 +122,11 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	case "source_state":
 		_, executionErr = handler.service.SourceState(ctx, applicationscm.SourceStateRequest{Repository: repository, Metadata: metadata})
 	case "ensure_worktree":
-		_, executionErr = handler.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: domainscm.WorktreeSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch, Path: payload.WorktreePath, SyncStrategy: domainscm.SyncStrategy(payload.SyncStrategy)}, Metadata: metadata})
+		_, executionErr = handler.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: domainscm.WorktreeSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch, Path: worktreePath, SyncStrategy: domainscm.SyncStrategy(payload.SyncStrategy)}, Metadata: metadata})
 	case "sync_worktree":
-		_, executionErr = handler.service.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})
+		_, executionErr = handler.service.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repository, Path: worktreePath, Metadata: metadata})
 	case "cleanup_worktree":
-		executionErr = handler.service.CleanupWorktree(ctx, applicationscm.CleanupWorktreeRequest{Repository: repository, Path: payload.WorktreePath, Metadata: metadata})
+		executionErr = handler.service.CleanupWorktree(ctx, applicationscm.CleanupWorktreeRequest{Repository: repository, Path: worktreePath, Metadata: metadata})
 	case "ensure_branch":
 		_, executionErr = handler.service.EnsureBranch(ctx, applicationscm.EnsureBranchRequest{Repository: repository, Spec: domainscm.BranchSpec{BaseBranch: payload.BaseBranch, TargetBranch: payload.TargetBranch}, Metadata: metadata})
 	case "sync_branch":
@@ -162,6 +164,22 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	}
 	handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSucceeded, "")
 	return nil
+}
+
+func scopedWorktreePath(projectID string, worktreePath string) string {
+	trimmedPath := strings.TrimSpace(worktreePath)
+	if trimmedPath == "" || filepath.IsAbs(trimmedPath) {
+		return trimmedPath
+	}
+	cleanPath := filepath.Clean(trimmedPath)
+	projectRoot := filepath.Join(strings.TrimSpace(projectID), "worktrees")
+	if strings.TrimSpace(projectID) == "" {
+		return cleanPath
+	}
+	if cleanPath == projectRoot || strings.HasPrefix(cleanPath, projectRoot+string(filepath.Separator)) {
+		return cleanPath
+	}
+	return filepath.Join(projectRoot, cleanPath)
 }
 
 func (handler *SCMWorkflowHandler) safeRecordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) {

@@ -253,6 +253,8 @@ const possibleTypesMap = <String, Set<String>>{
   'ProjectSetupResult': {'ProjectSetupSuccess', 'GraphError'},
   'UpsertProjectSetupResult': {'UpsertProjectSetupSuccess', 'GraphError'},
   'StreamEventResult': {'StreamEventSuccess', 'GraphError'},
+  'WorkerSessionsResult': {'WorkerSessionsSuccess', 'GraphError'},
+  'WorkerSettingsResult': {'WorkerSettingsSuccess', 'GraphError'},
   'EnqueueSCMWorkflowResult': {'EnqueueSCMWorkflowSuccess', 'GraphError'},
   'ScmSupportedOperationsResult': {
     'ScmSupportedOperationsSuccess',

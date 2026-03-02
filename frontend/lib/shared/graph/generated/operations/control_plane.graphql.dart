@@ -7569,39 +7569,110 @@ const documentNodeQueryProjectSetups = DocumentNode(
                               selectionSet: null,
                             ),
                             FieldNode(
-                              name: NameNode(value: 'scmProvider'),
+                              name: NameNode(value: 'repositories'),
                               alias: null,
                               arguments: [],
                               directives: [],
-                              selectionSet: null,
+                              selectionSet: SelectionSetNode(
+                                selections: [
+                                  FieldNode(
+                                    name: NameNode(value: 'repositoryID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'scmProvider'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'repositoryURL'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'isPrimary'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: '__typename'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                ],
+                              ),
                             ),
                             FieldNode(
-                              name: NameNode(value: 'repositoryURL'),
+                              name: NameNode(value: 'boards'),
                               alias: null,
                               arguments: [],
                               directives: [],
-                              selectionSet: null,
-                            ),
-                            FieldNode(
-                              name: NameNode(value: 'trackerProvider'),
-                              alias: null,
-                              arguments: [],
-                              directives: [],
-                              selectionSet: null,
-                            ),
-                            FieldNode(
-                              name: NameNode(value: 'trackerLocation'),
-                              alias: null,
-                              arguments: [],
-                              directives: [],
-                              selectionSet: null,
-                            ),
-                            FieldNode(
-                              name: NameNode(value: 'trackerBoardID'),
-                              alias: null,
-                              arguments: [],
-                              directives: [],
-                              selectionSet: null,
+                              selectionSet: SelectionSetNode(
+                                selections: [
+                                  FieldNode(
+                                    name: NameNode(value: 'boardID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'trackerProvider'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'trackerLocation'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'trackerBoardID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(
+                                      value: 'appliesToAllRepositories',
+                                    ),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'repositoryIDs'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: '__typename'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                ],
+                              ),
                             ),
                             FieldNode(
                               name: NameNode(value: 'createdAt'),
@@ -8183,11 +8254,8 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects({
     required this.projectID,
     required this.projectName,
-    required this.scmProvider,
-    required this.repositoryURL,
-    required this.trackerProvider,
-    this.trackerLocation,
-    this.trackerBoardID,
+    required this.repositories,
+    required this.boards,
     required this.createdAt,
     required this.updatedAt,
     this.$__typename = 'ProjectSetup',
@@ -8198,24 +8266,30 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   ) {
     final l$projectID = json['projectID'];
     final l$projectName = json['projectName'];
-    final l$scmProvider = json['scmProvider'];
-    final l$repositoryURL = json['repositoryURL'];
-    final l$trackerProvider = json['trackerProvider'];
-    final l$trackerLocation = json['trackerLocation'];
-    final l$trackerBoardID = json['trackerBoardID'];
+    final l$repositories = json['repositories'];
+    final l$boards = json['boards'];
     final l$createdAt = json['createdAt'];
     final l$updatedAt = json['updatedAt'];
     final l$$__typename = json['__typename'];
     return Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects(
       projectID: (l$projectID as String),
       projectName: (l$projectName as String),
-      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
-      repositoryURL: (l$repositoryURL as String),
-      trackerProvider: fromJson$Enum$TrackerSourceKind(
-        (l$trackerProvider as String),
-      ),
-      trackerLocation: (l$trackerLocation as String?),
-      trackerBoardID: (l$trackerBoardID as String?),
+      repositories: (l$repositories as List<dynamic>)
+          .map(
+            (e) =>
+                Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories.fromJson(
+                  (e as Map<String, dynamic>),
+                ),
+          )
+          .toList(),
+      boards: (l$boards as List<dynamic>)
+          .map(
+            (e) =>
+                Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards.fromJson(
+                  (e as Map<String, dynamic>),
+                ),
+          )
+          .toList(),
       createdAt: dateTimeFromJson(l$createdAt),
       updatedAt: dateTimeFromJson(l$updatedAt),
       $__typename: (l$$__typename as String),
@@ -8226,15 +8300,15 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
 
   final String projectName;
 
-  final Enum$SCMProvider scmProvider;
+  final List<
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+  >
+  repositories;
 
-  final String repositoryURL;
-
-  final Enum$TrackerSourceKind trackerProvider;
-
-  final String? trackerLocation;
-
-  final String? trackerBoardID;
+  final List<
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+  >
+  boards;
 
   final DateTime createdAt;
 
@@ -8248,18 +8322,12 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
     _resultData['projectID'] = l$projectID;
     final l$projectName = projectName;
     _resultData['projectName'] = l$projectName;
-    final l$scmProvider = scmProvider;
-    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
-    final l$repositoryURL = repositoryURL;
-    _resultData['repositoryURL'] = l$repositoryURL;
-    final l$trackerProvider = trackerProvider;
-    _resultData['trackerProvider'] = toJson$Enum$TrackerSourceKind(
-      l$trackerProvider,
-    );
-    final l$trackerLocation = trackerLocation;
-    _resultData['trackerLocation'] = l$trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
-    _resultData['trackerBoardID'] = l$trackerBoardID;
+    final l$repositories = repositories;
+    _resultData['repositories'] = l$repositories
+        .map((e) => e.toJson())
+        .toList();
+    final l$boards = boards;
+    _resultData['boards'] = l$boards.map((e) => e.toJson()).toList();
     final l$createdAt = createdAt;
     _resultData['createdAt'] = dateTimeToJson(l$createdAt);
     final l$updatedAt = updatedAt;
@@ -8273,22 +8341,16 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   int get hashCode {
     final l$projectID = projectID;
     final l$projectName = projectName;
-    final l$scmProvider = scmProvider;
-    final l$repositoryURL = repositoryURL;
-    final l$trackerProvider = trackerProvider;
-    final l$trackerLocation = trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
+    final l$repositories = repositories;
+    final l$boards = boards;
     final l$createdAt = createdAt;
     final l$updatedAt = updatedAt;
     final l$$__typename = $__typename;
     return Object.hashAll([
       l$projectID,
       l$projectName,
-      l$scmProvider,
-      l$repositoryURL,
-      l$trackerProvider,
-      l$trackerLocation,
-      l$trackerBoardID,
+      Object.hashAll(l$repositories.map((v) => v)),
+      Object.hashAll(l$boards.map((v) => v)),
       l$createdAt,
       l$updatedAt,
       l$$__typename,
@@ -8315,30 +8377,29 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
     if (l$projectName != lOther$projectName) {
       return false;
     }
-    final l$scmProvider = scmProvider;
-    final lOther$scmProvider = other.scmProvider;
-    if (l$scmProvider != lOther$scmProvider) {
+    final l$repositories = repositories;
+    final lOther$repositories = other.repositories;
+    if (l$repositories.length != lOther$repositories.length) {
       return false;
     }
-    final l$repositoryURL = repositoryURL;
-    final lOther$repositoryURL = other.repositoryURL;
-    if (l$repositoryURL != lOther$repositoryURL) {
+    for (int i = 0; i < l$repositories.length; i++) {
+      final l$repositories$entry = l$repositories[i];
+      final lOther$repositories$entry = lOther$repositories[i];
+      if (l$repositories$entry != lOther$repositories$entry) {
+        return false;
+      }
+    }
+    final l$boards = boards;
+    final lOther$boards = other.boards;
+    if (l$boards.length != lOther$boards.length) {
       return false;
     }
-    final l$trackerProvider = trackerProvider;
-    final lOther$trackerProvider = other.trackerProvider;
-    if (l$trackerProvider != lOther$trackerProvider) {
-      return false;
-    }
-    final l$trackerLocation = trackerLocation;
-    final lOther$trackerLocation = other.trackerLocation;
-    if (l$trackerLocation != lOther$trackerLocation) {
-      return false;
-    }
-    final l$trackerBoardID = trackerBoardID;
-    final lOther$trackerBoardID = other.trackerBoardID;
-    if (l$trackerBoardID != lOther$trackerBoardID) {
-      return false;
+    for (int i = 0; i < l$boards.length; i++) {
+      final l$boards$entry = l$boards[i];
+      final lOther$boards$entry = lOther$boards[i];
+      if (l$boards$entry != lOther$boards$entry) {
+        return false;
+      }
     }
     final l$createdAt = createdAt;
     final lOther$createdAt = other.createdAt;
@@ -8389,15 +8450,44 @@ abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
   TRes call({
     String? projectID,
     String? projectName,
-    Enum$SCMProvider? scmProvider,
-    String? repositoryURL,
-    Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    List<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+    >?
+    repositories,
+    List<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+    >?
+    boards,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? $__typename,
   });
+  TRes repositories(
+    Iterable<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+    >
+    Function(
+      Iterable<
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+          Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+        >
+      >,
+    )
+    _fn,
+  );
+  TRes boards(
+    Iterable<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+    >
+    Function(
+      Iterable<
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+          Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+        >
+      >,
+    )
+    _fn,
+  );
 }
 
 class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects<
@@ -8425,11 +8515,8 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
   TRes call({
     Object? projectID = _undefined,
     Object? projectName = _undefined,
-    Object? scmProvider = _undefined,
-    Object? repositoryURL = _undefined,
-    Object? trackerProvider = _undefined,
-    Object? trackerLocation = _undefined,
-    Object? trackerBoardID = _undefined,
+    Object? repositories = _undefined,
+    Object? boards = _undefined,
     Object? createdAt = _undefined,
     Object? updatedAt = _undefined,
     Object? $__typename = _undefined,
@@ -8441,21 +8528,18 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
       projectName: projectName == _undefined || projectName == null
           ? _instance.projectName
           : (projectName as String),
-      scmProvider: scmProvider == _undefined || scmProvider == null
-          ? _instance.scmProvider
-          : (scmProvider as Enum$SCMProvider),
-      repositoryURL: repositoryURL == _undefined || repositoryURL == null
-          ? _instance.repositoryURL
-          : (repositoryURL as String),
-      trackerProvider: trackerProvider == _undefined || trackerProvider == null
-          ? _instance.trackerProvider
-          : (trackerProvider as Enum$TrackerSourceKind),
-      trackerLocation: trackerLocation == _undefined
-          ? _instance.trackerLocation
-          : (trackerLocation as String?),
-      trackerBoardID: trackerBoardID == _undefined
-          ? _instance.trackerBoardID
-          : (trackerBoardID as String?),
+      repositories: repositories == _undefined || repositories == null
+          ? _instance.repositories
+          : (repositories
+                as List<
+                  Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+                >),
+      boards: boards == _undefined || boards == null
+          ? _instance.boards
+          : (boards
+                as List<
+                  Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+                >),
       createdAt: createdAt == _undefined || createdAt == null
           ? _instance.createdAt
           : (createdAt as DateTime),
@@ -8466,6 +8550,54 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
           ? _instance.$__typename
           : ($__typename as String),
     ),
+  );
+
+  TRes repositories(
+    Iterable<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+    >
+    Function(
+      Iterable<
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+          Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+        >
+      >,
+    )
+    _fn,
+  ) => call(
+    repositories: _fn(
+      _instance.repositories.map(
+        (e) =>
+            CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+              e,
+              (i) => i,
+            ),
+      ),
+    ).toList(),
+  );
+
+  TRes boards(
+    Iterable<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+    >
+    Function(
+      Iterable<
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+          Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+        >
+      >,
+    )
+    _fn,
+  ) => call(
+    boards: _fn(
+      _instance.boards.map(
+        (e) =>
+            CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+              e,
+              (i) => i,
+            ),
+      ),
+    ).toList(),
   );
 }
 
@@ -8485,13 +8617,503 @@ class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
   call({
     String? projectID,
     String? projectName,
+    List<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+    >?
+    repositories,
+    List<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+    >?
+    boards,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? $__typename,
+  }) => _res;
+
+  repositories(_fn) => _res;
+
+  boards(_fn) => _res;
+}
+
+class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories {
+  Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories({
+    required this.repositoryID,
+    required this.scmProvider,
+    required this.repositoryURL,
+    required this.isPrimary,
+    this.$__typename = 'ProjectRepository',
+  });
+
+  factory Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final l$repositoryID = json['repositoryID'];
+    final l$scmProvider = json['scmProvider'];
+    final l$repositoryURL = json['repositoryURL'];
+    final l$isPrimary = json['isPrimary'];
+    final l$$__typename = json['__typename'];
+    return Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+      repositoryID: (l$repositoryID as String),
+      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
+      repositoryURL: (l$repositoryURL as String),
+      isPrimary: (l$isPrimary as bool),
+      $__typename: (l$$__typename as String),
+    );
+  }
+
+  final String repositoryID;
+
+  final Enum$SCMProvider scmProvider;
+
+  final String repositoryURL;
+
+  final bool isPrimary;
+
+  final String $__typename;
+
+  Map<String, dynamic> toJson() {
+    final _resultData = <String, dynamic>{};
+    final l$repositoryID = repositoryID;
+    _resultData['repositoryID'] = l$repositoryID;
+    final l$scmProvider = scmProvider;
+    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$repositoryURL = repositoryURL;
+    _resultData['repositoryURL'] = l$repositoryURL;
+    final l$isPrimary = isPrimary;
+    _resultData['isPrimary'] = l$isPrimary;
+    final l$$__typename = $__typename;
+    _resultData['__typename'] = l$$__typename;
+    return _resultData;
+  }
+
+  @override
+  int get hashCode {
+    final l$repositoryID = repositoryID;
+    final l$scmProvider = scmProvider;
+    final l$repositoryURL = repositoryURL;
+    final l$isPrimary = isPrimary;
+    final l$$__typename = $__typename;
+    return Object.hashAll([
+      l$repositoryID,
+      l$scmProvider,
+      l$repositoryURL,
+      l$isPrimary,
+      l$$__typename,
+    ]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other
+            is! Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories ||
+        runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$repositoryID = repositoryID;
+    final lOther$repositoryID = other.repositoryID;
+    if (l$repositoryID != lOther$repositoryID) {
+      return false;
+    }
+    final l$scmProvider = scmProvider;
+    final lOther$scmProvider = other.scmProvider;
+    if (l$scmProvider != lOther$scmProvider) {
+      return false;
+    }
+    final l$repositoryURL = repositoryURL;
+    final lOther$repositoryURL = other.repositoryURL;
+    if (l$repositoryURL != lOther$repositoryURL) {
+      return false;
+    }
+    final l$isPrimary = isPrimary;
+    final lOther$isPrimary = other.isPrimary;
+    if (l$isPrimary != lOther$isPrimary) {
+      return false;
+    }
+    final l$$__typename = $__typename;
+    final lOther$$__typename = other.$__typename;
+    if (l$$__typename != lOther$$__typename) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension UtilityExtension$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+    on Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories {
+  CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+  >
+  get copyWith =>
+      CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+        this,
+        (i) => i,
+      );
+}
+
+abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+  TRes
+> {
+  factory CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+    instance,
+    TRes Function(
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories,
+    )
+    then,
+  ) = _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories;
+
+  factory CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories.stub(
+    TRes res,
+  ) = _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories;
+
+  TRes call({
+    String? repositoryID,
     Enum$SCMProvider? scmProvider,
     String? repositoryURL,
+    bool? isPrimary,
+    String? $__typename,
+  });
+}
+
+class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+  TRes
+>
+    implements
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+          TRes
+        > {
+  _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+    this._instance,
+    this._then,
+  );
+
+  final Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
+  _instance;
+
+  final TRes Function(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories,
+  )
+  _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? repositoryID = _undefined,
+    Object? scmProvider = _undefined,
+    Object? repositoryURL = _undefined,
+    Object? isPrimary = _undefined,
+    Object? $__typename = _undefined,
+  }) => _then(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+      repositoryID: repositoryID == _undefined || repositoryID == null
+          ? _instance.repositoryID
+          : (repositoryID as String),
+      scmProvider: scmProvider == _undefined || scmProvider == null
+          ? _instance.scmProvider
+          : (scmProvider as Enum$SCMProvider),
+      repositoryURL: repositoryURL == _undefined || repositoryURL == null
+          ? _instance.repositoryURL
+          : (repositoryURL as String),
+      isPrimary: isPrimary == _undefined || isPrimary == null
+          ? _instance.isPrimary
+          : (isPrimary as bool),
+      $__typename: $__typename == _undefined || $__typename == null
+          ? _instance.$__typename
+          : ($__typename as String),
+    ),
+  );
+}
+
+class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+  TRes
+>
+    implements
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories<
+          TRes
+        > {
+  _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
+    this._res,
+  );
+
+  TRes _res;
+
+  call({
+    String? repositoryID,
+    Enum$SCMProvider? scmProvider,
+    String? repositoryURL,
+    bool? isPrimary,
+    String? $__typename,
+  }) => _res;
+}
+
+class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
+  Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards({
+    required this.boardID,
+    required this.trackerProvider,
+    this.trackerLocation,
+    this.trackerBoardID,
+    required this.appliesToAllRepositories,
+    required this.repositoryIDs,
+    this.$__typename = 'ProjectBoard',
+  });
+
+  factory Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final l$boardID = json['boardID'];
+    final l$trackerProvider = json['trackerProvider'];
+    final l$trackerLocation = json['trackerLocation'];
+    final l$trackerBoardID = json['trackerBoardID'];
+    final l$appliesToAllRepositories = json['appliesToAllRepositories'];
+    final l$repositoryIDs = json['repositoryIDs'];
+    final l$$__typename = json['__typename'];
+    return Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+      boardID: (l$boardID as String),
+      trackerProvider: fromJson$Enum$TrackerSourceKind(
+        (l$trackerProvider as String),
+      ),
+      trackerLocation: (l$trackerLocation as String?),
+      trackerBoardID: (l$trackerBoardID as String?),
+      appliesToAllRepositories: (l$appliesToAllRepositories as bool),
+      repositoryIDs: (l$repositoryIDs as List<dynamic>)
+          .map((e) => (e as String))
+          .toList(),
+      $__typename: (l$$__typename as String),
+    );
+  }
+
+  final String boardID;
+
+  final Enum$TrackerSourceKind trackerProvider;
+
+  final String? trackerLocation;
+
+  final String? trackerBoardID;
+
+  final bool appliesToAllRepositories;
+
+  final List<String> repositoryIDs;
+
+  final String $__typename;
+
+  Map<String, dynamic> toJson() {
+    final _resultData = <String, dynamic>{};
+    final l$boardID = boardID;
+    _resultData['boardID'] = l$boardID;
+    final l$trackerProvider = trackerProvider;
+    _resultData['trackerProvider'] = toJson$Enum$TrackerSourceKind(
+      l$trackerProvider,
+    );
+    final l$trackerLocation = trackerLocation;
+    _resultData['trackerLocation'] = l$trackerLocation;
+    final l$trackerBoardID = trackerBoardID;
+    _resultData['trackerBoardID'] = l$trackerBoardID;
+    final l$appliesToAllRepositories = appliesToAllRepositories;
+    _resultData['appliesToAllRepositories'] = l$appliesToAllRepositories;
+    final l$repositoryIDs = repositoryIDs;
+    _resultData['repositoryIDs'] = l$repositoryIDs.map((e) => e).toList();
+    final l$$__typename = $__typename;
+    _resultData['__typename'] = l$$__typename;
+    return _resultData;
+  }
+
+  @override
+  int get hashCode {
+    final l$boardID = boardID;
+    final l$trackerProvider = trackerProvider;
+    final l$trackerLocation = trackerLocation;
+    final l$trackerBoardID = trackerBoardID;
+    final l$appliesToAllRepositories = appliesToAllRepositories;
+    final l$repositoryIDs = repositoryIDs;
+    final l$$__typename = $__typename;
+    return Object.hashAll([
+      l$boardID,
+      l$trackerProvider,
+      l$trackerLocation,
+      l$trackerBoardID,
+      l$appliesToAllRepositories,
+      Object.hashAll(l$repositoryIDs.map((v) => v)),
+      l$$__typename,
+    ]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other
+            is! Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards ||
+        runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$boardID = boardID;
+    final lOther$boardID = other.boardID;
+    if (l$boardID != lOther$boardID) {
+      return false;
+    }
+    final l$trackerProvider = trackerProvider;
+    final lOther$trackerProvider = other.trackerProvider;
+    if (l$trackerProvider != lOther$trackerProvider) {
+      return false;
+    }
+    final l$trackerLocation = trackerLocation;
+    final lOther$trackerLocation = other.trackerLocation;
+    if (l$trackerLocation != lOther$trackerLocation) {
+      return false;
+    }
+    final l$trackerBoardID = trackerBoardID;
+    final lOther$trackerBoardID = other.trackerBoardID;
+    if (l$trackerBoardID != lOther$trackerBoardID) {
+      return false;
+    }
+    final l$appliesToAllRepositories = appliesToAllRepositories;
+    final lOther$appliesToAllRepositories = other.appliesToAllRepositories;
+    if (l$appliesToAllRepositories != lOther$appliesToAllRepositories) {
+      return false;
+    }
+    final l$repositoryIDs = repositoryIDs;
+    final lOther$repositoryIDs = other.repositoryIDs;
+    if (l$repositoryIDs.length != lOther$repositoryIDs.length) {
+      return false;
+    }
+    for (int i = 0; i < l$repositoryIDs.length; i++) {
+      final l$repositoryIDs$entry = l$repositoryIDs[i];
+      final lOther$repositoryIDs$entry = lOther$repositoryIDs[i];
+      if (l$repositoryIDs$entry != lOther$repositoryIDs$entry) {
+        return false;
+      }
+    }
+    final l$$__typename = $__typename;
+    final lOther$$__typename = other.$__typename;
+    if (l$$__typename != lOther$$__typename) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension UtilityExtension$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+    on Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards {
+  CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+  >
+  get copyWith =>
+      CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+        this,
+        (i) => i,
+      );
+}
+
+abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+  TRes
+> {
+  factory CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+    instance,
+    TRes Function(
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards,
+    )
+    then,
+  ) = _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards;
+
+  factory CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards.stub(
+    TRes res,
+  ) = _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards;
+
+  TRes call({
+    String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
     String? trackerLocation,
     String? trackerBoardID,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    bool? appliesToAllRepositories,
+    List<String>? repositoryIDs,
+    String? $__typename,
+  });
+}
+
+class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+  TRes
+>
+    implements
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+          TRes
+        > {
+  _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+    this._instance,
+    this._then,
+  );
+
+  final Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards
+  _instance;
+
+  final TRes Function(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards,
+  )
+  _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? boardID = _undefined,
+    Object? trackerProvider = _undefined,
+    Object? trackerLocation = _undefined,
+    Object? trackerBoardID = _undefined,
+    Object? appliesToAllRepositories = _undefined,
+    Object? repositoryIDs = _undefined,
+    Object? $__typename = _undefined,
+  }) => _then(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+      boardID: boardID == _undefined || boardID == null
+          ? _instance.boardID
+          : (boardID as String),
+      trackerProvider: trackerProvider == _undefined || trackerProvider == null
+          ? _instance.trackerProvider
+          : (trackerProvider as Enum$TrackerSourceKind),
+      trackerLocation: trackerLocation == _undefined
+          ? _instance.trackerLocation
+          : (trackerLocation as String?),
+      trackerBoardID: trackerBoardID == _undefined
+          ? _instance.trackerBoardID
+          : (trackerBoardID as String?),
+      appliesToAllRepositories:
+          appliesToAllRepositories == _undefined ||
+              appliesToAllRepositories == null
+          ? _instance.appliesToAllRepositories
+          : (appliesToAllRepositories as bool),
+      repositoryIDs: repositoryIDs == _undefined || repositoryIDs == null
+          ? _instance.repositoryIDs
+          : (repositoryIDs as List<String>),
+      $__typename: $__typename == _undefined || $__typename == null
+          ? _instance.$__typename
+          : ($__typename as String),
+    ),
+  );
+}
+
+class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+  TRes
+>
+    implements
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards<
+          TRes
+        > {
+  _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$boards(
+    this._res,
+  );
+
+  TRes _res;
+
+  call({
+    String? boardID,
+    Enum$TrackerSourceKind? trackerProvider,
+    String? trackerLocation,
+    String? trackerBoardID,
+    bool? appliesToAllRepositories,
+    List<String>? repositoryIDs,
     String? $__typename,
   }) => _res;
 }
@@ -8967,39 +9589,110 @@ const documentNodeMutationUpsertProjectSetup = DocumentNode(
                               selectionSet: null,
                             ),
                             FieldNode(
-                              name: NameNode(value: 'scmProvider'),
+                              name: NameNode(value: 'repositories'),
                               alias: null,
                               arguments: [],
                               directives: [],
-                              selectionSet: null,
+                              selectionSet: SelectionSetNode(
+                                selections: [
+                                  FieldNode(
+                                    name: NameNode(value: 'repositoryID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'scmProvider'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'repositoryURL'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'isPrimary'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: '__typename'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                ],
+                              ),
                             ),
                             FieldNode(
-                              name: NameNode(value: 'repositoryURL'),
+                              name: NameNode(value: 'boards'),
                               alias: null,
                               arguments: [],
                               directives: [],
-                              selectionSet: null,
-                            ),
-                            FieldNode(
-                              name: NameNode(value: 'trackerProvider'),
-                              alias: null,
-                              arguments: [],
-                              directives: [],
-                              selectionSet: null,
-                            ),
-                            FieldNode(
-                              name: NameNode(value: 'trackerLocation'),
-                              alias: null,
-                              arguments: [],
-                              directives: [],
-                              selectionSet: null,
-                            ),
-                            FieldNode(
-                              name: NameNode(value: 'trackerBoardID'),
-                              alias: null,
-                              arguments: [],
-                              directives: [],
-                              selectionSet: null,
+                              selectionSet: SelectionSetNode(
+                                selections: [
+                                  FieldNode(
+                                    name: NameNode(value: 'boardID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'trackerProvider'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'trackerLocation'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'trackerBoardID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(
+                                      value: 'appliesToAllRepositories',
+                                    ),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'repositoryIDs'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: '__typename'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                ],
+                              ),
                             ),
                             FieldNode(
                               name: NameNode(value: 'createdAt'),
@@ -9551,11 +10244,8 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project({
     required this.projectID,
     required this.projectName,
-    required this.scmProvider,
-    required this.repositoryURL,
-    required this.trackerProvider,
-    this.trackerLocation,
-    this.trackerBoardID,
+    required this.repositories,
+    required this.boards,
     required this.createdAt,
     required this.updatedAt,
     this.$__typename = 'ProjectSetup',
@@ -9566,24 +10256,30 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   ) {
     final l$projectID = json['projectID'];
     final l$projectName = json['projectName'];
-    final l$scmProvider = json['scmProvider'];
-    final l$repositoryURL = json['repositoryURL'];
-    final l$trackerProvider = json['trackerProvider'];
-    final l$trackerLocation = json['trackerLocation'];
-    final l$trackerBoardID = json['trackerBoardID'];
+    final l$repositories = json['repositories'];
+    final l$boards = json['boards'];
     final l$createdAt = json['createdAt'];
     final l$updatedAt = json['updatedAt'];
     final l$$__typename = json['__typename'];
     return Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project(
       projectID: (l$projectID as String),
       projectName: (l$projectName as String),
-      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
-      repositoryURL: (l$repositoryURL as String),
-      trackerProvider: fromJson$Enum$TrackerSourceKind(
-        (l$trackerProvider as String),
-      ),
-      trackerLocation: (l$trackerLocation as String?),
-      trackerBoardID: (l$trackerBoardID as String?),
+      repositories: (l$repositories as List<dynamic>)
+          .map(
+            (e) =>
+                Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories.fromJson(
+                  (e as Map<String, dynamic>),
+                ),
+          )
+          .toList(),
+      boards: (l$boards as List<dynamic>)
+          .map(
+            (e) =>
+                Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards.fromJson(
+                  (e as Map<String, dynamic>),
+                ),
+          )
+          .toList(),
       createdAt: dateTimeFromJson(l$createdAt),
       updatedAt: dateTimeFromJson(l$updatedAt),
       $__typename: (l$$__typename as String),
@@ -9594,15 +10290,15 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
 
   final String projectName;
 
-  final Enum$SCMProvider scmProvider;
+  final List<
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+  >
+  repositories;
 
-  final String repositoryURL;
-
-  final Enum$TrackerSourceKind trackerProvider;
-
-  final String? trackerLocation;
-
-  final String? trackerBoardID;
+  final List<
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+  >
+  boards;
 
   final DateTime createdAt;
 
@@ -9616,18 +10312,12 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     _resultData['projectID'] = l$projectID;
     final l$projectName = projectName;
     _resultData['projectName'] = l$projectName;
-    final l$scmProvider = scmProvider;
-    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
-    final l$repositoryURL = repositoryURL;
-    _resultData['repositoryURL'] = l$repositoryURL;
-    final l$trackerProvider = trackerProvider;
-    _resultData['trackerProvider'] = toJson$Enum$TrackerSourceKind(
-      l$trackerProvider,
-    );
-    final l$trackerLocation = trackerLocation;
-    _resultData['trackerLocation'] = l$trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
-    _resultData['trackerBoardID'] = l$trackerBoardID;
+    final l$repositories = repositories;
+    _resultData['repositories'] = l$repositories
+        .map((e) => e.toJson())
+        .toList();
+    final l$boards = boards;
+    _resultData['boards'] = l$boards.map((e) => e.toJson()).toList();
     final l$createdAt = createdAt;
     _resultData['createdAt'] = dateTimeToJson(l$createdAt);
     final l$updatedAt = updatedAt;
@@ -9641,22 +10331,16 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   int get hashCode {
     final l$projectID = projectID;
     final l$projectName = projectName;
-    final l$scmProvider = scmProvider;
-    final l$repositoryURL = repositoryURL;
-    final l$trackerProvider = trackerProvider;
-    final l$trackerLocation = trackerLocation;
-    final l$trackerBoardID = trackerBoardID;
+    final l$repositories = repositories;
+    final l$boards = boards;
     final l$createdAt = createdAt;
     final l$updatedAt = updatedAt;
     final l$$__typename = $__typename;
     return Object.hashAll([
       l$projectID,
       l$projectName,
-      l$scmProvider,
-      l$repositoryURL,
-      l$trackerProvider,
-      l$trackerLocation,
-      l$trackerBoardID,
+      Object.hashAll(l$repositories.map((v) => v)),
+      Object.hashAll(l$boards.map((v) => v)),
       l$createdAt,
       l$updatedAt,
       l$$__typename,
@@ -9683,30 +10367,29 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     if (l$projectName != lOther$projectName) {
       return false;
     }
-    final l$scmProvider = scmProvider;
-    final lOther$scmProvider = other.scmProvider;
-    if (l$scmProvider != lOther$scmProvider) {
+    final l$repositories = repositories;
+    final lOther$repositories = other.repositories;
+    if (l$repositories.length != lOther$repositories.length) {
       return false;
     }
-    final l$repositoryURL = repositoryURL;
-    final lOther$repositoryURL = other.repositoryURL;
-    if (l$repositoryURL != lOther$repositoryURL) {
+    for (int i = 0; i < l$repositories.length; i++) {
+      final l$repositories$entry = l$repositories[i];
+      final lOther$repositories$entry = lOther$repositories[i];
+      if (l$repositories$entry != lOther$repositories$entry) {
+        return false;
+      }
+    }
+    final l$boards = boards;
+    final lOther$boards = other.boards;
+    if (l$boards.length != lOther$boards.length) {
       return false;
     }
-    final l$trackerProvider = trackerProvider;
-    final lOther$trackerProvider = other.trackerProvider;
-    if (l$trackerProvider != lOther$trackerProvider) {
-      return false;
-    }
-    final l$trackerLocation = trackerLocation;
-    final lOther$trackerLocation = other.trackerLocation;
-    if (l$trackerLocation != lOther$trackerLocation) {
-      return false;
-    }
-    final l$trackerBoardID = trackerBoardID;
-    final lOther$trackerBoardID = other.trackerBoardID;
-    if (l$trackerBoardID != lOther$trackerBoardID) {
-      return false;
+    for (int i = 0; i < l$boards.length; i++) {
+      final l$boards$entry = l$boards[i];
+      final lOther$boards$entry = lOther$boards[i];
+      if (l$boards$entry != lOther$boards$entry) {
+        return false;
+      }
     }
     final l$createdAt = createdAt;
     final lOther$createdAt = other.createdAt;
@@ -9759,15 +10442,44 @@ abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
   TRes call({
     String? projectID,
     String? projectName,
-    Enum$SCMProvider? scmProvider,
-    String? repositoryURL,
-    Enum$TrackerSourceKind? trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    List<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+    >?
+    repositories,
+    List<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+    >?
+    boards,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? $__typename,
   });
+  TRes repositories(
+    Iterable<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+    >
+    Function(
+      Iterable<
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+          Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+        >
+      >,
+    )
+    _fn,
+  );
+  TRes boards(
+    Iterable<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+    >
+    Function(
+      Iterable<
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+          Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+        >
+      >,
+    )
+    _fn,
+  );
 }
 
 class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project<
@@ -9795,11 +10507,8 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
   TRes call({
     Object? projectID = _undefined,
     Object? projectName = _undefined,
-    Object? scmProvider = _undefined,
-    Object? repositoryURL = _undefined,
-    Object? trackerProvider = _undefined,
-    Object? trackerLocation = _undefined,
-    Object? trackerBoardID = _undefined,
+    Object? repositories = _undefined,
+    Object? boards = _undefined,
     Object? createdAt = _undefined,
     Object? updatedAt = _undefined,
     Object? $__typename = _undefined,
@@ -9811,21 +10520,18 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
       projectName: projectName == _undefined || projectName == null
           ? _instance.projectName
           : (projectName as String),
-      scmProvider: scmProvider == _undefined || scmProvider == null
-          ? _instance.scmProvider
-          : (scmProvider as Enum$SCMProvider),
-      repositoryURL: repositoryURL == _undefined || repositoryURL == null
-          ? _instance.repositoryURL
-          : (repositoryURL as String),
-      trackerProvider: trackerProvider == _undefined || trackerProvider == null
-          ? _instance.trackerProvider
-          : (trackerProvider as Enum$TrackerSourceKind),
-      trackerLocation: trackerLocation == _undefined
-          ? _instance.trackerLocation
-          : (trackerLocation as String?),
-      trackerBoardID: trackerBoardID == _undefined
-          ? _instance.trackerBoardID
-          : (trackerBoardID as String?),
+      repositories: repositories == _undefined || repositories == null
+          ? _instance.repositories
+          : (repositories
+                as List<
+                  Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+                >),
+      boards: boards == _undefined || boards == null
+          ? _instance.boards
+          : (boards
+                as List<
+                  Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+                >),
       createdAt: createdAt == _undefined || createdAt == null
           ? _instance.createdAt
           : (createdAt as DateTime),
@@ -9836,6 +10542,54 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
           ? _instance.$__typename
           : ($__typename as String),
     ),
+  );
+
+  TRes repositories(
+    Iterable<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+    >
+    Function(
+      Iterable<
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+          Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+        >
+      >,
+    )
+    _fn,
+  ) => call(
+    repositories: _fn(
+      _instance.repositories.map(
+        (e) =>
+            CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+              e,
+              (i) => i,
+            ),
+      ),
+    ).toList(),
+  );
+
+  TRes boards(
+    Iterable<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+    >
+    Function(
+      Iterable<
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+          Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+        >
+      >,
+    )
+    _fn,
+  ) => call(
+    boards: _fn(
+      _instance.boards.map(
+        (e) =>
+            CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+              e,
+              (i) => i,
+            ),
+      ),
+    ).toList(),
   );
 }
 
@@ -9855,13 +10609,505 @@ class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
   call({
     String? projectID,
     String? projectName,
+    List<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+    >?
+    repositories,
+    List<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+    >?
+    boards,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? $__typename,
+  }) => _res;
+
+  repositories(_fn) => _res;
+
+  boards(_fn) => _res;
+}
+
+class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories {
+  Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories({
+    required this.repositoryID,
+    required this.scmProvider,
+    required this.repositoryURL,
+    required this.isPrimary,
+    this.$__typename = 'ProjectRepository',
+  });
+
+  factory Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final l$repositoryID = json['repositoryID'];
+    final l$scmProvider = json['scmProvider'];
+    final l$repositoryURL = json['repositoryURL'];
+    final l$isPrimary = json['isPrimary'];
+    final l$$__typename = json['__typename'];
+    return Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+      repositoryID: (l$repositoryID as String),
+      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
+      repositoryURL: (l$repositoryURL as String),
+      isPrimary: (l$isPrimary as bool),
+      $__typename: (l$$__typename as String),
+    );
+  }
+
+  final String repositoryID;
+
+  final Enum$SCMProvider scmProvider;
+
+  final String repositoryURL;
+
+  final bool isPrimary;
+
+  final String $__typename;
+
+  Map<String, dynamic> toJson() {
+    final _resultData = <String, dynamic>{};
+    final l$repositoryID = repositoryID;
+    _resultData['repositoryID'] = l$repositoryID;
+    final l$scmProvider = scmProvider;
+    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$repositoryURL = repositoryURL;
+    _resultData['repositoryURL'] = l$repositoryURL;
+    final l$isPrimary = isPrimary;
+    _resultData['isPrimary'] = l$isPrimary;
+    final l$$__typename = $__typename;
+    _resultData['__typename'] = l$$__typename;
+    return _resultData;
+  }
+
+  @override
+  int get hashCode {
+    final l$repositoryID = repositoryID;
+    final l$scmProvider = scmProvider;
+    final l$repositoryURL = repositoryURL;
+    final l$isPrimary = isPrimary;
+    final l$$__typename = $__typename;
+    return Object.hashAll([
+      l$repositoryID,
+      l$scmProvider,
+      l$repositoryURL,
+      l$isPrimary,
+      l$$__typename,
+    ]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other
+            is! Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories ||
+        runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$repositoryID = repositoryID;
+    final lOther$repositoryID = other.repositoryID;
+    if (l$repositoryID != lOther$repositoryID) {
+      return false;
+    }
+    final l$scmProvider = scmProvider;
+    final lOther$scmProvider = other.scmProvider;
+    if (l$scmProvider != lOther$scmProvider) {
+      return false;
+    }
+    final l$repositoryURL = repositoryURL;
+    final lOther$repositoryURL = other.repositoryURL;
+    if (l$repositoryURL != lOther$repositoryURL) {
+      return false;
+    }
+    final l$isPrimary = isPrimary;
+    final lOther$isPrimary = other.isPrimary;
+    if (l$isPrimary != lOther$isPrimary) {
+      return false;
+    }
+    final l$$__typename = $__typename;
+    final lOther$$__typename = other.$__typename;
+    if (l$$__typename != lOther$$__typename) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension UtilityExtension$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+    on
+        Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories {
+  CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+  >
+  get copyWith =>
+      CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+        this,
+        (i) => i,
+      );
+}
+
+abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+  TRes
+> {
+  factory CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+    instance,
+    TRes Function(
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories,
+    )
+    then,
+  ) = _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories;
+
+  factory CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories.stub(
+    TRes res,
+  ) = _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories;
+
+  TRes call({
+    String? repositoryID,
     Enum$SCMProvider? scmProvider,
     String? repositoryURL,
+    bool? isPrimary,
+    String? $__typename,
+  });
+}
+
+class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+  TRes
+>
+    implements
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+          TRes
+        > {
+  _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+    this._instance,
+    this._then,
+  );
+
+  final Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
+  _instance;
+
+  final TRes Function(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories,
+  )
+  _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? repositoryID = _undefined,
+    Object? scmProvider = _undefined,
+    Object? repositoryURL = _undefined,
+    Object? isPrimary = _undefined,
+    Object? $__typename = _undefined,
+  }) => _then(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+      repositoryID: repositoryID == _undefined || repositoryID == null
+          ? _instance.repositoryID
+          : (repositoryID as String),
+      scmProvider: scmProvider == _undefined || scmProvider == null
+          ? _instance.scmProvider
+          : (scmProvider as Enum$SCMProvider),
+      repositoryURL: repositoryURL == _undefined || repositoryURL == null
+          ? _instance.repositoryURL
+          : (repositoryURL as String),
+      isPrimary: isPrimary == _undefined || isPrimary == null
+          ? _instance.isPrimary
+          : (isPrimary as bool),
+      $__typename: $__typename == _undefined || $__typename == null
+          ? _instance.$__typename
+          : ($__typename as String),
+    ),
+  );
+}
+
+class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+  TRes
+>
+    implements
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories<
+          TRes
+        > {
+  _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
+    this._res,
+  );
+
+  TRes _res;
+
+  call({
+    String? repositoryID,
+    Enum$SCMProvider? scmProvider,
+    String? repositoryURL,
+    bool? isPrimary,
+    String? $__typename,
+  }) => _res;
+}
+
+class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards {
+  Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards({
+    required this.boardID,
+    required this.trackerProvider,
+    this.trackerLocation,
+    this.trackerBoardID,
+    required this.appliesToAllRepositories,
+    required this.repositoryIDs,
+    this.$__typename = 'ProjectBoard',
+  });
+
+  factory Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final l$boardID = json['boardID'];
+    final l$trackerProvider = json['trackerProvider'];
+    final l$trackerLocation = json['trackerLocation'];
+    final l$trackerBoardID = json['trackerBoardID'];
+    final l$appliesToAllRepositories = json['appliesToAllRepositories'];
+    final l$repositoryIDs = json['repositoryIDs'];
+    final l$$__typename = json['__typename'];
+    return Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+      boardID: (l$boardID as String),
+      trackerProvider: fromJson$Enum$TrackerSourceKind(
+        (l$trackerProvider as String),
+      ),
+      trackerLocation: (l$trackerLocation as String?),
+      trackerBoardID: (l$trackerBoardID as String?),
+      appliesToAllRepositories: (l$appliesToAllRepositories as bool),
+      repositoryIDs: (l$repositoryIDs as List<dynamic>)
+          .map((e) => (e as String))
+          .toList(),
+      $__typename: (l$$__typename as String),
+    );
+  }
+
+  final String boardID;
+
+  final Enum$TrackerSourceKind trackerProvider;
+
+  final String? trackerLocation;
+
+  final String? trackerBoardID;
+
+  final bool appliesToAllRepositories;
+
+  final List<String> repositoryIDs;
+
+  final String $__typename;
+
+  Map<String, dynamic> toJson() {
+    final _resultData = <String, dynamic>{};
+    final l$boardID = boardID;
+    _resultData['boardID'] = l$boardID;
+    final l$trackerProvider = trackerProvider;
+    _resultData['trackerProvider'] = toJson$Enum$TrackerSourceKind(
+      l$trackerProvider,
+    );
+    final l$trackerLocation = trackerLocation;
+    _resultData['trackerLocation'] = l$trackerLocation;
+    final l$trackerBoardID = trackerBoardID;
+    _resultData['trackerBoardID'] = l$trackerBoardID;
+    final l$appliesToAllRepositories = appliesToAllRepositories;
+    _resultData['appliesToAllRepositories'] = l$appliesToAllRepositories;
+    final l$repositoryIDs = repositoryIDs;
+    _resultData['repositoryIDs'] = l$repositoryIDs.map((e) => e).toList();
+    final l$$__typename = $__typename;
+    _resultData['__typename'] = l$$__typename;
+    return _resultData;
+  }
+
+  @override
+  int get hashCode {
+    final l$boardID = boardID;
+    final l$trackerProvider = trackerProvider;
+    final l$trackerLocation = trackerLocation;
+    final l$trackerBoardID = trackerBoardID;
+    final l$appliesToAllRepositories = appliesToAllRepositories;
+    final l$repositoryIDs = repositoryIDs;
+    final l$$__typename = $__typename;
+    return Object.hashAll([
+      l$boardID,
+      l$trackerProvider,
+      l$trackerLocation,
+      l$trackerBoardID,
+      l$appliesToAllRepositories,
+      Object.hashAll(l$repositoryIDs.map((v) => v)),
+      l$$__typename,
+    ]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other
+            is! Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards ||
+        runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$boardID = boardID;
+    final lOther$boardID = other.boardID;
+    if (l$boardID != lOther$boardID) {
+      return false;
+    }
+    final l$trackerProvider = trackerProvider;
+    final lOther$trackerProvider = other.trackerProvider;
+    if (l$trackerProvider != lOther$trackerProvider) {
+      return false;
+    }
+    final l$trackerLocation = trackerLocation;
+    final lOther$trackerLocation = other.trackerLocation;
+    if (l$trackerLocation != lOther$trackerLocation) {
+      return false;
+    }
+    final l$trackerBoardID = trackerBoardID;
+    final lOther$trackerBoardID = other.trackerBoardID;
+    if (l$trackerBoardID != lOther$trackerBoardID) {
+      return false;
+    }
+    final l$appliesToAllRepositories = appliesToAllRepositories;
+    final lOther$appliesToAllRepositories = other.appliesToAllRepositories;
+    if (l$appliesToAllRepositories != lOther$appliesToAllRepositories) {
+      return false;
+    }
+    final l$repositoryIDs = repositoryIDs;
+    final lOther$repositoryIDs = other.repositoryIDs;
+    if (l$repositoryIDs.length != lOther$repositoryIDs.length) {
+      return false;
+    }
+    for (int i = 0; i < l$repositoryIDs.length; i++) {
+      final l$repositoryIDs$entry = l$repositoryIDs[i];
+      final lOther$repositoryIDs$entry = lOther$repositoryIDs[i];
+      if (l$repositoryIDs$entry != lOther$repositoryIDs$entry) {
+        return false;
+      }
+    }
+    final l$$__typename = $__typename;
+    final lOther$$__typename = other.$__typename;
+    if (l$$__typename != lOther$$__typename) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension UtilityExtension$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+    on
+        Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards {
+  CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+  >
+  get copyWith =>
+      CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+        this,
+        (i) => i,
+      );
+}
+
+abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+  TRes
+> {
+  factory CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+    instance,
+    TRes Function(
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards,
+    )
+    then,
+  ) = _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards;
+
+  factory CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards.stub(
+    TRes res,
+  ) = _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards;
+
+  TRes call({
+    String? boardID,
     Enum$TrackerSourceKind? trackerProvider,
     String? trackerLocation,
     String? trackerBoardID,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    bool? appliesToAllRepositories,
+    List<String>? repositoryIDs,
+    String? $__typename,
+  });
+}
+
+class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+  TRes
+>
+    implements
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+          TRes
+        > {
+  _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+    this._instance,
+    this._then,
+  );
+
+  final Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards
+  _instance;
+
+  final TRes Function(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards,
+  )
+  _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? boardID = _undefined,
+    Object? trackerProvider = _undefined,
+    Object? trackerLocation = _undefined,
+    Object? trackerBoardID = _undefined,
+    Object? appliesToAllRepositories = _undefined,
+    Object? repositoryIDs = _undefined,
+    Object? $__typename = _undefined,
+  }) => _then(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+      boardID: boardID == _undefined || boardID == null
+          ? _instance.boardID
+          : (boardID as String),
+      trackerProvider: trackerProvider == _undefined || trackerProvider == null
+          ? _instance.trackerProvider
+          : (trackerProvider as Enum$TrackerSourceKind),
+      trackerLocation: trackerLocation == _undefined
+          ? _instance.trackerLocation
+          : (trackerLocation as String?),
+      trackerBoardID: trackerBoardID == _undefined
+          ? _instance.trackerBoardID
+          : (trackerBoardID as String?),
+      appliesToAllRepositories:
+          appliesToAllRepositories == _undefined ||
+              appliesToAllRepositories == null
+          ? _instance.appliesToAllRepositories
+          : (appliesToAllRepositories as bool),
+      repositoryIDs: repositoryIDs == _undefined || repositoryIDs == null
+          ? _instance.repositoryIDs
+          : (repositoryIDs as List<String>),
+      $__typename: $__typename == _undefined || $__typename == null
+          ? _instance.$__typename
+          : ($__typename as String),
+    ),
+  );
+}
+
+class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+  TRes
+>
+    implements
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards<
+          TRes
+        > {
+  _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$boards(
+    this._res,
+  );
+
+  TRes _res;
+
+  call({
+    String? boardID,
+    Enum$TrackerSourceKind? trackerProvider,
+    String? trackerLocation,
+    String? trackerBoardID,
+    bool? appliesToAllRepositories,
+    List<String>? repositoryIDs,
     String? $__typename,
   }) => _res;
 }

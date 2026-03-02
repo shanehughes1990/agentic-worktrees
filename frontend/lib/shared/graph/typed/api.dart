@@ -234,6 +234,7 @@ class ControlPlaneApi {
     required String workflowID,
     required String source,
   }) async {
+    final boardID = '${projectID.isEmpty ? 'project' : projectID}-board';
     final result = await _client.mutate$EnqueueIngestionWorkflow(
       gql_ops.Options$Mutation$EnqueueIngestionWorkflow(
         variables: gql_ops.Variables$Mutation$EnqueueIngestionWorkflow(
@@ -245,10 +246,14 @@ class ControlPlaneApi {
             prompt: prompt,
             projectID: projectID,
             workflowID: workflowID,
-            boardSource: gql_cp.Input$IngestionBoardSourceInput(
-              kind: gql_cp.Enum$TrackerSourceKind.GITHUB_ISSUES,
-              location: source,
-            ),
+            boardSources: <gql_cp.Input$IngestionBoardSourceInput>[
+              gql_cp.Input$IngestionBoardSourceInput(
+                boardID: boardID,
+                kind: gql_cp.Enum$TrackerSourceKind.GITHUB_ISSUES,
+                location: source,
+                appliesToAllRepositories: true,
+              ),
+            ],
           ),
         ),
       ),
@@ -289,6 +294,7 @@ class ControlPlaneApi {
     required String runID,
     required String taskID,
     required String jobID,
+    required String projectID,
     required String source,
     required String issueReference,
     required String approvedBy,
@@ -300,6 +306,7 @@ class ControlPlaneApi {
             runID: runID,
             taskID: taskID,
             jobID: jobID,
+            projectID: projectID,
             source: source,
             issueReference: issueReference,
             approvedBy: approvedBy,
@@ -377,11 +384,28 @@ class ControlPlaneApi {
           (entry) => ProjectSetupConfig(
             projectID: entry.projectID,
             projectName: entry.projectName,
-            scmProvider: entry.scmProvider.toJson(),
-            repositoryURL: entry.repositoryURL,
-            trackerProvider: entry.trackerProvider.toJson(),
-            trackerLocation: entry.trackerLocation ?? '',
-            trackerBoardID: entry.trackerBoardID ?? '',
+            repositories: entry.repositories
+                .map(
+                  (repository) => ProjectRepositoryConfig(
+                    repositoryID: repository.repositoryID,
+                    scmProvider: repository.scmProvider.toJson(),
+                    repositoryURL: repository.repositoryURL,
+                    isPrimary: repository.isPrimary,
+                  ),
+                )
+                .toList(growable: false),
+            boards: entry.boards
+                .map(
+                  (board) => ProjectBoardConfig(
+                    boardID: board.boardID,
+                    trackerProvider: board.trackerProvider.toJson(),
+                    trackerLocation: board.trackerLocation ?? '',
+                    trackerBoardID: board.trackerBoardID ?? '',
+                    appliesToAllRepositories: board.appliesToAllRepositories,
+                    repositoryIDs: board.repositoryIDs.toList(growable: false),
+                  ),
+                )
+                .toList(growable: false),
             createdAt: entry.createdAt.toLocal(),
             updatedAt: entry.updatedAt.toLocal(),
           ),
@@ -394,22 +418,54 @@ class ControlPlaneApi {
     required String projectID,
     required String projectName,
     required String scmProvider,
-    required String repositoryURL,
+    required List<String> repositoryURLs,
     required String trackerProvider,
-    String? trackerLocation,
-    String? trackerBoardID,
+    required List<String> trackerLocations,
+    required List<String> trackerBoardIDs,
   }) async {
+    final repositories = repositoryURLs
+        .map((String repositoryURL) => repositoryURL.trim())
+        .where((String repositoryURL) => repositoryURL.isNotEmpty)
+        .toList(growable: false);
+    final boards = trackerLocations
+        .map((String trackerLocation) => trackerLocation.trim())
+        .where((String trackerLocation) => trackerLocation.isNotEmpty)
+        .toList(growable: false);
     final result = await _client.mutate$UpsertProjectSetup(
       gql_ops.Options$Mutation$UpsertProjectSetup(
         variables: gql_ops.Variables$Mutation$UpsertProjectSetup(
           input: gql_cp.Input$UpsertProjectSetupInput(
             projectID: projectID,
             projectName: projectName,
-            scmProvider: _toProjectScmProvider(scmProvider),
-            repositoryURL: repositoryURL,
-            trackerProvider: _toTrackerSourceKind(trackerProvider),
-            trackerLocation: trackerLocation,
-            trackerBoardID: trackerBoardID,
+            repositories: repositories
+                .asMap()
+                .entries
+                .map(
+                  (entry) => gql_cp.Input$ProjectRepositoryInput(
+                    repositoryID:
+                        '${projectID.isEmpty ? 'project' : projectID}-repo-${entry.key + 1}',
+                    scmProvider: _toProjectScmProvider(scmProvider),
+                    repositoryURL: entry.value,
+                    isPrimary: entry.key == 0,
+                  ),
+                )
+                .toList(growable: false),
+            boards: boards
+                .asMap()
+                .entries
+                .map(
+                  (entry) => gql_cp.Input$ProjectBoardInput(
+                    boardID:
+                        '${projectID.isEmpty ? 'project' : projectID}-board-${entry.key + 1}',
+                    trackerProvider: _toTrackerSourceKind(trackerProvider),
+                    trackerLocation: entry.value,
+                    trackerBoardID: trackerBoardIDs.length > entry.key
+                        ? trackerBoardIDs[entry.key]
+                        : null,
+                    appliesToAllRepositories: true,
+                  ),
+                )
+                .toList(growable: false),
           ),
         ),
       ),
@@ -445,11 +501,28 @@ class ControlPlaneApi {
       ProjectSetupConfig(
         projectID: project.projectID,
         projectName: project.projectName,
-        scmProvider: project.scmProvider.toJson(),
-        repositoryURL: project.repositoryURL,
-        trackerProvider: project.trackerProvider.toJson(),
-        trackerLocation: project.trackerLocation ?? '',
-        trackerBoardID: project.trackerBoardID ?? '',
+        repositories: project.repositories
+            .map(
+              (repository) => ProjectRepositoryConfig(
+                repositoryID: repository.repositoryID,
+                scmProvider: repository.scmProvider.toJson(),
+                repositoryURL: repository.repositoryURL,
+                isPrimary: repository.isPrimary,
+              ),
+            )
+            .toList(growable: false),
+        boards: project.boards
+            .map(
+              (board) => ProjectBoardConfig(
+                boardID: board.boardID,
+                trackerProvider: board.trackerProvider.toJson(),
+                trackerLocation: board.trackerLocation ?? '',
+                trackerBoardID: board.trackerBoardID ?? '',
+                appliesToAllRepositories: board.appliesToAllRepositories,
+                repositoryIDs: board.repositoryIDs.toList(growable: false),
+              ),
+            )
+            .toList(growable: false),
         createdAt: project.createdAt.toLocal(),
         updatedAt: project.updatedAt.toLocal(),
       ),

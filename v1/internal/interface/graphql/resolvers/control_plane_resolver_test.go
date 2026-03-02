@@ -87,19 +87,33 @@ func (repository *controlPlaneFakeQueryRepository) ListDeadLetterHistory(ctx con
 
 type controlPlaneFakeProjectRepository struct{}
 
+func baseProjectSetup() applicationcontrolplane.ProjectSetup {
+	return applicationcontrolplane.ProjectSetup{
+		ProjectID:   "project-1",
+		ProjectName: "Project One",
+		Repositories: []applicationcontrolplane.ProjectRepository{{
+			RepositoryID: "repo-1",
+			SCMProvider:  "github",
+			RepositoryURL: "https://github.com/acme/repo",
+			IsPrimary:    true,
+		}},
+		Boards: []applicationcontrolplane.ProjectBoard{{
+			BoardID:                  "board-1",
+			TrackerProvider:          "github_issues",
+			TrackerLocation:          "acme/repo",
+			TrackerBoardID:           "",
+			AppliesToAllRepositories: true,
+			RepositoryIDs:            []string{},
+		}},
+		CreatedAt: time.Unix(1700000000, 0).UTC(),
+		UpdatedAt: time.Unix(1700000000, 0).UTC(),
+	}
+}
+
 func (repository *controlPlaneFakeProjectRepository) ListProjectSetups(ctx context.Context, limit int) ([]applicationcontrolplane.ProjectSetup, error) {
 	_ = ctx
 	_ = limit
-	return []applicationcontrolplane.ProjectSetup{{
-		ProjectID:       "project-1",
-		ProjectName:     "Project One",
-		SCMProvider:     "github",
-		RepositoryURL:   "https://github.com/acme/repo",
-		TrackerProvider: "github_issues",
-		TrackerLocation: "acme/repo",
-		CreatedAt:       time.Unix(1700000000, 0).UTC(),
-		UpdatedAt:       time.Unix(1700000000, 0).UTC(),
-	}}, nil
+	return []applicationcontrolplane.ProjectSetup{baseProjectSetup()}, nil
 }
 
 func (repository *controlPlaneFakeProjectRepository) GetProjectSetup(ctx context.Context, projectID string) (*applicationcontrolplane.ProjectSetup, error) {
@@ -107,16 +121,7 @@ func (repository *controlPlaneFakeProjectRepository) GetProjectSetup(ctx context
 	if projectID != "project-1" {
 		return nil, nil
 	}
-	result := applicationcontrolplane.ProjectSetup{
-		ProjectID:       "project-1",
-		ProjectName:     "Project One",
-		SCMProvider:     "github",
-		RepositoryURL:   "https://github.com/acme/repo",
-		TrackerProvider: "github_issues",
-		TrackerLocation: "acme/repo",
-		CreatedAt:       time.Unix(1700000000, 0).UTC(),
-		UpdatedAt:       time.Unix(1700000000, 0).UTC(),
-	}
+	result := baseProjectSetup()
 	return &result, nil
 }
 
@@ -229,7 +234,11 @@ func TestControlPlaneMutationsReturnTypedUnionSuccess(t *testing.T) {
 		Prompt:         "sync",
 		ProjectID:      "project-1",
 		WorkflowID:     "workflow-1",
-		BoardSource:    &models.IngestionBoardSourceInput{Kind: models.TrackerSourceKindGithubIssues},
+		BoardSources: []*models.IngestionBoardSourceInput{{
+			BoardID:                  "board-1",
+			Kind:                     models.TrackerSourceKindGithubIssues,
+			AppliesToAllRepositories: true,
+		}},
 	})
 	if enqueueErr != nil {
 		t.Fatalf("EnqueueIngestionWorkflow() error = %v", enqueueErr)
@@ -246,6 +255,7 @@ func TestControlPlaneMutationsReturnTypedUnionSuccess(t *testing.T) {
 		RunID:          "run-1",
 		TaskID:         "task-1",
 		JobID:          "job-1",
+		ProjectID:      "project-1",
 		Source:         "octo/repo",
 		IssueReference: "octo/repo#1",
 		ApprovedBy:     "user-1",

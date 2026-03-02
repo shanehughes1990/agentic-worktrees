@@ -27,6 +27,7 @@ type WorkflowJob {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   jobKind: JobKind!
   idempotencyKey: String!
   queueTaskID: String!
@@ -47,6 +48,7 @@ type ExecutionHistoryRecord {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   jobKind: JobKind!
   idempotencyKey: String!
   step: String!
@@ -86,9 +88,12 @@ enum TrackerSourceKind {
 }
 
 input IngestionBoardSourceInput {
+  boardID: String!
   kind: TrackerSourceKind!
   location: String
-  boardID: String
+  externalBoardID: String
+  appliesToAllRepositories: Boolean!
+  repositoryIDs: [String!]
 }
 
 input EnqueueIngestionWorkflowInput {
@@ -99,7 +104,7 @@ input EnqueueIngestionWorkflowInput {
   prompt: String!
   projectID: String!
   workflowID: String!
-  boardSource: IngestionBoardSourceInput!
+  boardSources: [IngestionBoardSourceInput!]!
 }
 
 type EnqueueIngestionWorkflowSuccess {
@@ -113,6 +118,7 @@ input ApproveIssueIntakeInput {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   source: String!
   issueReference: String!
   approvedBy: String!
@@ -135,14 +141,27 @@ type RequeueDeadLetterSuccess {
 
 union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
 
-type ProjectSetup {
-  projectID: String!
-  projectName: String!
+type ProjectRepository {
+  repositoryID: String!
   scmProvider: SCMProvider!
   repositoryURL: String!
+  isPrimary: Boolean!
+}
+
+type ProjectBoard {
+  boardID: String!
   trackerProvider: TrackerSourceKind!
   trackerLocation: String
   trackerBoardID: String
+  appliesToAllRepositories: Boolean!
+  repositoryIDs: [String!]!
+}
+
+type ProjectSetup {
+  projectID: String!
+  projectName: String!
+  repositories: [ProjectRepository!]!
+  boards: [ProjectBoard!]!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -159,14 +178,27 @@ type ProjectSetupSuccess {
 
 union ProjectSetupResult = ProjectSetupSuccess | GraphError
 
-input UpsertProjectSetupInput {
-  projectID: String!
-  projectName: String!
+input ProjectRepositoryInput {
+  repositoryID: String!
   scmProvider: SCMProvider!
   repositoryURL: String!
+  isPrimary: Boolean!
+}
+
+input ProjectBoardInput {
+  boardID: String!
   trackerProvider: TrackerSourceKind!
   trackerLocation: String
   trackerBoardID: String
+  appliesToAllRepositories: Boolean!
+  repositoryIDs: [String!]
+}
+
+input UpsertProjectSetupInput {
+  projectID: String!
+  projectName: String!
+  repositories: [ProjectRepositoryInput!]!
+  boards: [ProjectBoardInput!]!
 }
 
 type UpsertProjectSetupSuccess {
@@ -188,6 +220,7 @@ type StreamEvent {
   runID: String
   taskID: String
   jobID: String
+  projectID: String
   sessionID: String
   correlationID: String!
   source: StreamEventSource!

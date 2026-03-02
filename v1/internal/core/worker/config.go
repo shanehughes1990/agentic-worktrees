@@ -24,7 +24,6 @@ type Config struct {
 	SCMProvider         string `envconfig:"SCM_PROVIDER" default:"github" validate:"required,oneof=github"`
 	SCMGitHubToken      string `envconfig:"SCM_GITHUB_TOKEN"`
 	SCMGitHubAPIBaseURL string `envconfig:"SCM_GITHUB_API_BASE_URL" default:"https://api.github.com" validate:"required,url"`
-
 }
 
 func LoadConfigFromEnv() (Config, error) {
@@ -46,8 +45,20 @@ func (config Config) ApplicationRootPath() string {
 	return cleanPath
 }
 
+func (config Config) ProjectsPath() string {
+	return filepath.Join(config.ApplicationRootPath(), "projects")
+}
+
+func (config Config) ProjectPath(projectID string) string {
+	trimmedID := strings.TrimSpace(projectID)
+	if trimmedID == "" {
+		trimmedID = "unscoped"
+	}
+	return filepath.Join(config.ProjectsPath(), trimmedID)
+}
+
 func (config Config) RepositoriesPath() string {
-	return filepath.Join(config.ApplicationRootPath(), "repositories")
+	return filepath.Join(config.ProjectPath("unscoped"), "repositories")
 }
 
 func (config Config) RepositorySourcePath() string {
@@ -55,7 +66,7 @@ func (config Config) RepositorySourcePath() string {
 }
 
 func (config Config) WorktreesPath() string {
-	return filepath.Join(config.ApplicationRootPath(), "worktrees")
+	return filepath.Join(config.ProjectPath("unscoped"), "worktrees")
 }
 
 func (config Config) LogsPath() string {
@@ -63,5 +74,5 @@ func (config Config) LogsPath() string {
 }
 
 func (config Config) TrackerPath() string {
-	return filepath.Join(config.ApplicationRootPath(), "tracker")
+	return filepath.Join(config.ProjectPath("unscoped"), "tracker")
 }

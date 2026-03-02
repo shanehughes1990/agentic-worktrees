@@ -20,8 +20,20 @@ func (r *mutationResolver) EnqueueIngestionWorkflow(ctx context.Context, input m
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
 	}
-	if input.BoardSource == nil {
-		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "boardSource is required", Field: strPtr("boardSource")}, nil
+	if len(input.BoardSources) == 0 {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "boardSources is required", Field: strPtr("boardSources")}, nil
+	}
+	boardSources := make([]applicationcontrolplane.IngestionBoardSource, 0, len(input.BoardSources))
+	for _, boardSource := range input.BoardSources {
+		boardSources = append(boardSources, applicationcontrolplane.IngestionBoardSource{
+			BoardID:                  boardSource.BoardID,
+			Kind:                     toTrackerSourceKindString(boardSource.Kind),
+			Location:                 derefString(boardSource.Location),
+			ExternalBoardID:          derefString(boardSource.ExternalBoardID),
+			AppliesToAllRepositories: boardSource.AppliesToAllRepositories,
+			RepositoryIDs:            boardSource.RepositoryIDs,
+			Config:                   map[string]any{},
+		})
 	}
 	request := applicationcontrolplane.EnqueueIngestionWorkflowRequest{
 		RunID:          input.RunID,
@@ -31,12 +43,7 @@ func (r *mutationResolver) EnqueueIngestionWorkflow(ctx context.Context, input m
 		Prompt:         input.Prompt,
 		ProjectID:      input.ProjectID,
 		WorkflowID:     input.WorkflowID,
-		BoardSource: applicationcontrolplane.IngestionBoardSource{
-			Kind:     toTrackerSourceKindString(input.BoardSource.Kind),
-			Location: derefString(input.BoardSource.Location),
-			BoardID:  derefString(input.BoardSource.BoardID),
-			Config:   map[string]any{},
-		},
+		BoardSources:   boardSources,
 	}
 	result, err := r.Resolver.ControlPlaneService.EnqueueIngestionWorkflow(ctx, request)
 	if err != nil {
@@ -81,14 +88,35 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
 	}
+	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(input.Repositories))
+	for _, repository := range input.Repositories {
+		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
+			RepositoryID:  repository.RepositoryID,
+			SCMProvider:   toSCMProviderString(repository.ScmProvider),
+			RepositoryURL: repository.RepositoryURL,
+			IsPrimary:     repository.IsPrimary,
+		})
+	}
+	boards := make([]applicationcontrolplane.ProjectBoard, 0, len(input.Boards))
+	for _, board := range input.Boards {
+		repositoryIDs := make([]string, 0, len(board.RepositoryIDs))
+		for _, repositoryID := range board.RepositoryIDs {
+			repositoryIDs = append(repositoryIDs, repositoryID)
+		}
+		boards = append(boards, applicationcontrolplane.ProjectBoard{
+			BoardID:                  board.BoardID,
+			TrackerProvider:          toTrackerSourceKindString(board.TrackerProvider),
+			TrackerLocation:          derefString(board.TrackerLocation),
+			TrackerBoardID:           derefString(board.TrackerBoardID),
+			AppliesToAllRepositories: board.AppliesToAllRepositories,
+			RepositoryIDs:            repositoryIDs,
+		})
+	}
 	setup, err := r.Resolver.ControlPlaneService.UpsertProjectSetup(ctx, applicationcontrolplane.UpsertProjectSetupRequest{
-		ProjectID:       input.ProjectID,
-		ProjectName:     input.ProjectName,
-		SCMProvider:     toSCMProviderString(input.ScmProvider),
-		RepositoryURL:   input.RepositoryURL,
-		TrackerProvider: toTrackerSourceKindString(input.TrackerProvider),
-		TrackerLocation: derefString(input.TrackerLocation),
-		TrackerBoardID:  derefString(input.TrackerBoardID),
+		ProjectID:    input.ProjectID,
+		ProjectName:  input.ProjectName,
+		Repositories: repositories,
+		Boards:       boards,
 	})
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("upsert project setup: %w", err)), nil

@@ -63,7 +63,9 @@ void main() {
     );
   }
 
-  testWidgets('renders form sections and status', (WidgetTester tester) async {
+  testWidgets('renders reshaped blocks and status', (
+    WidgetTester tester,
+  ) async {
     await pumpSubject(
       tester,
       onSave: () {},
@@ -73,10 +75,35 @@ void main() {
       onProjectSelected: (_) {},
     );
 
-    expect(find.text('Project Setup'), findsOneWidget);
-    expect(find.text('Save Project Setup'), findsOneWidget);
-    expect(find.text('Configured Projects'), findsOneWidget);
+    expect(find.text('Project Setup'), findsNWidgets(2));
+    expect(find.text('SCM Provider'), findsOneWidget);
+    expect(find.text('Repository Setup'), findsOneWidget);
+    expect(find.text('Tracker Setup'), findsOneWidget);
+    expect(find.text('Add Repository'), findsOneWidget);
+    expect(find.text('Add Tracker'), findsOneWidget);
     expect(find.text('status'), findsOneWidget);
+  });
+
+  testWidgets('project id auto-generates and is read-only', (
+    WidgetTester tester,
+  ) async {
+    await pumpSubject(
+      tester,
+      onSave: () {},
+      onReload: () {},
+      onScmProviderChanged: (_) {},
+      onTrackerProviderChanged: (_) {},
+      onProjectSelected: (_) {},
+    );
+
+    await tester.enterText(find.byType(TextField).at(0), 'My Sample Project');
+    await tester.pump();
+
+    expect(projectController.text, 'my_sample_project');
+    final projectIDField = tester.widget<TextField>(
+      find.byType(TextField).at(1),
+    );
+    expect(projectIDField.readOnly, isTrue);
   });
 
   testWidgets('invokes save and reload callbacks', (WidgetTester tester) async {
@@ -92,13 +119,37 @@ void main() {
       onProjectSelected: (_) {},
     );
 
+    await tester.ensureVisible(find.text('Save Project Setup'));
     await tester.tap(find.text('Save Project Setup'));
     await tester.pump();
+    await tester.ensureVisible(find.text('Reload'));
     await tester.tap(find.text('Reload'));
     await tester.pump();
 
     expect(saveCount, 1);
     expect(reloadCount, 1);
+  });
+
+  testWidgets('adds repository and tracker setup blocks', (
+    WidgetTester tester,
+  ) async {
+    await pumpSubject(
+      tester,
+      onSave: () {},
+      onReload: () {},
+      onScmProviderChanged: (_) {},
+      onTrackerProviderChanged: (_) {},
+      onProjectSelected: (_) {},
+    );
+
+    await tester.tap(find.text('Add Repository'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Add Tracker'));
+    await tester.tap(find.text('Add Tracker'));
+    await tester.pump();
+
+    expect(find.text('Repository 2'), findsOneWidget);
+    expect(find.text('Tracker 2'), findsOneWidget);
   });
 
   testWidgets('disables save button while saving', (WidgetTester tester) async {

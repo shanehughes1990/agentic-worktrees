@@ -59,26 +59,36 @@ type DeadLetterHistoryRecord struct {
 	OccurredAt time.Time
 }
 
+type ProjectRepository struct {
+	RepositoryID string
+	SCMProvider  string
+	RepositoryURL string
+	IsPrimary    bool
+}
+
+type ProjectBoard struct {
+	BoardID                  string
+	TrackerProvider          string
+	TrackerLocation          string
+	TrackerBoardID           string
+	AppliesToAllRepositories bool
+	RepositoryIDs            []string
+}
+
 type ProjectSetup struct {
-	ProjectID       string
-	ProjectName     string
-	SCMProvider     string
-	RepositoryURL   string
-	TrackerProvider string
-	TrackerLocation string
-	TrackerBoardID  string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ProjectID   string
+	ProjectName string
+	Repositories []ProjectRepository
+	Boards      []ProjectBoard
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type UpsertProjectSetupRequest struct {
-	ProjectID       string
-	ProjectName     string
-	SCMProvider     string
-	RepositoryURL   string
-	TrackerProvider string
-	TrackerLocation string
-	TrackerBoardID  string
+	ProjectID    string
+	ProjectName  string
+	Repositories []ProjectRepository
+	Boards       []ProjectBoard
 }
 
 func (request UpsertProjectSetupRequest) Validate() error {
@@ -88,25 +98,61 @@ func (request UpsertProjectSetupRequest) Validate() error {
 	if strings.TrimSpace(request.ProjectName) == "" {
 		return fmt.Errorf("project_name is required")
 	}
-	if strings.TrimSpace(request.SCMProvider) != "github" {
-		return fmt.Errorf("scm_provider must be github")
+	if len(request.Repositories) == 0 {
+		return fmt.Errorf("at least one repository is required")
 	}
-	if strings.TrimSpace(request.RepositoryURL) == "" {
-		return fmt.Errorf("repository_url is required")
+	for index, repository := range request.Repositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		if repositoryID == "" {
+			return fmt.Errorf("repositories[%d].repository_id is required", index)
+		}
+		if strings.TrimSpace(repository.SCMProvider) != "github" {
+			return fmt.Errorf("repositories[%d].scm_provider must be github", index)
+		}
+		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		if repositoryURL == "" {
+			return fmt.Errorf("repositories[%d].repository_url is required", index)
+		}
+		if parsed, err := url.ParseRequestURI(repositoryURL); err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return fmt.Errorf("repositories[%d].repository_url must be a valid absolute URL", index)
+		}
 	}
-	if parsed, err := url.ParseRequestURI(strings.TrimSpace(request.RepositoryURL)); err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("repository_url must be a valid absolute URL")
+	if len(request.Boards) == 0 {
+		return fmt.Errorf("at least one board is required")
 	}
-	if err := domaintracker.SourceKind(strings.TrimSpace(request.TrackerProvider)).Validate(); err != nil {
-		return fmt.Errorf("tracker_provider: %w", err)
+	repositoryByID := map[string]struct{}{}
+	for _, repository := range request.Repositories {
+		repositoryByID[strings.TrimSpace(repository.RepositoryID)] = struct{}{}
+	}
+	for index, board := range request.Boards {
+		if strings.TrimSpace(board.BoardID) == "" {
+			return fmt.Errorf("boards[%d].board_id is required", index)
+		}
+		if err := domaintracker.SourceKind(strings.TrimSpace(board.TrackerProvider)).Validate(); err != nil {
+			return fmt.Errorf("boards[%d].tracker_provider: %w", index, err)
+		}
+		if !board.AppliesToAllRepositories {
+			if len(board.RepositoryIDs) == 0 {
+				return fmt.Errorf("boards[%d].repository_ids is required when applies_to_all_repositories is false", index)
+			}
+			for repositoryIndex, repositoryID := range board.RepositoryIDs {
+				trimmedID := strings.TrimSpace(repositoryID)
+				if trimmedID == "" {
+					return fmt.Errorf("boards[%d].repository_ids[%d] is required", index, repositoryIndex)
+				}
+				if _, exists := repositoryByID[trimmedID]; !exists {
+					return fmt.Errorf("boards[%d].repository_ids[%d] references unknown repository_id %q", index, repositoryIndex, trimmedID)
+				}
+			}
+		}
 	}
 	return nil
 }
 
 type CorrelationFilter struct {
-	RunID  string
-	TaskID string
-	JobID  string
+	RunID     string
+	TaskID    string
+	JobID     string
 	ProjectID string
 }
 
@@ -130,10 +176,13 @@ type ProjectCleanupManager interface {
 }
 
 type IngestionBoardSource struct {
-	Kind     string
-	Location string
-	BoardID  string
-	Config   map[string]any
+	BoardID                  string
+	Kind                     string
+	Location                 string
+	ExternalBoardID          string
+	AppliesToAllRepositories bool
+	RepositoryIDs            []string
+	Config                   map[string]any
 }
 
 type EnqueueIngestionWorkflowRequest struct {
@@ -144,7 +193,7 @@ type EnqueueIngestionWorkflowRequest struct {
 	Prompt         string
 	ProjectID      string
 	WorkflowID     string
-	BoardSource    IngestionBoardSource
+	BoardSources   []IngestionBoardSource
 }
 
 func (request EnqueueIngestionWorkflowRequest) Validate() error {
@@ -169,8 +218,16 @@ func (request EnqueueIngestionWorkflowRequest) Validate() error {
 	if strings.TrimSpace(request.WorkflowID) == "" {
 		return fmt.Errorf("workflow_id is required")
 	}
-	if strings.TrimSpace(request.BoardSource.Kind) == "" {
-		return fmt.Errorf("board_source.kind is required")
+	if len(request.BoardSources) == 0 {
+		return fmt.Errorf("board_sources is required")
+	}
+	for index, source := range request.BoardSources {
+		if strings.TrimSpace(source.BoardID) == "" {
+			return fmt.Errorf("board_sources[%d].board_id is required", index)
+		}
+		if strings.TrimSpace(source.Kind) == "" {
+			return fmt.Errorf("board_sources[%d].kind is required", index)
+		}
 	}
 	return nil
 }
@@ -294,22 +351,28 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	}
 	request.ProjectID = strings.TrimSpace(request.ProjectID)
 	request.ProjectName = strings.TrimSpace(request.ProjectName)
-	request.SCMProvider = strings.ToLower(strings.TrimSpace(request.SCMProvider))
-	request.RepositoryURL = strings.TrimSpace(request.RepositoryURL)
-	request.TrackerProvider = strings.TrimSpace(request.TrackerProvider)
-	request.TrackerLocation = strings.TrimSpace(request.TrackerLocation)
-	request.TrackerBoardID = strings.TrimSpace(request.TrackerBoardID)
+	for index := range request.Repositories {
+		request.Repositories[index].RepositoryID = strings.TrimSpace(request.Repositories[index].RepositoryID)
+		request.Repositories[index].SCMProvider = strings.ToLower(strings.TrimSpace(request.Repositories[index].SCMProvider))
+		request.Repositories[index].RepositoryURL = strings.TrimSpace(request.Repositories[index].RepositoryURL)
+	}
+	for index := range request.Boards {
+		request.Boards[index].BoardID = strings.TrimSpace(request.Boards[index].BoardID)
+		request.Boards[index].TrackerProvider = strings.TrimSpace(request.Boards[index].TrackerProvider)
+		request.Boards[index].TrackerLocation = strings.TrimSpace(request.Boards[index].TrackerLocation)
+		request.Boards[index].TrackerBoardID = strings.TrimSpace(request.Boards[index].TrackerBoardID)
+		for repositoryIndex := range request.Boards[index].RepositoryIDs {
+			request.Boards[index].RepositoryIDs[repositoryIndex] = strings.TrimSpace(request.Boards[index].RepositoryIDs[repositoryIndex])
+		}
+	}
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
 	return service.projectRepository.UpsertProjectSetup(ctx, ProjectSetup{
-		ProjectID:       request.ProjectID,
-		ProjectName:     request.ProjectName,
-		SCMProvider:     request.SCMProvider,
-		RepositoryURL:   request.RepositoryURL,
-		TrackerProvider: request.TrackerProvider,
-		TrackerLocation: request.TrackerLocation,
-		TrackerBoardID:  request.TrackerBoardID,
+		ProjectID:    request.ProjectID,
+		ProjectName:  request.ProjectName,
+		Repositories: request.Repositories,
+		Boards:       request.Boards,
 	})
 }
 
@@ -351,6 +414,18 @@ func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request En
 	if err := request.Validate(); err != nil {
 		return taskengine.EnqueueResult{}, err
 	}
+	boardSources := make([]map[string]any, 0, len(request.BoardSources))
+	for _, source := range request.BoardSources {
+		boardSources = append(boardSources, map[string]any{
+			"board_id":                     strings.TrimSpace(source.BoardID),
+			"kind":                         strings.TrimSpace(source.Kind),
+			"location":                     strings.TrimSpace(source.Location),
+			"external_board_id":            strings.TrimSpace(source.ExternalBoardID),
+			"applies_to_all_repositories":  source.AppliesToAllRepositories,
+			"repository_ids":               source.RepositoryIDs,
+			"config":                       source.Config,
+		})
+	}
 	payload, err := json.Marshal(map[string]any{
 		"run_id":          strings.TrimSpace(request.RunID),
 		"task_id":         strings.TrimSpace(request.TaskID),
@@ -359,12 +434,7 @@ func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request En
 		"prompt":          strings.TrimSpace(request.Prompt),
 		"project_id":      strings.TrimSpace(request.ProjectID),
 		"workflow_id":     strings.TrimSpace(request.WorkflowID),
-		"board_source": map[string]any{
-			"kind":     strings.TrimSpace(request.BoardSource.Kind),
-			"location": strings.TrimSpace(request.BoardSource.Location),
-			"board_id": strings.TrimSpace(request.BoardSource.BoardID),
-			"config":   request.BoardSource.Config,
-		},
+		"board_sources":   boardSources,
 	})
 	if err != nil {
 		return taskengine.EnqueueResult{}, fmt.Errorf("encode ingestion workflow payload: %w", err)

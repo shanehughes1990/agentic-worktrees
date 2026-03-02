@@ -121,7 +121,7 @@ func New() (*WorkerApp, error) {
 	githubAdapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
 		APIBaseURL:       config.SCMGitHubAPIBaseURL,
 		RepoPath:         config.RepositorySourcePath(),
-		WorktreeRootPath: config.WorktreesPath(),
+		WorktreeRootPath: config.ProjectsPath(),
 	}, nil, infrascm.NewStaticTokenProvider(config.SCMGitHubToken), infrascm.NewExecGitRunner())
 	if err != nil {
 		return nil, fmt.Errorf("init github scm adapter: %w", err)
@@ -134,7 +134,7 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init agent service: %w", err)
 	}
-	localTrackerProvider, err := infratracker.NewLocalJSONProvider(config.TrackerPath())
+	localTrackerProvider, err := infratracker.NewLocalJSONProvider(config.ProjectsPath())
 	if err != nil {
 		return nil, fmt.Errorf("init local tracker provider: %w", err)
 	}
@@ -357,11 +357,9 @@ func (app *WorkerApp) Run() error {
 func ensureRuntimeFilesystem(config Config) error {
 	directories := []string{
 		config.ApplicationRootPath(),
-		config.RepositoriesPath(),
+		config.ProjectsPath(),
 		config.RepositorySourcePath(),
-		config.WorktreesPath(),
 		config.LogsPath(),
-		config.TrackerPath(),
 	}
 	for _, directory := range directories {
 		if err := os.MkdirAll(directory, 0o755); err != nil {

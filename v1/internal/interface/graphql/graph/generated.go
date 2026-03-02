@@ -103,16 +103,29 @@ type ComplexityRoot struct {
 		UpsertProjectSetup       func(childComplexity int, input models.UpsertProjectSetupInput) int
 	}
 
+	ProjectBoard struct {
+		AppliesToAllRepositories func(childComplexity int) int
+		BoardID                  func(childComplexity int) int
+		RepositoryIDs            func(childComplexity int) int
+		TrackerBoardID           func(childComplexity int) int
+		TrackerLocation          func(childComplexity int) int
+		TrackerProvider          func(childComplexity int) int
+	}
+
+	ProjectRepository struct {
+		IsPrimary     func(childComplexity int) int
+		RepositoryID  func(childComplexity int) int
+		RepositoryURL func(childComplexity int) int
+		ScmProvider   func(childComplexity int) int
+	}
+
 	ProjectSetup struct {
-		CreatedAt       func(childComplexity int) int
-		ProjectID       func(childComplexity int) int
-		ProjectName     func(childComplexity int) int
-		RepositoryURL   func(childComplexity int) int
-		ScmProvider     func(childComplexity int) int
-		TrackerBoardID  func(childComplexity int) int
-		TrackerLocation func(childComplexity int) int
-		TrackerProvider func(childComplexity int) int
-		UpdatedAt       func(childComplexity int) int
+		Boards       func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		ProjectID    func(childComplexity int) int
+		ProjectName  func(childComplexity int) int
+		Repositories func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
 	}
 
 	ProjectSetupSuccess struct {
@@ -574,6 +587,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Mutation.UpsertProjectSetup(childComplexity, args["input"].(models.UpsertProjectSetupInput)), true
 
+	case "ProjectBoard.appliesToAllRepositories":
+		if e.ComplexityRoot.ProjectBoard.AppliesToAllRepositories == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectBoard.AppliesToAllRepositories(childComplexity), true
+	case "ProjectBoard.boardID":
+		if e.ComplexityRoot.ProjectBoard.BoardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectBoard.BoardID(childComplexity), true
+	case "ProjectBoard.repositoryIDs":
+		if e.ComplexityRoot.ProjectBoard.RepositoryIDs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectBoard.RepositoryIDs(childComplexity), true
+	case "ProjectBoard.trackerBoardID":
+		if e.ComplexityRoot.ProjectBoard.TrackerBoardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectBoard.TrackerBoardID(childComplexity), true
+	case "ProjectBoard.trackerLocation":
+		if e.ComplexityRoot.ProjectBoard.TrackerLocation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectBoard.TrackerLocation(childComplexity), true
+	case "ProjectBoard.trackerProvider":
+		if e.ComplexityRoot.ProjectBoard.TrackerProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectBoard.TrackerProvider(childComplexity), true
+
+	case "ProjectRepository.isPrimary":
+		if e.ComplexityRoot.ProjectRepository.IsPrimary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepository.IsPrimary(childComplexity), true
+	case "ProjectRepository.repositoryID":
+		if e.ComplexityRoot.ProjectRepository.RepositoryID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepository.RepositoryID(childComplexity), true
+	case "ProjectRepository.repositoryURL":
+		if e.ComplexityRoot.ProjectRepository.RepositoryURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepository.RepositoryURL(childComplexity), true
+	case "ProjectRepository.scmProvider":
+		if e.ComplexityRoot.ProjectRepository.ScmProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepository.ScmProvider(childComplexity), true
+
+	case "ProjectSetup.boards":
+		if e.ComplexityRoot.ProjectSetup.Boards == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.Boards(childComplexity), true
 	case "ProjectSetup.createdAt":
 		if e.ComplexityRoot.ProjectSetup.CreatedAt == nil {
 			break
@@ -592,36 +673,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectSetup.ProjectName(childComplexity), true
-	case "ProjectSetup.repositoryURL":
-		if e.ComplexityRoot.ProjectSetup.RepositoryURL == nil {
+	case "ProjectSetup.repositories":
+		if e.ComplexityRoot.ProjectSetup.Repositories == nil {
 			break
 		}
 
-		return e.ComplexityRoot.ProjectSetup.RepositoryURL(childComplexity), true
-	case "ProjectSetup.scmProvider":
-		if e.ComplexityRoot.ProjectSetup.ScmProvider == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ProjectSetup.ScmProvider(childComplexity), true
-	case "ProjectSetup.trackerBoardID":
-		if e.ComplexityRoot.ProjectSetup.TrackerBoardID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ProjectSetup.TrackerBoardID(childComplexity), true
-	case "ProjectSetup.trackerLocation":
-		if e.ComplexityRoot.ProjectSetup.TrackerLocation == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ProjectSetup.TrackerLocation(childComplexity), true
-	case "ProjectSetup.trackerProvider":
-		if e.ComplexityRoot.ProjectSetup.TrackerProvider == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ProjectSetup.TrackerProvider(childComplexity), true
+		return e.ComplexityRoot.ProjectSetup.Repositories(childComplexity), true
 	case "ProjectSetup.updatedAt":
 		if e.ComplexityRoot.ProjectSetup.UpdatedAt == nil {
 			break
@@ -1274,6 +1331,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputEnqueueIngestionWorkflowInput,
 		ec.unmarshalInputEnqueueSCMWorkflowInput,
 		ec.unmarshalInputIngestionBoardSourceInput,
+		ec.unmarshalInputProjectBoardInput,
+		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
 		ec.unmarshalInputUpdateWorkerSettingsInput,
@@ -1460,9 +1519,12 @@ enum TrackerSourceKind {
 }
 
 input IngestionBoardSourceInput {
+  boardID: String!
   kind: TrackerSourceKind!
   location: String
-  boardID: String
+  externalBoardID: String
+  appliesToAllRepositories: Boolean!
+  repositoryIDs: [String!]
 }
 
 input EnqueueIngestionWorkflowInput {
@@ -1473,7 +1535,7 @@ input EnqueueIngestionWorkflowInput {
   prompt: String!
   projectID: String!
   workflowID: String!
-  boardSource: IngestionBoardSourceInput!
+  boardSources: [IngestionBoardSourceInput!]!
 }
 
 type EnqueueIngestionWorkflowSuccess {
@@ -1510,14 +1572,27 @@ type RequeueDeadLetterSuccess {
 
 union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
 
-type ProjectSetup {
-  projectID: String!
-  projectName: String!
+type ProjectRepository {
+  repositoryID: String!
   scmProvider: SCMProvider!
   repositoryURL: String!
+  isPrimary: Boolean!
+}
+
+type ProjectBoard {
+  boardID: String!
   trackerProvider: TrackerSourceKind!
   trackerLocation: String
   trackerBoardID: String
+  appliesToAllRepositories: Boolean!
+  repositoryIDs: [String!]!
+}
+
+type ProjectSetup {
+  projectID: String!
+  projectName: String!
+  repositories: [ProjectRepository!]!
+  boards: [ProjectBoard!]!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -1534,14 +1609,27 @@ type ProjectSetupSuccess {
 
 union ProjectSetupResult = ProjectSetupSuccess | GraphError
 
-input UpsertProjectSetupInput {
-  projectID: String!
-  projectName: String!
+input ProjectRepositoryInput {
+  repositoryID: String!
   scmProvider: SCMProvider!
   repositoryURL: String!
+  isPrimary: Boolean!
+}
+
+input ProjectBoardInput {
+  boardID: String!
   trackerProvider: TrackerSourceKind!
   trackerLocation: String
   trackerBoardID: String
+  appliesToAllRepositories: Boolean!
+  repositoryIDs: [String!]
+}
+
+input UpsertProjectSetupInput {
+  projectID: String!
+  projectName: String!
+  repositories: [ProjectRepositoryInput!]!
+  boards: [ProjectBoardInput!]!
 }
 
 type UpsertProjectSetupSuccess {
@@ -3429,6 +3517,296 @@ func (ec *executionContext) fieldContext_Mutation_enqueueScmWorkflow(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectBoard_boardID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectBoard_boardID,
+		func(ctx context.Context) (any, error) {
+			return obj.BoardID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectBoard_boardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectBoard_trackerProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectBoard_trackerProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.TrackerProvider, nil
+		},
+		nil,
+		ec.marshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectBoard_trackerProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TrackerSourceKind does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectBoard_trackerLocation(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectBoard_trackerLocation,
+		func(ctx context.Context) (any, error) {
+			return obj.TrackerLocation, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectBoard_trackerLocation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectBoard_trackerBoardID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectBoard_trackerBoardID,
+		func(ctx context.Context) (any, error) {
+			return obj.TrackerBoardID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectBoard_trackerBoardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectBoard_appliesToAllRepositories(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectBoard_appliesToAllRepositories,
+		func(ctx context.Context) (any, error) {
+			return obj.AppliesToAllRepositories, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectBoard_appliesToAllRepositories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectBoard_repositoryIDs(ctx context.Context, field graphql.CollectedField, obj *models.ProjectBoard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectBoard_repositoryIDs,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryIDs, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectBoard_repositoryIDs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectBoard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepository_repositoryID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepository) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepository_repositoryID,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepository_repositoryID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepository",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepository_scmProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepository) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepository_scmProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.ScmProvider, nil
+		},
+		nil,
+		ec.marshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepository_scmProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepository",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type SCMProvider does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepository_repositoryURL(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepository) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepository_repositoryURL,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepository_repositoryURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepository",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepository_isPrimary(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepository) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepository_isPrimary,
+		func(ctx context.Context) (any, error) {
+			return obj.IsPrimary, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepository_isPrimary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepository",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectSetup_projectID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3487,146 +3865,83 @@ func (ec *executionContext) fieldContext_ProjectSetup_projectName(_ context.Cont
 	return fc, nil
 }
 
-func (ec *executionContext) _ProjectSetup_scmProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+func (ec *executionContext) _ProjectSetup_repositories(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_ProjectSetup_scmProvider,
+		ec.fieldContext_ProjectSetup_repositories,
 		func(ctx context.Context) (any, error) {
-			return obj.ScmProvider, nil
+			return obj.Repositories, nil
 		},
 		nil,
-		ec.marshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider,
+		ec.marshalNProjectRepository2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryᚄ,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_ProjectSetup_scmProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ProjectSetup_repositories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ProjectSetup",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type SCMProvider does not have child fields")
+			switch field.Name {
+			case "repositoryID":
+				return ec.fieldContext_ProjectRepository_repositoryID(ctx, field)
+			case "scmProvider":
+				return ec.fieldContext_ProjectRepository_scmProvider(ctx, field)
+			case "repositoryURL":
+				return ec.fieldContext_ProjectRepository_repositoryURL(ctx, field)
+			case "isPrimary":
+				return ec.fieldContext_ProjectRepository_isPrimary(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectRepository", field.Name)
 		},
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _ProjectSetup_repositoryURL(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+func (ec *executionContext) _ProjectSetup_boards(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_ProjectSetup_repositoryURL,
+		ec.fieldContext_ProjectSetup_boards,
 		func(ctx context.Context) (any, error) {
-			return obj.RepositoryURL, nil
+			return obj.Boards, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNProjectBoard2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardᚄ,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_ProjectSetup_repositoryURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ProjectSetup_boards(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ProjectSetup",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ProjectSetup_trackerProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ProjectSetup_trackerProvider,
-		func(ctx context.Context) (any, error) {
-			return obj.TrackerProvider, nil
-		},
-		nil,
-		ec.marshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_ProjectSetup_trackerProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ProjectSetup",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type TrackerSourceKind does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ProjectSetup_trackerLocation(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ProjectSetup_trackerLocation,
-		func(ctx context.Context) (any, error) {
-			return obj.TrackerLocation, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_ProjectSetup_trackerLocation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ProjectSetup",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ProjectSetup_trackerBoardID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ProjectSetup_trackerBoardID,
-		func(ctx context.Context) (any, error) {
-			return obj.TrackerBoardID, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_ProjectSetup_trackerBoardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ProjectSetup",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "boardID":
+				return ec.fieldContext_ProjectBoard_boardID(ctx, field)
+			case "trackerProvider":
+				return ec.fieldContext_ProjectBoard_trackerProvider(ctx, field)
+			case "trackerLocation":
+				return ec.fieldContext_ProjectBoard_trackerLocation(ctx, field)
+			case "trackerBoardID":
+				return ec.fieldContext_ProjectBoard_trackerBoardID(ctx, field)
+			case "appliesToAllRepositories":
+				return ec.fieldContext_ProjectBoard_appliesToAllRepositories(ctx, field)
+			case "repositoryIDs":
+				return ec.fieldContext_ProjectBoard_repositoryIDs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectBoard", field.Name)
 		},
 	}
 	return fc, nil
@@ -3718,16 +4033,10 @@ func (ec *executionContext) fieldContext_ProjectSetupSuccess_project(_ context.C
 				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
 			case "projectName":
 				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
-			case "scmProvider":
-				return ec.fieldContext_ProjectSetup_scmProvider(ctx, field)
-			case "repositoryURL":
-				return ec.fieldContext_ProjectSetup_repositoryURL(ctx, field)
-			case "trackerProvider":
-				return ec.fieldContext_ProjectSetup_trackerProvider(ctx, field)
-			case "trackerLocation":
-				return ec.fieldContext_ProjectSetup_trackerLocation(ctx, field)
-			case "trackerBoardID":
-				return ec.fieldContext_ProjectSetup_trackerBoardID(ctx, field)
+			case "repositories":
+				return ec.fieldContext_ProjectSetup_repositories(ctx, field)
+			case "boards":
+				return ec.fieldContext_ProjectSetup_boards(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ProjectSetup_createdAt(ctx, field)
 			case "updatedAt":
@@ -3767,16 +4076,10 @@ func (ec *executionContext) fieldContext_ProjectSetupsSuccess_projects(_ context
 				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
 			case "projectName":
 				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
-			case "scmProvider":
-				return ec.fieldContext_ProjectSetup_scmProvider(ctx, field)
-			case "repositoryURL":
-				return ec.fieldContext_ProjectSetup_repositoryURL(ctx, field)
-			case "trackerProvider":
-				return ec.fieldContext_ProjectSetup_trackerProvider(ctx, field)
-			case "trackerLocation":
-				return ec.fieldContext_ProjectSetup_trackerLocation(ctx, field)
-			case "trackerBoardID":
-				return ec.fieldContext_ProjectSetup_trackerBoardID(ctx, field)
+			case "repositories":
+				return ec.fieldContext_ProjectSetup_repositories(ctx, field)
+			case "boards":
+				return ec.fieldContext_ProjectSetup_boards(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ProjectSetup_createdAt(ctx, field)
 			case "updatedAt":
@@ -5833,16 +6136,10 @@ func (ec *executionContext) fieldContext_UpsertProjectSetupSuccess_project(_ con
 				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
 			case "projectName":
 				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
-			case "scmProvider":
-				return ec.fieldContext_ProjectSetup_scmProvider(ctx, field)
-			case "repositoryURL":
-				return ec.fieldContext_ProjectSetup_repositoryURL(ctx, field)
-			case "trackerProvider":
-				return ec.fieldContext_ProjectSetup_trackerProvider(ctx, field)
-			case "trackerLocation":
-				return ec.fieldContext_ProjectSetup_trackerLocation(ctx, field)
-			case "trackerBoardID":
-				return ec.fieldContext_ProjectSetup_trackerBoardID(ctx, field)
+			case "repositories":
+				return ec.fieldContext_ProjectSetup_repositories(ctx, field)
+			case "boards":
+				return ec.fieldContext_ProjectSetup_boards(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_ProjectSetup_createdAt(ctx, field)
 			case "updatedAt":
@@ -8331,7 +8628,7 @@ func (ec *executionContext) unmarshalInputEnqueueIngestionWorkflowInput(ctx cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"runID", "taskID", "jobID", "idempotencyKey", "prompt", "projectID", "workflowID", "boardSource"}
+	fieldsInOrder := [...]string{"runID", "taskID", "jobID", "idempotencyKey", "prompt", "projectID", "workflowID", "boardSources"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8387,13 +8684,13 @@ func (ec *executionContext) unmarshalInputEnqueueIngestionWorkflowInput(ctx cont
 				return it, err
 			}
 			it.WorkflowID = data
-		case "boardSource":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardSource"))
-			data, err := ec.unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx, v)
+		case "boardSources":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardSources"))
+			data, err := ec.unmarshalNIngestionBoardSourceInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.BoardSource = data
+			it.BoardSources = data
 		}
 	}
 	return it, nil
@@ -8551,13 +8848,20 @@ func (ec *executionContext) unmarshalInputIngestionBoardSourceInput(ctx context.
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"kind", "location", "boardID"}
+	fieldsInOrder := [...]string{"boardID", "kind", "location", "externalBoardID", "appliesToAllRepositories", "repositoryIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
 		case "kind":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
 			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
@@ -8572,13 +8876,135 @@ func (ec *executionContext) unmarshalInputIngestionBoardSourceInput(ctx context.
 				return it, err
 			}
 			it.Location = data
-		case "boardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+		case "externalBoardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("externalBoardID"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
+			it.ExternalBoardID = data
+		case "appliesToAllRepositories":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appliesToAllRepositories"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AppliesToAllRepositories = data
+		case "repositoryIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryIDs = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputProjectBoardInput(ctx context.Context, obj any) (models.ProjectBoardInput, error) {
+	var it models.ProjectBoardInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"boardID", "trackerProvider", "trackerLocation", "trackerBoardID", "appliesToAllRepositories", "repositoryIDs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
 			it.BoardID = data
+		case "trackerProvider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerProvider"))
+			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TrackerProvider = data
+		case "trackerLocation":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerLocation"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TrackerLocation = data
+		case "trackerBoardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerBoardID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TrackerBoardID = data
+		case "appliesToAllRepositories":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appliesToAllRepositories"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AppliesToAllRepositories = data
+		case "repositoryIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryIDs = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputProjectRepositoryInput(ctx context.Context, obj any) (models.ProjectRepositoryInput, error) {
+	var it models.ProjectRepositoryInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"repositoryID", "scmProvider", "repositoryURL", "isPrimary"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "repositoryID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryID = data
+		case "scmProvider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmProvider"))
+			data, err := ec.unmarshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScmProvider = data
+		case "repositoryURL":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryURL"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryURL = data
+		case "isPrimary":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isPrimary"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsPrimary = data
 		}
 	}
 	return it, nil
@@ -8732,7 +9158,7 @@ func (ec *executionContext) unmarshalInputUpsertProjectSetupInput(ctx context.Co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "projectName", "scmProvider", "repositoryURL", "trackerProvider", "trackerLocation", "trackerBoardID"}
+	fieldsInOrder := [...]string{"projectID", "projectName", "repositories", "boards"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8753,41 +9179,20 @@ func (ec *executionContext) unmarshalInputUpsertProjectSetupInput(ctx context.Co
 				return it, err
 			}
 			it.ProjectName = data
-		case "scmProvider":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmProvider"))
-			data, err := ec.unmarshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider(ctx, v)
+		case "repositories":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositories"))
+			data, err := ec.unmarshalNProjectRepositoryInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ScmProvider = data
-		case "repositoryURL":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryURL"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			it.Repositories = data
+		case "boards":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boards"))
+			data, err := ec.unmarshalNProjectBoardInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.RepositoryURL = data
-		case "trackerProvider":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerProvider"))
-			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TrackerProvider = data
-		case "trackerLocation":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerLocation"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TrackerLocation = data
-		case "trackerBoardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("trackerBoardID"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TrackerBoardID = data
+			it.Boards = data
 		}
 	}
 	return it, nil
@@ -9814,6 +10219,118 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 	return out
 }
 
+var projectBoardImplementors = []string{"ProjectBoard"}
+
+func (ec *executionContext) _ProjectBoard(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectBoard) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectBoardImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectBoard")
+		case "boardID":
+			out.Values[i] = ec._ProjectBoard_boardID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trackerProvider":
+			out.Values[i] = ec._ProjectBoard_trackerProvider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trackerLocation":
+			out.Values[i] = ec._ProjectBoard_trackerLocation(ctx, field, obj)
+		case "trackerBoardID":
+			out.Values[i] = ec._ProjectBoard_trackerBoardID(ctx, field, obj)
+		case "appliesToAllRepositories":
+			out.Values[i] = ec._ProjectBoard_appliesToAllRepositories(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "repositoryIDs":
+			out.Values[i] = ec._ProjectBoard_repositoryIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectRepositoryImplementors = []string{"ProjectRepository"}
+
+func (ec *executionContext) _ProjectRepository(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectRepository) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectRepositoryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectRepository")
+		case "repositoryID":
+			out.Values[i] = ec._ProjectRepository_repositoryID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scmProvider":
+			out.Values[i] = ec._ProjectRepository_scmProvider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "repositoryURL":
+			out.Values[i] = ec._ProjectRepository_repositoryURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isPrimary":
+			out.Values[i] = ec._ProjectRepository_isPrimary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var projectSetupImplementors = []string{"ProjectSetup"}
 
 func (ec *executionContext) _ProjectSetup(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectSetup) graphql.Marshaler {
@@ -9835,25 +10352,16 @@ func (ec *executionContext) _ProjectSetup(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "scmProvider":
-			out.Values[i] = ec._ProjectSetup_scmProvider(ctx, field, obj)
+		case "repositories":
+			out.Values[i] = ec._ProjectSetup_repositories(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "repositoryURL":
-			out.Values[i] = ec._ProjectSetup_repositoryURL(ctx, field, obj)
+		case "boards":
+			out.Values[i] = ec._ProjectSetup_boards(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "trackerProvider":
-			out.Values[i] = ec._ProjectSetup_trackerProvider(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "trackerLocation":
-			out.Values[i] = ec._ProjectSetup_trackerLocation(ctx, field, obj)
-		case "trackerBoardID":
-			out.Values[i] = ec._ProjectSetup_trackerBoardID(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._ProjectSetup_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -11724,6 +12232,21 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNIngestionBoardSourceInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInputᚄ(ctx context.Context, v any) ([]*models.IngestionBoardSourceInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*models.IngestionBoardSourceInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
 func (ec *executionContext) unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx context.Context, v any) (*models.IngestionBoardSourceInput, error) {
 	res, err := ec.unmarshalInputIngestionBoardSourceInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
@@ -11753,6 +12276,98 @@ func (ec *executionContext) unmarshalNJobKind2agenticᚑorchestratorᚋinternal�
 
 func (ec *executionContext) marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx context.Context, sel ast.SelectionSet, v models.JobKind) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNProjectBoard2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectBoard) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectBoard2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoard(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectBoard2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoard(ctx context.Context, sel ast.SelectionSet, v *models.ProjectBoard) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectBoard(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNProjectBoardInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardInputᚄ(ctx context.Context, v any) ([]*models.ProjectBoardInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*models.ProjectBoardInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNProjectBoardInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNProjectBoardInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardInput(ctx context.Context, v any) (*models.ProjectBoardInput, error) {
+	res, err := ec.unmarshalInputProjectBoardInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNProjectRepository2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectRepository) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectRepository2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepository(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectRepository2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepository(ctx context.Context, sel ast.SelectionSet, v *models.ProjectRepository) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectRepository(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNProjectRepositoryInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInputᚄ(ctx context.Context, v any) ([]*models.ProjectRepositoryInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*models.ProjectRepositoryInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNProjectRepositoryInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNProjectRepositoryInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInput(ctx context.Context, v any) (*models.ProjectRepositoryInput, error) {
+	res, err := ec.unmarshalInputProjectRepositoryInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNProjectSetup2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSetupᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectSetup) graphql.Marshaler {
@@ -11967,6 +12582,36 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNSupervisorActionCode2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorActionCode(ctx context.Context, v any) (models.SupervisorActionCode, error) {
@@ -12443,6 +13088,42 @@ func (ec *executionContext) marshalOSCMReviewDecision2ᚖagenticᚑorchestrator�
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {

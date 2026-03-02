@@ -101,14 +101,29 @@ void main() {
                 '__typename': 'ProjectSetupsSuccess',
                 'projects': <Map<String, dynamic>>[
                   <String, dynamic>{
-                    '__typename': 'ProjectSetupConfig',
+                    '__typename': 'ProjectSetup',
                     'projectID': 'project-1',
                     'projectName': 'Project One',
-                    'scmProvider': 'GITHUB',
-                    'repositoryURL': 'https://github.com/acme/repo',
-                    'trackerProvider': 'GITHUB_ISSUES',
-                    'trackerLocation': 'acme/repo',
-                    'trackerBoardID': 'board-1',
+                    'repositories': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        '__typename': 'ProjectRepository',
+                        'repositoryID': 'repo-1',
+                        'scmProvider': 'GITHUB',
+                        'repositoryURL': 'https://github.com/acme/repo',
+                        'isPrimary': true,
+                      },
+                    ],
+                    'boards': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        '__typename': 'ProjectBoard',
+                        'boardID': 'board-1',
+                        'trackerProvider': 'GITHUB_ISSUES',
+                        'trackerLocation': 'acme/repo',
+                        'trackerBoardID': 'board-1',
+                        'appliesToAllRepositories': true,
+                        'repositoryIDs': <String>[],
+                      },
+                    ],
                     'createdAt': '2026-03-01T12:00:00Z',
                     'updatedAt': '2026-03-01T12:00:00Z',
                   },
@@ -123,7 +138,7 @@ void main() {
         expect(result.isSuccess, isTrue);
         expect(result.data, isNotNull);
         expect(result.data!.single.projectID, 'project-1');
-        expect(result.data!.single.scmProvider, 'GITHUB');
+        expect(result.data!.single.repositories.single.scmProvider, 'GITHUB');
       },
     );
   });
