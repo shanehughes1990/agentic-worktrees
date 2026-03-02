@@ -125,3 +125,12 @@
 - Any implementation that introduces non-approved REST control-plane endpoints is non-compliant.
 - Any client-facing operation that bypasses typed GraphQL contracts is non-compliant.
 - Non-compliant changes must be corrected before merge.
+
+## API/WORKER APPLICATION BOUNDARY MANDATE
+
+- The `api` runtime and the `worker` runtime are physically separate applications/processes.
+- They must be treated as distributed peers, not as in-process components.
+- Do NOT introduce direct in-memory coupling, shared process state assumptions, or local function-call orchestration across the boundary.
+- Correlation between `api` and `worker` must flow through distributed contracts and infrastructure only (for example: Postgres persistence, PG LISTEN/NOTIFY eventing, Asynq task queues, and other persisted message channels).
+- All cross-runtime workflow identity/correlation data (`run_id`, `task_id`, `job_id`, `project_id`, and related correlation metadata) must be propagated explicitly through these distributed boundaries.
+- Any change that bypasses distributed correlation semantics between `api` and `worker` is non-compliant.
