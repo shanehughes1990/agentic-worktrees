@@ -27,15 +27,22 @@ class SessionSummary {
 class ProjectRepositoryConfig {
   const ProjectRepositoryConfig({
     required this.repositoryID,
-    required this.scmProvider,
+    required this.scmID,
     required this.repositoryURL,
     required this.isPrimary,
   });
 
   final String repositoryID;
-  final String scmProvider;
+  final String scmID;
   final String repositoryURL;
   final bool isPrimary;
+}
+
+class ProjectScmConfig {
+  const ProjectScmConfig({required this.scmID, required this.scmProvider});
+
+  final String scmID;
+  final String scmProvider;
 }
 
 class ProjectBoardConfig {
@@ -58,6 +65,7 @@ class ProjectSetupConfig {
   const ProjectSetupConfig({
     required this.projectID,
     required this.projectName,
+    required this.scms,
     required this.repositories,
     required this.boards,
     required this.createdAt,
@@ -66,6 +74,7 @@ class ProjectSetupConfig {
 
   final String projectID;
   final String projectName;
+  final List<ProjectScmConfig> scms;
   final List<ProjectRepositoryConfig> repositories;
   final List<ProjectBoardConfig> boards;
   final DateTime createdAt;

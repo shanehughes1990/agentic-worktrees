@@ -64,10 +64,8 @@ class ProjectSetupLogic {
         .where((String repositoryURL) => repositoryURL.trim().isNotEmpty)
         .toList(growable: false);
     repositoryUrlController.text = repositoryURLs.join('\n');
-    final repository = setup.repositories.isNotEmpty
-        ? setup.repositories.first
-        : null;
-    onScmProviderChanged(repository?.scmProvider ?? defaultScmProvider);
+    final scm = setup.scms.isNotEmpty ? setup.scms.first : null;
+    onScmProviderChanged(scm?.scmProvider ?? defaultScmProvider);
 
     final board = setup.boards.isNotEmpty ? setup.boards.first : null;
     taskboardNameController.text = board?.taskboardName ?? '';

@@ -86,9 +86,13 @@ query ProjectSetups($limit: Int!) {
       projects {
         projectID
         projectName
+        scms {
+          scmID
+          scmProvider
+        }
         repositories {
           repositoryID
-          scmProvider
+          scmID
           repositoryURL
           isPrimary
         }
@@ -118,9 +122,13 @@ mutation UpsertProjectSetup($input: UpsertProjectSetupInput!) {
       project {
         projectID
         projectName
+        scms {
+          scmID
+          scmProvider
+        }
         repositories {
           repositoryID
-          scmProvider
+          scmID
           repositoryURL
           isPrimary
         }

@@ -26,14 +26,25 @@ type projectRepositoryRecord struct {
 	gorm.Model
 	ProjectID     string `gorm:"column:project_id;size:255;not null;index"`
 	RepositoryID  string `gorm:"column:repository_id;size:255;not null"`
-	SCMProvider   string `gorm:"column:scm_provider;size:64;not null"`
-	SCMToken      string `gorm:"column:scm_token;size:512;not null"`
+	SCMID         string `gorm:"column:scm_id;size:255;not null"`
 	RepositoryURL string `gorm:"column:repository_url;size:1024;not null"`
 	IsPrimary     bool   `gorm:"column:is_primary;not null;default:false"`
 }
 
 func (projectRepositoryRecord) TableName() string {
 	return "project_repositories"
+}
+
+type projectSCMRecord struct {
+	gorm.Model
+	ProjectID   string `gorm:"column:project_id;size:255;not null;index"`
+	SCMID       string `gorm:"column:scm_id;size:255;not null"`
+	SCMProvider string `gorm:"column:scm_provider;size:64;not null"`
+	SCMToken    string `gorm:"column:scm_token;size:512;not null"`
+}
+
+func (projectSCMRecord) TableName() string {
+	return "project_scms"
 }
 
 type projectBoardRecord struct {
@@ -71,7 +82,7 @@ func NewProjectSetupRepository(db *gorm.DB) (*ProjectSetupRepository, error) {
 	if db == nil {
 		return nil, fmt.Errorf("project setup repository db is required")
 	}
-	if err := db.AutoMigrate(&projectSetupRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}, &trackerBoardSnapshotRecord{}); err != nil {
+	if err := db.AutoMigrate(&projectSetupRecord{}, &projectSCMRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}, &trackerBoardSnapshotRecord{}); err != nil {
 		return nil, fmt.Errorf("project setup repository migrate: %w", err)
 	}
 	return &ProjectSetupRepository{db: db}, nil
@@ -137,11 +148,28 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 		}).Create(&projectRecord).Error; err != nil {
 			return fmt.Errorf("upsert project setup: %w", err)
 		}
+		if err := tx.Where("project_id = ?", projectRecord.ProjectID).Delete(&projectSCMRecord{}).Error; err != nil {
+			return fmt.Errorf("delete project scms: %w", err)
+		}
 		if err := tx.Where("project_id = ?", projectRecord.ProjectID).Delete(&projectRepositoryRecord{}).Error; err != nil {
 			return fmt.Errorf("delete project repositories: %w", err)
 		}
 		if err := tx.Where("project_id = ?", projectRecord.ProjectID).Delete(&projectBoardRecord{}).Error; err != nil {
 			return fmt.Errorf("delete project boards: %w", err)
+		}
+		if len(setup.SCMs) > 0 {
+			scms := make([]projectSCMRecord, 0, len(setup.SCMs))
+			for _, scmSetup := range setup.SCMs {
+				scms = append(scms, projectSCMRecord{
+					ProjectID:   projectRecord.ProjectID,
+					SCMID:       strings.TrimSpace(scmSetup.SCMID),
+					SCMProvider: strings.TrimSpace(scmSetup.SCMProvider),
+					SCMToken:    strings.TrimSpace(scmSetup.SCMToken),
+				})
+			}
+			if err := tx.Create(&scms).Error; err != nil {
+				return fmt.Errorf("insert project scms: %w", err)
+			}
 		}
 		if len(setup.Repositories) > 0 {
 			repositories := make([]projectRepositoryRecord, 0, len(setup.Repositories))
@@ -149,8 +177,7 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 				repositories = append(repositories, projectRepositoryRecord{
 					ProjectID:     projectRecord.ProjectID,
 					RepositoryID:  strings.TrimSpace(repositorySetup.RepositoryID),
-					SCMProvider:   strings.TrimSpace(repositorySetup.SCMProvider),
-					SCMToken:      strings.TrimSpace(repositorySetup.SCMToken),
+					SCMID:         strings.TrimSpace(repositorySetup.SCMID),
 					RepositoryURL: strings.TrimSpace(repositorySetup.RepositoryURL),
 					IsPrimary:     repositorySetup.IsPrimary,
 				})
@@ -231,6 +258,9 @@ func (repository *ProjectSetupRepository) DeleteProjectSetup(ctx context.Context
 		return fmt.Errorf("project_id is required")
 	}
 	result := repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ?", projectID).Delete(&projectSCMRecord{}).Error; err != nil {
+			return fmt.Errorf("delete project scms: %w", err)
+		}
 		if err := tx.Where("project_id = ?", projectID).Delete(&projectRepositoryRecord{}).Error; err != nil {
 			return fmt.Errorf("delete project repositories: %w", err)
 		}
@@ -257,16 +287,27 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 	if err := repository.db.WithContext(ctx).Model(&projectRepositoryRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&repositoryRecords).Error; err != nil {
 		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project repositories: %w", err)
 	}
+	scmRecords := make([]projectSCMRecord, 0)
+	if err := repository.db.WithContext(ctx).Model(&projectSCMRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&scmRecords).Error; err != nil {
+		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project scms: %w", err)
+	}
 	boardRecords := make([]projectBoardRecord, 0)
 	if err := repository.db.WithContext(ctx).Model(&projectBoardRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&boardRecords).Error; err != nil {
 		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project boards: %w", err)
+	}
+	scms := make([]applicationcontrolplane.ProjectSCM, 0, len(scmRecords))
+	for _, scmRecord := range scmRecords {
+		scms = append(scms, applicationcontrolplane.ProjectSCM{
+			SCMID:       strings.TrimSpace(scmRecord.SCMID),
+			SCMProvider: strings.TrimSpace(scmRecord.SCMProvider),
+			SCMToken:    strings.TrimSpace(scmRecord.SCMToken),
+		})
 	}
 	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(repositoryRecords))
 	for _, repositoryRecord := range repositoryRecords {
 		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
 			RepositoryID:  strings.TrimSpace(repositoryRecord.RepositoryID),
-			SCMProvider:   strings.TrimSpace(repositoryRecord.SCMProvider),
-			SCMToken:      strings.TrimSpace(repositoryRecord.SCMToken),
+			SCMID:         strings.TrimSpace(repositoryRecord.SCMID),
 			RepositoryURL: strings.TrimSpace(repositoryRecord.RepositoryURL),
 			IsPrimary:     repositoryRecord.IsPrimary,
 		})
@@ -292,6 +333,7 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 	return applicationcontrolplane.ProjectSetup{
 		ProjectID:    projectRecord.ProjectID,
 		ProjectName:  projectRecord.ProjectName,
+		SCMs:         scms,
 		Repositories: repositories,
 		Boards:       boards,
 		CreatedAt:    projectRecord.CreatedAt.UTC(),

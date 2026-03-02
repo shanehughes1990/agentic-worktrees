@@ -60,10 +60,15 @@ type DeadLetterHistoryRecord struct {
 
 type ProjectRepository struct {
 	RepositoryID  string
-	SCMProvider   string
-	SCMToken      string
+	SCMID         string
 	RepositoryURL string
 	IsPrimary     bool
+}
+
+type ProjectSCM struct {
+	SCMID      string
+	SCMProvider string
+	SCMToken    string
 }
 
 type ProjectBoard struct {
@@ -77,6 +82,7 @@ type ProjectBoard struct {
 type ProjectSetup struct {
 	ProjectID    string
 	ProjectName  string
+	SCMs         []ProjectSCM
 	Repositories []ProjectRepository
 	Boards       []ProjectBoard
 	CreatedAt    time.Time
@@ -86,6 +92,7 @@ type ProjectSetup struct {
 type UpsertProjectSetupRequest struct {
 	ProjectID    string
 	ProjectName  string
+	SCMs         []ProjectSCM
 	Repositories []ProjectRepository
 	Boards       []ProjectBoard
 }
@@ -104,16 +111,37 @@ func (request UpsertProjectSetupRequest) Validate() error {
 	if len(request.Repositories) == 0 {
 		return fmt.Errorf("at least one repository is required")
 	}
+	if len(request.SCMs) == 0 {
+		return fmt.Errorf("at least one scm is required")
+	}
+	scmByID := make(map[string]struct{}, len(request.SCMs))
+	for index, scm := range request.SCMs {
+		scmID := strings.TrimSpace(scm.SCMID)
+		if scmID == "" {
+			return fmt.Errorf("scms[%d].scm_id is required", index)
+		}
+		if _, exists := scmByID[scmID]; exists {
+			return fmt.Errorf("scms[%d].scm_id must be unique", index)
+		}
+		scmByID[scmID] = struct{}{}
+		if strings.TrimSpace(scm.SCMProvider) != "github" {
+			return fmt.Errorf("scms[%d].scm_provider must be github", index)
+		}
+		if strings.TrimSpace(scm.SCMToken) == "" {
+			return fmt.Errorf("scms[%d].scm_token is required", index)
+		}
+	}
 	for index, repository := range request.Repositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
 		if repositoryID == "" {
 			return fmt.Errorf("repositories[%d].repository_id is required", index)
 		}
-		if strings.TrimSpace(repository.SCMProvider) != "github" {
-			return fmt.Errorf("repositories[%d].scm_provider must be github", index)
+		scmID := strings.TrimSpace(repository.SCMID)
+		if scmID == "" {
+			return fmt.Errorf("repositories[%d].scm_id is required", index)
 		}
-		if strings.TrimSpace(repository.SCMToken) == "" {
-			return fmt.Errorf("repositories[%d].scm_token is required", index)
+		if _, exists := scmByID[scmID]; !exists {
+			return fmt.Errorf("repositories[%d].scm_id must reference an existing scm", index)
 		}
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
 		if repositoryURL == "" {
@@ -289,10 +317,14 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	}
 	request.ProjectID = strings.TrimSpace(request.ProjectID)
 	request.ProjectName = strings.TrimSpace(request.ProjectName)
+	for index := range request.SCMs {
+		request.SCMs[index].SCMID = strings.TrimSpace(request.SCMs[index].SCMID)
+		request.SCMs[index].SCMProvider = strings.ToLower(strings.TrimSpace(request.SCMs[index].SCMProvider))
+		request.SCMs[index].SCMToken = strings.TrimSpace(request.SCMs[index].SCMToken)
+	}
 	for index := range request.Repositories {
 		request.Repositories[index].RepositoryID = strings.TrimSpace(request.Repositories[index].RepositoryID)
-		request.Repositories[index].SCMProvider = strings.ToLower(strings.TrimSpace(request.Repositories[index].SCMProvider))
-		request.Repositories[index].SCMToken = strings.TrimSpace(request.Repositories[index].SCMToken)
+		request.Repositories[index].SCMID = strings.TrimSpace(request.Repositories[index].SCMID)
 		request.Repositories[index].RepositoryURL = strings.TrimSpace(request.Repositories[index].RepositoryURL)
 	}
 	for index := range request.Boards {
@@ -308,6 +340,7 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	return service.projectRepository.UpsertProjectSetup(ctx, ProjectSetup{
 		ProjectID:    request.ProjectID,
 		ProjectName:  request.ProjectName,
+		SCMs:         request.SCMs,
 		Repositories: request.Repositories,
 		Boards:       request.Boards,
 	})

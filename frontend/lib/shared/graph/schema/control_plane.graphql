@@ -140,9 +140,14 @@ union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
 
 type ProjectRepository {
   repositoryID: String!
-  scmProvider: SCMProvider!
+  scmID: String!
   repositoryURL: String!
   isPrimary: Boolean!
+}
+
+type ProjectSCM {
+  scmID: String!
+  scmProvider: SCMProvider!
 }
 
 type ProjectBoard {
@@ -156,6 +161,7 @@ type ProjectBoard {
 type ProjectSetup {
   projectID: String!
   projectName: String!
+  scms: [ProjectSCM!]!
   repositories: [ProjectRepository!]!
   boards: [ProjectBoard!]!
   createdAt: Time!
@@ -176,10 +182,15 @@ union ProjectSetupResult = ProjectSetupSuccess | GraphError
 
 input ProjectRepositoryInput {
   repositoryID: String!
-  scmProvider: SCMProvider!
-  scmToken: String!
+  scmID: String!
   repositoryURL: String!
   isPrimary: Boolean!
+}
+
+input ProjectSCMInput {
+  scmID: String!
+  scmProvider: SCMProvider!
+  scmToken: String!
 }
 
 input ProjectBoardInput {
@@ -192,6 +203,7 @@ input ProjectBoardInput {
 input UpsertProjectSetupInput {
   projectID: String!
   projectName: String!
+  scms: [ProjectSCMInput!]!
   repositories: [ProjectRepositoryInput!]!
   boards: [ProjectBoardInput!]!
 }

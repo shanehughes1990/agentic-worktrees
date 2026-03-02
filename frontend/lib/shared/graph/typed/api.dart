@@ -265,11 +265,19 @@ class ControlPlaneApi {
           (entry) => ProjectSetupConfig(
             projectID: entry.projectID,
             projectName: entry.projectName,
+            scms: entry.scms
+                .map(
+                  (scm) => ProjectScmConfig(
+                    scmID: scm.scmID,
+                    scmProvider: scm.scmProvider.toJson(),
+                  ),
+                )
+                .toList(growable: false),
             repositories: entry.repositories
                 .map(
                   (repository) => ProjectRepositoryConfig(
                     repositoryID: repository.repositoryID,
-                    scmProvider: repository.scmProvider.toJson(),
+                    scmID: repository.scmID,
                     repositoryURL: repository.repositoryURL,
                     isPrimary: repository.isPrimary,
                   ),
@@ -337,12 +345,20 @@ class ControlPlaneApi {
         ),
       );
     }
+    final projectScmID = '${projectID.isEmpty ? 'project' : projectID}-scm-1';
     final result = await _client.mutate$UpsertProjectSetup(
       gql_ops.Options$Mutation$UpsertProjectSetup(
         variables: gql_ops.Variables$Mutation$UpsertProjectSetup(
           input: gql_cp.Input$UpsertProjectSetupInput(
             projectID: projectID,
             projectName: projectName,
+            scms: <gql_cp.Input$ProjectSCMInput>[
+              gql_cp.Input$ProjectSCMInput(
+                scmID: projectScmID,
+                scmProvider: projectScmProvider,
+                scmToken: scmToken.trim(),
+              ),
+            ],
             repositories: repositories
                 .asMap()
                 .entries
@@ -350,8 +366,7 @@ class ControlPlaneApi {
                   (entry) => gql_cp.Input$ProjectRepositoryInput(
                     repositoryID:
                         '${projectID.isEmpty ? 'project' : projectID}-repo-${entry.key + 1}',
-                    scmProvider: projectScmProvider,
-                    scmToken: scmToken.trim(),
+                    scmID: projectScmID,
                     repositoryURL: entry.value,
                     isPrimary: entry.key == 0,
                   ),
@@ -400,11 +415,19 @@ class ControlPlaneApi {
       ProjectSetupConfig(
         projectID: project.projectID,
         projectName: project.projectName,
+        scms: project.scms
+            .map(
+              (scm) => ProjectScmConfig(
+                scmID: scm.scmID,
+                scmProvider: scm.scmProvider.toJson(),
+              ),
+            )
+            .toList(growable: false),
         repositories: project.repositories
             .map(
               (repository) => ProjectRepositoryConfig(
                 repositoryID: repository.repositoryID,
-                scmProvider: repository.scmProvider.toJson(),
+                scmID: repository.scmID,
                 repositoryURL: repository.repositoryURL,
                 isPrimary: repository.isPrimary,
               ),

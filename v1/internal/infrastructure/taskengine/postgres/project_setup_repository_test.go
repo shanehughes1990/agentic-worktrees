@@ -23,10 +23,14 @@ func sampleProjectSetup() applicationcontrolplane.ProjectSetup {
 	return applicationcontrolplane.ProjectSetup{
 		ProjectID:   "project-1",
 		ProjectName: "Project One",
+		SCMs: []applicationcontrolplane.ProjectSCM{{
+			SCMID:       "scm-1",
+			SCMProvider: "github",
+			SCMToken:    "token",
+		}},
 		Repositories: []applicationcontrolplane.ProjectRepository{{
 			RepositoryID:  "repo-1",
-			SCMProvider:   "github",
-			SCMToken:      "token",
+			SCMID:         "scm-1",
 			RepositoryURL: "https://github.com/octo/repo",
 			IsPrimary:     true,
 		}},

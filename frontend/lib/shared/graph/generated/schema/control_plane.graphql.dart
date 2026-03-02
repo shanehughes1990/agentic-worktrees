@@ -830,14 +830,12 @@ class _CopyWithStubImpl$Input$RequeueDeadLetterInput<TRes>
 class Input$ProjectRepositoryInput {
   factory Input$ProjectRepositoryInput({
     required String repositoryID,
-    required Enum$SCMProvider scmProvider,
-    required String scmToken,
+    required String scmID,
     required String repositoryURL,
     required bool isPrimary,
   }) => Input$ProjectRepositoryInput._({
     r'repositoryID': repositoryID,
-    r'scmProvider': scmProvider,
-    r'scmToken': scmToken,
+    r'scmID': scmID,
     r'repositoryURL': repositoryURL,
     r'isPrimary': isPrimary,
   });
@@ -848,12 +846,8 @@ class Input$ProjectRepositoryInput {
     final result$data = <String, dynamic>{};
     final l$repositoryID = data['repositoryID'];
     result$data['repositoryID'] = (l$repositoryID as String);
-    final l$scmProvider = data['scmProvider'];
-    result$data['scmProvider'] = fromJson$Enum$SCMProvider(
-      (l$scmProvider as String),
-    );
-    final l$scmToken = data['scmToken'];
-    result$data['scmToken'] = (l$scmToken as String);
+    final l$scmID = data['scmID'];
+    result$data['scmID'] = (l$scmID as String);
     final l$repositoryURL = data['repositoryURL'];
     result$data['repositoryURL'] = (l$repositoryURL as String);
     final l$isPrimary = data['isPrimary'];
@@ -865,10 +859,7 @@ class Input$ProjectRepositoryInput {
 
   String get repositoryID => (_$data['repositoryID'] as String);
 
-  Enum$SCMProvider get scmProvider =>
-      (_$data['scmProvider'] as Enum$SCMProvider);
-
-  String get scmToken => (_$data['scmToken'] as String);
+  String get scmID => (_$data['scmID'] as String);
 
   String get repositoryURL => (_$data['repositoryURL'] as String);
 
@@ -878,10 +869,8 @@ class Input$ProjectRepositoryInput {
     final result$data = <String, dynamic>{};
     final l$repositoryID = repositoryID;
     result$data['repositoryID'] = l$repositoryID;
-    final l$scmProvider = scmProvider;
-    result$data['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
-    final l$scmToken = scmToken;
-    result$data['scmToken'] = l$scmToken;
+    final l$scmID = scmID;
+    result$data['scmID'] = l$scmID;
     final l$repositoryURL = repositoryURL;
     result$data['repositoryURL'] = l$repositoryURL;
     final l$isPrimary = isPrimary;
@@ -906,14 +895,9 @@ class Input$ProjectRepositoryInput {
     if (l$repositoryID != lOther$repositoryID) {
       return false;
     }
-    final l$scmProvider = scmProvider;
-    final lOther$scmProvider = other.scmProvider;
-    if (l$scmProvider != lOther$scmProvider) {
-      return false;
-    }
-    final l$scmToken = scmToken;
-    final lOther$scmToken = other.scmToken;
-    if (l$scmToken != lOther$scmToken) {
+    final l$scmID = scmID;
+    final lOther$scmID = other.scmID;
+    if (l$scmID != lOther$scmID) {
       return false;
     }
     final l$repositoryURL = repositoryURL;
@@ -932,14 +916,12 @@ class Input$ProjectRepositoryInput {
   @override
   int get hashCode {
     final l$repositoryID = repositoryID;
-    final l$scmProvider = scmProvider;
-    final l$scmToken = scmToken;
+    final l$scmID = scmID;
     final l$repositoryURL = repositoryURL;
     final l$isPrimary = isPrimary;
     return Object.hashAll([
       l$repositoryID,
-      l$scmProvider,
-      l$scmToken,
+      l$scmID,
       l$repositoryURL,
       l$isPrimary,
     ]);
@@ -957,8 +939,7 @@ abstract class CopyWith$Input$ProjectRepositoryInput<TRes> {
 
   TRes call({
     String? repositoryID,
-    Enum$SCMProvider? scmProvider,
-    String? scmToken,
+    String? scmID,
     String? repositoryURL,
     bool? isPrimary,
   });
@@ -976,8 +957,7 @@ class _CopyWithImpl$Input$ProjectRepositoryInput<TRes>
 
   TRes call({
     Object? repositoryID = _undefined,
-    Object? scmProvider = _undefined,
-    Object? scmToken = _undefined,
+    Object? scmID = _undefined,
     Object? repositoryURL = _undefined,
     Object? isPrimary = _undefined,
   }) => _then(
@@ -985,10 +965,7 @@ class _CopyWithImpl$Input$ProjectRepositoryInput<TRes>
       ..._instance._$data,
       if (repositoryID != _undefined && repositoryID != null)
         'repositoryID': (repositoryID as String),
-      if (scmProvider != _undefined && scmProvider != null)
-        'scmProvider': (scmProvider as Enum$SCMProvider),
-      if (scmToken != _undefined && scmToken != null)
-        'scmToken': (scmToken as String),
+      if (scmID != _undefined && scmID != null) 'scmID': (scmID as String),
       if (repositoryURL != _undefined && repositoryURL != null)
         'repositoryURL': (repositoryURL as String),
       if (isPrimary != _undefined && isPrimary != null)
@@ -1005,11 +982,142 @@ class _CopyWithStubImpl$Input$ProjectRepositoryInput<TRes>
 
   call({
     String? repositoryID,
-    Enum$SCMProvider? scmProvider,
-    String? scmToken,
+    String? scmID,
     String? repositoryURL,
     bool? isPrimary,
   }) => _res;
+}
+
+class Input$ProjectSCMInput {
+  factory Input$ProjectSCMInput({
+    required String scmID,
+    required Enum$SCMProvider scmProvider,
+    required String scmToken,
+  }) => Input$ProjectSCMInput._({
+    r'scmID': scmID,
+    r'scmProvider': scmProvider,
+    r'scmToken': scmToken,
+  });
+
+  Input$ProjectSCMInput._(this._$data);
+
+  factory Input$ProjectSCMInput.fromJson(Map<String, dynamic> data) {
+    final result$data = <String, dynamic>{};
+    final l$scmID = data['scmID'];
+    result$data['scmID'] = (l$scmID as String);
+    final l$scmProvider = data['scmProvider'];
+    result$data['scmProvider'] = fromJson$Enum$SCMProvider(
+      (l$scmProvider as String),
+    );
+    final l$scmToken = data['scmToken'];
+    result$data['scmToken'] = (l$scmToken as String);
+    return Input$ProjectSCMInput._(result$data);
+  }
+
+  Map<String, dynamic> _$data;
+
+  String get scmID => (_$data['scmID'] as String);
+
+  Enum$SCMProvider get scmProvider =>
+      (_$data['scmProvider'] as Enum$SCMProvider);
+
+  String get scmToken => (_$data['scmToken'] as String);
+
+  Map<String, dynamic> toJson() {
+    final result$data = <String, dynamic>{};
+    final l$scmID = scmID;
+    result$data['scmID'] = l$scmID;
+    final l$scmProvider = scmProvider;
+    result$data['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$scmToken = scmToken;
+    result$data['scmToken'] = l$scmToken;
+    return result$data;
+  }
+
+  CopyWith$Input$ProjectSCMInput<Input$ProjectSCMInput> get copyWith =>
+      CopyWith$Input$ProjectSCMInput(this, (i) => i);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other is! Input$ProjectSCMInput || runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$scmID = scmID;
+    final lOther$scmID = other.scmID;
+    if (l$scmID != lOther$scmID) {
+      return false;
+    }
+    final l$scmProvider = scmProvider;
+    final lOther$scmProvider = other.scmProvider;
+    if (l$scmProvider != lOther$scmProvider) {
+      return false;
+    }
+    final l$scmToken = scmToken;
+    final lOther$scmToken = other.scmToken;
+    if (l$scmToken != lOther$scmToken) {
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode {
+    final l$scmID = scmID;
+    final l$scmProvider = scmProvider;
+    final l$scmToken = scmToken;
+    return Object.hashAll([l$scmID, l$scmProvider, l$scmToken]);
+  }
+}
+
+abstract class CopyWith$Input$ProjectSCMInput<TRes> {
+  factory CopyWith$Input$ProjectSCMInput(
+    Input$ProjectSCMInput instance,
+    TRes Function(Input$ProjectSCMInput) then,
+  ) = _CopyWithImpl$Input$ProjectSCMInput;
+
+  factory CopyWith$Input$ProjectSCMInput.stub(TRes res) =
+      _CopyWithStubImpl$Input$ProjectSCMInput;
+
+  TRes call({String? scmID, Enum$SCMProvider? scmProvider, String? scmToken});
+}
+
+class _CopyWithImpl$Input$ProjectSCMInput<TRes>
+    implements CopyWith$Input$ProjectSCMInput<TRes> {
+  _CopyWithImpl$Input$ProjectSCMInput(this._instance, this._then);
+
+  final Input$ProjectSCMInput _instance;
+
+  final TRes Function(Input$ProjectSCMInput) _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? scmID = _undefined,
+    Object? scmProvider = _undefined,
+    Object? scmToken = _undefined,
+  }) => _then(
+    Input$ProjectSCMInput._({
+      ..._instance._$data,
+      if (scmID != _undefined && scmID != null) 'scmID': (scmID as String),
+      if (scmProvider != _undefined && scmProvider != null)
+        'scmProvider': (scmProvider as Enum$SCMProvider),
+      if (scmToken != _undefined && scmToken != null)
+        'scmToken': (scmToken as String),
+    }),
+  );
+}
+
+class _CopyWithStubImpl$Input$ProjectSCMInput<TRes>
+    implements CopyWith$Input$ProjectSCMInput<TRes> {
+  _CopyWithStubImpl$Input$ProjectSCMInput(this._res);
+
+  TRes _res;
+
+  call({String? scmID, Enum$SCMProvider? scmProvider, String? scmToken}) =>
+      _res;
 }
 
 class Input$ProjectBoardInput {
@@ -1218,11 +1326,13 @@ class Input$UpsertProjectSetupInput {
   factory Input$UpsertProjectSetupInput({
     required String projectID,
     required String projectName,
+    required List<Input$ProjectSCMInput> scms,
     required List<Input$ProjectRepositoryInput> repositories,
     required List<Input$ProjectBoardInput> boards,
   }) => Input$UpsertProjectSetupInput._({
     r'projectID': projectID,
     r'projectName': projectName,
+    r'scms': scms,
     r'repositories': repositories,
     r'boards': boards,
   });
@@ -1235,6 +1345,10 @@ class Input$UpsertProjectSetupInput {
     result$data['projectID'] = (l$projectID as String);
     final l$projectName = data['projectName'];
     result$data['projectName'] = (l$projectName as String);
+    final l$scms = data['scms'];
+    result$data['scms'] = (l$scms as List<dynamic>)
+        .map((e) => Input$ProjectSCMInput.fromJson((e as Map<String, dynamic>)))
+        .toList();
     final l$repositories = data['repositories'];
     result$data['repositories'] = (l$repositories as List<dynamic>)
         .map(
@@ -1258,6 +1372,9 @@ class Input$UpsertProjectSetupInput {
 
   String get projectName => (_$data['projectName'] as String);
 
+  List<Input$ProjectSCMInput> get scms =>
+      (_$data['scms'] as List<Input$ProjectSCMInput>);
+
   List<Input$ProjectRepositoryInput> get repositories =>
       (_$data['repositories'] as List<Input$ProjectRepositoryInput>);
 
@@ -1270,6 +1387,8 @@ class Input$UpsertProjectSetupInput {
     result$data['projectID'] = l$projectID;
     final l$projectName = projectName;
     result$data['projectName'] = l$projectName;
+    final l$scms = scms;
+    result$data['scms'] = l$scms.map((e) => e.toJson()).toList();
     final l$repositories = repositories;
     result$data['repositories'] = l$repositories
         .map((e) => e.toJson())
@@ -1300,6 +1419,18 @@ class Input$UpsertProjectSetupInput {
     final lOther$projectName = other.projectName;
     if (l$projectName != lOther$projectName) {
       return false;
+    }
+    final l$scms = scms;
+    final lOther$scms = other.scms;
+    if (l$scms.length != lOther$scms.length) {
+      return false;
+    }
+    for (int i = 0; i < l$scms.length; i++) {
+      final l$scms$entry = l$scms[i];
+      final lOther$scms$entry = lOther$scms[i];
+      if (l$scms$entry != lOther$scms$entry) {
+        return false;
+      }
     }
     final l$repositories = repositories;
     final lOther$repositories = other.repositories;
@@ -1332,11 +1463,13 @@ class Input$UpsertProjectSetupInput {
   int get hashCode {
     final l$projectID = projectID;
     final l$projectName = projectName;
+    final l$scms = scms;
     final l$repositories = repositories;
     final l$boards = boards;
     return Object.hashAll([
       l$projectID,
       l$projectName,
+      Object.hashAll(l$scms.map((v) => v)),
       Object.hashAll(l$repositories.map((v) => v)),
       Object.hashAll(l$boards.map((v) => v)),
     ]);
@@ -1355,9 +1488,16 @@ abstract class CopyWith$Input$UpsertProjectSetupInput<TRes> {
   TRes call({
     String? projectID,
     String? projectName,
+    List<Input$ProjectSCMInput>? scms,
     List<Input$ProjectRepositoryInput>? repositories,
     List<Input$ProjectBoardInput>? boards,
   });
+  TRes scms(
+    Iterable<Input$ProjectSCMInput> Function(
+      Iterable<CopyWith$Input$ProjectSCMInput<Input$ProjectSCMInput>>,
+    )
+    _fn,
+  );
   TRes repositories(
     Iterable<Input$ProjectRepositoryInput> Function(
       Iterable<
@@ -1387,6 +1527,7 @@ class _CopyWithImpl$Input$UpsertProjectSetupInput<TRes>
   TRes call({
     Object? projectID = _undefined,
     Object? projectName = _undefined,
+    Object? scms = _undefined,
     Object? repositories = _undefined,
     Object? boards = _undefined,
   }) => _then(
@@ -1396,11 +1537,24 @@ class _CopyWithImpl$Input$UpsertProjectSetupInput<TRes>
         'projectID': (projectID as String),
       if (projectName != _undefined && projectName != null)
         'projectName': (projectName as String),
+      if (scms != _undefined && scms != null)
+        'scms': (scms as List<Input$ProjectSCMInput>),
       if (repositories != _undefined && repositories != null)
         'repositories': (repositories as List<Input$ProjectRepositoryInput>),
       if (boards != _undefined && boards != null)
         'boards': (boards as List<Input$ProjectBoardInput>),
     }),
+  );
+
+  TRes scms(
+    Iterable<Input$ProjectSCMInput> Function(
+      Iterable<CopyWith$Input$ProjectSCMInput<Input$ProjectSCMInput>>,
+    )
+    _fn,
+  ) => call(
+    scms: _fn(
+      _instance.scms.map((e) => CopyWith$Input$ProjectSCMInput(e, (i) => i)),
+    ).toList(),
   );
 
   TRes repositories(
@@ -1441,9 +1595,12 @@ class _CopyWithStubImpl$Input$UpsertProjectSetupInput<TRes>
   call({
     String? projectID,
     String? projectName,
+    List<Input$ProjectSCMInput>? scms,
     List<Input$ProjectRepositoryInput>? repositories,
     List<Input$ProjectBoardInput>? boards,
   }) => _res;
+
+  scms(_fn) => _res;
 
   repositories(_fn) => _res;
 

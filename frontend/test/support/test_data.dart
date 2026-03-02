@@ -9,10 +9,13 @@ ProjectSetupConfig sampleProjectSetup({
   return ProjectSetupConfig(
     projectID: projectID,
     projectName: projectName,
+    scms: const <ProjectScmConfig>[
+      ProjectScmConfig(scmID: 'scm-1', scmProvider: 'GITHUB'),
+    ],
     repositories: const <ProjectRepositoryConfig>[
       ProjectRepositoryConfig(
         repositoryID: 'repo-1',
-        scmProvider: 'GITHUB',
+        scmID: 'scm-1',
         repositoryURL: 'https://github.com/acme/repo',
         isPrimary: true,
       ),
@@ -20,7 +23,7 @@ ProjectSetupConfig sampleProjectSetup({
     boards: const <ProjectBoardConfig>[
       ProjectBoardConfig(
         boardID: 'board-1',
-        trackerProvider: 'GITHUB_ISSUES',
+        trackerProvider: 'INTERNAL',
         taskboardName: 'Acme Repo Board',
         appliesToAllRepositories: true,
         repositoryIDs: <String>[],

@@ -161,17 +161,17 @@ func (app *WorkerApp) Run() error {
 		return fmt.Errorf("init postgres repo lease manager: %w", err)
 	}
 
-	buildGitHubAdapter := func(projectID string, repository applicationcontrolplane.ProjectRepository) (*infrascm.GitHubAdapter, error) {
-		if strings.TrimSpace(repository.SCMProvider) != "github" {
-			return nil, fmt.Errorf("unsupported scm provider %q", repository.SCMProvider)
+	buildGitHubAdapter := func(projectID string, scm applicationcontrolplane.ProjectSCM) (*infrascm.GitHubAdapter, error) {
+		if strings.TrimSpace(scm.SCMProvider) != "github" {
+			return nil, fmt.Errorf("unsupported scm provider %q", scm.SCMProvider)
 		}
-		if strings.TrimSpace(repository.SCMToken) == "" {
-			return nil, fmt.Errorf("project repository scm_token is required")
+		if strings.TrimSpace(scm.SCMToken) == "" {
+			return nil, fmt.Errorf("project scm_token is required")
 		}
 		githubAdapter, adapterErr := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
 			RepoPath:         filepath.Join(app.config.ProjectPath(projectID), "repositories", "source"),
 			WorktreeRootPath: app.config.ProjectsPath(),
-		}, nil, infrascm.NewStaticTokenProvider(repository.SCMToken), infrascm.NewExecGitRunner())
+		}, nil, infrascm.NewStaticTokenProvider(scm.SCMToken), infrascm.NewExecGitRunner())
 		if adapterErr != nil {
 			return nil, fmt.Errorf("init github scm adapter: %w", adapterErr)
 		}
@@ -180,9 +180,9 @@ func (app *WorkerApp) Run() error {
 
 	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithProjectSetup(
 		app.projectSetupRepository,
-		func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (workerinterface.AgentRuntimeService, error) {
+		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.AgentRuntimeService, error) {
 			_ = ctx
-			githubAdapter, adapterErr := buildGitHubAdapter(projectID, repository)
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm)
 			if adapterErr != nil {
 				return nil, adapterErr
 			}
@@ -201,9 +201,9 @@ func (app *WorkerApp) Run() error {
 	}
 	scmHandler, err := workerinterface.NewSCMWorkflowHandlerWithProjectSetup(
 		app.projectSetupRepository,
-		func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (workerinterface.SCMRuntimeService, error) {
+		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.SCMRuntimeService, error) {
 			_ = ctx
-			githubAdapter, adapterErr := buildGitHubAdapter(projectID, repository)
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm)
 			if adapterErr != nil {
 				return nil, adapterErr
 			}

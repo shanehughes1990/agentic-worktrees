@@ -58,7 +58,7 @@ type projectSetupLookup interface {
 	GetProjectSetup(ctx context.Context, projectID string) (*applicationcontrolplane.ProjectSetup, error)
 }
 
-type scmServiceFactoryFunc func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (SCMRuntimeService, error)
+type scmServiceFactoryFunc func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (SCMRuntimeService, error)
 
 type scmRuntimeResolver interface {
 	Resolve(ctx context.Context, payload SCMWorkflowPayload) (SCMRuntimeService, domainscm.Repository, error)
@@ -103,15 +103,19 @@ func (resolver *projectSetupSCMRuntimeResolver) Resolve(ctx context.Context, pay
 	if err != nil {
 		return nil, domainscm.Repository{}, err
 	}
+	scmConfig, err := projectSCMByID(setup.SCMs, repositoryConfig.SCMID)
+	if err != nil {
+		return nil, domainscm.Repository{}, err
+	}
 	owner, repositoryName, err := ownerRepositoryFromURL(repositoryConfig.RepositoryURL)
 	if err != nil {
 		return nil, domainscm.Repository{}, err
 	}
-	service, err := resolver.serviceFactory(ctx, projectID, repositoryConfig)
+	service, err := resolver.serviceFactory(ctx, projectID, scmConfig, repositoryConfig)
 	if err != nil {
 		return nil, domainscm.Repository{}, err
 	}
-	return service, domainscm.Repository{Provider: repositoryConfig.SCMProvider, Owner: owner, Name: repositoryName}, nil
+	return service, domainscm.Repository{Provider: scmConfig.SCMProvider, Owner: owner, Name: repositoryName}, nil
 }
 
 func primaryProjectRepository(repositories []applicationcontrolplane.ProjectRepository) (applicationcontrolplane.ProjectRepository, error) {
@@ -124,6 +128,19 @@ func primaryProjectRepository(repositories []applicationcontrolplane.ProjectRepo
 		}
 	}
 	return repositories[0], nil
+}
+
+func projectSCMByID(scms []applicationcontrolplane.ProjectSCM, scmID string) (applicationcontrolplane.ProjectSCM, error) {
+	trimmedSCMID := strings.TrimSpace(scmID)
+	if trimmedSCMID == "" {
+		return applicationcontrolplane.ProjectSCM{}, fmt.Errorf("repository scm_id is required")
+	}
+	for _, scm := range scms {
+		if strings.TrimSpace(scm.SCMID) == trimmedSCMID {
+			return scm, nil
+		}
+	}
+	return applicationcontrolplane.ProjectSCM{}, fmt.Errorf("project scm not found for scm_id %q", trimmedSCMID)
 }
 
 func ownerRepositoryFromURL(repositoryURL string) (string, string, error) {

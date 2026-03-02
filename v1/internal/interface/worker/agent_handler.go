@@ -35,7 +35,7 @@ type AgentRuntimeService interface {
 
 var _ AgentRuntimeService = (*applicationagent.Service)(nil)
 
-type agentServiceFactoryFunc func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (AgentRuntimeService, error)
+type agentServiceFactoryFunc func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (AgentRuntimeService, error)
 
 type agentRuntimeResolver interface {
 	Resolve(ctx context.Context, payload AgentWorkflowPayload) (AgentRuntimeService, domainscm.Repository, error)
@@ -80,15 +80,19 @@ func (resolver *projectSetupAgentRuntimeResolver) Resolve(ctx context.Context, p
 	if err != nil {
 		return nil, domainscm.Repository{}, err
 	}
+	scmConfig, err := projectSCMByID(setup.SCMs, repositoryConfig.SCMID)
+	if err != nil {
+		return nil, domainscm.Repository{}, err
+	}
 	owner, repositoryName, err := ownerRepositoryFromURL(repositoryConfig.RepositoryURL)
 	if err != nil {
 		return nil, domainscm.Repository{}, err
 	}
-	service, err := resolver.serviceFactory(ctx, projectID, repositoryConfig)
+	service, err := resolver.serviceFactory(ctx, projectID, scmConfig, repositoryConfig)
 	if err != nil {
 		return nil, domainscm.Repository{}, err
 	}
-	return service, domainscm.Repository{Provider: repositoryConfig.SCMProvider, Owner: owner, Name: repositoryName}, nil
+	return service, domainscm.Repository{Provider: scmConfig.SCMProvider, Owner: owner, Name: repositoryName}, nil
 }
 
 type AgentWorkflowHandler struct {

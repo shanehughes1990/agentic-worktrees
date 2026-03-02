@@ -69,7 +69,7 @@ void main() {
     expect(projectNameController.text, setup.projectName);
     expect(repositoryController.text, setup.repositories.first.repositoryURL);
     expect(taskboardNameController.text, setup.boards.first.taskboardName);
-    expect(scmProvider, setup.repositories.first.scmProvider);
+    expect(scmProvider, setup.scms.first.scmProvider);
     expect(trackerProvider, setup.boards.first.trackerProvider);
 
     projectController.dispose();

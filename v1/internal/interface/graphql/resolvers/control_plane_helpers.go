@@ -181,16 +181,20 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 	}
 	repositories := make([]*models.ProjectRepository, 0, len(project.Repositories))
 	for _, repository := range project.Repositories {
-		scmProvider, scmErr := toGraphSCMProvider(repository.SCMProvider)
-		if scmErr != nil {
-			return nil, scmErr
-		}
 		repositories = append(repositories, &models.ProjectRepository{
 			RepositoryID: repository.RepositoryID,
-			ScmProvider:  scmProvider,
+			ScmID:        repository.SCMID,
 			RepositoryURL: repository.RepositoryURL,
 			IsPrimary:    repository.IsPrimary,
 		})
+	}
+	scms := make([]*models.ProjectScm, 0, len(project.SCMs))
+	for _, scm := range project.SCMs {
+		scmProvider, scmErr := toGraphSCMProvider(scm.SCMProvider)
+		if scmErr != nil {
+			return nil, scmErr
+		}
+		scms = append(scms, &models.ProjectScm{ScmID: scm.SCMID, ScmProvider: scmProvider})
 	}
 	boards := make([]*models.ProjectBoard, 0, len(project.Boards))
 	for _, board := range project.Boards {
@@ -213,6 +217,7 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 	return &models.ProjectSetup{
 		ProjectID:     project.ProjectID,
 		ProjectName:   project.ProjectName,
+		Scms:          scms,
 		Repositories:  repositories,
 		Boards:        boards,
 		CreatedAt:     project.CreatedAt.UTC(),

@@ -193,23 +193,34 @@ type ProjectBoardInput struct {
 }
 
 type ProjectRepository struct {
-	RepositoryID  string      `json:"repositoryID"`
-	ScmProvider   SCMProvider `json:"scmProvider"`
-	RepositoryURL string      `json:"repositoryURL"`
-	IsPrimary     bool        `json:"isPrimary"`
+	RepositoryID  string `json:"repositoryID"`
+	ScmID         string `json:"scmID"`
+	RepositoryURL string `json:"repositoryURL"`
+	IsPrimary     bool   `json:"isPrimary"`
 }
 
 type ProjectRepositoryInput struct {
-	RepositoryID  string      `json:"repositoryID"`
-	ScmProvider   SCMProvider `json:"scmProvider"`
-	ScmToken      string      `json:"scmToken"`
-	RepositoryURL string      `json:"repositoryURL"`
-	IsPrimary     bool        `json:"isPrimary"`
+	RepositoryID  string `json:"repositoryID"`
+	ScmID         string `json:"scmID"`
+	RepositoryURL string `json:"repositoryURL"`
+	IsPrimary     bool   `json:"isPrimary"`
+}
+
+type ProjectScm struct {
+	ScmID       string      `json:"scmID"`
+	ScmProvider SCMProvider `json:"scmProvider"`
+}
+
+type ProjectSCMInput struct {
+	ScmID       string      `json:"scmID"`
+	ScmProvider SCMProvider `json:"scmProvider"`
+	ScmToken    string      `json:"scmToken"`
 }
 
 type ProjectSetup struct {
 	ProjectID    string               `json:"projectID"`
 	ProjectName  string               `json:"projectName"`
+	Scms         []*ProjectScm        `json:"scms"`
 	Repositories []*ProjectRepository `json:"repositories"`
 	Boards       []*ProjectBoard      `json:"boards"`
 	CreatedAt    time.Time            `json:"createdAt"`
@@ -341,6 +352,7 @@ type UpdateWorkerSettingsInput struct {
 type UpsertProjectSetupInput struct {
 	ProjectID    string                    `json:"projectID"`
 	ProjectName  string                    `json:"projectName"`
+	Scms         []*ProjectSCMInput        `json:"scms"`
 	Repositories []*ProjectRepositoryInput `json:"repositories"`
 	Boards       []*ProjectBoardInput      `json:"boards"`
 }

@@ -6,11 +6,17 @@ func validProjectSetupRequest() UpsertProjectSetupRequest {
 	return UpsertProjectSetupRequest{
 		ProjectID:   "project-1",
 		ProjectName: "Project One",
+		SCMs: []ProjectSCM{
+			{
+				SCMID:       "scm-1",
+				SCMProvider: "github",
+				SCMToken:    "token",
+			},
+		},
 		Repositories: []ProjectRepository{
 			{
 				RepositoryID:  "repo-1",
-				SCMProvider:   "github",
-				SCMToken:      "token",
+				SCMID:         "scm-1",
 				RepositoryURL: "https://github.com/acme/repo",
 				IsPrimary:     true,
 			},
@@ -24,6 +30,16 @@ func validProjectSetupRequest() UpsertProjectSetupRequest {
 				RepositoryIDs:            nil,
 			},
 		},
+	}
+}
+
+func TestUpsertProjectSetupValidateRequiresRepositorySCMReference(t *testing.T) {
+	request := validProjectSetupRequest()
+	request.Repositories[0].SCMID = ""
+
+	err := request.Validate()
+	if err == nil || err.Error() != "repositories[0].scm_id is required" {
+		t.Fatalf("expected repository scm_id validation error, got %v", err)
 	}
 }
 

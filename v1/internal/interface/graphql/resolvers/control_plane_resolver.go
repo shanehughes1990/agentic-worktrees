@@ -55,10 +55,17 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 	for _, repository := range input.Repositories {
 		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
 			RepositoryID:  repository.RepositoryID,
-			SCMProvider:   toSCMProviderString(repository.ScmProvider),
-			SCMToken:      repository.ScmToken,
+			SCMID:         repository.ScmID,
 			RepositoryURL: repository.RepositoryURL,
 			IsPrimary:     repository.IsPrimary,
+		})
+	}
+	scms := make([]applicationcontrolplane.ProjectSCM, 0, len(input.Scms))
+	for _, scm := range input.Scms {
+		scms = append(scms, applicationcontrolplane.ProjectSCM{
+			SCMID:       scm.ScmID,
+			SCMProvider: toSCMProviderString(scm.ScmProvider),
+			SCMToken:    scm.ScmToken,
 		})
 	}
 	boards := make([]applicationcontrolplane.ProjectBoard, 0, len(input.Boards))
@@ -77,6 +84,7 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 	setup, err := r.Resolver.ControlPlaneService.UpsertProjectSetup(ctx, applicationcontrolplane.UpsertProjectSetupRequest{
 		ProjectID:    input.ProjectID,
 		ProjectName:  input.ProjectName,
+		SCMs:         scms,
 		Repositories: repositories,
 		Boards:       boards,
 	})

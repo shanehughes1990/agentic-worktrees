@@ -5551,6 +5551,37 @@ const documentNodeQueryProjectSetups = DocumentNode(
                               selectionSet: null,
                             ),
                             FieldNode(
+                              name: NameNode(value: 'scms'),
+                              alias: null,
+                              arguments: [],
+                              directives: [],
+                              selectionSet: SelectionSetNode(
+                                selections: [
+                                  FieldNode(
+                                    name: NameNode(value: 'scmID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'scmProvider'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: '__typename'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            FieldNode(
                               name: NameNode(value: 'repositories'),
                               alias: null,
                               arguments: [],
@@ -5565,7 +5596,7 @@ const documentNodeQueryProjectSetups = DocumentNode(
                                     selectionSet: null,
                                   ),
                                   FieldNode(
-                                    name: NameNode(value: 'scmProvider'),
+                                    name: NameNode(value: 'scmID'),
                                     alias: null,
                                     arguments: [],
                                     directives: [],
@@ -6229,6 +6260,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects({
     required this.projectID,
     required this.projectName,
+    required this.scms,
     required this.repositories,
     required this.boards,
     required this.createdAt,
@@ -6241,6 +6273,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   ) {
     final l$projectID = json['projectID'];
     final l$projectName = json['projectName'];
+    final l$scms = json['scms'];
     final l$repositories = json['repositories'];
     final l$boards = json['boards'];
     final l$createdAt = json['createdAt'];
@@ -6249,6 +6282,14 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
     return Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects(
       projectID: (l$projectID as String),
       projectName: (l$projectName as String),
+      scms: (l$scms as List<dynamic>)
+          .map(
+            (e) =>
+                Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms.fromJson(
+                  (e as Map<String, dynamic>),
+                ),
+          )
+          .toList(),
       repositories: (l$repositories as List<dynamic>)
           .map(
             (e) =>
@@ -6276,6 +6317,11 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   final String projectName;
 
   final List<
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+  >
+  scms;
+
+  final List<
     Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
   >
   repositories;
@@ -6297,6 +6343,8 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
     _resultData['projectID'] = l$projectID;
     final l$projectName = projectName;
     _resultData['projectName'] = l$projectName;
+    final l$scms = scms;
+    _resultData['scms'] = l$scms.map((e) => e.toJson()).toList();
     final l$repositories = repositories;
     _resultData['repositories'] = l$repositories
         .map((e) => e.toJson())
@@ -6316,6 +6364,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
   int get hashCode {
     final l$projectID = projectID;
     final l$projectName = projectName;
+    final l$scms = scms;
     final l$repositories = repositories;
     final l$boards = boards;
     final l$createdAt = createdAt;
@@ -6324,6 +6373,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
     return Object.hashAll([
       l$projectID,
       l$projectName,
+      Object.hashAll(l$scms.map((v) => v)),
       Object.hashAll(l$repositories.map((v) => v)),
       Object.hashAll(l$boards.map((v) => v)),
       l$createdAt,
@@ -6351,6 +6401,18 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects {
     final lOther$projectName = other.projectName;
     if (l$projectName != lOther$projectName) {
       return false;
+    }
+    final l$scms = scms;
+    final lOther$scms = other.scms;
+    if (l$scms.length != lOther$scms.length) {
+      return false;
+    }
+    for (int i = 0; i < l$scms.length; i++) {
+      final l$scms$entry = l$scms[i];
+      final lOther$scms$entry = lOther$scms[i];
+      if (l$scms$entry != lOther$scms$entry) {
+        return false;
+      }
     }
     final l$repositories = repositories;
     final lOther$repositories = other.repositories;
@@ -6425,6 +6487,8 @@ abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
   TRes call({
     String? projectID,
     String? projectName,
+    List<Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms>?
+    scms,
     List<
       Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
     >?
@@ -6437,6 +6501,19 @@ abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
     DateTime? updatedAt,
     String? $__typename,
   });
+  TRes scms(
+    Iterable<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+    >
+    Function(
+      Iterable<
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+          Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+        >
+      >,
+    )
+    _fn,
+  );
   TRes repositories(
     Iterable<
       Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
@@ -6490,6 +6567,7 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
   TRes call({
     Object? projectID = _undefined,
     Object? projectName = _undefined,
+    Object? scms = _undefined,
     Object? repositories = _undefined,
     Object? boards = _undefined,
     Object? createdAt = _undefined,
@@ -6503,6 +6581,12 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
       projectName: projectName == _undefined || projectName == null
           ? _instance.projectName
           : (projectName as String),
+      scms: scms == _undefined || scms == null
+          ? _instance.scms
+          : (scms
+                as List<
+                  Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+                >),
       repositories: repositories == _undefined || repositories == null
           ? _instance.repositories
           : (repositories
@@ -6525,6 +6609,30 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
           ? _instance.$__typename
           : ($__typename as String),
     ),
+  );
+
+  TRes scms(
+    Iterable<
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+    >
+    Function(
+      Iterable<
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+          Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+        >
+      >,
+    )
+    _fn,
+  ) => call(
+    scms: _fn(
+      _instance.scms.map(
+        (e) =>
+            CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+              e,
+              (i) => i,
+            ),
+      ),
+    ).toList(),
   );
 
   TRes repositories(
@@ -6592,6 +6700,8 @@ class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
   call({
     String? projectID,
     String? projectName,
+    List<Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms>?
+    scms,
     List<
       Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories
     >?
@@ -6605,15 +6715,184 @@ class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
     String? $__typename,
   }) => _res;
 
+  scms(_fn) => _res;
+
   repositories(_fn) => _res;
 
   boards(_fn) => _res;
 }
 
+class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms {
+  Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms({
+    required this.scmID,
+    required this.scmProvider,
+    this.$__typename = 'ProjectSCM',
+  });
+
+  factory Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final l$scmID = json['scmID'];
+    final l$scmProvider = json['scmProvider'];
+    final l$$__typename = json['__typename'];
+    return Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+      scmID: (l$scmID as String),
+      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
+      $__typename: (l$$__typename as String),
+    );
+  }
+
+  final String scmID;
+
+  final Enum$SCMProvider scmProvider;
+
+  final String $__typename;
+
+  Map<String, dynamic> toJson() {
+    final _resultData = <String, dynamic>{};
+    final l$scmID = scmID;
+    _resultData['scmID'] = l$scmID;
+    final l$scmProvider = scmProvider;
+    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$$__typename = $__typename;
+    _resultData['__typename'] = l$$__typename;
+    return _resultData;
+  }
+
+  @override
+  int get hashCode {
+    final l$scmID = scmID;
+    final l$scmProvider = scmProvider;
+    final l$$__typename = $__typename;
+    return Object.hashAll([l$scmID, l$scmProvider, l$$__typename]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other
+            is! Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms ||
+        runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$scmID = scmID;
+    final lOther$scmID = other.scmID;
+    if (l$scmID != lOther$scmID) {
+      return false;
+    }
+    final l$scmProvider = scmProvider;
+    final lOther$scmProvider = other.scmProvider;
+    if (l$scmProvider != lOther$scmProvider) {
+      return false;
+    }
+    final l$$__typename = $__typename;
+    final lOther$$__typename = other.$__typename;
+    if (l$$__typename != lOther$$__typename) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension UtilityExtension$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+    on Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms {
+  CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+  >
+  get copyWith =>
+      CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+        this,
+        (i) => i,
+      );
+}
+
+abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+  TRes
+> {
+  factory CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+    instance,
+    TRes Function(
+      Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms,
+    )
+    then,
+  ) = _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms;
+
+  factory CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms.stub(
+    TRes res,
+  ) = _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms;
+
+  TRes call({
+    String? scmID,
+    Enum$SCMProvider? scmProvider,
+    String? $__typename,
+  });
+}
+
+class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+  TRes
+>
+    implements
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+          TRes
+        > {
+  _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+    this._instance,
+    this._then,
+  );
+
+  final Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms
+  _instance;
+
+  final TRes Function(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms,
+  )
+  _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? scmID = _undefined,
+    Object? scmProvider = _undefined,
+    Object? $__typename = _undefined,
+  }) => _then(
+    Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+      scmID: scmID == _undefined || scmID == null
+          ? _instance.scmID
+          : (scmID as String),
+      scmProvider: scmProvider == _undefined || scmProvider == null
+          ? _instance.scmProvider
+          : (scmProvider as Enum$SCMProvider),
+      $__typename: $__typename == _undefined || $__typename == null
+          ? _instance.$__typename
+          : ($__typename as String),
+    ),
+  );
+}
+
+class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+  TRes
+>
+    implements
+        CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms<
+          TRes
+        > {
+  _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$scms(
+    this._res,
+  );
+
+  TRes _res;
+
+  call({String? scmID, Enum$SCMProvider? scmProvider, String? $__typename}) =>
+      _res;
+}
+
 class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories {
   Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories({
     required this.repositoryID,
-    required this.scmProvider,
+    required this.scmID,
     required this.repositoryURL,
     required this.isPrimary,
     this.$__typename = 'ProjectRepository',
@@ -6623,13 +6902,13 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositor
     Map<String, dynamic> json,
   ) {
     final l$repositoryID = json['repositoryID'];
-    final l$scmProvider = json['scmProvider'];
+    final l$scmID = json['scmID'];
     final l$repositoryURL = json['repositoryURL'];
     final l$isPrimary = json['isPrimary'];
     final l$$__typename = json['__typename'];
     return Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositories(
       repositoryID: (l$repositoryID as String),
-      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
+      scmID: (l$scmID as String),
       repositoryURL: (l$repositoryURL as String),
       isPrimary: (l$isPrimary as bool),
       $__typename: (l$$__typename as String),
@@ -6638,7 +6917,7 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositor
 
   final String repositoryID;
 
-  final Enum$SCMProvider scmProvider;
+  final String scmID;
 
   final String repositoryURL;
 
@@ -6650,8 +6929,8 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositor
     final _resultData = <String, dynamic>{};
     final l$repositoryID = repositoryID;
     _resultData['repositoryID'] = l$repositoryID;
-    final l$scmProvider = scmProvider;
-    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$scmID = scmID;
+    _resultData['scmID'] = l$scmID;
     final l$repositoryURL = repositoryURL;
     _resultData['repositoryURL'] = l$repositoryURL;
     final l$isPrimary = isPrimary;
@@ -6664,13 +6943,13 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositor
   @override
   int get hashCode {
     final l$repositoryID = repositoryID;
-    final l$scmProvider = scmProvider;
+    final l$scmID = scmID;
     final l$repositoryURL = repositoryURL;
     final l$isPrimary = isPrimary;
     final l$$__typename = $__typename;
     return Object.hashAll([
       l$repositoryID,
-      l$scmProvider,
+      l$scmID,
       l$repositoryURL,
       l$isPrimary,
       l$$__typename,
@@ -6692,9 +6971,9 @@ class Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$projects$repositor
     if (l$repositoryID != lOther$repositoryID) {
       return false;
     }
-    final l$scmProvider = scmProvider;
-    final lOther$scmProvider = other.scmProvider;
-    if (l$scmProvider != lOther$scmProvider) {
+    final l$scmID = scmID;
+    final lOther$scmID = other.scmID;
+    if (l$scmID != lOther$scmID) {
       return false;
     }
     final l$repositoryURL = repositoryURL;
@@ -6746,7 +7025,7 @@ abstract class CopyWith$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
 
   TRes call({
     String? repositoryID,
-    Enum$SCMProvider? scmProvider,
+    String? scmID,
     String? repositoryURL,
     bool? isPrimary,
     String? $__typename,
@@ -6777,7 +7056,7 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
 
   TRes call({
     Object? repositoryID = _undefined,
-    Object? scmProvider = _undefined,
+    Object? scmID = _undefined,
     Object? repositoryURL = _undefined,
     Object? isPrimary = _undefined,
     Object? $__typename = _undefined,
@@ -6786,9 +7065,9 @@ class _CopyWithImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$proj
       repositoryID: repositoryID == _undefined || repositoryID == null
           ? _instance.repositoryID
           : (repositoryID as String),
-      scmProvider: scmProvider == _undefined || scmProvider == null
-          ? _instance.scmProvider
-          : (scmProvider as Enum$SCMProvider),
+      scmID: scmID == _undefined || scmID == null
+          ? _instance.scmID
+          : (scmID as String),
       repositoryURL: repositoryURL == _undefined || repositoryURL == null
           ? _instance.repositoryURL
           : (repositoryURL as String),
@@ -6817,7 +7096,7 @@ class _CopyWithStubImpl$Query$ProjectSetups$projectSetups$$ProjectSetupsSuccess$
 
   call({
     String? repositoryID,
-    Enum$SCMProvider? scmProvider,
+    String? scmID,
     String? repositoryURL,
     bool? isPrimary,
     String? $__typename,
@@ -7544,6 +7823,37 @@ const documentNodeMutationUpsertProjectSetup = DocumentNode(
                               selectionSet: null,
                             ),
                             FieldNode(
+                              name: NameNode(value: 'scms'),
+                              alias: null,
+                              arguments: [],
+                              directives: [],
+                              selectionSet: SelectionSetNode(
+                                selections: [
+                                  FieldNode(
+                                    name: NameNode(value: 'scmID'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: 'scmProvider'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                  FieldNode(
+                                    name: NameNode(value: '__typename'),
+                                    alias: null,
+                                    arguments: [],
+                                    directives: [],
+                                    selectionSet: null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            FieldNode(
                               name: NameNode(value: 'repositories'),
                               alias: null,
                               arguments: [],
@@ -7558,7 +7868,7 @@ const documentNodeMutationUpsertProjectSetup = DocumentNode(
                                     selectionSet: null,
                                   ),
                                   FieldNode(
-                                    name: NameNode(value: 'scmProvider'),
+                                    name: NameNode(value: 'scmID'),
                                     alias: null,
                                     arguments: [],
                                     directives: [],
@@ -8192,6 +8502,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project({
     required this.projectID,
     required this.projectName,
+    required this.scms,
     required this.repositories,
     required this.boards,
     required this.createdAt,
@@ -8204,6 +8515,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   ) {
     final l$projectID = json['projectID'];
     final l$projectName = json['projectName'];
+    final l$scms = json['scms'];
     final l$repositories = json['repositories'];
     final l$boards = json['boards'];
     final l$createdAt = json['createdAt'];
@@ -8212,6 +8524,14 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     return Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project(
       projectID: (l$projectID as String),
       projectName: (l$projectName as String),
+      scms: (l$scms as List<dynamic>)
+          .map(
+            (e) =>
+                Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms.fromJson(
+                  (e as Map<String, dynamic>),
+                ),
+          )
+          .toList(),
       repositories: (l$repositories as List<dynamic>)
           .map(
             (e) =>
@@ -8239,6 +8559,11 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   final String projectName;
 
   final List<
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+  >
+  scms;
+
+  final List<
     Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
   >
   repositories;
@@ -8260,6 +8585,8 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     _resultData['projectID'] = l$projectID;
     final l$projectName = projectName;
     _resultData['projectName'] = l$projectName;
+    final l$scms = scms;
+    _resultData['scms'] = l$scms.map((e) => e.toJson()).toList();
     final l$repositories = repositories;
     _resultData['repositories'] = l$repositories
         .map((e) => e.toJson())
@@ -8279,6 +8606,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   int get hashCode {
     final l$projectID = projectID;
     final l$projectName = projectName;
+    final l$scms = scms;
     final l$repositories = repositories;
     final l$boards = boards;
     final l$createdAt = createdAt;
@@ -8287,6 +8615,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     return Object.hashAll([
       l$projectID,
       l$projectName,
+      Object.hashAll(l$scms.map((v) => v)),
       Object.hashAll(l$repositories.map((v) => v)),
       Object.hashAll(l$boards.map((v) => v)),
       l$createdAt,
@@ -8314,6 +8643,18 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     final lOther$projectName = other.projectName;
     if (l$projectName != lOther$projectName) {
       return false;
+    }
+    final l$scms = scms;
+    final lOther$scms = other.scms;
+    if (l$scms.length != lOther$scms.length) {
+      return false;
+    }
+    for (int i = 0; i < l$scms.length; i++) {
+      final l$scms$entry = l$scms[i];
+      final lOther$scms$entry = lOther$scms[i];
+      if (l$scms$entry != lOther$scms$entry) {
+        return false;
+      }
     }
     final l$repositories = repositories;
     final lOther$repositories = other.repositories;
@@ -8391,6 +8732,10 @@ abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
     String? projectID,
     String? projectName,
     List<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+    >?
+    scms,
+    List<
       Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
     >?
     repositories,
@@ -8402,6 +8747,19 @@ abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
     DateTime? updatedAt,
     String? $__typename,
   });
+  TRes scms(
+    Iterable<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+    >
+    Function(
+      Iterable<
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+          Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+        >
+      >,
+    )
+    _fn,
+  );
   TRes repositories(
     Iterable<
       Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
@@ -8455,6 +8813,7 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
   TRes call({
     Object? projectID = _undefined,
     Object? projectName = _undefined,
+    Object? scms = _undefined,
     Object? repositories = _undefined,
     Object? boards = _undefined,
     Object? createdAt = _undefined,
@@ -8468,6 +8827,12 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
       projectName: projectName == _undefined || projectName == null
           ? _instance.projectName
           : (projectName as String),
+      scms: scms == _undefined || scms == null
+          ? _instance.scms
+          : (scms
+                as List<
+                  Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+                >),
       repositories: repositories == _undefined || repositories == null
           ? _instance.repositories
           : (repositories
@@ -8490,6 +8855,30 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
           ? _instance.$__typename
           : ($__typename as String),
     ),
+  );
+
+  TRes scms(
+    Iterable<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+    >
+    Function(
+      Iterable<
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+          Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+        >
+      >,
+    )
+    _fn,
+  ) => call(
+    scms: _fn(
+      _instance.scms.map(
+        (e) =>
+            CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+              e,
+              (i) => i,
+            ),
+      ),
+    ).toList(),
   );
 
   TRes repositories(
@@ -8558,6 +8947,10 @@ class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
     String? projectID,
     String? projectName,
     List<
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+    >?
+    scms,
+    List<
       Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories
     >?
     repositories,
@@ -8570,15 +8963,185 @@ class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
     String? $__typename,
   }) => _res;
 
+  scms(_fn) => _res;
+
   repositories(_fn) => _res;
 
   boards(_fn) => _res;
 }
 
+class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms {
+  Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms({
+    required this.scmID,
+    required this.scmProvider,
+    this.$__typename = 'ProjectSCM',
+  });
+
+  factory Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final l$scmID = json['scmID'];
+    final l$scmProvider = json['scmProvider'];
+    final l$$__typename = json['__typename'];
+    return Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+      scmID: (l$scmID as String),
+      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
+      $__typename: (l$$__typename as String),
+    );
+  }
+
+  final String scmID;
+
+  final Enum$SCMProvider scmProvider;
+
+  final String $__typename;
+
+  Map<String, dynamic> toJson() {
+    final _resultData = <String, dynamic>{};
+    final l$scmID = scmID;
+    _resultData['scmID'] = l$scmID;
+    final l$scmProvider = scmProvider;
+    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$$__typename = $__typename;
+    _resultData['__typename'] = l$$__typename;
+    return _resultData;
+  }
+
+  @override
+  int get hashCode {
+    final l$scmID = scmID;
+    final l$scmProvider = scmProvider;
+    final l$$__typename = $__typename;
+    return Object.hashAll([l$scmID, l$scmProvider, l$$__typename]);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other
+            is! Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms ||
+        runtimeType != other.runtimeType) {
+      return false;
+    }
+    final l$scmID = scmID;
+    final lOther$scmID = other.scmID;
+    if (l$scmID != lOther$scmID) {
+      return false;
+    }
+    final l$scmProvider = scmProvider;
+    final lOther$scmProvider = other.scmProvider;
+    if (l$scmProvider != lOther$scmProvider) {
+      return false;
+    }
+    final l$$__typename = $__typename;
+    final lOther$$__typename = other.$__typename;
+    if (l$$__typename != lOther$$__typename) {
+      return false;
+    }
+    return true;
+  }
+}
+
+extension UtilityExtension$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+    on
+        Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms {
+  CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+  >
+  get copyWith =>
+      CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+        this,
+        (i) => i,
+      );
+}
+
+abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+  TRes
+> {
+  factory CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+    instance,
+    TRes Function(
+      Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms,
+    )
+    then,
+  ) = _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms;
+
+  factory CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms.stub(
+    TRes res,
+  ) = _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms;
+
+  TRes call({
+    String? scmID,
+    Enum$SCMProvider? scmProvider,
+    String? $__typename,
+  });
+}
+
+class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+  TRes
+>
+    implements
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+          TRes
+        > {
+  _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+    this._instance,
+    this._then,
+  );
+
+  final Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms
+  _instance;
+
+  final TRes Function(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms,
+  )
+  _then;
+
+  static const _undefined = <dynamic, dynamic>{};
+
+  TRes call({
+    Object? scmID = _undefined,
+    Object? scmProvider = _undefined,
+    Object? $__typename = _undefined,
+  }) => _then(
+    Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+      scmID: scmID == _undefined || scmID == null
+          ? _instance.scmID
+          : (scmID as String),
+      scmProvider: scmProvider == _undefined || scmProvider == null
+          ? _instance.scmProvider
+          : (scmProvider as Enum$SCMProvider),
+      $__typename: $__typename == _undefined || $__typename == null
+          ? _instance.$__typename
+          : ($__typename as String),
+    ),
+  );
+}
+
+class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+  TRes
+>
+    implements
+        CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms<
+          TRes
+        > {
+  _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$scms(
+    this._res,
+  );
+
+  TRes _res;
+
+  call({String? scmID, Enum$SCMProvider? scmProvider, String? $__typename}) =>
+      _res;
+}
+
 class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories {
   Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories({
     required this.repositoryID,
-    required this.scmProvider,
+    required this.scmID,
     required this.repositoryURL,
     required this.isPrimary,
     this.$__typename = 'ProjectRepository',
@@ -8588,13 +9151,13 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     Map<String, dynamic> json,
   ) {
     final l$repositoryID = json['repositoryID'];
-    final l$scmProvider = json['scmProvider'];
+    final l$scmID = json['scmID'];
     final l$repositoryURL = json['repositoryURL'];
     final l$isPrimary = json['isPrimary'];
     final l$$__typename = json['__typename'];
     return Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$project$repositories(
       repositoryID: (l$repositoryID as String),
-      scmProvider: fromJson$Enum$SCMProvider((l$scmProvider as String)),
+      scmID: (l$scmID as String),
       repositoryURL: (l$repositoryURL as String),
       isPrimary: (l$isPrimary as bool),
       $__typename: (l$$__typename as String),
@@ -8603,7 +9166,7 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
 
   final String repositoryID;
 
-  final Enum$SCMProvider scmProvider;
+  final String scmID;
 
   final String repositoryURL;
 
@@ -8615,8 +9178,8 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     final _resultData = <String, dynamic>{};
     final l$repositoryID = repositoryID;
     _resultData['repositoryID'] = l$repositoryID;
-    final l$scmProvider = scmProvider;
-    _resultData['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$scmID = scmID;
+    _resultData['scmID'] = l$scmID;
     final l$repositoryURL = repositoryURL;
     _resultData['repositoryURL'] = l$repositoryURL;
     final l$isPrimary = isPrimary;
@@ -8629,13 +9192,13 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
   @override
   int get hashCode {
     final l$repositoryID = repositoryID;
-    final l$scmProvider = scmProvider;
+    final l$scmID = scmID;
     final l$repositoryURL = repositoryURL;
     final l$isPrimary = isPrimary;
     final l$$__typename = $__typename;
     return Object.hashAll([
       l$repositoryID,
-      l$scmProvider,
+      l$scmID,
       l$repositoryURL,
       l$isPrimary,
       l$$__typename,
@@ -8657,9 +9220,9 @@ class Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjectSetupSuccess$
     if (l$repositoryID != lOther$repositoryID) {
       return false;
     }
-    final l$scmProvider = scmProvider;
-    final lOther$scmProvider = other.scmProvider;
-    if (l$scmProvider != lOther$scmProvider) {
+    final l$scmID = scmID;
+    final lOther$scmID = other.scmID;
+    if (l$scmID != lOther$scmID) {
       return false;
     }
     final l$repositoryURL = repositoryURL;
@@ -8712,7 +9275,7 @@ abstract class CopyWith$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
 
   TRes call({
     String? repositoryID,
-    Enum$SCMProvider? scmProvider,
+    String? scmID,
     String? repositoryURL,
     bool? isPrimary,
     String? $__typename,
@@ -8743,7 +9306,7 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
 
   TRes call({
     Object? repositoryID = _undefined,
-    Object? scmProvider = _undefined,
+    Object? scmID = _undefined,
     Object? repositoryURL = _undefined,
     Object? isPrimary = _undefined,
     Object? $__typename = _undefined,
@@ -8752,9 +9315,9 @@ class _CopyWithImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertProjec
       repositoryID: repositoryID == _undefined || repositoryID == null
           ? _instance.repositoryID
           : (repositoryID as String),
-      scmProvider: scmProvider == _undefined || scmProvider == null
-          ? _instance.scmProvider
-          : (scmProvider as Enum$SCMProvider),
+      scmID: scmID == _undefined || scmID == null
+          ? _instance.scmID
+          : (scmID as String),
       repositoryURL: repositoryURL == _undefined || repositoryURL == null
           ? _instance.repositoryURL
           : (repositoryURL as String),
@@ -8783,7 +9346,7 @@ class _CopyWithStubImpl$Mutation$UpsertProjectSetup$upsertProjectSetup$$UpsertPr
 
   call({
     String? repositoryID,
-    Enum$SCMProvider? scmProvider,
+    String? scmID,
     String? repositoryURL,
     bool? isPrimary,
     String? $__typename,

@@ -104,11 +104,18 @@ void main() {
                     '__typename': 'ProjectSetup',
                     'projectID': 'project-1',
                     'projectName': 'Project One',
+                    'scms': <Map<String, dynamic>>[
+                      <String, dynamic>{
+                        '__typename': 'ProjectSCM',
+                        'scmID': 'scm-1',
+                        'scmProvider': 'GITHUB',
+                      },
+                    ],
                     'repositories': <Map<String, dynamic>>[
                       <String, dynamic>{
                         '__typename': 'ProjectRepository',
                         'repositoryID': 'repo-1',
-                        'scmProvider': 'GITHUB',
+                        'scmID': 'scm-1',
                         'repositoryURL': 'https://github.com/acme/repo',
                         'isPrimary': true,
                       },
@@ -117,7 +124,7 @@ void main() {
                       <String, dynamic>{
                         '__typename': 'ProjectBoard',
                         'boardID': 'board-1',
-                        'trackerProvider': 'GITHUB_ISSUES',
+                        'trackerProvider': 'INTERNAL',
                         'taskboardName': 'Acme Repo Board',
                         'appliesToAllRepositories': true,
                         'repositoryIDs': <String>[],
@@ -137,7 +144,7 @@ void main() {
         expect(result.isSuccess, isTrue);
         expect(result.data, isNotNull);
         expect(result.data!.single.projectID, 'project-1');
-        expect(result.data!.single.repositories.single.scmProvider, 'GITHUB');
+        expect(result.data!.single.repositories.single.scmID, 'scm-1');
       },
     );
   });
@@ -225,7 +232,7 @@ void main() {
         scmProvider: 'UNSUPPORTED',
         repositoryURLs: const <String>['https://example.com/acme/repo'],
         scmToken: 'token',
-        trackerProvider: 'GITHUB_ISSUES',
+        trackerProvider: 'INTERNAL',
         taskboardName: 'Acme Repo Board',
       );
 

@@ -103,7 +103,12 @@ type ComplexityRoot struct {
 		IsPrimary     func(childComplexity int) int
 		RepositoryID  func(childComplexity int) int
 		RepositoryURL func(childComplexity int) int
-		ScmProvider   func(childComplexity int) int
+		ScmID         func(childComplexity int) int
+	}
+
+	ProjectSCM struct {
+		ScmID       func(childComplexity int) int
+		ScmProvider func(childComplexity int) int
 	}
 
 	ProjectSetup struct {
@@ -112,6 +117,7 @@ type ComplexityRoot struct {
 		ProjectID    func(childComplexity int) int
 		ProjectName  func(childComplexity int) int
 		Repositories func(childComplexity int) int
+		Scms         func(childComplexity int) int
 		UpdatedAt    func(childComplexity int) int
 	}
 
@@ -573,12 +579,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectRepository.RepositoryURL(childComplexity), true
-	case "ProjectRepository.scmProvider":
-		if e.ComplexityRoot.ProjectRepository.ScmProvider == nil {
+	case "ProjectRepository.scmID":
+		if e.ComplexityRoot.ProjectRepository.ScmID == nil {
 			break
 		}
 
-		return e.ComplexityRoot.ProjectRepository.ScmProvider(childComplexity), true
+		return e.ComplexityRoot.ProjectRepository.ScmID(childComplexity), true
+
+	case "ProjectSCM.scmID":
+		if e.ComplexityRoot.ProjectSCM.ScmID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSCM.ScmID(childComplexity), true
+	case "ProjectSCM.scmProvider":
+		if e.ComplexityRoot.ProjectSCM.ScmProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSCM.ScmProvider(childComplexity), true
 
 	case "ProjectSetup.boards":
 		if e.ComplexityRoot.ProjectSetup.Boards == nil {
@@ -610,6 +629,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectSetup.Repositories(childComplexity), true
+	case "ProjectSetup.scms":
+		if e.ComplexityRoot.ProjectSetup.Scms == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectSetup.Scms(childComplexity), true
 	case "ProjectSetup.updatedAt":
 		if e.ComplexityRoot.ProjectSetup.UpdatedAt == nil {
 			break
@@ -1261,6 +1286,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputDeleteProjectSetupInput,
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
+		ec.unmarshalInputProjectSCMInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
 		ec.unmarshalInputUpdateWorkerSettingsInput,
@@ -1472,9 +1498,14 @@ union RequeueDeadLetterResult = RequeueDeadLetterSuccess | GraphError
 
 type ProjectRepository {
   repositoryID: String!
-  scmProvider: SCMProvider!
+  scmID: String!
   repositoryURL: String!
   isPrimary: Boolean!
+}
+
+type ProjectSCM {
+  scmID: String!
+  scmProvider: SCMProvider!
 }
 
 type ProjectBoard {
@@ -1488,10 +1519,17 @@ type ProjectBoard {
 type ProjectSetup {
   projectID: String!
   projectName: String!
+  scms: [ProjectSCM!]!
   repositories: [ProjectRepository!]!
   boards: [ProjectBoard!]!
   createdAt: Time!
   updatedAt: Time!
+}
+
+input ProjectSCMInput {
+  scmID: String!
+  scmProvider: SCMProvider!
+  scmToken: String!
 }
 
 type ProjectSetupsSuccess {
@@ -1508,8 +1546,7 @@ union ProjectSetupResult = ProjectSetupSuccess | GraphError
 
 input ProjectRepositoryInput {
   repositoryID: String!
-  scmProvider: SCMProvider!
-  scmToken: String!
+  scmID: String!
   repositoryURL: String!
   isPrimary: Boolean!
 }
@@ -1524,6 +1561,7 @@ input ProjectBoardInput {
 input UpsertProjectSetupInput {
   projectID: String!
   projectName: String!
+  scms: [ProjectSCMInput!]!
   repositories: [ProjectRepositoryInput!]!
   boards: [ProjectBoardInput!]!
 }
@@ -3334,30 +3372,30 @@ func (ec *executionContext) fieldContext_ProjectRepository_repositoryID(_ contex
 	return fc, nil
 }
 
-func (ec *executionContext) _ProjectRepository_scmProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepository) (ret graphql.Marshaler) {
+func (ec *executionContext) _ProjectRepository_scmID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepository) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_ProjectRepository_scmProvider,
+		ec.fieldContext_ProjectRepository_scmID,
 		func(ctx context.Context) (any, error) {
-			return obj.ScmProvider, nil
+			return obj.ScmID, nil
 		},
 		nil,
-		ec.marshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider,
+		ec.marshalNString2string,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_ProjectRepository_scmProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ProjectRepository_scmID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ProjectRepository",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type SCMProvider does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3421,6 +3459,64 @@ func (ec *executionContext) fieldContext_ProjectRepository_isPrimary(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectSCM_scmID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectScm) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSCM_scmID,
+		func(ctx context.Context) (any, error) {
+			return obj.ScmID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSCM_scmID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSCM",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectSCM_scmProvider(ctx context.Context, field graphql.CollectedField, obj *models.ProjectScm) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSCM_scmProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.ScmProvider, nil
+		},
+		nil,
+		ec.marshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSCM_scmProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSCM",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type SCMProvider does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectSetup_projectID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3479,6 +3575,41 @@ func (ec *executionContext) fieldContext_ProjectSetup_projectName(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectSetup_scms(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectSetup_scms,
+		func(ctx context.Context) (any, error) {
+			return obj.Scms, nil
+		},
+		nil,
+		ec.marshalNProjectSCM2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectScmᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectSetup_scms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectSetup",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "scmID":
+				return ec.fieldContext_ProjectSCM_scmID(ctx, field)
+			case "scmProvider":
+				return ec.fieldContext_ProjectSCM_scmProvider(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectSCM", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectSetup_repositories(ctx context.Context, field graphql.CollectedField, obj *models.ProjectSetup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3505,8 +3636,8 @@ func (ec *executionContext) fieldContext_ProjectSetup_repositories(_ context.Con
 			switch field.Name {
 			case "repositoryID":
 				return ec.fieldContext_ProjectRepository_repositoryID(ctx, field)
-			case "scmProvider":
-				return ec.fieldContext_ProjectRepository_scmProvider(ctx, field)
+			case "scmID":
+				return ec.fieldContext_ProjectRepository_scmID(ctx, field)
 			case "repositoryURL":
 				return ec.fieldContext_ProjectRepository_repositoryURL(ctx, field)
 			case "isPrimary":
@@ -3645,6 +3776,8 @@ func (ec *executionContext) fieldContext_ProjectSetupSuccess_project(_ context.C
 				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
 			case "projectName":
 				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
+			case "scms":
+				return ec.fieldContext_ProjectSetup_scms(ctx, field)
 			case "repositories":
 				return ec.fieldContext_ProjectSetup_repositories(ctx, field)
 			case "boards":
@@ -3688,6 +3821,8 @@ func (ec *executionContext) fieldContext_ProjectSetupsSuccess_projects(_ context
 				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
 			case "projectName":
 				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
+			case "scms":
+				return ec.fieldContext_ProjectSetup_scms(ctx, field)
 			case "repositories":
 				return ec.fieldContext_ProjectSetup_repositories(ctx, field)
 			case "boards":
@@ -5748,6 +5883,8 @@ func (ec *executionContext) fieldContext_UpsertProjectSetupSuccess_project(_ con
 				return ec.fieldContext_ProjectSetup_projectID(ctx, field)
 			case "projectName":
 				return ec.fieldContext_ProjectSetup_projectName(ctx, field)
+			case "scms":
+				return ec.fieldContext_ProjectSetup_scms(ctx, field)
 			case "repositories":
 				return ec.fieldContext_ProjectSetup_repositories(ctx, field)
 			case "boards":
@@ -8287,7 +8424,7 @@ func (ec *executionContext) unmarshalInputProjectRepositoryInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"repositoryID", "scmProvider", "scmToken", "repositoryURL", "isPrimary"}
+	fieldsInOrder := [...]string{"repositoryID", "scmID", "repositoryURL", "isPrimary"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8301,20 +8438,13 @@ func (ec *executionContext) unmarshalInputProjectRepositoryInput(ctx context.Con
 				return it, err
 			}
 			it.RepositoryID = data
-		case "scmProvider":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmProvider"))
-			data, err := ec.unmarshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ScmProvider = data
-		case "scmToken":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmToken"))
+		case "scmID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmID"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ScmToken = data
+			it.ScmID = data
 		case "repositoryURL":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryURL"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -8329,6 +8459,46 @@ func (ec *executionContext) unmarshalInputProjectRepositoryInput(ctx context.Con
 				return it, err
 			}
 			it.IsPrimary = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputProjectSCMInput(ctx context.Context, obj any) (models.ProjectSCMInput, error) {
+	var it models.ProjectSCMInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"scmID", "scmProvider", "scmToken"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "scmID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScmID = data
+		case "scmProvider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmProvider"))
+			data, err := ec.unmarshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScmProvider = data
+		case "scmToken":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmToken"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScmToken = data
 		}
 	}
 	return it, nil
@@ -8482,7 +8652,7 @@ func (ec *executionContext) unmarshalInputUpsertProjectSetupInput(ctx context.Co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "projectName", "repositories", "boards"}
+	fieldsInOrder := [...]string{"projectID", "projectName", "scms", "repositories", "boards"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8503,6 +8673,13 @@ func (ec *executionContext) unmarshalInputUpsertProjectSetupInput(ctx context.Co
 				return it, err
 			}
 			it.ProjectName = data
+		case "scms":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scms"))
+			data, err := ec.unmarshalNProjectSCMInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSCMInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scms = data
 		case "repositories":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositories"))
 			data, err := ec.unmarshalNProjectRepositoryInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInputᚄ(ctx, v)
@@ -9459,8 +9636,8 @@ func (ec *executionContext) _ProjectRepository(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "scmProvider":
-			out.Values[i] = ec._ProjectRepository_scmProvider(ctx, field, obj)
+		case "scmID":
+			out.Values[i] = ec._ProjectRepository_scmID(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9471,6 +9648,50 @@ func (ec *executionContext) _ProjectRepository(ctx context.Context, sel ast.Sele
 			}
 		case "isPrimary":
 			out.Values[i] = ec._ProjectRepository_isPrimary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectSCMImplementors = []string{"ProjectSCM"}
+
+func (ec *executionContext) _ProjectSCM(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectScm) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectSCMImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectSCM")
+		case "scmID":
+			out.Values[i] = ec._ProjectSCM_scmID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scmProvider":
+			out.Values[i] = ec._ProjectSCM_scmProvider(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9515,6 +9736,11 @@ func (ec *executionContext) _ProjectSetup(ctx context.Context, sel ast.Selection
 			}
 		case "projectName":
 			out.Values[i] = ec._ProjectSetup_projectName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scms":
+			out.Values[i] = ec._ProjectSetup_scms(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -11483,6 +11709,52 @@ func (ec *executionContext) unmarshalNProjectRepositoryInput2ᚕᚖagenticᚑorc
 
 func (ec *executionContext) unmarshalNProjectRepositoryInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInput(ctx context.Context, v any) (*models.ProjectRepositoryInput, error) {
 	res, err := ec.unmarshalInputProjectRepositoryInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNProjectSCM2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectScmᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectScm) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectSCM2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectScm(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectSCM2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectScm(ctx context.Context, sel ast.SelectionSet, v *models.ProjectScm) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectSCM(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNProjectSCMInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSCMInputᚄ(ctx context.Context, v any) ([]*models.ProjectSCMInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*models.ProjectSCMInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNProjectSCMInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSCMInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNProjectSCMInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectSCMInput(ctx context.Context, v any) (*models.ProjectSCMInput, error) {
+	res, err := ec.unmarshalInputProjectSCMInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
