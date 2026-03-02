@@ -19,6 +19,7 @@ type SCMWorkflowPayload struct {
 	RunID                 string                 `json:"run_id"`
 	TaskID                string                 `json:"task_id"`
 	JobID                 string                 `json:"job_id"`
+	ProjectID             string                 `json:"project_id"`
 	IdempotencyKey        string                 `json:"idempotency_key"`
 	WorktreePath          string                 `json:"worktree_path,omitempty"`
 	BaseBranch            string                 `json:"base_branch,omitempty"`
@@ -88,7 +89,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 	operation := strings.TrimSpace(payload.Operation)
 	idempotencyKey := strings.TrimSpace(payload.IdempotencyKey)
 	repository := domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}
-	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID}, IdempotencyKey: idempotencyKey}
+	metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID, ProjectID: payload.ProjectID}, IdempotencyKey: idempotencyKey}
 
 	handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusRunning, "")
 
@@ -176,6 +177,7 @@ func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlat
 		RunID:          correlationIDs.RunID,
 		TaskID:         correlationIDs.TaskID,
 		JobID:          correlationIDs.JobID,
+		ProjectID:      correlationIDs.ProjectID,
 		JobKind:        kind,
 		IdempotencyKey: idempotencyKey,
 		Step:           step,

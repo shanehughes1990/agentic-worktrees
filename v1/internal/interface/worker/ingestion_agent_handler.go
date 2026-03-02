@@ -68,7 +68,7 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		},
 	}
 	board, err := handler.service.SyncBoard(ctx, request)
-	correlation := taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID}
+	correlation := taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID, ProjectID: payload.ProjectID}
 	if err != nil {
 		handler.safeSupervisorAttention(ctx, correlation, err.Error())
 		return err

@@ -1,8 +1,8 @@
 package taskengine
 
 import (
-	"agentic-orchestrator/internal/application/taskengine"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
+	"agentic-orchestrator/internal/application/taskengine"
 	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
 	"context"
 	"encoding/json"
@@ -32,6 +32,7 @@ type agentWorkflowPayload struct {
 	RunID          string `json:"run_id"`
 	TaskID         string `json:"task_id"`
 	JobID          string `json:"job_id"`
+	ProjectID      string `json:"project_id"`
 	IdempotencyKey string `json:"idempotency_key"`
 }
 
@@ -43,6 +44,7 @@ type scmWorkflowPayload struct {
 	RunID            string `json:"run_id"`
 	TaskID           string `json:"task_id"`
 	JobID            string `json:"job_id"`
+	ProjectID        string `json:"project_id"`
 	IdempotencyKey   string `json:"idempotency_key"`
 	PullRequestID    int    `json:"pull_request_number,omitempty"`
 	MergeMethod      string `json:"merge_method,omitempty"`
@@ -91,6 +93,7 @@ func (dispatcher *Dispatcher) enqueueAgentWorkflow(ctx context.Context, decision
 		RunID:          decision.CorrelationIDs.RunID,
 		TaskID:         decision.CorrelationIDs.TaskID,
 		JobID:          jobID,
+		ProjectID:      decision.CorrelationIDs.ProjectID,
 		IdempotencyKey: idempotencyKey,
 	}
 	encodedPayload, err := json.Marshal(payload)
@@ -101,7 +104,7 @@ func (dispatcher *Dispatcher) enqueueAgentWorkflow(ctx context.Context, decision
 		Kind:           taskengine.JobKindAgentWorkflow,
 		Payload:        encodedPayload,
 		IdempotencyKey: idempotencyKey,
-		CorrelationIDs: taskengine.CorrelationIDs{RunID: decision.CorrelationIDs.RunID, TaskID: decision.CorrelationIDs.TaskID, JobID: jobID},
+		CorrelationIDs: taskengine.CorrelationIDs{RunID: decision.CorrelationIDs.RunID, TaskID: decision.CorrelationIDs.TaskID, JobID: jobID, ProjectID: decision.CorrelationIDs.ProjectID},
 	})
 	if err != nil {
 		return fmt.Errorf("enqueue supervisor agent workflow: %w", err)
@@ -132,6 +135,7 @@ func (dispatcher *Dispatcher) enqueueMergeWorkflow(ctx context.Context, decision
 		RunID:          decision.CorrelationIDs.RunID,
 		TaskID:         decision.CorrelationIDs.TaskID,
 		JobID:          jobID,
+		ProjectID:      decision.CorrelationIDs.ProjectID,
 		IdempotencyKey: idempotencyKey,
 		PullRequestID:  pullRequestNumber,
 		MergeMethod:    mergeMethod,
@@ -144,7 +148,7 @@ func (dispatcher *Dispatcher) enqueueMergeWorkflow(ctx context.Context, decision
 		Kind:           taskengine.JobKindSCMWorkflow,
 		Payload:        encodedPayload,
 		IdempotencyKey: idempotencyKey,
-		CorrelationIDs: taskengine.CorrelationIDs{RunID: decision.CorrelationIDs.RunID, TaskID: decision.CorrelationIDs.TaskID, JobID: jobID},
+		CorrelationIDs: taskengine.CorrelationIDs{RunID: decision.CorrelationIDs.RunID, TaskID: decision.CorrelationIDs.TaskID, JobID: jobID, ProjectID: decision.CorrelationIDs.ProjectID},
 	})
 	if err != nil {
 		return fmt.Errorf("enqueue supervisor merge workflow: %w", err)

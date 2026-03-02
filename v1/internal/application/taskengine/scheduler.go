@@ -91,6 +91,7 @@ func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest)
 		RunID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.RunID),
 		TaskID:         strings.TrimSpace(normalizedRequest.CorrelationIDs.TaskID),
 		JobID:          strings.TrimSpace(normalizedRequest.CorrelationIDs.JobID),
+		ProjectID:      strings.TrimSpace(normalizedRequest.CorrelationIDs.ProjectID),
 		JobKind:        normalizedRequest.Kind,
 		IdempotencyKey: strings.TrimSpace(normalizedRequest.IdempotencyKey),
 		QueueTaskID:    strings.TrimSpace(result.QueueTaskID),

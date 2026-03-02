@@ -101,9 +101,10 @@ const (
 )
 
 type CorrelationIDs struct {
-	RunID  string
-	TaskID string
-	JobID  string
+	RunID     string
+	TaskID    string
+	JobID     string
+	ProjectID string
 }
 
 func (ids CorrelationIDs) Validate() error {

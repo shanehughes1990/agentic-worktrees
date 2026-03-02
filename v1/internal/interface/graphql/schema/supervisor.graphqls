@@ -87,6 +87,7 @@ type SupervisorDecision {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   signalType: SupervisorSignalType!
   fromState: SupervisorState!
   toState: SupervisorState!
@@ -112,6 +113,7 @@ input SupervisorCorrelationInput {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String
 }
 
 extend type Query {

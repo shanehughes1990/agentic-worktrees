@@ -27,6 +27,7 @@ type WorkflowJob {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   jobKind: JobKind!
   idempotencyKey: String!
   queueTaskID: String!
@@ -47,6 +48,7 @@ type ExecutionHistoryRecord {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   jobKind: JobKind!
   idempotencyKey: String!
   step: String!
@@ -113,6 +115,7 @@ input ApproveIssueIntakeInput {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   source: String!
   issueReference: String!
   approvedBy: String!
@@ -175,6 +178,16 @@ type UpsertProjectSetupSuccess {
 
 union UpsertProjectSetupResult = UpsertProjectSetupSuccess | GraphError
 
+input DeleteProjectSetupInput {
+  projectID: String!
+}
+
+type DeleteProjectSetupSuccess {
+  ok: Boolean!
+}
+
+union DeleteProjectSetupResult = DeleteProjectSetupSuccess | GraphError
+
 enum StreamEventSource {
   ACP
   SESSION_FILE
@@ -188,6 +201,7 @@ type StreamEvent {
   runID: String
   taskID: String
   jobID: String
+  projectID: String
   sessionID: String
   correlationID: String!
   source: StreamEventSource!
@@ -260,6 +274,7 @@ extend type Mutation {
   approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
+  deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }
 

@@ -24,6 +24,7 @@ type WorkflowJob struct {
 	RunID          string
 	TaskID         string
 	JobID          string
+	ProjectID      string
 	JobKind        taskengine.JobKind
 	IdempotencyKey string
 	QueueTaskID    string
@@ -38,6 +39,7 @@ type ExecutionHistoryRecord struct {
 	RunID          string
 	TaskID         string
 	JobID          string
+	ProjectID      string
 	JobKind        taskengine.JobKind
 	IdempotencyKey string
 	Step           string
@@ -105,6 +107,7 @@ type CorrelationFilter struct {
 	RunID  string
 	TaskID string
 	JobID  string
+	ProjectID string
 }
 
 type QueryRepository interface {
@@ -119,6 +122,11 @@ type ProjectSetupRepository interface {
 	ListProjectSetups(ctx context.Context, limit int) ([]ProjectSetup, error)
 	GetProjectSetup(ctx context.Context, projectID string) (*ProjectSetup, error)
 	UpsertProjectSetup(ctx context.Context, setup ProjectSetup) (*ProjectSetup, error)
+	DeleteProjectSetup(ctx context.Context, projectID string) error
+}
+
+type ProjectCleanupManager interface {
+	CleanupProjectArtifacts(ctx context.Context, setup ProjectSetup) error
 }
 
 type IngestionBoardSource struct {
@@ -171,6 +179,7 @@ type ApproveIssueIntakeRequest struct {
 	RunID          string
 	TaskID         string
 	JobID          string
+	ProjectID      string
 	Source         string
 	IssueReference string
 	ApprovedBy     string
@@ -201,6 +210,7 @@ type Service struct {
 	queryRepository   QueryRepository
 	projectRepository ProjectSetupRepository
 	deadLetterManager taskengine.DeadLetterManager
+	cleanupManager    ProjectCleanupManager
 }
 
 func NewService(scheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, queryRepository QueryRepository, projectRepository ProjectSetupRepository, deadLetterManager taskengine.DeadLetterManager) (*Service, error) {
@@ -217,6 +227,13 @@ func NewService(scheduler *taskengine.Scheduler, supervisorService *applications
 		projectRepository: projectRepository,
 		deadLetterManager: deadLetterManager,
 	}, nil
+}
+
+func (service *Service) SetProjectCleanupManager(cleanupManager ProjectCleanupManager) {
+	if service == nil {
+		return
+	}
+	service.cleanupManager = cleanupManager
 }
 
 func (service *Service) Sessions(ctx context.Context, limit int) ([]SessionSummary, error) {
@@ -296,6 +313,37 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	})
 }
 
+func (service *Service) DeleteProjectSetup(ctx context.Context, projectID string) error {
+	if service == nil || service.projectRepository == nil {
+		return fmt.Errorf("project repository is not configured")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return fmt.Errorf("project_id is required")
+	}
+	projectSetup, err := service.projectRepository.GetProjectSetup(ctx, projectID)
+	if err != nil {
+		return fmt.Errorf("load project setup: %w", err)
+	}
+	if projectSetup == nil {
+		return fmt.Errorf("project setup not found")
+	}
+	if service.deadLetterManager != nil {
+		if err := service.deadLetterManager.DeleteProjectTasks(ctx, projectID); err != nil {
+			return fmt.Errorf("delete project tasks: %w", err)
+		}
+	}
+	if service.cleanupManager != nil {
+		if err := service.cleanupManager.CleanupProjectArtifacts(ctx, *projectSetup); err != nil {
+			return fmt.Errorf("cleanup project artifacts: %w", err)
+		}
+	}
+	if err := service.projectRepository.DeleteProjectSetup(ctx, projectID); err != nil {
+		return fmt.Errorf("delete project setup: %w", err)
+	}
+	return nil
+}
+
 func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request EnqueueIngestionWorkflowRequest) (taskengine.EnqueueResult, error) {
 	if service == nil || service.scheduler == nil {
 		return taskengine.EnqueueResult{}, fmt.Errorf("task scheduler is not configured")
@@ -325,7 +373,7 @@ func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request En
 		Kind:           taskengine.JobKindIngestionAgent,
 		Payload:        payload,
 		IdempotencyKey: strings.TrimSpace(request.IdempotencyKey),
-		CorrelationIDs: taskengine.CorrelationIDs{RunID: strings.TrimSpace(request.RunID), TaskID: strings.TrimSpace(request.TaskID), JobID: strings.TrimSpace(request.JobID)},
+		CorrelationIDs: taskengine.CorrelationIDs{RunID: strings.TrimSpace(request.RunID), TaskID: strings.TrimSpace(request.TaskID), JobID: strings.TrimSpace(request.JobID), ProjectID: strings.TrimSpace(request.ProjectID)},
 	})
 	if err != nil {
 		return taskengine.EnqueueResult{}, fmt.Errorf("enqueue ingestion workflow: %w", err)
@@ -340,7 +388,7 @@ func (service *Service) ApproveIssueIntake(ctx context.Context, request ApproveI
 	if err := request.Validate(); err != nil {
 		return domainsupervisor.Decision{}, err
 	}
-	decision, err := service.supervisorService.OnIssueApproved(ctx, taskengine.CorrelationIDs{RunID: strings.TrimSpace(request.RunID), TaskID: strings.TrimSpace(request.TaskID), JobID: strings.TrimSpace(request.JobID)}, strings.TrimSpace(request.Source), strings.TrimSpace(request.IssueReference), strings.TrimSpace(request.ApprovedBy))
+	decision, err := service.supervisorService.OnIssueApproved(ctx, taskengine.CorrelationIDs{RunID: strings.TrimSpace(request.RunID), TaskID: strings.TrimSpace(request.TaskID), JobID: strings.TrimSpace(request.JobID), ProjectID: strings.TrimSpace(request.ProjectID)}, strings.TrimSpace(request.Source), strings.TrimSpace(request.IssueReference), strings.TrimSpace(request.ApprovedBy))
 	if err != nil {
 		return domainsupervisor.Decision{}, fmt.Errorf("approve issue intake: %w", err)
 	}

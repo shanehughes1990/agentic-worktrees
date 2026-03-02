@@ -22,6 +22,7 @@ type CorrelationIDs struct {
 	RunID         string
 	TaskID        string
 	JobID         string
+	ProjectID     string
 	SessionID     string
 	CorrelationID string
 }

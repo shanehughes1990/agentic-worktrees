@@ -3,6 +3,7 @@ package asynq
 import (
 	"agentic-orchestrator/internal/application/taskengine"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -110,4 +111,102 @@ func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, t
 		}
 	}
 	return nil
+}
+
+func (platform *Platform) DeleteProjectTasks(ctx context.Context, projectID string) error {
+	_ = ctx
+	if platform == nil {
+		return fmt.Errorf("task engine platform is not initialized")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return fmt.Errorf("project_id is required")
+	}
+	inspector := asynq.NewInspector(asynq.RedisClientOpt{
+		Addr:     platform.config.RedisAddress,
+		Password: platform.config.RedisPassword,
+		DB:       platform.config.RedisDatabase,
+	})
+	defer inspector.Close()
+
+	queues, err := inspector.Queues()
+	if err != nil {
+		return fmt.Errorf("list queues: %w", err)
+	}
+	for _, queue := range queues {
+		if err := deleteProjectTasksInQueue(inspector, strings.TrimSpace(queue), projectID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteProjectTasksInQueue(inspector *asynq.Inspector, queue string, projectID string) error {
+	if queue == "" {
+		return nil
+	}
+	if err := deleteProjectTasksByState(inspector, queue, projectID, func(page int) ([]*asynq.TaskInfo, error) {
+		return inspector.ListPendingTasks(queue, asynq.PageSize(200), asynq.Page(page))
+	}); err != nil {
+		return fmt.Errorf("delete project tasks from pending queue %q: %w", queue, err)
+	}
+	if err := deleteProjectTasksByState(inspector, queue, projectID, func(page int) ([]*asynq.TaskInfo, error) {
+		return inspector.ListScheduledTasks(queue, asynq.PageSize(200), asynq.Page(page))
+	}); err != nil {
+		return fmt.Errorf("delete project tasks from scheduled queue %q: %w", queue, err)
+	}
+	if err := deleteProjectTasksByState(inspector, queue, projectID, func(page int) ([]*asynq.TaskInfo, error) {
+		return inspector.ListRetryTasks(queue, asynq.PageSize(200), asynq.Page(page))
+	}); err != nil {
+		return fmt.Errorf("delete project tasks from retry queue %q: %w", queue, err)
+	}
+	if err := deleteProjectTasksByState(inspector, queue, projectID, func(page int) ([]*asynq.TaskInfo, error) {
+		return inspector.ListArchivedTasks(queue, asynq.PageSize(200), asynq.Page(page))
+	}); err != nil {
+		return fmt.Errorf("delete project tasks from archived queue %q: %w", queue, err)
+	}
+	if err := deleteProjectTasksByState(inspector, queue, projectID, func(page int) ([]*asynq.TaskInfo, error) {
+		return inspector.ListCompletedTasks(queue, asynq.PageSize(200), asynq.Page(page))
+	}); err != nil {
+		return fmt.Errorf("delete project tasks from completed queue %q: %w", queue, err)
+	}
+	if err := deleteProjectTasksByState(inspector, queue, projectID, func(page int) ([]*asynq.TaskInfo, error) {
+		return inspector.ListActiveTasks(queue, asynq.PageSize(200), asynq.Page(page))
+	}); err != nil {
+		return fmt.Errorf("delete project tasks from active queue %q: %w", queue, err)
+	}
+	return nil
+}
+
+func deleteProjectTasksByState(inspector *asynq.Inspector, queue string, projectID string, listPage func(page int) ([]*asynq.TaskInfo, error)) error {
+	for page := 0; ; page++ {
+		tasks, err := listPage(page)
+		if err != nil {
+			return err
+		}
+		if len(tasks) == 0 {
+			return nil
+		}
+		for _, task := range tasks {
+			if !matchesProjectID(task, projectID) {
+				continue
+			}
+			_ = inspector.CancelProcessing(task.ID)
+			_ = inspector.DeleteTask(queue, task.ID)
+		}
+	}
+}
+
+func matchesProjectID(task *asynq.TaskInfo, projectID string) bool {
+	if task == nil {
+		return false
+	}
+	type projectScopedPayload struct {
+		ProjectID string `json:"project_id"`
+	}
+	var payload projectScopedPayload
+	if err := json.Unmarshal(task.Payload, &payload); err == nil {
+		return strings.TrimSpace(payload.ProjectID) == projectID
+	}
+	return strings.Contains(string(task.Payload), fmt.Sprintf("\"project_id\":\"%s\"", projectID))
 }

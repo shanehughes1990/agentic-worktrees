@@ -176,6 +176,7 @@ func mapSupervisorDecision(decision domainsupervisor.Decision) *models.Superviso
 		RunID:         decision.CorrelationIDs.RunID,
 		TaskID:        decision.CorrelationIDs.TaskID,
 		JobID:         decision.CorrelationIDs.JobID,
+		ProjectID:     decision.CorrelationIDs.ProjectID,
 		SignalType:    toSupervisorSignalType(decision.SignalType),
 		FromState:     toSupervisorState(decision.FromState),
 		ToState:       toSupervisorState(decision.ToState),
@@ -196,7 +197,7 @@ func loadSupervisorHistoryResult(ctx context.Context, supervisorService *applica
 	if supervisorService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "supervisor service is not configured"}
 	}
-	history, err := supervisorService.History(ctx, domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID})
+	history, err := supervisorService.History(ctx, domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: derefString(correlation.ProjectID)})
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("load supervisor history: %w", err))
 	}

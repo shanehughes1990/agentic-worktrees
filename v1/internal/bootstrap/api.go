@@ -8,6 +8,7 @@ import (
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
+	infracontrolplane "agentic-orchestrator/internal/infrastructure/controlplane"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
 	"agentic-orchestrator/internal/infrastructure/observability"
@@ -111,6 +112,15 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
+	projectArtifactCleaner, err := infracontrolplane.NewProjectArtifactCleaner(infracontrolplane.ProjectArtifactCleanerConfig{
+		RepositorySourcePath: config.RepositorySourcePath(),
+		WorktreesPath:        config.WorktreesPath(),
+		TrackerPath:          config.TrackerPath(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init project artifact cleaner: %w", err)
+	}
+	controlPlaneService.SetProjectCleanupManager(projectArtifactCleaner)
 	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init worker registry: %w", err)

@@ -18,6 +18,7 @@ type streamEventRecord struct {
 	RunID         string    `gorm:"column:run_id;size:255;index:idx_stream_corr,priority:1"`
 	TaskID        string    `gorm:"column:task_id;size:255;index:idx_stream_corr,priority:2"`
 	JobID         string    `gorm:"column:job_id;size:255;index:idx_stream_corr,priority:3"`
+	ProjectID     string    `gorm:"column:project_id;size:255;index:idx_stream_corr,priority:4"`
 	SessionID     string    `gorm:"column:session_id;size:255;index:idx_stream_session"`
 	CorrelationID string    `gorm:"column:correlation_id;size:255;not null;index:idx_stream_corr_id"`
 	Source        string    `gorm:"column:source;size:64;not null"`
@@ -61,6 +62,7 @@ func (store *EventStore) Append(ctx context.Context, event domainstream.Event) (
 		RunID:         strings.TrimSpace(event.CorrelationIDs.RunID),
 		TaskID:        strings.TrimSpace(event.CorrelationIDs.TaskID),
 		JobID:         strings.TrimSpace(event.CorrelationIDs.JobID),
+		ProjectID:     strings.TrimSpace(event.CorrelationIDs.ProjectID),
 		SessionID:     strings.TrimSpace(event.CorrelationIDs.SessionID),
 		CorrelationID: strings.TrimSpace(event.CorrelationIDs.CorrelationID),
 		Source:        strings.TrimSpace(string(event.Source)),
@@ -106,6 +108,7 @@ func (store *EventStore) ListFromOffset(ctx context.Context, offset uint64, limi
 				RunID:         record.RunID,
 				TaskID:        record.TaskID,
 				JobID:         record.JobID,
+				ProjectID:     record.ProjectID,
 				SessionID:     record.SessionID,
 				CorrelationID: record.CorrelationID,
 			},

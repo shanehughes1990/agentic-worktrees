@@ -103,6 +103,24 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 	return stored, nil
 }
 
+func (repository *ProjectSetupRepository) DeleteProjectSetup(ctx context.Context, projectID string) error {
+	if repository == nil || repository.db == nil {
+		return fmt.Errorf("project setup repository is not initialized")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return fmt.Errorf("project_id is required")
+	}
+	result := repository.db.WithContext(ctx).Where("project_id = ?", projectID).Delete(&projectSetupRecord{})
+	if result.Error != nil {
+		return fmt.Errorf("delete project setup: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("project setup not found")
+	}
+	return nil
+}
+
 func mapProjectSetupRecord(record projectSetupRecord) applicationcontrolplane.ProjectSetup {
 	return applicationcontrolplane.ProjectSetup{
 		ProjectID:       record.ProjectID,

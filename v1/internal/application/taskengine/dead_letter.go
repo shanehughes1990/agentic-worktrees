@@ -76,4 +76,5 @@ type DeadLetterAudit interface {
 type DeadLetterManager interface {
 	ListDeadLetters(ctx context.Context, queue string, limit int) ([]DeadLetterTask, error)
 	RequeueDeadLetter(ctx context.Context, queue string, taskID string) error
+	DeleteProjectTasks(ctx context.Context, projectID string) error
 }

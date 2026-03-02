@@ -49,6 +49,7 @@ input EnqueueSCMWorkflowInput {
   runID: String!
   taskID: String!
   jobID: String!
+  projectID: String!
   idempotencyKey: String!
   worktreePath: String
   baseBranch: String

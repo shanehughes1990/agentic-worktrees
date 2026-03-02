@@ -90,7 +90,7 @@ func (service *Service) OnAdmitted(ctx context.Context, record taskengine.Admiss
 func (service *Service) OnAdmission(ctx context.Context, record taskengine.AdmissionRecord) (domainsupervisor.Decision, error) {
 	signal := domainsupervisor.Signal{
 		Type:           domainsupervisor.SignalJobAdmitted,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: record.RunID, TaskID: record.TaskID, JobID: record.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: record.RunID, TaskID: record.TaskID, JobID: record.JobID, ProjectID: record.ProjectID},
 		JobKind:        string(record.JobKind),
 		IdempotencyKey: record.IdempotencyKey,
 		OccurredAt:     record.EnqueuedAt,
@@ -114,7 +114,7 @@ func (service *Service) OnExecution(ctx context.Context, record taskengine.Execu
 	}
 	signal := domainsupervisor.Signal{
 		Type:           signalType,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: record.RunID, TaskID: record.TaskID, JobID: record.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: record.RunID, TaskID: record.TaskID, JobID: record.JobID, ProjectID: record.ProjectID},
 		JobKind:        string(record.JobKind),
 		IdempotencyKey: record.IdempotencyKey,
 		Attempt:        attempt,
@@ -135,7 +135,7 @@ func (service *Service) OnExecution(ctx context.Context, record taskengine.Execu
 func (service *Service) OnCheckpointSaved(ctx context.Context, correlation taskengine.CorrelationIDs, jobKind taskengine.JobKind, idempotencyKey string, step string) (domainsupervisor.Decision, error) {
 	signal := domainsupervisor.Signal{
 		Type:           domainsupervisor.SignalCheckpointSaved,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID},
 		JobKind:        string(jobKind),
 		IdempotencyKey: idempotencyKey,
 		OccurredAt:     time.Now().UTC(),
@@ -149,7 +149,7 @@ func (service *Service) OnCheckpointSaved(ctx context.Context, correlation taske
 func (service *Service) OnTrackerAttention(ctx context.Context, correlation taskengine.CorrelationIDs, reason string) (domainsupervisor.Decision, error) {
 	signal := domainsupervisor.Signal{
 		Type:           domainsupervisor.SignalTrackerAttentionNeeded,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID},
 		AttentionZone:  domainsupervisor.AttentionZoneTracker,
 		OccurredAt:     time.Now().UTC(),
 		Metadata:       map[string]string{"reason": reason},
@@ -160,7 +160,7 @@ func (service *Service) OnTrackerAttention(ctx context.Context, correlation task
 func (service *Service) OnIssueOpened(ctx context.Context, correlation taskengine.CorrelationIDs, source string, issueReference string) (domainsupervisor.Decision, error) {
 	signal := domainsupervisor.Signal{
 		Type:           domainsupervisor.SignalIssueOpened,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID},
 		AttentionZone:  domainsupervisor.AttentionZoneTracker,
 		OccurredAt:     time.Now().UTC(),
 		Metadata: map[string]string{
@@ -174,7 +174,7 @@ func (service *Service) OnIssueOpened(ctx context.Context, correlation taskengin
 func (service *Service) OnIssueApproved(ctx context.Context, correlation taskengine.CorrelationIDs, source string, issueReference string, approvedBy string) (domainsupervisor.Decision, error) {
 	signal := domainsupervisor.Signal{
 		Type:           domainsupervisor.SignalIssueApproved,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID},
 		AttentionZone:  domainsupervisor.AttentionZoneTracker,
 		OccurredAt:     time.Now().UTC(),
 		Metadata: map[string]string{
@@ -193,7 +193,7 @@ func (service *Service) OnPRChecksEvaluated(ctx context.Context, correlation tas
 	}
 	signal := domainsupervisor.Signal{
 		Type:           signalType,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID},
 		AttentionZone:  domainsupervisor.AttentionZoneSCM,
 		OccurredAt:     time.Now().UTC(),
 		Metadata: map[string]string{
@@ -210,7 +210,7 @@ func (service *Service) OnPRChecksEvaluated(ctx context.Context, correlation tas
 func (service *Service) OnPRMergeRequested(ctx context.Context, correlation taskengine.CorrelationIDs, provider string, owner string, repository string, pullRequestNumber int, mergeMethod string) (domainsupervisor.Decision, error) {
 	signal := domainsupervisor.Signal{
 		Type:           domainsupervisor.SignalPRMergeRequested,
-		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID},
+		CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID},
 		AttentionZone:  domainsupervisor.AttentionZoneSCM,
 		OccurredAt:     time.Now().UTC(),
 		Metadata: map[string]string{

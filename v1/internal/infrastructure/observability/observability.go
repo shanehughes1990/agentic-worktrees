@@ -40,9 +40,10 @@ type Config struct {
 //
 // This structure is intentionally a living expansion point and may evolve.
 type CorrelationIDs struct {
-	RunID  string
-	TaskID string
-	JobID  string
+	RunID     string
+	TaskID    string
+	JobID     string
+	ProjectID string
 }
 
 // Platform is the exposed observability runtime surface.

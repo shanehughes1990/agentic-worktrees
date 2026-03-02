@@ -21,8 +21,9 @@ func (engine *controlPlaneFakeEngine) Enqueue(ctx context.Context, request taske
 }
 
 type controlPlaneFakeDeadLetterManager struct {
-	queue  string
-	taskID string
+	queue     string
+	taskID    string
+	projectID string
 }
 
 func (manager *controlPlaneFakeDeadLetterManager) ListDeadLetters(ctx context.Context, queue string, limit int) ([]taskengine.DeadLetterTask, error) {
@@ -36,6 +37,12 @@ func (manager *controlPlaneFakeDeadLetterManager) RequeueDeadLetter(ctx context.
 	_ = ctx
 	manager.queue = queue
 	manager.taskID = taskID
+	return nil
+}
+
+func (manager *controlPlaneFakeDeadLetterManager) DeleteProjectTasks(ctx context.Context, projectID string) error {
+	_ = ctx
+	manager.projectID = projectID
 	return nil
 }
 
@@ -118,6 +125,14 @@ func (repository *controlPlaneFakeProjectRepository) UpsertProjectSetup(ctx cont
 	setup.CreatedAt = time.Unix(1700000000, 0).UTC()
 	setup.UpdatedAt = time.Unix(1700000000, 0).UTC()
 	return &setup, nil
+}
+
+func (repository *controlPlaneFakeProjectRepository) DeleteProjectSetup(ctx context.Context, projectID string) error {
+	_ = ctx
+	if projectID != "project-1" {
+		return context.Canceled
+	}
+	return nil
 }
 
 type supervisorMemoryEventStoreForControlPlane struct {
@@ -240,6 +255,14 @@ func TestControlPlaneMutationsReturnTypedUnionSuccess(t *testing.T) {
 	}
 	if _, ok := approvalResult.(models.ApproveIssueIntakeSuccess); !ok {
 		t.Fatalf("expected ApproveIssueIntakeSuccess, got %T", approvalResult)
+	}
+
+	deleteResult, deleteErr := (&mutationResolver{resolver}).DeleteProjectSetup(context.Background(), models.DeleteProjectSetupInput{ProjectID: "project-1"})
+	if deleteErr != nil {
+		t.Fatalf("DeleteProjectSetup() error = %v", deleteErr)
+	}
+	if _, ok := deleteResult.(models.DeleteProjectSetupSuccess); !ok {
+		t.Fatalf("expected DeleteProjectSetupSuccess, got %T", deleteResult)
 	}
 }
 

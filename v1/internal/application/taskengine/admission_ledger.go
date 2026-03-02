@@ -17,6 +17,7 @@ type AdmissionRecord struct {
 	RunID          string
 	TaskID         string
 	JobID          string
+	ProjectID      string
 	JobKind        JobKind
 	IdempotencyKey string
 	QueueTaskID    string

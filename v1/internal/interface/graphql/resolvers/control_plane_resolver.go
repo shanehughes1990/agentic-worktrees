@@ -54,6 +54,7 @@ func (r *mutationResolver) ApproveIssueIntake(ctx context.Context, input models.
 		RunID:          input.RunID,
 		TaskID:         input.TaskID,
 		JobID:          input.JobID,
+		ProjectID:      input.ProjectID,
 		Source:         input.Source,
 		IssueReference: input.IssueReference,
 		ApprovedBy:     input.ApprovedBy,
@@ -97,6 +98,17 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 		return graphErrorFromError(mapErr), nil
 	}
 	return models.UpsertProjectSetupSuccess{Project: mapped}, nil
+}
+
+// DeleteProjectSetup is the resolver for the deleteProjectSetup field.
+func (r *mutationResolver) DeleteProjectSetup(ctx context.Context, input models.DeleteProjectSetupInput) (models.DeleteProjectSetupResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	if err := r.Resolver.ControlPlaneService.DeleteProjectSetup(ctx, input.ProjectID); err != nil {
+		return graphErrorFromError(fmt.Errorf("delete project setup: %w", err)), nil
+	}
+	return models.DeleteProjectSetupSuccess{Ok: true}, nil
 }
 
 // UpdateWorkerSettings is the resolver for the updateWorkerSettings field.
@@ -169,6 +181,7 @@ func (r *queryResolver) WorkflowJobs(ctx context.Context, runID string, taskID *
 			RunID:          item.RunID,
 			TaskID:         item.TaskID,
 			JobID:          item.JobID,
+			ProjectID:      item.ProjectID,
 			JobKind:        mappedJobKind,
 			IdempotencyKey: item.IdempotencyKey,
 			QueueTaskID:    item.QueueTaskID,
@@ -187,7 +200,7 @@ func (r *queryResolver) ExecutionHistory(ctx context.Context, correlation models
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
 	}
-	history, err := r.Resolver.ControlPlaneService.ExecutionHistory(ctx, applicationcontrolplane.CorrelationFilter{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID}, int32ToInt(limit))
+	history, err := r.Resolver.ControlPlaneService.ExecutionHistory(ctx, applicationcontrolplane.CorrelationFilter{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: derefString(correlation.ProjectID)}, int32ToInt(limit))
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("load execution history: %w", err)), nil
 	}
@@ -201,6 +214,7 @@ func (r *queryResolver) ExecutionHistory(ctx context.Context, correlation models
 			RunID:          item.RunID,
 			TaskID:         item.TaskID,
 			JobID:          item.JobID,
+			ProjectID:      item.ProjectID,
 			JobKind:        mappedJobKind,
 			IdempotencyKey: item.IdempotencyKey,
 			Step:           item.Step,

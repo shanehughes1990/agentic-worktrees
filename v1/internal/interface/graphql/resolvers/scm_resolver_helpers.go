@@ -16,6 +16,7 @@ type scmWorkflowPayload struct {
 	RunID            string `json:"run_id"`
 	TaskID           string `json:"task_id"`
 	JobID            string `json:"job_id"`
+	ProjectID        string `json:"project_id"`
 	IdempotencyKey   string `json:"idempotency_key"`
 	WorktreePath     string `json:"worktree_path,omitempty"`
 	BaseBranch       string `json:"base_branch,omitempty"`
@@ -129,6 +130,7 @@ func enqueueSCMWorkflow(ctx context.Context, resolver *Resolver, input models.En
 		RunID:          input.RunID,
 		TaskID:         input.TaskID,
 		JobID:          input.JobID,
+		ProjectID:      input.ProjectID,
 		IdempotencyKey: input.IdempotencyKey,
 	}
 	if input.WorktreePath != nil {
@@ -176,7 +178,7 @@ func enqueueSCMWorkflow(ctx context.Context, resolver *Resolver, input models.En
 		Kind:           taskengine.JobKindSCMWorkflow,
 		Payload:        encodedPayload,
 		IdempotencyKey: input.IdempotencyKey,
-		CorrelationIDs: taskengine.CorrelationIDs{RunID: input.RunID, TaskID: input.TaskID, JobID: input.JobID},
+		CorrelationIDs: taskengine.CorrelationIDs{RunID: input.RunID, TaskID: input.TaskID, JobID: input.JobID, ProjectID: input.ProjectID},
 	})
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("enqueue scm workflow: %w", err)), nil

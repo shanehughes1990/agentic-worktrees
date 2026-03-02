@@ -18,6 +18,10 @@ type DeadLetterHistoryResult interface {
 	IsDeadLetterHistoryResult()
 }
 
+type DeleteProjectSetupResult interface {
+	IsDeleteProjectSetupResult()
+}
+
 type EnqueueIngestionWorkflowResult interface {
 	IsEnqueueIngestionWorkflowResult()
 }
@@ -82,6 +86,7 @@ type ApproveIssueIntakeInput struct {
 	RunID          string `json:"runID"`
 	TaskID         string `json:"taskID"`
 	JobID          string `json:"jobID"`
+	ProjectID      string `json:"projectID"`
 	Source         string `json:"source"`
 	IssueReference string `json:"issueReference"`
 	ApprovedBy     string `json:"approvedBy"`
@@ -110,6 +115,16 @@ type DeadLetterHistorySuccess struct {
 
 func (DeadLetterHistorySuccess) IsDeadLetterHistoryResult() {}
 
+type DeleteProjectSetupInput struct {
+	ProjectID string `json:"projectID"`
+}
+
+type DeleteProjectSetupSuccess struct {
+	Ok bool `json:"ok"`
+}
+
+func (DeleteProjectSetupSuccess) IsDeleteProjectSetupResult() {}
+
 type EnqueueIngestionWorkflowInput struct {
 	RunID          string                     `json:"runID"`
 	TaskID         string                     `json:"taskID"`
@@ -136,6 +151,7 @@ type EnqueueSCMWorkflowInput struct {
 	RunID             string             `json:"runID"`
 	TaskID            string             `json:"taskID"`
 	JobID             string             `json:"jobID"`
+	ProjectID         string             `json:"projectID"`
 	IdempotencyKey    string             `json:"idempotencyKey"`
 	WorktreePath      *string            `json:"worktreePath,omitempty"`
 	BaseBranch        *string            `json:"baseBranch,omitempty"`
@@ -159,6 +175,7 @@ type ExecutionHistoryRecord struct {
 	RunID          string    `json:"runID"`
 	TaskID         string    `json:"taskID"`
 	JobID          string    `json:"jobID"`
+	ProjectID      string    `json:"projectID"`
 	JobKind        JobKind   `json:"jobKind"`
 	IdempotencyKey string    `json:"idempotencyKey"`
 	Step           string    `json:"step"`
@@ -200,6 +217,8 @@ func (GraphError) IsProjectSetupsResult() {}
 func (GraphError) IsProjectSetupResult() {}
 
 func (GraphError) IsUpsertProjectSetupResult() {}
+
+func (GraphError) IsDeleteProjectSetupResult() {}
 
 func (GraphError) IsStreamEventResult() {}
 
@@ -292,6 +311,7 @@ type StreamEvent struct {
 	RunID         *string           `json:"runID,omitempty"`
 	TaskID        *string           `json:"taskID,omitempty"`
 	JobID         *string           `json:"jobID,omitempty"`
+	ProjectID     *string           `json:"projectID,omitempty"`
 	SessionID     *string           `json:"sessionID,omitempty"`
 	CorrelationID string            `json:"correlationID"`
 	Source        StreamEventSource `json:"source"`
@@ -309,15 +329,17 @@ type Subscription struct {
 }
 
 type SupervisorCorrelationInput struct {
-	RunID  string `json:"runID"`
-	TaskID string `json:"taskID"`
-	JobID  string `json:"jobID"`
+	RunID     string  `json:"runID"`
+	TaskID    string  `json:"taskID"`
+	JobID     string  `json:"jobID"`
+	ProjectID *string `json:"projectID,omitempty"`
 }
 
 type SupervisorDecision struct {
 	RunID         string                             `json:"runID"`
 	TaskID        string                             `json:"taskID"`
 	JobID         string                             `json:"jobID"`
+	ProjectID     string                             `json:"projectID"`
 	SignalType    SupervisorSignalType               `json:"signalType"`
 	FromState     SupervisorState                    `json:"fromState"`
 	ToState       SupervisorState                    `json:"toState"`
@@ -406,6 +428,7 @@ type WorkflowJob struct {
 	RunID          string    `json:"runID"`
 	TaskID         string    `json:"taskID"`
 	JobID          string    `json:"jobID"`
+	ProjectID      string    `json:"projectID"`
 	JobKind        JobKind   `json:"jobKind"`
 	IdempotencyKey string    `json:"idempotencyKey"`
 	QueueTaskID    string    `json:"queueTaskID"`

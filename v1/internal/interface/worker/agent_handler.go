@@ -21,6 +21,7 @@ type AgentWorkflowPayload struct {
 	RunID                 string                 `json:"run_id"`
 	TaskID                string                 `json:"task_id"`
 	JobID                 string                 `json:"job_id"`
+	ProjectID             string                 `json:"project_id"`
 	IdempotencyKey        string                 `json:"idempotency_key"`
 	ResumeCheckpoint      *taskengine.Checkpoint `json:"resume_checkpoint,omitempty"`
 	ResumeCheckpointStep  string                 `json:"resume_checkpoint_step,omitempty"`
@@ -81,9 +82,10 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 		Prompt: payload.Prompt,
 		Metadata: domainagent.Metadata{
 			CorrelationIDs: domainagent.CorrelationIDs{
-				RunID:  payload.RunID,
-				TaskID: payload.TaskID,
-				JobID:  payload.JobID,
+				RunID:     payload.RunID,
+				TaskID:    payload.TaskID,
+				JobID:     payload.JobID,
+				ProjectID: payload.ProjectID,
 			},
 			IdempotencyKey: idempotencyKey,
 		},
@@ -144,6 +146,7 @@ func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, reques
 		RunID:          request.Metadata.CorrelationIDs.RunID,
 		TaskID:         request.Metadata.CorrelationIDs.TaskID,
 		JobID:          request.Metadata.CorrelationIDs.JobID,
+		ProjectID:      request.Metadata.CorrelationIDs.ProjectID,
 		JobKind:        kind,
 		IdempotencyKey: request.Metadata.IdempotencyKey,
 		Step:           step,
@@ -171,5 +174,5 @@ func (handler *AgentWorkflowHandler) safeSupervisorCheckpoint(ctx context.Contex
 	if handler == nil || handler.supervisorService == nil {
 		return
 	}
-	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, taskengine.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID}, kind, idempotencyKey, step)
+	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, taskengine.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID}, kind, idempotencyKey, step)
 }

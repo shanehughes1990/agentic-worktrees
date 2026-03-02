@@ -16,6 +16,7 @@ type executionRecord struct {
 	RunID          string `gorm:"column:run_id;size:255;not null;uniqueIndex:idx_job_execution_identity,priority:1"`
 	TaskID         string `gorm:"column:task_id;size:255;not null;uniqueIndex:idx_job_execution_identity,priority:2"`
 	JobID          string `gorm:"column:job_id;size:255;not null;uniqueIndex:idx_job_execution_identity,priority:3"`
+	ProjectID      string `gorm:"column:project_id;size:255;index"`
 	JobKind        string `gorm:"column:job_kind;not null"`
 	IdempotencyKey string `gorm:"column:idempotency_key;not null"`
 	Step           string `gorm:"column:step;not null"`
@@ -52,6 +53,7 @@ func (journal *PostgresExecutionJournal) Upsert(ctx context.Context, record task
 		RunID:          strings.TrimSpace(record.RunID),
 		TaskID:         strings.TrimSpace(record.TaskID),
 		JobID:          strings.TrimSpace(record.JobID),
+		ProjectID:      strings.TrimSpace(record.ProjectID),
 		JobKind:        strings.TrimSpace(string(record.JobKind)),
 		IdempotencyKey: strings.TrimSpace(record.IdempotencyKey),
 		Step:           strings.TrimSpace(record.Step),
@@ -60,7 +62,7 @@ func (journal *PostgresExecutionJournal) Upsert(ctx context.Context, record task
 	}
 	if err := journal.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "run_id"}, {Name: "task_id"}, {Name: "job_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"job_kind", "idempotency_key", "step", "status", "error_message", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"project_id", "job_kind", "idempotency_key", "step", "status", "error_message", "updated_at"}),
 	}).Create(&model).Error; err != nil {
 		return fmt.Errorf("postgres execution journal: upsert: %w", err)
 	}
@@ -89,6 +91,7 @@ func (journal *PostgresExecutionJournal) Load(ctx context.Context, runID string,
 		RunID:          model.RunID,
 		TaskID:         model.TaskID,
 		JobID:          model.JobID,
+		ProjectID:      model.ProjectID,
 		JobKind:        taskengine.JobKind(model.JobKind),
 		IdempotencyKey: model.IdempotencyKey,
 		Step:           model.Step,

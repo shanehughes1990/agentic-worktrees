@@ -18,6 +18,7 @@ type supervisorEventRecord struct {
 	RunID         string    `gorm:"column:run_id;size:255;not null;index:idx_supervisor_corr,priority:1"`
 	TaskID        string    `gorm:"column:task_id;size:255;not null;index:idx_supervisor_corr,priority:2"`
 	JobID         string    `gorm:"column:job_id;size:255;not null;index:idx_supervisor_corr,priority:3"`
+	ProjectID     string    `gorm:"column:project_id;size:255;index:idx_supervisor_corr,priority:4"`
 	SignalType    string    `gorm:"column:signal_type;size:128;not null"`
 	FromState     string    `gorm:"column:from_state;size:64;not null"`
 	ToState       string    `gorm:"column:to_state;size:64;not null"`
@@ -67,6 +68,7 @@ func (store *EventStore) Append(ctx context.Context, decision domainsupervisor.D
 		RunID:         strings.TrimSpace(decision.CorrelationIDs.RunID),
 		TaskID:        strings.TrimSpace(decision.CorrelationIDs.TaskID),
 		JobID:         strings.TrimSpace(decision.CorrelationIDs.JobID),
+		ProjectID:     strings.TrimSpace(decision.CorrelationIDs.ProjectID),
 		SignalType:    strings.TrimSpace(string(decision.SignalType)),
 		FromState:     strings.TrimSpace(string(decision.FromState)),
 		ToState:       strings.TrimSpace(string(decision.ToState)),
@@ -95,9 +97,13 @@ func (store *EventStore) ListByCorrelation(ctx context.Context, correlation doma
 		return nil, err
 	}
 	var records []supervisorEventRecord
-	if err := store.db.WithContext(ctx).
+	query := store.db.WithContext(ctx).
 		Order("id ASC").
-		Find(&records, "run_id = ? AND task_id = ? AND job_id = ?", strings.TrimSpace(correlation.RunID), strings.TrimSpace(correlation.TaskID), strings.TrimSpace(correlation.JobID)).Error; err != nil {
+		Where("run_id = ? AND task_id = ? AND job_id = ?", strings.TrimSpace(correlation.RunID), strings.TrimSpace(correlation.TaskID), strings.TrimSpace(correlation.JobID))
+	if strings.TrimSpace(correlation.ProjectID) != "" {
+		query = query.Where("project_id = ?", strings.TrimSpace(correlation.ProjectID))
+	}
+	if err := query.Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("supervisor event store: list by correlation: %w", err)
 	}
 	decisions := make([]domainsupervisor.Decision, 0, len(records))
@@ -109,7 +115,7 @@ func (store *EventStore) ListByCorrelation(ctx context.Context, correlation doma
 			}
 		}
 		decision := domainsupervisor.Decision{
-			CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: record.RunID, TaskID: record.TaskID, JobID: record.JobID},
+			CorrelationIDs: domainsupervisor.CorrelationIDs{RunID: record.RunID, TaskID: record.TaskID, JobID: record.JobID, ProjectID: record.ProjectID},
 			SignalType:      domainsupervisor.SignalType(record.SignalType),
 			FromState:       domainsupervisor.State(record.FromState),
 			ToState:         domainsupervisor.State(record.ToState),

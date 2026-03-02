@@ -78,6 +78,9 @@ func matchesCorrelation(event domainstream.Event, correlation models.SupervisorC
 	if strings.TrimSpace(correlation.JobID) != "" && strings.TrimSpace(event.CorrelationIDs.JobID) != strings.TrimSpace(correlation.JobID) {
 		return false
 	}
+	if strings.TrimSpace(derefString(correlation.ProjectID)) != "" && strings.TrimSpace(event.CorrelationIDs.ProjectID) != strings.TrimSpace(derefString(correlation.ProjectID)) {
+		return false
+	}
 	return true
 }
 
@@ -93,6 +96,7 @@ func mapStreamEvent(event domainstream.Event) *models.StreamEvent {
 		RunID:         nilIfEmpty(event.CorrelationIDs.RunID),
 		TaskID:        nilIfEmpty(event.CorrelationIDs.TaskID),
 		JobID:         nilIfEmpty(event.CorrelationIDs.JobID),
+		ProjectID:     nilIfEmpty(event.CorrelationIDs.ProjectID),
 		SessionID:     nilIfEmpty(event.CorrelationIDs.SessionID),
 		CorrelationID: strings.TrimSpace(event.CorrelationIDs.CorrelationID),
 		Source:        toGraphStreamEventSource(event.Source),

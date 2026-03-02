@@ -5,6 +5,7 @@ go 1.25.3
 require (
 	github.com/99designs/gqlgen v0.17.87
 	github.com/go-playground/validator/v10 v10.30.1
+	github.com/gorilla/websocket v1.5.0
 	github.com/hellofresh/health-go/v5 v5.5.5
 	github.com/hibiken/asynq v0.25.1
 	github.com/jackc/pgx/v5 v5.6.0
@@ -54,7 +55,6 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

@@ -119,6 +119,7 @@ func (repository *ControlPlaneQueryRepository) ListWorkflowJobs(ctx context.Cont
 			RunID:          record.RunID,
 			TaskID:         record.TaskID,
 			JobID:          record.JobID,
+			ProjectID:      record.ProjectID,
 			JobKind:        taskengine.JobKind(record.JobKind),
 			IdempotencyKey: record.IdempotencyKey,
 			QueueTaskID:    record.QueueTaskID,
@@ -143,6 +144,9 @@ func (repository *ControlPlaneQueryRepository) ListExecutionHistory(ctx context.
 	if strings.TrimSpace(filter.JobID) != "" {
 		query = query.Where("job_id = ?", strings.TrimSpace(filter.JobID))
 	}
+	if strings.TrimSpace(filter.ProjectID) != "" {
+		query = query.Where("project_id = ?", strings.TrimSpace(filter.ProjectID))
+	}
 	records := make([]executionRecord, 0)
 	if err := query.Order("updated_at DESC").Limit(limit).Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("list execution history: %w", err)
@@ -153,6 +157,7 @@ func (repository *ControlPlaneQueryRepository) ListExecutionHistory(ctx context.
 			RunID:          record.RunID,
 			TaskID:         record.TaskID,
 			JobID:          record.JobID,
+			ProjectID:      record.ProjectID,
 			JobKind:        taskengine.JobKind(record.JobKind),
 			IdempotencyKey: record.IdempotencyKey,
 			Step:           record.Step,
