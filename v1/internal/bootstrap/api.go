@@ -32,6 +32,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gorilla/websocket"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -46,6 +47,7 @@ type APIApp struct {
 	streamService         *applicationstream.Service
 	sessionStateReader    *infraagent.SessionStateReader
 	acpClient             *infraagent.ACPClient
+	workerService         *applicationworker.Service
 	workerCoordinator     *applicationworker.Coordinator
 }
 
@@ -143,6 +145,7 @@ func InitAPI() (*APIApp, error) {
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
 	server.AddTransport(transport.POST{})
+	server.AddTransport(transport.Websocket{Upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}})
 	server.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	server.Use(extension.Introspection{})
 	server.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
@@ -165,6 +168,7 @@ func InitAPI() (*APIApp, error) {
 		streamService:         streamService,
 		sessionStateReader:    sessionStateReader,
 		acpClient:             acpClient,
+		workerService:         workerService,
 		workerCoordinator:     workerCoordinator,
 	}, nil
 }
@@ -205,6 +209,7 @@ func (app *APIApp) Run() error {
 					return
 				case <-ticker.C:
 					_ = app.workerCoordinator.ProbeAndEscalate(context.Background())
+					_ = app.publishWorkerSummaryEvent(context.Background())
 				}
 			}
 		}()
@@ -276,4 +281,39 @@ func (app *APIApp) Run() error {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
 	return shutdownErr
+}
+
+func (app *APIApp) publishWorkerSummaryEvent(ctx context.Context) error {
+	if app == nil || app.workerService == nil || app.streamService == nil {
+		return nil
+	}
+	workers, err := app.workerService.ListWorkers(ctx, 500)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	healthyWorkers := 0
+	for _, worker := range workers {
+		if strings.EqualFold(string(worker.State), "healthy") && worker.LeaseExpiresAt.After(now) {
+			healthyWorkers++
+		}
+	}
+	_, err = app.streamService.AppendAndPublish(ctx, domainstream.Event{
+		EventID:    fmt.Sprintf("worker-summary-%d", now.UnixNano()),
+		OccurredAt: now,
+		Source:     domainstream.SourceWorker,
+		EventType:  domainstream.EventWorkerHeartbeat,
+		CorrelationIDs: domainstream.CorrelationIDs{
+			RunID:         "worker",
+			TaskID:        "summary",
+			JobID:         "tick",
+			CorrelationID: "worker-summary",
+		},
+		Payload: map[string]any{
+			"total_workers":   len(workers),
+			"healthy_workers": healthyWorkers,
+			"observed_at":     now.Format(time.RFC3339Nano),
+		},
+	})
+	return err
 }

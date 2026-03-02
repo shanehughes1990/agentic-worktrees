@@ -83,6 +83,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   List<ProjectSetupConfig> _projectSetups = const <ProjectSetupConfig>[];
   final List<StreamEvent> _streamEvents = <StreamEvent>[];
   StreamSubscription<ApiResult<StreamEvent>>? _streamSubscription;
+  StreamSubscription<ApiResult<StreamEvent>>? _workerSessionSubscription;
+  String _workerSessionSubscriptionEndpoint = '';
+  String _apiEndpoint = '';
+  ControlPlaneApi? _api;
 
   @override
   void initState() {
@@ -150,7 +154,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _scmOwnerController.dispose();
     _scmRepoController.dispose();
     _streamSubscription?.cancel();
+    _workerSessionSubscription?.cancel();
     super.dispose();
+  }
+
+  void _ensureWorkerSessionSubscription(String endpoint) {
+    final trimmedEndpoint = endpoint.trim();
+    if (trimmedEndpoint.isEmpty ||
+        trimmedEndpoint == _workerSessionSubscriptionEndpoint) {
+      return;
+    }
+    _workerSessionSubscription?.cancel();
+    _workerSessionSubscription =
+        ControlPlaneApi(
+          buildGraphqlClient(trimmedEndpoint),
+        ).workerSessionStream().listen((ApiResult<StreamEvent> eventResult) {
+          if (!mounted || !eventResult.isSuccess) {
+            return;
+          }
+          setState(() => _refreshToken++);
+        });
+    _workerSessionSubscriptionEndpoint = trimmedEndpoint;
+  }
+
+  ControlPlaneApi _apiFor(String endpoint) {
+    final trimmedEndpoint = endpoint.trim();
+    if (_api != null && trimmedEndpoint == _apiEndpoint) {
+      return _api!;
+    }
+    _apiEndpoint = trimmedEndpoint;
+    _api = ControlPlaneApi(buildGraphqlClient(trimmedEndpoint));
+    return _api!;
   }
 
   Future<void> _saveEndpoint() async {
@@ -441,7 +475,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final configState = ref.watch(appConfigProvider).valueOrNull;
     final endpoint = configState?.graphqlHttpEndpoint ?? widget.initialEndpoint;
-    final api = ControlPlaneApi(buildGraphqlClient(endpoint));
+    _ensureWorkerSessionSubscription(endpoint);
+    final api = _apiFor(endpoint);
     final isDashboard = _activeView == _DashboardView.dashboard;
     final isProjectSetup = _activeView == _DashboardView.projectSetup;
     final isWorkerSessions = _activeView == _DashboardView.workerSessions;

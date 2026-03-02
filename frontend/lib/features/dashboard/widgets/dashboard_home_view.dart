@@ -67,9 +67,12 @@ class DashboardHomeView extends StatelessWidget {
     final workersResult = await api.workerSessions(limit: 100);
     var healthyWorkerCount = 0;
     if (workersResult.isSuccess && workersResult.data != null) {
+      final now = DateTime.now().toUtc();
       healthyWorkerCount = workersResult.data!
           .where(
-            (WorkerSession worker) => worker.state.toLowerCase() == 'healthy',
+            (WorkerSession worker) =>
+                worker.state.toLowerCase() == 'healthy' &&
+                worker.leaseExpiresAt.toUtc().isAfter(now),
           )
           .length;
     }
