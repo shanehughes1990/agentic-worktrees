@@ -75,17 +75,35 @@ func (trackerBoardSnapshotRecord) TableName() string {
 }
 
 type ProjectSetupRepository struct {
-	db *gorm.DB
+	db             *gorm.DB
+	scmTokenCrypto *SCMTokenCrypto
 }
 
-func NewProjectSetupRepository(db *gorm.DB) (*ProjectSetupRepository, error) {
+func NewProjectSetupRepository(db *gorm.DB, scmTokenCrypto *SCMTokenCrypto) (*ProjectSetupRepository, error) {
 	if db == nil {
 		return nil, fmt.Errorf("project setup repository db is required")
+	}
+	if scmTokenCrypto == nil {
+		return nil, fmt.Errorf("project setup repository scm token crypto is required")
 	}
 	if err := db.AutoMigrate(&projectSetupRecord{}, &projectSCMRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}, &trackerBoardSnapshotRecord{}); err != nil {
 		return nil, fmt.Errorf("project setup repository migrate: %w", err)
 	}
-	return &ProjectSetupRepository{db: db}, nil
+	return &ProjectSetupRepository{db: db, scmTokenCrypto: scmTokenCrypto}, nil
+}
+
+func (repository *ProjectSetupRepository) RotateSCMTokenEncryptionKeys(ctx context.Context) error {
+	if repository == nil || repository.db == nil || repository.scmTokenCrypto == nil {
+		return fmt.Errorf("project setup repository is not initialized")
+	}
+	return repository.scmTokenCrypto.RotateAndReencryptSCMTokens(ctx)
+}
+
+func (repository *ProjectSetupRepository) MigrateLegacySCMTokensToEncrypted(ctx context.Context) error {
+	if repository == nil || repository.db == nil || repository.scmTokenCrypto == nil {
+		return fmt.Errorf("project setup repository is not initialized")
+	}
+	return repository.scmTokenCrypto.MigrateLegacyPlaintextSCMTokens(ctx)
 }
 
 func (repository *ProjectSetupRepository) ListProjectSetups(ctx context.Context, limit int) ([]applicationcontrolplane.ProjectSetup, error) {
@@ -160,11 +178,15 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 		if len(setup.SCMs) > 0 {
 			scms := make([]projectSCMRecord, 0, len(setup.SCMs))
 			for _, scmSetup := range setup.SCMs {
+				encryptedToken, encryptErr := repository.scmTokenCrypto.Encrypt(ctx, strings.TrimSpace(scmSetup.SCMToken))
+				if encryptErr != nil {
+					return fmt.Errorf("encrypt scm token for scm_id %q: %w", strings.TrimSpace(scmSetup.SCMID), encryptErr)
+				}
 				scms = append(scms, projectSCMRecord{
 					ProjectID:   projectRecord.ProjectID,
 					SCMID:       strings.TrimSpace(scmSetup.SCMID),
 					SCMProvider: strings.TrimSpace(scmSetup.SCMProvider),
-					SCMToken:    strings.TrimSpace(scmSetup.SCMToken),
+					SCMToken:    encryptedToken,
 				})
 			}
 			if err := tx.Create(&scms).Error; err != nil {
@@ -297,10 +319,14 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 	}
 	scms := make([]applicationcontrolplane.ProjectSCM, 0, len(scmRecords))
 	for _, scmRecord := range scmRecords {
+		decryptedToken, decryptErr := repository.scmTokenCrypto.Decrypt(ctx, strings.TrimSpace(scmRecord.SCMToken))
+		if decryptErr != nil {
+			return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("decrypt scm token for scm_id %q: %w", strings.TrimSpace(scmRecord.SCMID), decryptErr)
+		}
 		scms = append(scms, applicationcontrolplane.ProjectSCM{
 			SCMID:       strings.TrimSpace(scmRecord.SCMID),
 			SCMProvider: strings.TrimSpace(scmRecord.SCMProvider),
-			SCMToken:    strings.TrimSpace(scmRecord.SCMToken),
+			SCMToken:    strings.TrimSpace(decryptedToken),
 		})
 	}
 	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(repositoryRecords))

@@ -114,9 +114,16 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init worker service: %w", err)
 	}
-	projectSetupRepository, err := infrataskenginepostgres.NewProjectSetupRepository(databaseClient.DB())
+	scmTokenCrypto, err := infrataskenginepostgres.NewSCMTokenCrypto(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init scm token crypto: %w", err)
+	}
+	projectSetupRepository, err := infrataskenginepostgres.NewProjectSetupRepository(databaseClient.DB(), scmTokenCrypto)
 	if err != nil {
 		return nil, fmt.Errorf("init project setup repository: %w", err)
+	}
+	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
+		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
 
 	mux := http.NewServeMux()

@@ -19,6 +19,15 @@ func newProjectSetupTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+func newProjectSetupTestCrypto(t *testing.T, db *gorm.DB) *SCMTokenCrypto {
+	t.Helper()
+	crypto, err := NewSCMTokenCrypto(db)
+	if err != nil {
+		t.Fatalf("new scm token crypto: %v", err)
+	}
+	return crypto
+}
+
 func sampleProjectSetup() applicationcontrolplane.ProjectSetup {
 	return applicationcontrolplane.ProjectSetup{
 		ProjectID:   "project-1",
@@ -45,7 +54,8 @@ func sampleProjectSetup() applicationcontrolplane.ProjectSetup {
 
 func TestProjectSetupRepositorySeedsInitialInternalSnapshot(t *testing.T) {
 	db := newProjectSetupTestDB(t)
-	repo, err := NewProjectSetupRepository(db)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
 	if err != nil {
 		t.Fatalf("new repository: %v", err)
 	}
@@ -69,7 +79,8 @@ func TestProjectSetupRepositorySeedsInitialInternalSnapshot(t *testing.T) {
 
 func TestProjectSetupRepositoryDoesNotOverwriteExistingInternalSnapshot(t *testing.T) {
 	db := newProjectSetupTestDB(t)
-	repo, err := NewProjectSetupRepository(db)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
 	if err != nil {
 		t.Fatalf("new repository: %v", err)
 	}
@@ -120,5 +131,39 @@ func TestProjectSetupRepositoryDoesNotOverwriteExistingInternalSnapshot(t *testi
 	}
 	if payload["status"] != "in-progress" {
 		t.Fatalf("expected existing board payload to be preserved, got status %v", payload["status"])
+	}
+}
+
+func TestProjectSetupRepositoryEncryptsSCMTokenAtRest(t *testing.T) {
+	db := newProjectSetupTestDB(t)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	setup := sampleProjectSetup()
+	setup.SCMs[0].SCMToken = "ghp_super_secret_token"
+	if _, err := repo.UpsertProjectSetup(context.Background(), setup); err != nil {
+		t.Fatalf("upsert setup: %v", err)
+	}
+
+	var storedSCM projectSCMRecord
+	if err := db.Where("project_id = ? AND scm_id = ?", "project-1", "scm-1").Take(&storedSCM).Error; err != nil {
+		t.Fatalf("load stored scm row: %v", err)
+	}
+	if storedSCM.SCMToken == "ghp_super_secret_token" {
+		t.Fatalf("expected scm token to be encrypted at rest")
+	}
+
+	loadedSetup, err := repo.GetProjectSetup(context.Background(), "project-1")
+	if err != nil {
+		t.Fatalf("load project setup: %v", err)
+	}
+	if loadedSetup == nil || len(loadedSetup.SCMs) == 0 {
+		t.Fatalf("expected loaded project setup scm entry")
+	}
+	if loadedSetup.SCMs[0].SCMToken != "ghp_super_secret_token" {
+		t.Fatalf("expected decrypted scm token for internal use, got %q", loadedSetup.SCMs[0].SCMToken)
 	}
 }

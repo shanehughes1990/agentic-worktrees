@@ -100,9 +100,16 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane query repository: %w", err)
 	}
-	projectSetupRepository, err := infrataskenginepostgres.NewProjectSetupRepository(databaseClient.DB())
+	scmTokenCrypto, err := infrataskenginepostgres.NewSCMTokenCrypto(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init scm token crypto: %w", err)
+	}
+	projectSetupRepository, err := infrataskenginepostgres.NewProjectSetupRepository(databaseClient.DB(), scmTokenCrypto)
 	if err != nil {
 		return nil, fmt.Errorf("init project setup repository: %w", err)
+	}
+	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
+		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
 	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, supervisorService, controlPlaneQueryRepository, projectSetupRepository, taskEnginePlatform)
 	if err != nil {
