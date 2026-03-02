@@ -61,7 +61,7 @@ services:
       dockerfile: Dockerfile
       target: worker
     deploy:
-      replicas: 3
+      replicas: 1
     depends_on:
       postgres:
         condition: service_healthy
