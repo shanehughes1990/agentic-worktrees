@@ -15,7 +15,6 @@ import (
 type BaseConfig struct {
 	App    AppConfig    `validate:"required"`
 	Health HealthConfig `validate:"required"`
-	Logger LoggerConfig `validate:"required"`
 	OTEL   OTELConfig   `validate:"required"`
 }
 
@@ -26,15 +25,10 @@ type OTELConfig struct {
 	ServiceName        string `envconfig:"OTEL_SERVICE_NAME" validate:"required"`
 }
 
-type LoggerConfig struct {
-	Level string `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=panic fatal error warn warning info debug trace"`
-	Type  string `envconfig:"LOG_TYPE" default:"text" validate:"required,oneof=text json"`
-}
-
 type AppConfig struct {
-	Port 					int    `envconfig:"APP_PORT" default:"8080" validate:"required,min=1,max=65535"`
+	Port            int           `envconfig:"APP_PORT" default:"8080" validate:"required,min=1,max=65535"`
 	DatabaseDSN     string        `envconfig:"DATABASE_DSN" validate:"required,database_dsn"`
-	RedisURL        string        `envconfig:"REDIS_URL" validate:"required,redis_url"`
+	RedisURL        string        `envconfig:"REDIS_URL" default:"redis://redis:6379/0" validate:"required,redis_url"`
 	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
 }
 

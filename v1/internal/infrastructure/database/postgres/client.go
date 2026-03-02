@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"agentic-orchestrator/internal/infrastructure/observability"
+	domainobservability "agentic-orchestrator/internal/domain/shared/observability"
 	"context"
 	"fmt"
 	"strings"
@@ -45,7 +45,7 @@ type Client struct {
 	db *gorm.DB
 }
 
-func Open(ctx context.Context, config Config, entry *observability.Entry) (*Client, error) {
+func Open(ctx context.Context, config Config, entry domainobservability.Entry) (*Client, error) {
 	normalized := config.normalized()
 	if normalized.DSN == "" {
 		return nil, fmt.Errorf("database dsn is required")

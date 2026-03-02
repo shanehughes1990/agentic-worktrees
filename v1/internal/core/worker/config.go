@@ -3,6 +3,7 @@ package worker
 import (
 	sharedconfig "agentic-orchestrator/internal/core/shared/config"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -10,10 +11,7 @@ import (
 type Config struct {
 	sharedconfig.BaseConfig
 
-	Environment              string `envconfig:"APP_ENV" default:"local" validate:"required,oneof=local development test staging production"`
-	ServiceVersion           string `envconfig:"SERVICE_VERSION" default:"development" validate:"required"`
 	ApplicationRootDirectory string `envconfig:"APPLICATION_ROOT_DIRECTORY" default:".agentic-orchestrator" validate:"required"`
-	LogPrettyJSON            bool   `envconfig:"LOG_PRETTY_JSON" default:"false"`
 
 	TaskEngineBackend        string `envconfig:"TASK_ENGINE_BACKEND" default:"asynq" validate:"required,oneof=asynq"`
 	TaskEngineRedisAddress   string `envconfig:"TASK_ENGINE_REDIS_ADDRESS" default:"127.0.0.1:6379" validate:"required"`
@@ -27,10 +25,12 @@ type Config struct {
 	SCMGitHubToken      string `envconfig:"SCM_GITHUB_TOKEN"`
 	SCMGitHubAPIBaseURL string `envconfig:"SCM_GITHUB_API_BASE_URL" default:"https://api.github.com" validate:"required,url"`
 
-	WorkerPort int `envconfig:"WORKER_PORT" default:"8081" validate:"required,min=1,max=65535"`
 }
 
 func LoadConfigFromEnv() (Config, error) {
+	if strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")) == "" {
+		_ = os.Setenv("OTEL_SERVICE_NAME", "agentic-worker")
+	}
 	config, err := sharedconfig.LoadConfigFromEnv[Config]()
 	if err != nil {
 		return Config{}, fmt.Errorf("load worker env config: %w", err)

@@ -1,13 +1,13 @@
 package main
 
 import (
-	"agentic-orchestrator/internal/bootstrap"
+	coreapi "agentic-orchestrator/internal/core/api"
 	"fmt"
 	"os"
 )
 
 func main() {
-	app, err := bootstrap.InitAPI()
+	app, err := coreapi.New()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "bootstrap api: %v\n", err)
 		os.Exit(1)

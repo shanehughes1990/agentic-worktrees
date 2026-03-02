@@ -1,8 +1,9 @@
 package postgres
 
 import (
-	"agentic-orchestrator/internal/infrastructure/observability"
+	domainobservability "agentic-orchestrator/internal/domain/shared/observability"
 	"context"
+	"fmt"
 	"time"
 
 	gormlogger "gorm.io/gorm/logger"
@@ -11,11 +12,11 @@ import (
 const defaultSlowQueryThreshold = 500 * time.Millisecond
 
 type gormLogAdapter struct {
-	entry              *observability.Entry
+	entry              domainobservability.Entry
 	slowQueryThreshold time.Duration
 }
 
-func newGormLogger(entry *observability.Entry, slowQueryThreshold time.Duration) gormlogger.Interface {
+func newGormLogger(entry domainobservability.Entry, slowQueryThreshold time.Duration) gormlogger.Interface {
 	if slowQueryThreshold <= 0 {
 		slowQueryThreshold = defaultSlowQueryThreshold
 	}
@@ -45,12 +46,13 @@ func (logger *gormLogAdapter) Trace(ctx context.Context, begin time.Time, fc fun
 	}
 	query, rowsAffected := fc()
 	elapsed := time.Since(begin)
-	entry := logger.entry.WithContext(ctx).WithFields(map[string]any{
+	entry := logger.entry.WithFields(map[string]any{
 		"component":     "postgres",
 		"sql":           query,
 		"rows_affected": rowsAffected,
 		"duration_ms":   elapsed.Milliseconds(),
 	})
+	_ = ctx
 	if err != nil {
 		entry = entry.WithError(err)
 	}
@@ -65,7 +67,8 @@ func (logger *gormLogAdapter) debug(ctx context.Context, message string, args ..
 	if logger == nil || logger.entry == nil {
 		return
 	}
-	logger.entry.WithContext(ctx).WithField("component", "postgres").Debugf(message, args...)
+	logger.entry.WithField("component", "postgres").Debug(fmt.Sprintf(message, args...))
+	_ = ctx
 }
 
 func isSlowQuery(elapsed time.Duration, threshold time.Duration) bool {

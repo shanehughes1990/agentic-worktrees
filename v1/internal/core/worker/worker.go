@@ -1,4 +1,4 @@
-package bootstrap
+package worker
 
 import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
@@ -7,11 +7,12 @@ import (
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
+	"agentic-orchestrator/internal/core/shared/observability"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
-	"agentic-orchestrator/internal/infrastructure/observability"
+	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
@@ -30,7 +31,7 @@ import (
 )
 
 type WorkerApp struct {
-	config                WorkerConfig
+	config                Config
 	httpServer            *http.Server
 	observabilityPlatform *observability.Platform
 	healthPlatform        *healthcheck.Platform
@@ -52,26 +53,26 @@ type workerJobRegistration struct {
 	label   string
 }
 
-func InitWorker() (*WorkerApp, error) {
-	config, err := LoadWorkerConfigFromEnv()
+func New() (*WorkerApp, error) {
+	config, err := LoadConfigFromEnv()
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureRuntimeFilesystem(config.BaseConfig); err != nil {
+	if err := ensureRuntimeFilesystem(config); err != nil {
 		return nil, err
 	}
 
-	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config.BaseConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	taskScheduler, taskEnginePlatform, err := bootstrapTaskEngine(config.BaseConfig, observabilityPlatform)
+	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config)
 	if err != nil {
 		return nil, err
 	}
 
-	databaseClient, err := postgresdb.Open(context.Background(), postgresdb.Config{DSN: config.DatabaseDSN}, observabilityPlatform.ServiceEntry())
+	taskScheduler, taskEnginePlatform, err := bootstrapTaskEngine(config, observabilityPlatform)
+	if err != nil {
+		return nil, err
+	}
+
+	databaseClient, err := postgresdb.Open(context.Background(), postgresdb.Config{DSN: config.App.DatabaseDSN}, observabilityPlatform.ServiceEntry())
 	if err != nil {
 		return nil, fmt.Errorf("init postgres client: %w", err)
 	}
@@ -175,7 +176,7 @@ func InitWorker() (*WorkerApp, error) {
 
 	return &WorkerApp{
 		config:                config,
-		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.WorkerPort), Handler: mux},
+		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
 		observabilityPlatform: observabilityPlatform,
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
@@ -201,7 +202,7 @@ func (app *WorkerApp) Run() error {
 		entry.WithFields(map[string]any{
 			"runtime":             "worker",
 			"addr":                app.httpServer.Addr,
-			"env":                 app.config.Environment,
+			"env":                 app.config.OTEL.ServiceEnvironment,
 			"task_engine_backend": app.config.TaskEngineBackend,
 		}).Info("worker runtime starting")
 	}
@@ -222,7 +223,7 @@ func (app *WorkerApp) Run() error {
 	if hostnameErr != nil {
 		hostname = "unknown-host"
 	}
-	workerID := buildWorkerID(strings.TrimSpace(app.config.ServiceName), hostname, app.config.WorkerPort)
+	workerID := buildWorkerID(strings.TrimSpace(app.config.OTEL.ServiceName), hostname, app.config.App.Port)
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -302,7 +303,7 @@ func (app *WorkerApp) Run() error {
 	}
 	heartbeatCancel()
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.App.ShutdownTimeout)
 	defer cancel()
 
 	var shutdownErr error
@@ -351,6 +352,23 @@ func (app *WorkerApp) Run() error {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
 	return errors.Join(runErr, shutdownErr)
+}
+
+func ensureRuntimeFilesystem(config Config) error {
+	directories := []string{
+		config.ApplicationRootPath(),
+		config.RepositoriesPath(),
+		config.RepositorySourcePath(),
+		config.WorktreesPath(),
+		config.LogsPath(),
+		config.TrackerPath(),
+	}
+	for _, directory := range directories {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			return fmt.Errorf("create runtime directory %q: %w", directory, err)
+		}
+	}
+	return nil
 }
 
 func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, registrations []workerJobRegistration) error {
@@ -453,4 +471,88 @@ func buildWorkerID(serviceName string, hostname string, workerPort int) string {
 	return fmt.Sprintf("%s-%s-worker-%d", trimmedServiceName, trimmedHostname, workerPort)
 }
 
-var _ = time.Second
+func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Platform, *healthcheck.Platform, error) {
+	serviceVersion := strings.TrimSpace(os.Getenv("SERVICE_VERSION"))
+	if serviceVersion == "" {
+		serviceVersion = "development"
+	}
+
+	observabilityPlatform, err := observability.Bootstrap(ctx, observability.Config{
+		ServiceName:  config.OTEL.ServiceName,
+		Environment:  config.OTEL.ServiceEnvironment,
+		Version:      serviceVersion,
+		LogFormat:    observability.LogFormatText,
+		LogLevel:     observability.LogLevelInfo,
+		OTLPEndpoint: config.OTEL.OTLPEndpoint,
+		OTLPHeaders:  parseOTLPHeaders(config.OTEL.OTLPHeaders),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("bootstrap observability: %w", err)
+	}
+
+	healthPlatform := healthcheck.Bootstrap(healthcheck.Config{
+		LivenessPath:  config.Health.LivePath,
+		ReadinessPath: config.Health.ReadyPath,
+		Metadata: map[string]string{
+			"service":     config.OTEL.ServiceName,
+			"environment": config.OTEL.ServiceEnvironment,
+			"version":     serviceVersion,
+		},
+	})
+
+	return observabilityPlatform, healthPlatform, nil
+}
+
+func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Platform) (*taskengine.Scheduler, *asynqengine.Platform, error) {
+	if config.TaskEngineBackend != "asynq" {
+		return nil, nil, fmt.Errorf("unsupported task engine backend: %s", config.TaskEngineBackend)
+	}
+
+	entry := observabilityPlatform.ServiceEntry()
+	if entry != nil {
+		entry = entry.WithFields(map[string]any{"component": "taskengine", "backend": config.TaskEngineBackend})
+	}
+
+	platform := asynqengine.NewPlatform(asynqengine.Config{
+		RedisAddress:  config.TaskEngineRedisAddress,
+		RedisPassword: config.TaskEngineRedisPassword,
+		RedisDatabase: config.TaskEngineRedisDatabase,
+		Concurrency:   config.TaskEngineConcurrency,
+	}, entry)
+
+	policies := taskengine.DefaultPolicies()
+	ingestionPolicy := policies[taskengine.JobKindIngestionAgent]
+	ingestionPolicy.DefaultQueue = config.TaskEngineIngestionQueue
+	policies[taskengine.JobKindIngestionAgent] = ingestionPolicy
+
+	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
+	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
+	policies[taskengine.JobKindSCMWorkflow] = scmPolicy
+
+	scheduler, err := taskengine.NewScheduler(platform, policies)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bootstrap task engine scheduler: %w", err)
+	}
+	return scheduler, platform, nil
+}
+
+func parseOTLPHeaders(raw string) map[string]string {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]string{}
+	}
+	headers := map[string]string{}
+	parts := strings.Split(raw, ",")
+	for _, part := range parts {
+		pair := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(pair[0])
+		value := strings.TrimSpace(pair[1])
+		if key == "" {
+			continue
+		}
+		headers[key] = value
+	}
+	return headers
+}

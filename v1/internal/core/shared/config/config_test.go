@@ -23,8 +23,6 @@ func (suite *ConfigSuite) TestLoadConfigFromEnv_SuccessWithDefaults() {
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), "service-a", loaded.OTEL.ServiceName)
 	require.Equal(suite.T(), "local", loaded.OTEL.ServiceEnvironment)
-	require.Equal(suite.T(), "info", loaded.Logger.Level)
-	require.Equal(suite.T(), "text", loaded.Logger.Type)
 	require.Equal(suite.T(), "/live", loaded.Health.LivePath)
 	require.Equal(suite.T(), "/ready", loaded.Health.ReadyPath)
 	require.Equal(suite.T(), 15*time.Second, loaded.App.ShutdownTimeout)
@@ -41,7 +39,7 @@ func (suite *ConfigSuite) TestLoadConfigFromEnv_ProcessError() {
 
 func (suite *ConfigSuite) TestLoadConfigFromEnv_ValidateError() {
 	suite.setMinimalValidEnv()
-	suite.T().Setenv("LOG_LEVEL", "verbose")
+	suite.T().Setenv("HEALTH_LIVE_PATH", "health")
 
 	_, err := LoadConfigFromEnv[BaseConfig]()
 	require.Error(suite.T(), err)

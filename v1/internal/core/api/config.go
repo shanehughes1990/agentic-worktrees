@@ -3,11 +3,13 @@ package api
 import (
 	sharedconfig "agentic-orchestrator/internal/core/shared/config"
 	"fmt"
+	"os"
+	"strings"
 )
 
 type Config struct {
 	sharedconfig.BaseConfig
-	
+
 	TaskEngineBackend        string `envconfig:"TASK_ENGINE_BACKEND" default:"asynq" validate:"required,oneof=asynq"`
 	TaskEngineRedisAddress   string `envconfig:"TASK_ENGINE_REDIS_ADDRESS" default:"127.0.0.1:6379" validate:"required"`
 	TaskEngineRedisPassword  string `envconfig:"TASK_ENGINE_REDIS_PASSWORD"`
@@ -26,6 +28,9 @@ type Config struct {
 }
 
 func LoadConfigFromEnv() (Config, error) {
+	if strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")) == "" {
+		_ = os.Setenv("OTEL_SERVICE_NAME", "agentic-api")
+	}
 	config, err := sharedconfig.LoadConfigFromEnv[Config]()
 	if err != nil {
 		return Config{}, fmt.Errorf("load api env config: %w", err)

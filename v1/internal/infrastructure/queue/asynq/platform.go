@@ -2,7 +2,7 @@ package asynq
 
 import (
 	"agentic-orchestrator/internal/application/taskengine"
-	"agentic-orchestrator/internal/infrastructure/observability"
+	domainobservability "agentic-orchestrator/internal/domain/shared/observability"
 	"context"
 	"errors"
 	"fmt"
@@ -14,7 +14,7 @@ import (
 
 type Platform struct {
 	config Config
-	entry  *observability.Entry
+	entry  domainobservability.Entry
 
 	client *asynq.Client
 	server *asynq.Server
@@ -25,7 +25,7 @@ type Platform struct {
 	mu              sync.Mutex
 }
 
-func NewPlatform(config Config, entry *observability.Entry) *Platform {
+func NewPlatform(config Config, entry domainobservability.Entry) *Platform {
 	normalizedConfig := config.normalized()
 	redisOptions := asynq.RedisClientOpt{
 		Addr:     normalizedConfig.RedisAddress,

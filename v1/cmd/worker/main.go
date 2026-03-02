@@ -1,13 +1,13 @@
 package main
 
 import (
-	"agentic-orchestrator/internal/bootstrap"
+	coreworker "agentic-orchestrator/internal/core/worker"
 	"fmt"
 	"os"
 )
 
 func main() {
-	app, err := bootstrap.InitWorker()
+	app, err := coreworker.New()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "bootstrap worker: %v\n", err)
 		os.Exit(1)

@@ -1,4 +1,4 @@
-package bootstrap
+package api
 
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
@@ -6,12 +6,11 @@ import (
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationworker "agentic-orchestrator/internal/application/worker"
+	"agentic-orchestrator/internal/core/shared/observability"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
-	infracontrolplane "agentic-orchestrator/internal/infrastructure/controlplane"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	"agentic-orchestrator/internal/infrastructure/healthcheck"
-	"agentic-orchestrator/internal/infrastructure/observability"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
@@ -38,7 +37,7 @@ import (
 )
 
 type APIApp struct {
-	config                APIConfig
+	config                Config
 	httpServer            *http.Server
 	observabilityPlatform *observability.Platform
 	healthPlatform        *healthcheck.Platform
@@ -52,25 +51,22 @@ type APIApp struct {
 	workerCoordinator     *applicationworker.Coordinator
 }
 
-func InitAPI() (*APIApp, error) {
-	config, err := LoadAPIConfigFromEnv()
-	if err != nil {
-		return nil, err
-	}
-	if err := ensureRuntimeFilesystem(config.BaseConfig); err != nil {
-		return nil, err
-	}
-
-	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config.BaseConfig)
+func New() (*APIApp, error) {
+	config, err := LoadConfigFromEnv()
 	if err != nil {
 		return nil, err
 	}
 
-	taskScheduler, taskEnginePlatform, err := bootstrapTaskEngine(config.BaseConfig, observabilityPlatform)
+	observabilityPlatform, healthPlatform, err := bootstrapPlatforms(context.Background(), config)
 	if err != nil {
 		return nil, err
 	}
-	databaseClient, err := postgresdb.Open(context.Background(), postgresdb.Config{DSN: config.DatabaseDSN}, observabilityPlatform.ServiceEntry())
+
+	taskScheduler, taskEnginePlatform, err := bootstrapTaskEngine(config, observabilityPlatform)
+	if err != nil {
+		return nil, err
+	}
+	databaseClient, err := postgresdb.Open(context.Background(), postgresdb.Config{DSN: config.App.DatabaseDSN}, observabilityPlatform.ServiceEntry())
 	if err != nil {
 		return nil, fmt.Errorf("init postgres client: %w", err)
 	}
@@ -112,15 +108,6 @@ func InitAPI() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
-	projectArtifactCleaner, err := infracontrolplane.NewProjectArtifactCleaner(infracontrolplane.ProjectArtifactCleanerConfig{
-		RepositorySourcePath: config.RepositorySourcePath(),
-		WorktreesPath:        config.WorktreesPath(),
-		TrackerPath:          config.TrackerPath(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init project artifact cleaner: %w", err)
-	}
-	controlPlaneService.SetProjectCleanupManager(projectArtifactCleaner)
 	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init worker registry: %w", err)
@@ -169,7 +156,7 @@ func InitAPI() (*APIApp, error) {
 
 	return &APIApp{
 		config:                config,
-		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.APIPort), Handler: mux},
+		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
 		observabilityPlatform: observabilityPlatform,
 		healthPlatform:        healthPlatform,
 		taskScheduler:         taskScheduler,
@@ -193,7 +180,7 @@ func (app *APIApp) Run() error {
 		entry.WithFields(map[string]any{
 			"runtime":             "api",
 			"addr":                app.httpServer.Addr,
-			"env":                 app.config.Environment,
+			"env":                 app.config.OTEL.ServiceEnvironment,
 			"task_engine_backend": app.config.TaskEngineBackend,
 		}).Info("runtime starting")
 	}
@@ -250,7 +237,7 @@ func (app *APIApp) Run() error {
 		}
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.App.ShutdownTimeout)
 	defer cancel()
 
 	var shutdownErr error
@@ -326,4 +313,90 @@ func (app *APIApp) publishWorkerSummaryEvent(ctx context.Context) error {
 		},
 	})
 	return err
+}
+
+func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Platform, *healthcheck.Platform, error) {
+	serviceVersion := strings.TrimSpace(os.Getenv("SERVICE_VERSION"))
+	if serviceVersion == "" {
+		serviceVersion = "development"
+	}
+
+	observabilityPlatform, err := observability.Bootstrap(ctx, observability.Config{
+		ServiceName:  config.OTEL.ServiceName,
+		Environment:  config.OTEL.ServiceEnvironment,
+		Version:      serviceVersion,
+		LogFormat:    observability.LogFormatText,
+		LogLevel:     observability.LogLevelInfo,
+		OTLPEndpoint: config.OTEL.OTLPEndpoint,
+		OTLPHeaders:  parseOTLPHeaders(config.OTEL.OTLPHeaders),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("bootstrap observability: %w", err)
+	}
+
+	healthPlatform := healthcheck.Bootstrap(healthcheck.Config{
+		LivenessPath:  config.Health.LivePath,
+		ReadinessPath: config.Health.ReadyPath,
+		Metadata: map[string]string{
+			"service":     config.OTEL.ServiceName,
+			"environment": config.OTEL.ServiceEnvironment,
+			"version":     serviceVersion,
+		},
+	})
+
+	return observabilityPlatform, healthPlatform, nil
+}
+
+func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Platform) (*taskengine.Scheduler, *asynqengine.Platform, error) {
+	if config.TaskEngineBackend != "asynq" {
+		return nil, nil, fmt.Errorf("unsupported task engine backend: %s", config.TaskEngineBackend)
+	}
+
+	entry := observabilityPlatform.ServiceEntry()
+	if entry != nil {
+		entry = entry.WithFields(map[string]any{"component": "taskengine", "backend": config.TaskEngineBackend})
+	}
+
+	platform := asynqengine.NewPlatform(asynqengine.Config{
+		RedisAddress:  config.TaskEngineRedisAddress,
+		RedisPassword: config.TaskEngineRedisPassword,
+		RedisDatabase: config.TaskEngineRedisDatabase,
+		Concurrency:   config.TaskEngineConcurrency,
+	}, entry)
+
+	policies := taskengine.DefaultPolicies()
+	ingestionPolicy := policies[taskengine.JobKindIngestionAgent]
+	ingestionPolicy.DefaultQueue = config.TaskEngineIngestionQueue
+	policies[taskengine.JobKindIngestionAgent] = ingestionPolicy
+
+	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
+	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
+	policies[taskengine.JobKindSCMWorkflow] = scmPolicy
+
+	scheduler, err := taskengine.NewScheduler(platform, policies)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bootstrap task engine scheduler: %w", err)
+	}
+	return scheduler, platform, nil
+}
+
+func parseOTLPHeaders(raw string) map[string]string {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]string{}
+	}
+	headers := map[string]string{}
+	parts := strings.Split(raw, ",")
+	for _, part := range parts {
+		pair := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(pair[0])
+		value := strings.TrimSpace(pair[1])
+		if key == "" {
+			continue
+		}
+		headers[key] = value
+	}
+	return headers
 }
