@@ -24,10 +24,11 @@ func sampleProjectSetup() applicationcontrolplane.ProjectSetup {
 		ProjectID:   "project-1",
 		ProjectName: "Project One",
 		Repositories: []applicationcontrolplane.ProjectRepository{{
-			RepositoryID: "repo-1",
-			SCMProvider:  "github",
+			RepositoryID:  "repo-1",
+			SCMProvider:   "github",
+			SCMToken:      "token",
 			RepositoryURL: "https://github.com/octo/repo",
-			IsPrimary:    true,
+			IsPrimary:     true,
 		}},
 		Boards: []applicationcontrolplane.ProjectBoard{{
 			BoardID:                  "project_1_board",

@@ -4,9 +4,7 @@ import (
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
-	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -61,10 +59,11 @@ type DeadLetterHistoryRecord struct {
 }
 
 type ProjectRepository struct {
-	RepositoryID string
-	SCMProvider  string
+	RepositoryID  string
+	SCMProvider   string
+	SCMToken      string
 	RepositoryURL string
-	IsPrimary    bool
+	IsPrimary     bool
 }
 
 type ProjectBoard struct {
@@ -76,12 +75,12 @@ type ProjectBoard struct {
 }
 
 type ProjectSetup struct {
-	ProjectID   string
-	ProjectName string
+	ProjectID    string
+	ProjectName  string
 	Repositories []ProjectRepository
-	Boards      []ProjectBoard
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Boards       []ProjectBoard
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type UpsertProjectSetupRequest struct {
@@ -92,8 +91,7 @@ type UpsertProjectSetupRequest struct {
 }
 
 var supportedTrackerProviders = map[string]struct{}{
-	"internal":      {},
-	"github_issues": {},
+	"internal": {},
 }
 
 func (request UpsertProjectSetupRequest) Validate() error {
@@ -114,6 +112,9 @@ func (request UpsertProjectSetupRequest) Validate() error {
 		if strings.TrimSpace(repository.SCMProvider) != "github" {
 			return fmt.Errorf("repositories[%d].scm_provider must be github", index)
 		}
+		if strings.TrimSpace(repository.SCMToken) == "" {
+			return fmt.Errorf("repositories[%d].scm_token is required", index)
+		}
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
 		if repositoryURL == "" {
 			return fmt.Errorf("repositories[%d].repository_url is required", index)
@@ -128,7 +129,7 @@ func (request UpsertProjectSetupRequest) Validate() error {
 	for index, board := range request.Boards {
 		trackerProvider := strings.ToLower(strings.TrimSpace(board.TrackerProvider))
 		if _, supported := supportedTrackerProviders[trackerProvider]; !supported {
-			return fmt.Errorf("boards[%d].tracker_provider must be one of: internal, github_issues", index)
+			return fmt.Errorf("boards[%d].tracker_provider must be internal", index)
 		}
 		if !board.AppliesToAllRepositories {
 			return fmt.Errorf("boards[%d].applies_to_all_repositories must be true", index)
@@ -167,71 +168,6 @@ type ProjectSetupRepository interface {
 
 type ProjectCleanupManager interface {
 	CleanupProjectArtifacts(ctx context.Context, setup ProjectSetup) error
-}
-
-type IngestionBoardSource struct {
-	BoardID                  string
-	Kind                     string
-	Location                 string
-	AppliesToAllRepositories bool
-	RepositoryIDs            []string
-	Config                   map[string]any
-}
-
-type EnqueueIngestionWorkflowRequest struct {
-	RunID          string
-	TaskID         string
-	JobID          string
-	IdempotencyKey string
-	Prompt         string
-	ProjectID      string
-	WorkflowID     string
-	BoardSources   []IngestionBoardSource
-}
-
-func (request EnqueueIngestionWorkflowRequest) Validate() error {
-	if strings.TrimSpace(request.RunID) == "" {
-		return fmt.Errorf("run_id is required")
-	}
-	if strings.TrimSpace(request.TaskID) == "" {
-		return fmt.Errorf("task_id is required")
-	}
-	if strings.TrimSpace(request.JobID) == "" {
-		return fmt.Errorf("job_id is required")
-	}
-	if strings.TrimSpace(request.IdempotencyKey) == "" {
-		return fmt.Errorf("idempotency_key is required")
-	}
-	if strings.TrimSpace(request.Prompt) == "" {
-		return fmt.Errorf("prompt is required")
-	}
-	if strings.TrimSpace(request.ProjectID) == "" {
-		return fmt.Errorf("project_id is required")
-	}
-	if strings.TrimSpace(request.WorkflowID) == "" {
-		return fmt.Errorf("workflow_id is required")
-	}
-	if len(request.BoardSources) != 1 {
-		return fmt.Errorf("exactly one board_source is required")
-	}
-	for index, source := range request.BoardSources {
-		if strings.TrimSpace(source.BoardID) == "" {
-			return fmt.Errorf("board_sources[%d].board_id is required", index)
-		}
-		if err := domaintracker.SourceKind(strings.ToLower(strings.TrimSpace(source.Kind))).Validate(); err != nil {
-			return fmt.Errorf("board_sources[%d].kind: %w", index, err)
-		}
-		if !source.AppliesToAllRepositories {
-			return fmt.Errorf("board_sources[%d].applies_to_all_repositories must be true", index)
-		}
-		if len(source.RepositoryIDs) > 0 {
-			return fmt.Errorf("board_sources[%d].repository_ids is not supported", index)
-		}
-		if strings.TrimSpace(source.Location) == "" {
-			return fmt.Errorf("board_sources[%d].location is required", index)
-		}
-	}
-	return nil
 }
 
 type ApproveIssueIntakeRequest struct {
@@ -356,6 +292,7 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	for index := range request.Repositories {
 		request.Repositories[index].RepositoryID = strings.TrimSpace(request.Repositories[index].RepositoryID)
 		request.Repositories[index].SCMProvider = strings.ToLower(strings.TrimSpace(request.Repositories[index].SCMProvider))
+		request.Repositories[index].SCMToken = strings.TrimSpace(request.Repositories[index].SCMToken)
 		request.Repositories[index].RepositoryURL = strings.TrimSpace(request.Repositories[index].RepositoryURL)
 	}
 	for index := range request.Boards {
@@ -405,49 +342,6 @@ func (service *Service) DeleteProjectSetup(ctx context.Context, projectID string
 		return fmt.Errorf("delete project setup: %w", err)
 	}
 	return nil
-}
-
-func (service *Service) EnqueueIngestionWorkflow(ctx context.Context, request EnqueueIngestionWorkflowRequest) (taskengine.EnqueueResult, error) {
-	if service == nil || service.scheduler == nil {
-		return taskengine.EnqueueResult{}, fmt.Errorf("task scheduler is not configured")
-	}
-	if err := request.Validate(); err != nil {
-		return taskengine.EnqueueResult{}, err
-	}
-	boardSources := make([]map[string]any, 0, len(request.BoardSources))
-	for _, source := range request.BoardSources {
-		boardSources = append(boardSources, map[string]any{
-			"board_id":                     strings.TrimSpace(source.BoardID),
-			"kind":                         strings.TrimSpace(source.Kind),
-			"location":                     strings.TrimSpace(source.Location),
-			"applies_to_all_repositories":  source.AppliesToAllRepositories,
-			"repository_ids":               source.RepositoryIDs,
-			"config":                       source.Config,
-		})
-	}
-	payload, err := json.Marshal(map[string]any{
-		"run_id":          strings.TrimSpace(request.RunID),
-		"task_id":         strings.TrimSpace(request.TaskID),
-		"job_id":          strings.TrimSpace(request.JobID),
-		"idempotency_key": strings.TrimSpace(request.IdempotencyKey),
-		"prompt":          strings.TrimSpace(request.Prompt),
-		"project_id":      strings.TrimSpace(request.ProjectID),
-		"workflow_id":     strings.TrimSpace(request.WorkflowID),
-		"board_sources":   boardSources,
-	})
-	if err != nil {
-		return taskengine.EnqueueResult{}, fmt.Errorf("encode ingestion workflow payload: %w", err)
-	}
-	result, err := service.scheduler.Enqueue(ctx, taskengine.EnqueueRequest{
-		Kind:           taskengine.JobKindIngestionAgent,
-		Payload:        payload,
-		IdempotencyKey: strings.TrimSpace(request.IdempotencyKey),
-		CorrelationIDs: taskengine.CorrelationIDs{RunID: strings.TrimSpace(request.RunID), TaskID: strings.TrimSpace(request.TaskID), JobID: strings.TrimSpace(request.JobID), ProjectID: strings.TrimSpace(request.ProjectID)},
-	})
-	if err != nil {
-		return taskengine.EnqueueResult{}, fmt.Errorf("enqueue ingestion workflow: %w", err)
-	}
-	return result, nil
 }
 
 var boardNameSanitizer = regexp.MustCompile(`[^a-z0-9]+`)

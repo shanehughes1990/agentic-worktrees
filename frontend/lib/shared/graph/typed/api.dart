@@ -171,125 +171,6 @@ class ControlPlaneApi {
     return ApiResult<List<SupervisorDecision>>.success(items);
   }
 
-  Future<ApiResult<String>> enqueueScmWorkflow({
-    required String runID,
-    required String taskID,
-    required String jobID,
-    required String idempotencyKey,
-    required String owner,
-    required String repository,
-  }) async {
-    final result = await _client.mutate$EnqueueScmWorkflow(
-      gql_ops.Options$Mutation$EnqueueScmWorkflow(
-        variables: gql_ops.Variables$Mutation$EnqueueScmWorkflow(
-          input: gql_scm.Input$EnqueueSCMWorkflowInput(
-            operation: gql_scm.Enum$SCMOperation.SOURCE_STATE,
-            provider: gql_scm.Enum$SCMProvider.GITHUB,
-            owner: owner,
-            repository: repository,
-            runID: runID,
-            taskID: taskID,
-            jobID: jobID,
-            idempotencyKey: idempotencyKey,
-          ),
-        ),
-      ),
-    );
-    final error = _extractOperationError(result, field: 'enqueueScmWorkflow');
-    if (error != null) {
-      return ApiResult<String>.failure(error);
-    }
-    final payload = result.parsedData?.enqueueScmWorkflow;
-    if (payload == null) {
-      return const ApiResult<String>.failure(
-        'enqueueScmWorkflow returned no data',
-      );
-    }
-    if (payload
-        is gql_ops.Mutation$EnqueueScmWorkflow$enqueueScmWorkflow$$GraphError) {
-      return ApiResult<String>.failure(
-        _graphErrorMessageTyped(
-          code: payload.code.toJson(),
-          message: payload.message,
-          field: payload.field,
-        ),
-      );
-    }
-    if (payload
-        is! gql_ops.Mutation$EnqueueScmWorkflow$enqueueScmWorkflow$$EnqueueSCMWorkflowSuccess) {
-      return const ApiResult<String>.failure(
-        'enqueueScmWorkflow returned unexpected payload',
-      );
-    }
-    return ApiResult<String>.success(payload.queueTaskID);
-  }
-
-  Future<ApiResult<String>> enqueueIngestionWorkflow({
-    required String runID,
-    required String taskID,
-    required String jobID,
-    required String idempotencyKey,
-    required String prompt,
-    required String projectID,
-    required String workflowID,
-    required String source,
-  }) async {
-    final boardID = '${projectID.isEmpty ? 'project' : projectID}-board';
-    final result = await _client.mutate$EnqueueIngestionWorkflow(
-      gql_ops.Options$Mutation$EnqueueIngestionWorkflow(
-        variables: gql_ops.Variables$Mutation$EnqueueIngestionWorkflow(
-          input: gql_cp.Input$EnqueueIngestionWorkflowInput(
-            runID: runID,
-            taskID: taskID,
-            jobID: jobID,
-            idempotencyKey: idempotencyKey,
-            prompt: prompt,
-            projectID: projectID,
-            workflowID: workflowID,
-            boardSources: <gql_cp.Input$IngestionBoardSourceInput>[
-              gql_cp.Input$IngestionBoardSourceInput(
-                boardID: boardID,
-                kind: gql_cp.Enum$TrackerSourceKind.GITHUB_ISSUES,
-                location: source,
-                appliesToAllRepositories: true,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    final error = _extractOperationError(
-      result,
-      field: 'enqueueIngestionWorkflow',
-    );
-    if (error != null) {
-      return ApiResult<String>.failure(error);
-    }
-    final payload = result.parsedData?.enqueueIngestionWorkflow;
-    if (payload == null) {
-      return const ApiResult<String>.failure(
-        'enqueueIngestionWorkflow returned no data',
-      );
-    }
-    if (payload
-        is gql_ops.Mutation$EnqueueIngestionWorkflow$enqueueIngestionWorkflow$$GraphError) {
-      return ApiResult<String>.failure(
-        _graphErrorMessageTyped(
-          code: payload.code.toJson(),
-          message: payload.message,
-          field: payload.field,
-        ),
-      );
-    }
-    if (payload
-        is! gql_ops.Mutation$EnqueueIngestionWorkflow$enqueueIngestionWorkflow$$EnqueueIngestionWorkflowSuccess) {
-      return const ApiResult<String>.failure(
-        'enqueueIngestionWorkflow returned unexpected payload',
-      );
-    }
-    return ApiResult<String>.success(payload.queueTaskID);
-  }
-
   Future<ApiResult<String>> approveIssueIntake({
     required String runID,
     required String taskID,
@@ -418,6 +299,7 @@ class ControlPlaneApi {
     required String projectName,
     required String scmProvider,
     required List<String> repositoryURLs,
+    required String scmToken,
     required String trackerProvider,
     required String taskboardName,
   }) async {
@@ -469,6 +351,7 @@ class ControlPlaneApi {
                     repositoryID:
                         '${projectID.isEmpty ? 'project' : projectID}-repo-${entry.key + 1}',
                     scmProvider: projectScmProvider,
+                    scmToken: scmToken.trim(),
                     repositoryURL: entry.value,
                     isPrimary: entry.key == 0,
                   ),
@@ -951,8 +834,6 @@ class ControlPlaneApi {
     switch (value.toUpperCase()) {
       case 'INTERNAL':
         return gql_cp.Enum$TrackerSourceKind.INTERNAL;
-      case 'GITHUB_ISSUES':
-        return gql_cp.Enum$TrackerSourceKind.GITHUB_ISSUES;
       default:
         return null;
     }

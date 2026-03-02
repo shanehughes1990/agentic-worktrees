@@ -92,14 +92,15 @@ func baseProjectSetup() applicationcontrolplane.ProjectSetup {
 		ProjectID:   "project-1",
 		ProjectName: "Project One",
 		Repositories: []applicationcontrolplane.ProjectRepository{{
-			RepositoryID: "repo-1",
-			SCMProvider:  "github",
+			RepositoryID:  "repo-1",
+			SCMProvider:   "github",
+			SCMToken:      "token",
 			RepositoryURL: "https://github.com/acme/repo",
-			IsPrimary:    true,
+			IsPrimary:     true,
 		}},
 		Boards: []applicationcontrolplane.ProjectBoard{{
 			BoardID:                  "board-1",
-			TrackerProvider:          "github_issues",
+			TrackerProvider:          "internal",
 			TaskboardName:            "Acme Repo Board",
 			AppliesToAllRepositories: true,
 			RepositoryIDs:            []string{},
@@ -225,32 +226,6 @@ func TestControlPlaneSessionsQueryReturnsTypedUnionSuccess(t *testing.T) {
 
 func TestControlPlaneMutationsReturnTypedUnionSuccess(t *testing.T) {
 	resolver := newControlPlaneResolverFixture(t)
-	enqueueResult, enqueueErr := (&mutationResolver{resolver}).EnqueueIngestionWorkflow(context.Background(), models.EnqueueIngestionWorkflowInput{
-		RunID:          "run-1",
-		TaskID:         "task-1",
-		JobID:          "job-1",
-		IdempotencyKey: "idem-1",
-		Prompt:         "sync",
-		ProjectID:      "project-1",
-		WorkflowID:     "workflow-1",
-		BoardSources: []*models.IngestionBoardSourceInput{{
-			BoardID:                  "board-1",
-			Kind:                     models.TrackerSourceKindGithubIssues,
-				Location:                 strPtr("octo/repo"),
-			AppliesToAllRepositories: true,
-		}},
-	})
-	if enqueueErr != nil {
-		t.Fatalf("EnqueueIngestionWorkflow() error = %v", enqueueErr)
-	}
-	enqueueSuccess, ok := enqueueResult.(models.EnqueueIngestionWorkflowSuccess)
-	if !ok {
-		t.Fatalf("expected EnqueueIngestionWorkflowSuccess, got %T", enqueueResult)
-	}
-	if enqueueSuccess.QueueTaskID != "idem-1" {
-		t.Fatalf("unexpected queue task id: %q", enqueueSuccess.QueueTaskID)
-	}
-
 	approvalResult, approvalErr := (&mutationResolver{resolver}).ApproveIssueIntake(context.Background(), models.ApproveIssueIntakeInput{
 		RunID:          "run-1",
 		TaskID:         "task-1",

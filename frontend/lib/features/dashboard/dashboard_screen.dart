@@ -56,17 +56,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final TextEditingController _taskboardNameController = TextEditingController(
     text: 'acme/repo',
   );
+  final TextEditingController _scmTokenController = TextEditingController();
   final TextEditingController _workflowController = TextEditingController(
     text: 'workflow-1',
   );
   final TextEditingController _promptController = TextEditingController(
     text: 'Ingest latest issue board state',
-  );
-  final TextEditingController _scmOwnerController = TextEditingController(
-    text: 'acme',
-  );
-  final TextEditingController _scmRepoController = TextEditingController(
-    text: 'repo',
   );
 
   SessionSummary? _selectedSession;
@@ -126,6 +121,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _projectNameController.text = '';
       _repositoryUrlController.text = '';
       _taskboardNameController.text = '';
+      _scmTokenController.clear();
       _setupScmProvider = ProjectSetupLogic.defaultScmProvider;
       _setupTrackerProvider = ProjectSetupLogic.defaultTrackerProvider;
       _statusMessage = 'Creating a new project setup';
@@ -150,10 +146,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _projectNameController.dispose();
     _repositoryUrlController.dispose();
     _taskboardNameController.dispose();
+    _scmTokenController.dispose();
     _workflowController.dispose();
     _promptController.dispose();
-    _scmOwnerController.dispose();
-    _scmRepoController.dispose();
     _streamSubscription?.cancel();
     _workerSessionSubscription?.cancel();
     super.dispose();
@@ -315,6 +310,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectID: projectID,
       projectName: projectName,
       repositoryURLs: repositoryURLs,
+      scmToken: _scmTokenController.text,
       taskboardName: taskboardName,
     );
     if (validationError != null) {
@@ -328,6 +324,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectName: projectName,
       scmProvider: _setupScmProvider,
       repositoryURLs: repositoryURLs,
+      scmToken: _scmTokenController.text.trim(),
       trackerProvider: _setupTrackerProvider,
       taskboardName: taskboardName,
     );
@@ -364,35 +361,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Future<void> _runEnqueueIngestion(ControlPlaneApi api) async {
-    if (_selectedSession == null) {
-      setState(
-        () => _statusMessage = 'Select a session before enqueueing ingestion.',
-      );
-      return;
-    }
-    setState(() => _isRunningAction = true);
-    final response = await api.enqueueIngestionWorkflow(
-      runID: _selectedSession!.runID,
-      taskID: _selectedJob?.taskID ?? 'task-ingestion',
-      jobID: _selectedJob?.jobID ?? 'job-ingestion',
-      idempotencyKey: DashboardWorkflowLogic.ingestionIdempotencyKey(
-        DateTime.now(),
-      ),
-      prompt: _promptController.text.trim(),
-      projectID: _projectController.text.trim(),
-      workflowID: _workflowController.text.trim(),
-      source: _sourceController.text.trim(),
-    );
-    setState(() {
-      _isRunningAction = false;
-      _statusMessage = response.isSuccess
-          ? 'Enqueued ingestion task ${response.data}'
-          : 'Enqueue ingestion failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
-      _refreshToken++;
-    });
-  }
-
   Future<void> _runApproveIssue(ControlPlaneApi api) async {
     if (_selectedSession == null || _selectedJob == null) {
       setState(
@@ -416,31 +384,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _statusMessage = response.isSuccess
           ? 'Issue approval decision: ${response.data}'
           : 'Approve issue failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
-      _refreshToken++;
-    });
-  }
-
-  Future<void> _runEnqueueScm(ControlPlaneApi api) async {
-    if (_selectedSession == null) {
-      setState(
-        () => _statusMessage = 'Select a session before enqueueing SCM.',
-      );
-      return;
-    }
-    setState(() => _isRunningAction = true);
-    final response = await api.enqueueScmWorkflow(
-      runID: _selectedSession!.runID,
-      taskID: _selectedJob?.taskID ?? 'task-scm',
-      jobID: _selectedJob?.jobID ?? 'job-scm',
-      idempotencyKey: DashboardWorkflowLogic.scmIdempotencyKey(DateTime.now()),
-      owner: _scmOwnerController.text.trim(),
-      repository: _scmRepoController.text.trim(),
-    );
-    setState(() {
-      _isRunningAction = false;
-      _statusMessage = response.isSuccess
-          ? 'Enqueued SCM task ${response.data}'
-          : 'Enqueue SCM failed: ${DashboardWorkflowLogic.compactError(response.errorMessage)}';
       _refreshToken++;
     });
   }
@@ -605,15 +548,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectController: _projectController,
       workflowController: _workflowController,
       promptController: _promptController,
-      scmOwnerController: _scmOwnerController,
-      scmRepoController: _scmRepoController,
       isRunningAction: _isRunningAction,
       onJobSelected: (WorkflowJob job) {
         setState(() => _selectedJob = job);
       },
-      onEnqueueIngestion: () => _runEnqueueIngestion(api),
       onApproveIssue: () => _runApproveIssue(api),
-      onEnqueueScm: () => _runEnqueueScm(api),
       onShowWorkerSessions: () {
         setState(() => _activeView = _DashboardView.workerSessions);
       },
@@ -639,12 +578,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       repositoryUrlController: _repositoryUrlController,
       taskboardNameController: _taskboardNameController,
       setupScmProvider: _setupScmProvider,
-      setupTrackerProvider: _setupTrackerProvider,
+      scmTokenController: _scmTokenController,
       onSetupScmProviderChanged: (String value) {
         setState(() => _setupScmProvider = value);
-      },
-      onSetupTrackerProviderChanged: (String value) {
-        setState(() => _setupTrackerProvider = value);
       },
       isSavingProjectSetup: _isSavingProjectSetup,
       onSaveProjectSetup: _saveProjectSetup,

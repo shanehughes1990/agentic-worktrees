@@ -24,11 +24,12 @@ func (projectSetupRecord) TableName() string {
 
 type projectRepositoryRecord struct {
 	gorm.Model
-	ProjectID    string `gorm:"column:project_id;size:255;not null;index"`
-	RepositoryID string `gorm:"column:repository_id;size:255;not null"`
-	SCMProvider  string `gorm:"column:scm_provider;size:64;not null"`
+	ProjectID     string `gorm:"column:project_id;size:255;not null;index"`
+	RepositoryID  string `gorm:"column:repository_id;size:255;not null"`
+	SCMProvider   string `gorm:"column:scm_provider;size:64;not null"`
+	SCMToken      string `gorm:"column:scm_token;size:512;not null"`
 	RepositoryURL string `gorm:"column:repository_url;size:1024;not null"`
-	IsPrimary    bool   `gorm:"column:is_primary;not null;default:false"`
+	IsPrimary     bool   `gorm:"column:is_primary;not null;default:false"`
 }
 
 func (projectRepositoryRecord) TableName() string {
@@ -37,12 +38,12 @@ func (projectRepositoryRecord) TableName() string {
 
 type projectBoardRecord struct {
 	gorm.Model
-	ProjectID                  string   `gorm:"column:project_id;size:255;not null;index"`
-	BoardID                    string   `gorm:"column:board_id;size:255;not null"`
-	TrackerProvider            string   `gorm:"column:tracker_provider;size:64;not null"`
-	TaskboardName              string   `gorm:"column:taskboard_name;size:255"`
-	AppliesToAllRepositories   bool     `gorm:"column:applies_to_all_repositories;not null;default:true"`
-	RepositoryIDs              []string `gorm:"column:repository_ids;serializer:json"`
+	ProjectID                string   `gorm:"column:project_id;size:255;not null;index"`
+	BoardID                  string   `gorm:"column:board_id;size:255;not null"`
+	TrackerProvider          string   `gorm:"column:tracker_provider;size:64;not null"`
+	TaskboardName            string   `gorm:"column:taskboard_name;size:255"`
+	AppliesToAllRepositories bool     `gorm:"column:applies_to_all_repositories;not null;default:true"`
+	RepositoryIDs            []string `gorm:"column:repository_ids;serializer:json"`
 }
 
 func (projectBoardRecord) TableName() string {
@@ -146,11 +147,12 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 			repositories := make([]projectRepositoryRecord, 0, len(setup.Repositories))
 			for _, repositorySetup := range setup.Repositories {
 				repositories = append(repositories, projectRepositoryRecord{
-					ProjectID:    projectRecord.ProjectID,
-					RepositoryID: strings.TrimSpace(repositorySetup.RepositoryID),
-					SCMProvider:  strings.TrimSpace(repositorySetup.SCMProvider),
+					ProjectID:     projectRecord.ProjectID,
+					RepositoryID:  strings.TrimSpace(repositorySetup.RepositoryID),
+					SCMProvider:   strings.TrimSpace(repositorySetup.SCMProvider),
+					SCMToken:      strings.TrimSpace(repositorySetup.SCMToken),
 					RepositoryURL: strings.TrimSpace(repositorySetup.RepositoryURL),
-					IsPrimary:    repositorySetup.IsPrimary,
+					IsPrimary:     repositorySetup.IsPrimary,
 				})
 			}
 			if err := tx.Create(&repositories).Error; err != nil {
@@ -262,10 +264,11 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(repositoryRecords))
 	for _, repositoryRecord := range repositoryRecords {
 		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
-			RepositoryID: strings.TrimSpace(repositoryRecord.RepositoryID),
-			SCMProvider:  strings.TrimSpace(repositoryRecord.SCMProvider),
+			RepositoryID:  strings.TrimSpace(repositoryRecord.RepositoryID),
+			SCMProvider:   strings.TrimSpace(repositoryRecord.SCMProvider),
+			SCMToken:      strings.TrimSpace(repositoryRecord.SCMToken),
 			RepositoryURL: strings.TrimSpace(repositoryRecord.RepositoryURL),
-			IsPrimary:    repositoryRecord.IsPrimary,
+			IsPrimary:     repositoryRecord.IsPrimary,
 		})
 	}
 	boards := make([]applicationcontrolplane.ProjectBoard, 0, len(boardRecords))

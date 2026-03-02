@@ -82,34 +82,7 @@ union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
 
 enum TrackerSourceKind {
   INTERNAL
-  GITHUB_ISSUES
 }
-
-input IngestionBoardSourceInput {
-  boardID: String!
-  kind: TrackerSourceKind!
-  location: String
-  appliesToAllRepositories: Boolean!
-  repositoryIDs: [String!]
-}
-
-input EnqueueIngestionWorkflowInput {
-  runID: String!
-  taskID: String!
-  jobID: String!
-  idempotencyKey: String!
-  prompt: String!
-  projectID: String!
-  workflowID: String!
-  boardSources: [IngestionBoardSourceInput!]!
-}
-
-type EnqueueIngestionWorkflowSuccess {
-  queueTaskID: ID!
-  duplicate: Boolean!
-}
-
-union EnqueueIngestionWorkflowResult = EnqueueIngestionWorkflowSuccess | GraphError
 
 input ApproveIssueIntakeInput {
   runID: String!
@@ -177,6 +150,7 @@ union ProjectSetupResult = ProjectSetupSuccess | GraphError
 input ProjectRepositoryInput {
   repositoryID: String!
   scmProvider: SCMProvider!
+  scmToken: String!
   repositoryURL: String!
   isPrimary: Boolean!
 }
@@ -293,7 +267,6 @@ extend type Query {
 }
 
 extend type Mutation {
-  enqueueIngestionWorkflow(input: EnqueueIngestionWorkflowInput!): EnqueueIngestionWorkflowResult!
   approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!

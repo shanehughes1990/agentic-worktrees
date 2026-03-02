@@ -10,11 +10,6 @@ import (
 	"context"
 )
 
-// EnqueueScmWorkflow is the resolver for the enqueueScmWorkflow field.
-func (r *mutationResolver) EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (models.EnqueueSCMWorkflowResult, error) {
-	return enqueueSCMWorkflow(ctx, r.Resolver, input)
-}
-
 // ScmSupportedOperations is the resolver for the scmSupportedOperations field.
 func (r *queryResolver) ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error) {
 	_ = ctx

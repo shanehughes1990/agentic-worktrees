@@ -169,108 +169,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
           as _i5.Future<_i2.ApiResult<List<_i2.SupervisorDecision>>>);
 
   @override
-  _i5.Future<_i2.ApiResult<String>> enqueueScmWorkflow({
-    required String? runID,
-    required String? taskID,
-    required String? jobID,
-    required String? idempotencyKey,
-    required String? owner,
-    required String? repository,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#enqueueScmWorkflow, [], {
-              #runID: runID,
-              #taskID: taskID,
-              #jobID: jobID,
-              #idempotencyKey: idempotencyKey,
-              #owner: owner,
-              #repository: repository,
-            }),
-            returnValue: _i5.Future<_i2.ApiResult<String>>.value(
-              _FakeApiResult_0<String>(
-                this,
-                Invocation.method(#enqueueScmWorkflow, [], {
-                  #runID: runID,
-                  #taskID: taskID,
-                  #jobID: jobID,
-                  #idempotencyKey: idempotencyKey,
-                  #owner: owner,
-                  #repository: repository,
-                }),
-              ),
-            ),
-            returnValueForMissingStub: _i5.Future<_i2.ApiResult<String>>.value(
-              _FakeApiResult_0<String>(
-                this,
-                Invocation.method(#enqueueScmWorkflow, [], {
-                  #runID: runID,
-                  #taskID: taskID,
-                  #jobID: jobID,
-                  #idempotencyKey: idempotencyKey,
-                  #owner: owner,
-                  #repository: repository,
-                }),
-              ),
-            ),
-          )
-          as _i5.Future<_i2.ApiResult<String>>);
-
-  @override
-  _i5.Future<_i2.ApiResult<String>> enqueueIngestionWorkflow({
-    required String? runID,
-    required String? taskID,
-    required String? jobID,
-    required String? idempotencyKey,
-    required String? prompt,
-    required String? projectID,
-    required String? workflowID,
-    required String? source,
-  }) =>
-      (super.noSuchMethod(
-            Invocation.method(#enqueueIngestionWorkflow, [], {
-              #runID: runID,
-              #taskID: taskID,
-              #jobID: jobID,
-              #idempotencyKey: idempotencyKey,
-              #prompt: prompt,
-              #projectID: projectID,
-              #workflowID: workflowID,
-              #source: source,
-            }),
-            returnValue: _i5.Future<_i2.ApiResult<String>>.value(
-              _FakeApiResult_0<String>(
-                this,
-                Invocation.method(#enqueueIngestionWorkflow, [], {
-                  #runID: runID,
-                  #taskID: taskID,
-                  #jobID: jobID,
-                  #idempotencyKey: idempotencyKey,
-                  #prompt: prompt,
-                  #projectID: projectID,
-                  #workflowID: workflowID,
-                  #source: source,
-                }),
-              ),
-            ),
-            returnValueForMissingStub: _i5.Future<_i2.ApiResult<String>>.value(
-              _FakeApiResult_0<String>(
-                this,
-                Invocation.method(#enqueueIngestionWorkflow, [], {
-                  #runID: runID,
-                  #taskID: taskID,
-                  #jobID: jobID,
-                  #idempotencyKey: idempotencyKey,
-                  #prompt: prompt,
-                  #projectID: projectID,
-                  #workflowID: workflowID,
-                  #source: source,
-                }),
-              ),
-            ),
-          )
-          as _i5.Future<_i2.ApiResult<String>>);
-
-  @override
   _i5.Future<_i2.ApiResult<String>> approveIssueIntake({
     required String? runID,
     required String? taskID,
@@ -350,6 +248,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
     required String? projectName,
     required String? scmProvider,
     required List<String>? repositoryURLs,
+    required String? scmToken,
     required String? trackerProvider,
     required String? taskboardName,
   }) =>
@@ -359,6 +258,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
               #projectName: projectName,
               #scmProvider: scmProvider,
               #repositoryURLs: repositoryURLs,
+              #scmToken: scmToken,
               #trackerProvider: trackerProvider,
               #taskboardName: taskboardName,
             }),
@@ -371,6 +271,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #projectName: projectName,
                       #scmProvider: scmProvider,
                       #repositoryURLs: repositoryURLs,
+                      #scmToken: scmToken,
                       #trackerProvider: trackerProvider,
                       #taskboardName: taskboardName,
                     }),
@@ -385,6 +286,7 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #projectName: projectName,
                       #scmProvider: scmProvider,
                       #repositoryURLs: repositoryURLs,
+                      #scmToken: scmToken,
                       #trackerProvider: trackerProvider,
                       #taskboardName: taskboardName,
                     }),

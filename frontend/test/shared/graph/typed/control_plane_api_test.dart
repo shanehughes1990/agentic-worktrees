@@ -142,88 +142,6 @@ void main() {
     );
   });
 
-  group('enqueueIngestionWorkflow', () {
-    test('maps mutation success to queue task id', () async {
-      when(
-        client.mutate<gql_ops.Mutation$EnqueueIngestionWorkflow>(any),
-      ).thenAnswer((Invocation invocation) async {
-        final options =
-            invocation.positionalArguments.first
-                as graphql.MutationOptions<
-                  gql_ops.Mutation$EnqueueIngestionWorkflow
-                >;
-        return graphql.QueryResult<gql_ops.Mutation$EnqueueIngestionWorkflow>(
-          options: options,
-          source: graphql.QueryResultSource.network,
-          data: <String, dynamic>{
-            '__typename': 'Mutation',
-            'enqueueIngestionWorkflow': <String, dynamic>{
-              '__typename': 'EnqueueIngestionWorkflowSuccess',
-              'queueTaskID': 'queue-task-1',
-              'duplicate': false,
-            },
-          },
-        );
-      });
-
-      final result = await api.enqueueIngestionWorkflow(
-        runID: 'run-1',
-        taskID: 'task-1',
-        jobID: 'job-1',
-        idempotencyKey: 'idempotency-1',
-        prompt: 'prompt',
-        projectID: 'project-1',
-        workflowID: 'workflow-1',
-        source: 'acme/repo',
-      );
-
-      expect(result.isSuccess, isTrue);
-      expect(result.data, 'queue-task-1');
-      verify(
-        client.mutate<gql_ops.Mutation$EnqueueIngestionWorkflow>(any),
-      ).called(1);
-    });
-
-    test('maps mutation graph error to failure', () async {
-      when(
-        client.mutate<gql_ops.Mutation$EnqueueIngestionWorkflow>(any),
-      ).thenAnswer((Invocation invocation) async {
-        final options =
-            invocation.positionalArguments.first
-                as graphql.MutationOptions<
-                  gql_ops.Mutation$EnqueueIngestionWorkflow
-                >;
-        return graphql.QueryResult<gql_ops.Mutation$EnqueueIngestionWorkflow>(
-          options: options,
-          source: graphql.QueryResultSource.network,
-          data: <String, dynamic>{
-            '__typename': 'Mutation',
-            'enqueueIngestionWorkflow': <String, dynamic>{
-              '__typename': 'GraphError',
-              'code': 'INTERNAL',
-              'message': 'enqueue failed',
-              'field': 'enqueueIngestionWorkflow',
-            },
-          },
-        );
-      });
-
-      final result = await api.enqueueIngestionWorkflow(
-        runID: 'run-1',
-        taskID: 'task-1',
-        jobID: 'job-1',
-        idempotencyKey: 'idempotency-1',
-        prompt: 'prompt',
-        projectID: 'project-1',
-        workflowID: 'workflow-1',
-        source: 'acme/repo',
-      );
-
-      expect(result.isSuccess, isFalse);
-      expect(result.errorMessage, contains('enqueue failed'));
-    });
-  });
-
   group('worker api', () {
     test('maps workerSessions success payload', () async {
       when(client.query<dynamic>(any)).thenAnswer((
@@ -306,6 +224,7 @@ void main() {
         projectName: 'Project 1',
         scmProvider: 'UNSUPPORTED',
         repositoryURLs: const <String>['https://example.com/acme/repo'],
+        scmToken: 'token',
         trackerProvider: 'GITHUB_ISSUES',
         taskboardName: 'Acme Repo Board',
       );

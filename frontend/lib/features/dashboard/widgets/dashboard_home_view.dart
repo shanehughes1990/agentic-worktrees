@@ -19,13 +19,9 @@ class DashboardHomeView extends StatelessWidget {
     required this.projectController,
     required this.workflowController,
     required this.promptController,
-    required this.scmOwnerController,
-    required this.scmRepoController,
     required this.isRunningAction,
     required this.onJobSelected,
-    required this.onEnqueueIngestion,
     required this.onApproveIssue,
-    required this.onEnqueueScm,
     required this.onShowWorkerSessions,
     required this.onCreateProject,
     super.key,
@@ -47,13 +43,9 @@ class DashboardHomeView extends StatelessWidget {
   final TextEditingController projectController;
   final TextEditingController workflowController;
   final TextEditingController promptController;
-  final TextEditingController scmOwnerController;
-  final TextEditingController scmRepoController;
   final bool isRunningAction;
   final ValueChanged<WorkflowJob> onJobSelected;
-  final VoidCallback onEnqueueIngestion;
   final VoidCallback onApproveIssue;
-  final VoidCallback onEnqueueScm;
   final VoidCallback onShowWorkerSessions;
   final VoidCallback onCreateProject;
 

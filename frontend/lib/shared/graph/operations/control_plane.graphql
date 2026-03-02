@@ -60,36 +60,6 @@ query SupervisorDecisionHistory($runID: String!, $taskID: String!, $jobID: Strin
   }
 }
 
-mutation EnqueueScmWorkflow($input: EnqueueSCMWorkflowInput!) {
-  enqueueScmWorkflow(input: $input) {
-    __typename
-    ... on EnqueueSCMWorkflowSuccess {
-      queueTaskID
-      duplicate
-    }
-    ... on GraphError {
-      code
-      message
-      field
-    }
-  }
-}
-
-mutation EnqueueIngestionWorkflow($input: EnqueueIngestionWorkflowInput!) {
-  enqueueIngestionWorkflow(input: $input) {
-    __typename
-    ... on EnqueueIngestionWorkflowSuccess {
-      queueTaskID
-      duplicate
-    }
-    ... on GraphError {
-      code
-      message
-      field
-    }
-  }
-}
-
 mutation ApproveIssueIntake($input: ApproveIssueIntakeInput!) {
   approveIssueIntake(input: $input) {
     __typename

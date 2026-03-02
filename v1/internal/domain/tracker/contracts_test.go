@@ -110,8 +110,8 @@ func TestWorkItemValidateRejectsUnsupportedPriority(t *testing.T) {
 	}
 }
 
-func TestSourceRefValidateRequiresLocationForGitHubIssues(t *testing.T) {
-	err := (SourceRef{Kind: SourceKindGitHubIssues}).Validate()
+func TestSourceRefValidateRequiresLocationForInternal(t *testing.T) {
+	err := (SourceRef{Kind: SourceKindInternal}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
 	}

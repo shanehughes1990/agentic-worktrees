@@ -11,6 +11,7 @@ void main() {
         projectID: '',
         projectName: 'name',
         repositoryURLs: const <String>['https://example.com/repo'],
+        scmToken: 'token',
         taskboardName: 'Main Board',
       );
 
@@ -25,6 +26,7 @@ void main() {
         projectID: 'projectOne',
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
+        scmToken: 'token',
         taskboardName: 'Main Board',
       );
 
@@ -36,6 +38,7 @@ void main() {
         projectID: 'projectOne',
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
+        scmToken: 'token',
         taskboardName: '   ',
       );
 

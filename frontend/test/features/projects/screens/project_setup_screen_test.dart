@@ -10,12 +10,14 @@ void main() {
   late TextEditingController projectNameController;
   late TextEditingController repositoryController;
   late TextEditingController taskboardNameController;
+  late TextEditingController scmTokenController;
 
   setUp(() {
     projectController = TextEditingController();
     projectNameController = TextEditingController();
     repositoryController = TextEditingController();
     taskboardNameController = TextEditingController();
+    scmTokenController = TextEditingController();
   });
 
   tearDown(() {
@@ -23,6 +25,7 @@ void main() {
     projectNameController.dispose();
     repositoryController.dispose();
     taskboardNameController.dispose();
+    scmTokenController.dispose();
   });
 
   Future<void> pumpSubject(
@@ -30,7 +33,6 @@ void main() {
     required VoidCallback onSave,
     required VoidCallback onReload,
     required ValueChanged<String> onScmProviderChanged,
-    required ValueChanged<String> onTrackerProviderChanged,
     required ValueChanged<ProjectSetupConfig> onProjectSelected,
     bool isSaving = false,
   }) async {
@@ -43,9 +45,8 @@ void main() {
             repositoryUrlController: repositoryController,
             taskboardNameController: taskboardNameController,
             setupScmProvider: 'GITHUB',
-            setupTrackerProvider: 'GITHUB_ISSUES',
+            scmTokenController: scmTokenController,
             onSetupScmProviderChanged: onScmProviderChanged,
-            onSetupTrackerProviderChanged: onTrackerProviderChanged,
             isSavingProjectSetup: isSaving,
             onSaveProjectSetup: onSave,
             onReloadProjectSetups: onReload,
@@ -67,7 +68,6 @@ void main() {
       onSave: () {},
       onReload: () {},
       onScmProviderChanged: (_) {},
-      onTrackerProviderChanged: (_) {},
       onProjectSelected: (_) {},
     );
 
@@ -75,7 +75,6 @@ void main() {
     expect(find.text('SCM Provider'), findsOneWidget);
     expect(find.text('Repository Setup'), findsOneWidget);
     expect(find.text('Tracker Setup'), findsOneWidget);
-    expect(find.text('Tracker Provider'), findsOneWidget);
     expect(find.text('Add Repository'), findsOneWidget);
     expect(find.text('Add Tracker'), findsNothing);
     expect(find.text('status'), findsOneWidget);
@@ -89,7 +88,6 @@ void main() {
       onSave: () {},
       onReload: () {},
       onScmProviderChanged: (_) {},
-      onTrackerProviderChanged: (_) {},
       onProjectSelected: (_) {},
     );
 
@@ -112,7 +110,6 @@ void main() {
       onSave: () => saveCount++,
       onReload: () => reloadCount++,
       onScmProviderChanged: (_) {},
-      onTrackerProviderChanged: (_) {},
       onProjectSelected: (_) {},
     );
 
@@ -133,7 +130,6 @@ void main() {
       onSave: () {},
       onReload: () {},
       onScmProviderChanged: (_) {},
-      onTrackerProviderChanged: (_) {},
       onProjectSelected: (_) {},
     );
 
@@ -151,7 +147,6 @@ void main() {
       onSave: () {},
       onReload: () {},
       onScmProviderChanged: (_) {},
-      onTrackerProviderChanged: (_) {},
       onProjectSelected: (_) {},
     );
 

@@ -28,8 +28,8 @@ func sampleCanonicalBoard() domaintracker.Board {
 		BoardID: "board-1",
 		RunID:   "run-1",
 		Source: domaintracker.SourceRef{
-			Kind:     domaintracker.SourceKindGitHubIssues,
-			Location: "octo/repo",
+			Kind:     domaintracker.SourceKindInternal,
+			Location: "board-1",
 			BoardID:  "board-1",
 		},
 		Status: domaintracker.StatusInProgress,

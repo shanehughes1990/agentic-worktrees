@@ -25,14 +25,6 @@ void main() {
   });
 
   group('idempotency keys', () {
-    test('ingestion key includes timestamp', () {
-      final key = DashboardWorkflowLogic.ingestionIdempotencyKey(
-        DateTime.fromMillisecondsSinceEpoch(123),
-      );
-
-      expect(key, 'ingest-123');
-    });
-
     test('scm key includes timestamp', () {
       final key = DashboardWorkflowLogic.scmIdempotencyKey(
         DateTime.fromMillisecondsSinceEpoch(456),

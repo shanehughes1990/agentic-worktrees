@@ -143,8 +143,6 @@ func toTrackerSourceKindString(kind models.TrackerSourceKind) string {
 	switch kind {
 	case models.TrackerSourceKindInternal:
 		return "internal"
-	case models.TrackerSourceKindGithubIssues:
-		return "github_issues"
 	default:
 		return ""
 	}
@@ -154,8 +152,6 @@ func toGraphTrackerSourceKind(kind string) (models.TrackerSourceKind, error) {
 	switch strings.TrimSpace(kind) {
 	case "internal":
 		return models.TrackerSourceKindInternal, nil
-	case "github_issues":
-		return models.TrackerSourceKindGithubIssues, nil
 	default:
 		return "", fmt.Errorf("unsupported tracker provider %q", kind)
 	}
@@ -248,4 +244,8 @@ func nilIfEmpty(value string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func strPtr(value string) *string {
+	return &value
 }

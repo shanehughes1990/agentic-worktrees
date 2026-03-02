@@ -16,10 +16,6 @@ class DashboardWorkflowLogic {
     return '${firstLine.substring(0, 177)}...';
   }
 
-  static String ingestionIdempotencyKey(DateTime now) {
-    return 'ingest-${now.millisecondsSinceEpoch}';
-  }
-
   static String scmIdempotencyKey(DateTime now) {
     return 'scm-${now.millisecondsSinceEpoch}';
   }

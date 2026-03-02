@@ -255,7 +255,6 @@ const possibleTypesMap = <String, Set<String>>{
   'StreamEventResult': {'StreamEventSuccess', 'GraphError'},
   'WorkerSessionsResult': {'WorkerSessionsSuccess', 'GraphError'},
   'WorkerSettingsResult': {'WorkerSettingsSuccess', 'GraphError'},
-  'EnqueueSCMWorkflowResult': {'EnqueueSCMWorkflowSuccess', 'GraphError'},
   'ScmSupportedOperationsResult': {
     'ScmSupportedOperationsSuccess',
     'GraphError',

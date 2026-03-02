@@ -5,16 +5,20 @@ class ProjectSetupLogic {
   const ProjectSetupLogic._();
 
   static const String defaultScmProvider = 'GITHUB';
-  static const String defaultTrackerProvider = 'GITHUB_ISSUES';
+  static const String defaultTrackerProvider = 'INTERNAL';
 
   static String? validateRequiredFields({
     required String projectID,
     required String projectName,
     required List<String> repositoryURLs,
+    required String scmToken,
     required String taskboardName,
   }) {
     if (projectID.isEmpty || projectName.isEmpty || repositoryURLs.isEmpty) {
       return 'Project ID, Project Name, and at least one Repository URL are required.';
+    }
+    if (scmToken.trim().isEmpty) {
+      return 'SCM Token is required.';
     }
     if (taskboardName.trim().isEmpty) {
       return 'Taskboard Name is required.';

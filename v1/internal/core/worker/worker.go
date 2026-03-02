@@ -2,6 +2,7 @@ package worker
 
 import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
+	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
@@ -22,25 +23,25 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 )
 
 type WorkerApp struct {
-	config                Config
-	httpServer            *http.Server
-	observabilityPlatform *observability.Platform
-	healthPlatform        *healthcheck.Platform
-	taskScheduler         *taskengine.Scheduler
-	taskEnginePlatform    taskengine.Consumer
-	databaseClient        *postgresdb.Client
-	checkpointStore       taskengine.CheckpointStore
-	executionJournal      taskengine.ExecutionJournal
-	agentService          *applicationagent.Service
-	scmService            *applicationscm.Service
-	supervisorService     *applicationsupervisor.Service
-	workerService         *applicationworker.Service
+	config                 Config
+	httpServer             *http.Server
+	observabilityPlatform  *observability.Platform
+	healthPlatform         *healthcheck.Platform
+	taskScheduler          *taskengine.Scheduler
+	taskEnginePlatform     taskengine.Consumer
+	databaseClient         *postgresdb.Client
+	checkpointStore        taskengine.CheckpointStore
+	executionJournal       taskengine.ExecutionJournal
+	projectSetupRepository applicationcontrolplane.ProjectSetupRepository
+	supervisorService      *applicationsupervisor.Service
+	workerService          *applicationworker.Service
 }
 
 type workerJobRegistration struct {
@@ -105,31 +106,6 @@ func New() (*WorkerApp, error) {
 	supervisorService.SetDispatcher(supervisorDispatcher)
 	taskScheduler.SetAdmissionSignalSink(supervisorService)
 
-	repoLeaseManager, err := infrascm.NewPostgresRepoLeaseManager(databaseClient.DB())
-	if err != nil {
-		return nil, fmt.Errorf("init postgres repo lease manager: %w", err)
-	}
-
-	if strings.TrimSpace(config.SCMGitHubToken) == "" {
-		return nil, fmt.Errorf("worker requires SCM_GITHUB_TOKEN for github scm execution")
-	}
-
-	githubAdapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
-		APIBaseURL:       config.SCMGitHubAPIBaseURL,
-		RepoPath:         config.RepositorySourcePath(),
-		WorktreeRootPath: config.ProjectsPath(),
-	}, nil, infrascm.NewStaticTokenProvider(config.SCMGitHubToken), infrascm.NewExecGitRunner())
-	if err != nil {
-		return nil, fmt.Errorf("init github scm adapter: %w", err)
-	}
-	scmService, err := applicationscm.NewServiceWithLeaseManager(githubAdapter, repoLeaseManager)
-	if err != nil {
-		return nil, fmt.Errorf("init scm service: %w", err)
-	}
-	agentService, err := applicationagent.NewService(githubAdapter)
-	if err != nil {
-		return nil, fmt.Errorf("init agent service: %w", err)
-	}
 	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init worker registry: %w", err)
@@ -138,24 +114,27 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init worker service: %w", err)
 	}
+	projectSetupRepository, err := infrataskenginepostgres.NewProjectSetupRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init project setup repository: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	healthPlatform.Mount(mux)
 
 	return &WorkerApp{
-		config:                config,
-		httpServer:            &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
-		observabilityPlatform: observabilityPlatform,
-		healthPlatform:        healthPlatform,
-		taskScheduler:         taskScheduler,
-		taskEnginePlatform:    taskEnginePlatform,
-		databaseClient:        databaseClient,
-		checkpointStore:       checkpointStore,
-		executionJournal:      executionJournal,
-		agentService:          agentService,
-		scmService:            scmService,
-		supervisorService:     supervisorService,
-		workerService:         workerService,
+		config:                 config,
+		httpServer:             &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
+		observabilityPlatform:  observabilityPlatform,
+		healthPlatform:         healthPlatform,
+		taskScheduler:          taskScheduler,
+		taskEnginePlatform:     taskEnginePlatform,
+		databaseClient:         databaseClient,
+		checkpointStore:        checkpointStore,
+		executionJournal:       executionJournal,
+		projectSetupRepository: projectSetupRepository,
+		supervisorService:      supervisorService,
+		workerService:          workerService,
 	}, nil
 }
 
@@ -174,11 +153,70 @@ func (app *WorkerApp) Run() error {
 		}).Info("worker runtime starting")
 	}
 
-	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithSupervisor(app.agentService, app.checkpointStore, app.executionJournal, app.supervisorService)
+	if app.projectSetupRepository == nil {
+		return fmt.Errorf("project setup repository is not initialized")
+	}
+	repoLeaseManager, err := infrascm.NewPostgresRepoLeaseManager(app.databaseClient.DB())
+	if err != nil {
+		return fmt.Errorf("init postgres repo lease manager: %w", err)
+	}
+
+	buildGitHubAdapter := func(projectID string, repository applicationcontrolplane.ProjectRepository) (*infrascm.GitHubAdapter, error) {
+		if strings.TrimSpace(repository.SCMProvider) != "github" {
+			return nil, fmt.Errorf("unsupported scm provider %q", repository.SCMProvider)
+		}
+		if strings.TrimSpace(repository.SCMToken) == "" {
+			return nil, fmt.Errorf("project repository scm_token is required")
+		}
+		githubAdapter, adapterErr := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
+			RepoPath:         filepath.Join(app.config.ProjectPath(projectID), "repositories", "source"),
+			WorktreeRootPath: app.config.ProjectsPath(),
+		}, nil, infrascm.NewStaticTokenProvider(repository.SCMToken), infrascm.NewExecGitRunner())
+		if adapterErr != nil {
+			return nil, fmt.Errorf("init github scm adapter: %w", adapterErr)
+		}
+		return githubAdapter, nil
+	}
+
+	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithProjectSetup(
+		app.projectSetupRepository,
+		func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (workerinterface.AgentRuntimeService, error) {
+			_ = ctx
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, repository)
+			if adapterErr != nil {
+				return nil, adapterErr
+			}
+			service, serviceErr := applicationagent.NewService(githubAdapter)
+			if serviceErr != nil {
+				return nil, fmt.Errorf("init agent service: %w", serviceErr)
+			}
+			return service, nil
+		},
+		app.checkpointStore,
+		app.executionJournal,
+		app.supervisorService,
+	)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)
 	}
-	scmHandler, err := workerinterface.NewSCMWorkflowHandlerWithSupervisor(app.scmService, app.checkpointStore, app.executionJournal, app.supervisorService)
+	scmHandler, err := workerinterface.NewSCMWorkflowHandlerWithProjectSetup(
+		app.projectSetupRepository,
+		func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (workerinterface.SCMRuntimeService, error) {
+			_ = ctx
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, repository)
+			if adapterErr != nil {
+				return nil, adapterErr
+			}
+			service, serviceErr := applicationscm.NewServiceWithLeaseManager(githubAdapter, repoLeaseManager)
+			if serviceErr != nil {
+				return nil, fmt.Errorf("init scm service: %w", serviceErr)
+			}
+			return service, nil
+		},
+		app.checkpointStore,
+		app.executionJournal,
+		app.supervisorService,
+	)
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}

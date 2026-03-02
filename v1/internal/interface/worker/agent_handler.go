@@ -2,6 +2,7 @@ package worker
 
 import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
+	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"agentic-orchestrator/internal/application/taskengine"
 	domainagent "agentic-orchestrator/internal/domain/agent"
 	domainscm "agentic-orchestrator/internal/domain/scm"
@@ -28,40 +29,100 @@ type AgentWorkflowPayload struct {
 	ResumeCheckpointToken string                 `json:"resume_checkpoint_token,omitempty"`
 }
 
-type agentService interface {
+type AgentRuntimeService interface {
 	Execute(ctx context.Context, request domainagent.ExecutionRequest) error
 }
 
-var _ agentService = (*applicationagent.Service)(nil)
+var _ AgentRuntimeService = (*applicationagent.Service)(nil)
+
+type agentServiceFactoryFunc func(ctx context.Context, projectID string, repository applicationcontrolplane.ProjectRepository) (AgentRuntimeService, error)
+
+type agentRuntimeResolver interface {
+	Resolve(ctx context.Context, payload AgentWorkflowPayload) (AgentRuntimeService, domainscm.Repository, error)
+}
+
+type staticAgentRuntimeResolver struct {
+	service AgentRuntimeService
+}
+
+func (resolver *staticAgentRuntimeResolver) Resolve(ctx context.Context, payload AgentWorkflowPayload) (AgentRuntimeService, domainscm.Repository, error) {
+	_ = ctx
+	if resolver == nil || resolver.service == nil {
+		return nil, domainscm.Repository{}, fmt.Errorf("agent service is required")
+	}
+	return resolver.service, domainscm.Repository{Provider: payload.Provider, Owner: payload.Owner, Name: payload.Repository}, nil
+}
+
+type projectSetupAgentRuntimeResolver struct {
+	projectRepository projectSetupLookup
+	serviceFactory    agentServiceFactoryFunc
+}
+
+func (resolver *projectSetupAgentRuntimeResolver) Resolve(ctx context.Context, payload AgentWorkflowPayload) (AgentRuntimeService, domainscm.Repository, error) {
+	if resolver == nil || resolver.projectRepository == nil {
+		return nil, domainscm.Repository{}, fmt.Errorf("project setup repository is required")
+	}
+	if resolver.serviceFactory == nil {
+		return nil, domainscm.Repository{}, fmt.Errorf("agent service factory is required")
+	}
+	projectID := strings.TrimSpace(payload.ProjectID)
+	if projectID == "" {
+		return nil, domainscm.Repository{}, fmt.Errorf("project_id is required for agent workflow execution")
+	}
+	setup, err := resolver.projectRepository.GetProjectSetup(ctx, projectID)
+	if err != nil {
+		return nil, domainscm.Repository{}, fmt.Errorf("load project setup: %w", err)
+	}
+	if setup == nil {
+		return nil, domainscm.Repository{}, fmt.Errorf("project setup not found for project_id %q", projectID)
+	}
+	repositoryConfig, err := primaryProjectRepository(setup.Repositories)
+	if err != nil {
+		return nil, domainscm.Repository{}, err
+	}
+	owner, repositoryName, err := ownerRepositoryFromURL(repositoryConfig.RepositoryURL)
+	if err != nil {
+		return nil, domainscm.Repository{}, err
+	}
+	service, err := resolver.serviceFactory(ctx, projectID, repositoryConfig)
+	if err != nil {
+		return nil, domainscm.Repository{}, err
+	}
+	return service, domainscm.Repository{Provider: repositoryConfig.SCMProvider, Owner: owner, Name: repositoryName}, nil
+}
 
 type AgentWorkflowHandler struct {
-	service           agentService
+	runtimeResolver   agentRuntimeResolver
 	checkpointStore   taskengine.CheckpointStore
 	executionJournal  taskengine.ExecutionJournal
 	supervisorService supervisorSignalService
 }
 
-func NewAgentWorkflowHandler(service agentService) (*AgentWorkflowHandler, error) {
-	return NewAgentWorkflowHandlerWithCheckpointStore(service, nil)
+func NewAgentWorkflowHandler(service AgentRuntimeService) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, nil, nil, nil)
 }
 
-func NewAgentWorkflowHandlerWithCheckpointStore(service agentService, checkpointStore taskengine.CheckpointStore) (*AgentWorkflowHandler, error) {
-	return NewAgentWorkflowHandlerWithReliability(service, checkpointStore, nil)
+func NewAgentWorkflowHandlerWithCheckpointStore(service AgentRuntimeService, checkpointStore taskengine.CheckpointStore) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, nil, nil)
 }
 
-func NewAgentWorkflowHandlerWithReliability(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(service, checkpointStore, executionJournal, nil)
+func NewAgentWorkflowHandlerWithReliability(service AgentRuntimeService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, executionJournal, nil)
 }
 
-func NewAgentWorkflowHandlerWithSupervisor(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(service, checkpointStore, executionJournal, supervisorService)
+func NewAgentWorkflowHandlerWithSupervisor(service AgentRuntimeService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, executionJournal, supervisorService)
 }
 
-func newAgentWorkflowHandler(service agentService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
-	if service == nil {
-		return nil, fmt.Errorf("agent service is required")
+func NewAgentWorkflowHandlerWithProjectSetup(projectRepository projectSetupLookup, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandler(&projectSetupAgentRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory}, checkpointStore, executionJournal, supervisorService)
+}
+
+func newAgentWorkflowHandler(runtimeResolver agentRuntimeResolver, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+	if runtimeResolver == nil {
+		return nil, fmt.Errorf("agent runtime resolver is required")
 	}
-	return &AgentWorkflowHandler{service: service, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
+	return &AgentWorkflowHandler{runtimeResolver: runtimeResolver, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
 }
 
 func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -91,6 +152,13 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 		},
 	}
 
+	service, repository, err := handler.runtimeResolver.Resolve(ctx, payload)
+	if err != nil {
+		handler.safeRecordExecution(ctx, request, job.Kind, "source_state", taskengine.ExecutionStatusFailed, err.Error())
+		return err
+	}
+	request.Session.Repository = repository
+
 	step := "source_state"
 	if record, err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, ""); err == nil {
 		handler.safeSupervisorExecution(ctx, record)
@@ -117,7 +185,7 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 		request.ResumeCheckpoint = &domainagent.Checkpoint{Step: resumeCheckpoint.Step, Token: resumeCheckpoint.Token}
 	}
 
-	if err := handler.service.Execute(ctx, request); err != nil {
+	if err := service.Execute(ctx, request); err != nil {
 		handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 		return err
 	}

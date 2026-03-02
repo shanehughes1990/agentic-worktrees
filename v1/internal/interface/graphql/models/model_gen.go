@@ -22,14 +22,6 @@ type DeleteProjectSetupResult interface {
 	IsDeleteProjectSetupResult()
 }
 
-type EnqueueIngestionWorkflowResult interface {
-	IsEnqueueIngestionWorkflowResult()
-}
-
-type EnqueueSCMWorkflowResult interface {
-	IsEnqueueSCMWorkflowResult()
-}
-
 type ExecutionHistoryResult interface {
 	IsExecutionHistoryResult()
 }
@@ -125,52 +117,6 @@ type DeleteProjectSetupSuccess struct {
 
 func (DeleteProjectSetupSuccess) IsDeleteProjectSetupResult() {}
 
-type EnqueueIngestionWorkflowInput struct {
-	RunID          string                       `json:"runID"`
-	TaskID         string                       `json:"taskID"`
-	JobID          string                       `json:"jobID"`
-	IdempotencyKey string                       `json:"idempotencyKey"`
-	Prompt         string                       `json:"prompt"`
-	ProjectID      string                       `json:"projectID"`
-	WorkflowID     string                       `json:"workflowID"`
-	BoardSources   []*IngestionBoardSourceInput `json:"boardSources"`
-}
-
-type EnqueueIngestionWorkflowSuccess struct {
-	QueueTaskID string `json:"queueTaskID"`
-	Duplicate   bool   `json:"duplicate"`
-}
-
-func (EnqueueIngestionWorkflowSuccess) IsEnqueueIngestionWorkflowResult() {}
-
-type EnqueueSCMWorkflowInput struct {
-	Operation         SCMOperation       `json:"operation"`
-	Provider          SCMProvider        `json:"provider"`
-	Owner             string             `json:"owner"`
-	Repository        string             `json:"repository"`
-	RunID             string             `json:"runID"`
-	TaskID            string             `json:"taskID"`
-	JobID             string             `json:"jobID"`
-	ProjectID         string             `json:"projectID"`
-	IdempotencyKey    string             `json:"idempotencyKey"`
-	WorktreePath      *string            `json:"worktreePath,omitempty"`
-	BaseBranch        *string            `json:"baseBranch,omitempty"`
-	TargetBranch      *string            `json:"targetBranch,omitempty"`
-	PullRequestNumber *int32             `json:"pullRequestNumber,omitempty"`
-	MergeMethod       *SCMMergeMethod    `json:"mergeMethod,omitempty"`
-	PullRequestTitle  *string            `json:"pullRequestTitle,omitempty"`
-	PullRequestBody   *string            `json:"pullRequestBody,omitempty"`
-	ReviewDecision    *SCMReviewDecision `json:"reviewDecision,omitempty"`
-	ReviewBody        *string            `json:"reviewBody,omitempty"`
-}
-
-type EnqueueSCMWorkflowSuccess struct {
-	QueueTaskID string `json:"queueTaskID"`
-	Duplicate   bool   `json:"duplicate"`
-}
-
-func (EnqueueSCMWorkflowSuccess) IsEnqueueSCMWorkflowResult() {}
-
 type ExecutionHistoryRecord struct {
 	RunID          string    `json:"runID"`
 	TaskID         string    `json:"taskID"`
@@ -206,8 +152,6 @@ func (GraphError) IsExecutionHistoryResult() {}
 
 func (GraphError) IsDeadLetterHistoryResult() {}
 
-func (GraphError) IsEnqueueIngestionWorkflowResult() {}
-
 func (GraphError) IsApproveIssueIntakeResult() {}
 
 func (GraphError) IsRequeueDeadLetterResult() {}
@@ -226,19 +170,9 @@ func (GraphError) IsWorkerSessionsResult() {}
 
 func (GraphError) IsWorkerSettingsResult() {}
 
-func (GraphError) IsEnqueueSCMWorkflowResult() {}
-
 func (GraphError) IsScmSupportedOperationsResult() {}
 
 func (GraphError) IsSupervisorDecisionHistoryResult() {}
-
-type IngestionBoardSourceInput struct {
-	BoardID                  string            `json:"boardID"`
-	Kind                     TrackerSourceKind `json:"kind"`
-	Location                 *string           `json:"location,omitempty"`
-	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
-	RepositoryIDs            []string          `json:"repositoryIDs,omitempty"`
-}
 
 type Mutation struct {
 }
@@ -268,6 +202,7 @@ type ProjectRepository struct {
 type ProjectRepositoryInput struct {
 	RepositoryID  string      `json:"repositoryID"`
 	ScmProvider   SCMProvider `json:"scmProvider"`
+	ScmToken      string      `json:"scmToken"`
 	RepositoryURL string      `json:"repositoryURL"`
 	IsPrimary     bool        `json:"isPrimary"`
 }
@@ -1322,18 +1257,16 @@ func (e SupervisorState) MarshalJSON() ([]byte, error) {
 type TrackerSourceKind string
 
 const (
-	TrackerSourceKindInternal     TrackerSourceKind = "INTERNAL"
-	TrackerSourceKindGithubIssues TrackerSourceKind = "GITHUB_ISSUES"
+	TrackerSourceKindInternal TrackerSourceKind = "INTERNAL"
 )
 
 var AllTrackerSourceKind = []TrackerSourceKind{
 	TrackerSourceKindInternal,
-	TrackerSourceKindGithubIssues,
 }
 
 func (e TrackerSourceKind) IsValid() bool {
 	switch e {
-	case TrackerSourceKindInternal, TrackerSourceKindGithubIssues:
+	case TrackerSourceKindInternal:
 		return true
 	}
 	return false

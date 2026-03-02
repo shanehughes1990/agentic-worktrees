@@ -10,9 +10,8 @@ class ProjectSetupScreen extends StatefulWidget {
     required this.repositoryUrlController,
     required this.taskboardNameController,
     required this.setupScmProvider,
-    required this.setupTrackerProvider,
+    required this.scmTokenController,
     required this.onSetupScmProviderChanged,
-    required this.onSetupTrackerProviderChanged,
     required this.isSavingProjectSetup,
     required this.onSaveProjectSetup,
     required this.onReloadProjectSetups,
@@ -28,9 +27,8 @@ class ProjectSetupScreen extends StatefulWidget {
   final TextEditingController repositoryUrlController;
   final TextEditingController taskboardNameController;
   final String setupScmProvider;
-  final String setupTrackerProvider;
+  final TextEditingController scmTokenController;
   final ValueChanged<String> onSetupScmProviderChanged;
-  final ValueChanged<String> onSetupTrackerProviderChanged;
   final bool isSavingProjectSetup;
   final VoidCallback onSaveProjectSetup;
   final VoidCallback onReloadProjectSetups;
@@ -224,12 +222,18 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
                         return;
                       }
                       widget.onSetupScmProviderChanged(value);
-                      widget.onSetupTrackerProviderChanged(
-                        ProjectSetupLogic.defaultTrackerProvider,
-                      );
                     },
                   ),
                   if (hasProvider) ...<Widget>[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: widget.scmTokenController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'SCM Token',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     _RepositorySetupSection(
                       controllers: _repositoryControllers,
@@ -243,10 +247,27 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
           ),
           if (hasProvider) ...<Widget>[
             const SizedBox(height: 12),
-            _TrackerSetupSection(
-              trackerProvider: widget.setupTrackerProvider,
-              onTrackerProviderChanged: widget.onSetupTrackerProviderChanged,
-              taskboardNameController: _taskboardNameController,
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Tracker Setup',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _taskboardNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Taskboard Name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -362,68 +383,6 @@ class _RepositorySetupSection extends StatelessWidget {
           const SizedBox(height: 8),
         ],
       ],
-    );
-  }
-}
-
-class _TrackerSetupSection extends StatelessWidget {
-  const _TrackerSetupSection({
-    required this.trackerProvider,
-    required this.onTrackerProviderChanged,
-    required this.taskboardNameController,
-  });
-
-  final String trackerProvider;
-  final ValueChanged<String> onTrackerProviderChanged;
-  final TextEditingController taskboardNameController;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Text(
-              'Tracker Setup',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: trackerProvider,
-              decoration: const InputDecoration(
-                labelText: 'Tracker Provider',
-                border: OutlineInputBorder(),
-              ),
-              items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem<String>(
-                  value: 'GITHUB_ISSUES',
-                  child: Text('GitHub Issues'),
-                ),
-                DropdownMenuItem<String>(
-                  value: 'INTERNAL',
-                  child: Text('Internal Taskboard'),
-                ),
-              ],
-              onChanged: (String? value) {
-                if (value == null) {
-                  return;
-                }
-                onTrackerProviderChanged(value);
-              },
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: taskboardNameController,
-              decoration: const InputDecoration(
-                labelText: 'Taskboard Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

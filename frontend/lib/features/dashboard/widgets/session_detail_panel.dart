@@ -13,12 +13,10 @@ class SessionDetailPanel extends StatelessWidget {
     required this.approvedByController,
     required this.projectController,
     required this.workflowController,
-    required this.promptController,
     required this.scmOwnerController,
     required this.scmRepoController,
     required this.isRunningAction,
     required this.onJobSelected,
-    required this.onEnqueueIngestion,
     required this.onApproveIssue,
     required this.onEnqueueScm,
     super.key,
@@ -34,12 +32,10 @@ class SessionDetailPanel extends StatelessWidget {
   final TextEditingController approvedByController;
   final TextEditingController projectController;
   final TextEditingController workflowController;
-  final TextEditingController promptController;
   final TextEditingController scmOwnerController;
   final TextEditingController scmRepoController;
   final bool isRunningAction;
   final ValueChanged<WorkflowJob> onJobSelected;
-  final VoidCallback onEnqueueIngestion;
   final VoidCallback onApproveIssue;
   final VoidCallback onEnqueueScm;
 
@@ -205,15 +201,6 @@ class SessionDetailPanel extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 420,
-                child: TextField(
-                  controller: promptController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ingestion prompt',
-                  ),
-                ),
-              ),
-              SizedBox(
                 width: 220,
                 child: TextField(
                   controller: scmOwnerController,
@@ -236,10 +223,6 @@ class SessionDetailPanel extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              FilledButton(
-                onPressed: isRunningAction ? null : onEnqueueIngestion,
-                child: const Text('Enqueue Ingestion'),
-              ),
               FilledButton(
                 onPressed: isRunningAction ? null : onApproveIssue,
                 child: const Text('Approve Issue Intake'),

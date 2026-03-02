@@ -15,42 +15,6 @@ import (
 	"time"
 )
 
-// EnqueueIngestionWorkflow is the resolver for the enqueueIngestionWorkflow field.
-func (r *mutationResolver) EnqueueIngestionWorkflow(ctx context.Context, input models.EnqueueIngestionWorkflowInput) (models.EnqueueIngestionWorkflowResult, error) {
-	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
-		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
-	}
-	if len(input.BoardSources) != 1 {
-		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "exactly one boardSource is required", Field: strPtr("boardSources")}, nil
-	}
-	boardSources := make([]applicationcontrolplane.IngestionBoardSource, 0, len(input.BoardSources))
-	for _, boardSource := range input.BoardSources {
-		boardSources = append(boardSources, applicationcontrolplane.IngestionBoardSource{
-			BoardID:                  boardSource.BoardID,
-			Kind:                     toTrackerSourceKindString(boardSource.Kind),
-			Location:                 derefString(boardSource.Location),
-			AppliesToAllRepositories: boardSource.AppliesToAllRepositories,
-			RepositoryIDs:            boardSource.RepositoryIDs,
-			Config:                   map[string]any{},
-		})
-	}
-	request := applicationcontrolplane.EnqueueIngestionWorkflowRequest{
-		RunID:          input.RunID,
-		TaskID:         input.TaskID,
-		JobID:          input.JobID,
-		IdempotencyKey: input.IdempotencyKey,
-		Prompt:         input.Prompt,
-		ProjectID:      input.ProjectID,
-		WorkflowID:     input.WorkflowID,
-		BoardSources:   boardSources,
-	}
-	result, err := r.Resolver.ControlPlaneService.EnqueueIngestionWorkflow(ctx, request)
-	if err != nil {
-		return graphErrorFromError(fmt.Errorf("enqueue ingestion workflow: %w", err)), nil
-	}
-	return models.EnqueueIngestionWorkflowSuccess{QueueTaskID: result.QueueTaskID, Duplicate: result.Duplicate}, nil
-}
-
 // ApproveIssueIntake is the resolver for the approveIssueIntake field.
 func (r *mutationResolver) ApproveIssueIntake(ctx context.Context, input models.ApproveIssueIntakeInput) (models.ApproveIssueIntakeResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
@@ -92,6 +56,7 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
 			RepositoryID:  repository.RepositoryID,
 			SCMProvider:   toSCMProviderString(repository.ScmProvider),
+			SCMToken:      repository.ScmToken,
 			RepositoryURL: repository.RepositoryURL,
 			IsPrimary:     repository.IsPrimary,
 		})

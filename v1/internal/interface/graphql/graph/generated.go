@@ -60,16 +60,6 @@ type ComplexityRoot struct {
 		Ok func(childComplexity int) int
 	}
 
-	EnqueueIngestionWorkflowSuccess struct {
-		Duplicate   func(childComplexity int) int
-		QueueTaskID func(childComplexity int) int
-	}
-
-	EnqueueSCMWorkflowSuccess struct {
-		Duplicate   func(childComplexity int) int
-		QueueTaskID func(childComplexity int) int
-	}
-
 	ExecutionHistoryRecord struct {
 		ErrorMessage   func(childComplexity int) int
 		IdempotencyKey func(childComplexity int) int
@@ -94,13 +84,11 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		ApproveIssueIntake       func(childComplexity int, input models.ApproveIssueIntakeInput) int
-		DeleteProjectSetup       func(childComplexity int, input models.DeleteProjectSetupInput) int
-		EnqueueIngestionWorkflow func(childComplexity int, input models.EnqueueIngestionWorkflowInput) int
-		EnqueueScmWorkflow       func(childComplexity int, input models.EnqueueSCMWorkflowInput) int
-		RequeueDeadLetter        func(childComplexity int, input models.RequeueDeadLetterInput) int
-		UpdateWorkerSettings     func(childComplexity int, input models.UpdateWorkerSettingsInput) int
-		UpsertProjectSetup       func(childComplexity int, input models.UpsertProjectSetupInput) int
+		ApproveIssueIntake   func(childComplexity int, input models.ApproveIssueIntakeInput) int
+		DeleteProjectSetup   func(childComplexity int, input models.DeleteProjectSetupInput) int
+		RequeueDeadLetter    func(childComplexity int, input models.RequeueDeadLetterInput) int
+		UpdateWorkerSettings func(childComplexity int, input models.UpdateWorkerSettingsInput) int
+		UpsertProjectSetup   func(childComplexity int, input models.UpsertProjectSetupInput) int
 	}
 
 	ProjectBoard struct {
@@ -282,13 +270,11 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	EnqueueIngestionWorkflow(ctx context.Context, input models.EnqueueIngestionWorkflowInput) (models.EnqueueIngestionWorkflowResult, error)
 	ApproveIssueIntake(ctx context.Context, input models.ApproveIssueIntakeInput) (models.ApproveIssueIntakeResult, error)
 	RequeueDeadLetter(ctx context.Context, input models.RequeueDeadLetterInput) (models.RequeueDeadLetterResult, error)
 	UpsertProjectSetup(ctx context.Context, input models.UpsertProjectSetupInput) (models.UpsertProjectSetupResult, error)
 	DeleteProjectSetup(ctx context.Context, input models.DeleteProjectSetupInput) (models.DeleteProjectSetupResult, error)
 	UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error)
-	EnqueueScmWorkflow(ctx context.Context, input models.EnqueueSCMWorkflowInput) (models.EnqueueSCMWorkflowResult, error)
 }
 type QueryResolver interface {
 	Sessions(ctx context.Context, limit *int32) (models.SessionsResult, error)
@@ -394,32 +380,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeleteProjectSetupSuccess.Ok(childComplexity), true
-
-	case "EnqueueIngestionWorkflowSuccess.duplicate":
-		if e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.Duplicate == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.Duplicate(childComplexity), true
-	case "EnqueueIngestionWorkflowSuccess.queueTaskID":
-		if e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.QueueTaskID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EnqueueIngestionWorkflowSuccess.QueueTaskID(childComplexity), true
-
-	case "EnqueueSCMWorkflowSuccess.duplicate":
-		if e.ComplexityRoot.EnqueueSCMWorkflowSuccess.Duplicate == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EnqueueSCMWorkflowSuccess.Duplicate(childComplexity), true
-	case "EnqueueSCMWorkflowSuccess.queueTaskID":
-		if e.ComplexityRoot.EnqueueSCMWorkflowSuccess.QueueTaskID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EnqueueSCMWorkflowSuccess.QueueTaskID(childComplexity), true
 
 	case "ExecutionHistoryRecord.errorMessage":
 		if e.ComplexityRoot.ExecutionHistoryRecord.ErrorMessage == nil {
@@ -530,28 +490,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectSetup(childComplexity, args["input"].(models.DeleteProjectSetupInput)), true
-	case "Mutation.enqueueIngestionWorkflow":
-		if e.ComplexityRoot.Mutation.EnqueueIngestionWorkflow == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_enqueueIngestionWorkflow_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.EnqueueIngestionWorkflow(childComplexity, args["input"].(models.EnqueueIngestionWorkflowInput)), true
-	case "Mutation.enqueueScmWorkflow":
-		if e.ComplexityRoot.Mutation.EnqueueScmWorkflow == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_enqueueScmWorkflow_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.EnqueueScmWorkflow(childComplexity, args["input"].(models.EnqueueSCMWorkflowInput)), true
 	case "Mutation.requeueDeadLetter":
 		if e.ComplexityRoot.Mutation.RequeueDeadLetter == nil {
 			break
@@ -1321,9 +1259,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputApproveIssueIntakeInput,
 		ec.unmarshalInputDeleteProjectSetupInput,
-		ec.unmarshalInputEnqueueIngestionWorkflowInput,
-		ec.unmarshalInputEnqueueSCMWorkflowInput,
-		ec.unmarshalInputIngestionBoardSourceInput,
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
@@ -1506,34 +1441,7 @@ union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
 
 enum TrackerSourceKind {
   INTERNAL
-  GITHUB_ISSUES
 }
-
-input IngestionBoardSourceInput {
-  boardID: String!
-  kind: TrackerSourceKind!
-  location: String
-  appliesToAllRepositories: Boolean!
-  repositoryIDs: [String!]
-}
-
-input EnqueueIngestionWorkflowInput {
-  runID: String!
-  taskID: String!
-  jobID: String!
-  idempotencyKey: String!
-  prompt: String!
-  projectID: String!
-  workflowID: String!
-  boardSources: [IngestionBoardSourceInput!]!
-}
-
-type EnqueueIngestionWorkflowSuccess {
-  queueTaskID: ID!
-  duplicate: Boolean!
-}
-
-union EnqueueIngestionWorkflowResult = EnqueueIngestionWorkflowSuccess | GraphError
 
 input ApproveIssueIntakeInput {
   runID: String!
@@ -1601,6 +1509,7 @@ union ProjectSetupResult = ProjectSetupSuccess | GraphError
 input ProjectRepositoryInput {
   repositoryID: String!
   scmProvider: SCMProvider!
+  scmToken: String!
   repositoryURL: String!
   isPrimary: Boolean!
 }
@@ -1717,7 +1626,6 @@ extend type Query {
 }
 
 extend type Mutation {
-  enqueueIngestionWorkflow(input: EnqueueIngestionWorkflowInput!): EnqueueIngestionWorkflowResult!
   approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
@@ -1786,46 +1694,14 @@ enum SCMReviewDecision {
   COMMENT
 }
 
-type EnqueueSCMWorkflowSuccess {
-  queueTaskID: ID!
-  duplicate: Boolean!
-}
-
-union EnqueueSCMWorkflowResult = EnqueueSCMWorkflowSuccess | GraphError
-
 type ScmSupportedOperationsSuccess {
   operations: [SCMOperation!]!
 }
 
 union ScmSupportedOperationsResult = ScmSupportedOperationsSuccess | GraphError
 
-input EnqueueSCMWorkflowInput {
-  operation: SCMOperation!
-  provider: SCMProvider!
-  owner: String!
-  repository: String!
-  runID: String!
-  taskID: String!
-  jobID: String!
-  projectID: String!
-  idempotencyKey: String!
-  worktreePath: String
-  baseBranch: String
-  targetBranch: String
-  pullRequestNumber: Int
-  mergeMethod: SCMMergeMethod
-  pullRequestTitle: String
-  pullRequestBody: String
-  reviewDecision: SCMReviewDecision
-  reviewBody: String
-}
-
 extend type Query {
   scmSupportedOperations: ScmSupportedOperationsResult!
-}
-
-extend type Mutation {
-  enqueueScmWorkflow(input: EnqueueSCMWorkflowInput!): EnqueueSCMWorkflowResult!
 }
 `, BuiltIn: false},
 	{Name: "../schema/supervisor.graphqls", Input: `enum SupervisorSignalType {
@@ -1976,28 +1852,6 @@ func (ec *executionContext) field_Mutation_deleteProjectSetup_args(ctx context.C
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteProjectSetupInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectSetupInput)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_enqueueIngestionWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNEnqueueIngestionWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowInput)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_enqueueScmWorkflow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNEnqueueSCMWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueSCMWorkflowInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2673,122 +2527,6 @@ func (ec *executionContext) fieldContext_DeleteProjectSetupSuccess_ok(_ context.
 	return fc, nil
 }
 
-func (ec *executionContext) _EnqueueIngestionWorkflowSuccess_queueTaskID(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueIngestionWorkflowSuccess) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EnqueueIngestionWorkflowSuccess_queueTaskID,
-		func(ctx context.Context) (any, error) {
-			return obj.QueueTaskID, nil
-		},
-		nil,
-		ec.marshalNID2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EnqueueIngestionWorkflowSuccess_queueTaskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EnqueueIngestionWorkflowSuccess",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EnqueueIngestionWorkflowSuccess_duplicate(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueIngestionWorkflowSuccess) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EnqueueIngestionWorkflowSuccess_duplicate,
-		func(ctx context.Context) (any, error) {
-			return obj.Duplicate, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EnqueueIngestionWorkflowSuccess_duplicate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EnqueueIngestionWorkflowSuccess",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EnqueueSCMWorkflowSuccess_queueTaskID(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueSCMWorkflowSuccess) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EnqueueSCMWorkflowSuccess_queueTaskID,
-		func(ctx context.Context) (any, error) {
-			return obj.QueueTaskID, nil
-		},
-		nil,
-		ec.marshalNID2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EnqueueSCMWorkflowSuccess_queueTaskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EnqueueSCMWorkflowSuccess",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _EnqueueSCMWorkflowSuccess_duplicate(ctx context.Context, field graphql.CollectedField, obj *models.EnqueueSCMWorkflowSuccess) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_EnqueueSCMWorkflowSuccess_duplicate,
-		func(ctx context.Context) (any, error) {
-			return obj.Duplicate, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_EnqueueSCMWorkflowSuccess_duplicate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "EnqueueSCMWorkflowSuccess",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _ExecutionHistoryRecord_runID(ctx context.Context, field graphql.CollectedField, obj *models.ExecutionHistoryRecord) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3217,47 +2955,6 @@ func (ec *executionContext) fieldContext_GraphError_field(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_enqueueIngestionWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_enqueueIngestionWorkflow,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().EnqueueIngestionWorkflow(ctx, fc.Args["input"].(models.EnqueueIngestionWorkflowInput))
-		},
-		nil,
-		ec.marshalNEnqueueIngestionWorkflowResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowResult,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_enqueueIngestionWorkflow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type EnqueueIngestionWorkflowResult does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_enqueueIngestionWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_approveIssueIntake(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3457,47 +3154,6 @@ func (ec *executionContext) fieldContext_Mutation_updateWorkerSettings(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateWorkerSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_enqueueScmWorkflow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_enqueueScmWorkflow,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().EnqueueScmWorkflow(ctx, fc.Args["input"].(models.EnqueueSCMWorkflowInput))
-		},
-		nil,
-		ec.marshalNEnqueueSCMWorkflowResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueSCMWorkflowResult,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_enqueueScmWorkflow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type EnqueueSCMWorkflowResult does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_enqueueScmWorkflow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8577,280 +8233,6 @@ func (ec *executionContext) unmarshalInputDeleteProjectSetupInput(ctx context.Co
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputEnqueueIngestionWorkflowInput(ctx context.Context, obj any) (models.EnqueueIngestionWorkflowInput, error) {
-	var it models.EnqueueIngestionWorkflowInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"runID", "taskID", "jobID", "idempotencyKey", "prompt", "projectID", "workflowID", "boardSources"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "runID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.RunID = data
-		case "taskID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TaskID = data
-		case "jobID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jobID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.JobID = data
-		case "idempotencyKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idempotencyKey"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IdempotencyKey = data
-		case "prompt":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("prompt"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Prompt = data
-		case "projectID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ProjectID = data
-		case "workflowID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflowID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.WorkflowID = data
-		case "boardSources":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardSources"))
-			data, err := ec.unmarshalNIngestionBoardSourceInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInputᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.BoardSources = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputEnqueueSCMWorkflowInput(ctx context.Context, obj any) (models.EnqueueSCMWorkflowInput, error) {
-	var it models.EnqueueSCMWorkflowInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"operation", "provider", "owner", "repository", "runID", "taskID", "jobID", "projectID", "idempotencyKey", "worktreePath", "baseBranch", "targetBranch", "pullRequestNumber", "mergeMethod", "pullRequestTitle", "pullRequestBody", "reviewDecision", "reviewBody"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "operation":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("operation"))
-			data, err := ec.unmarshalNSCMOperation2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMOperation(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Operation = data
-		case "provider":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("provider"))
-			data, err := ec.unmarshalNSCMProvider2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMProvider(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Provider = data
-		case "owner":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("owner"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Owner = data
-		case "repository":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repository"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Repository = data
-		case "runID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.RunID = data
-		case "taskID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TaskID = data
-		case "jobID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jobID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.JobID = data
-		case "projectID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ProjectID = data
-		case "idempotencyKey":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idempotencyKey"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IdempotencyKey = data
-		case "worktreePath":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("worktreePath"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.WorktreePath = data
-		case "baseBranch":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("baseBranch"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.BaseBranch = data
-		case "targetBranch":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetBranch"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TargetBranch = data
-		case "pullRequestNumber":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pullRequestNumber"))
-			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PullRequestNumber = data
-		case "mergeMethod":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mergeMethod"))
-			data, err := ec.unmarshalOSCMMergeMethod2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMMergeMethod(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.MergeMethod = data
-		case "pullRequestTitle":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pullRequestTitle"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PullRequestTitle = data
-		case "pullRequestBody":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pullRequestBody"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PullRequestBody = data
-		case "reviewDecision":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewDecision"))
-			data, err := ec.unmarshalOSCMReviewDecision2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMReviewDecision(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ReviewDecision = data
-		case "reviewBody":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reviewBody"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ReviewBody = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputIngestionBoardSourceInput(ctx context.Context, obj any) (models.IngestionBoardSourceInput, error) {
-	var it models.IngestionBoardSourceInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"boardID", "kind", "location", "appliesToAllRepositories", "repositoryIDs"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "boardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.BoardID = data
-		case "kind":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
-			data, err := ec.unmarshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Kind = data
-		case "location":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("location"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Location = data
-		case "appliesToAllRepositories":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("appliesToAllRepositories"))
-			data, err := ec.unmarshalNBoolean2bool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.AppliesToAllRepositories = data
-		case "repositoryIDs":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.RepositoryIDs = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputProjectBoardInput(ctx context.Context, obj any) (models.ProjectBoardInput, error) {
 	var it models.ProjectBoardInput
 	asMap := map[string]any{}
@@ -8905,7 +8287,7 @@ func (ec *executionContext) unmarshalInputProjectRepositoryInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"repositoryID", "scmProvider", "repositoryURL", "isPrimary"}
+	fieldsInOrder := [...]string{"repositoryID", "scmProvider", "scmToken", "repositoryURL", "isPrimary"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8926,6 +8308,13 @@ func (ec *executionContext) unmarshalInputProjectRepositoryInput(ctx context.Con
 				return it, err
 			}
 			it.ScmProvider = data
+		case "scmToken":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scmToken"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScmToken = data
 		case "repositoryURL":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryURL"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -9214,60 +8603,6 @@ func (ec *executionContext) _DeleteProjectSetupResult(ctx context.Context, sel a
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of DeleteProjectSetupResult must implement graphql.Marshaler", obj))
-		}
-	}
-}
-
-func (ec *executionContext) _EnqueueIngestionWorkflowResult(ctx context.Context, sel ast.SelectionSet, obj models.EnqueueIngestionWorkflowResult) graphql.Marshaler {
-	switch obj := (obj).(type) {
-	case nil:
-		return graphql.Null
-	case models.GraphError:
-		return ec._GraphError(ctx, sel, &obj)
-	case *models.GraphError:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._GraphError(ctx, sel, obj)
-	case models.EnqueueIngestionWorkflowSuccess:
-		return ec._EnqueueIngestionWorkflowSuccess(ctx, sel, &obj)
-	case *models.EnqueueIngestionWorkflowSuccess:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._EnqueueIngestionWorkflowSuccess(ctx, sel, obj)
-	default:
-		if typedObj, ok := obj.(graphql.Marshaler); ok {
-			return typedObj
-		} else {
-			panic(fmt.Errorf("unexpected type %T; non-generated variants of EnqueueIngestionWorkflowResult must implement graphql.Marshaler", obj))
-		}
-	}
-}
-
-func (ec *executionContext) _EnqueueSCMWorkflowResult(ctx context.Context, sel ast.SelectionSet, obj models.EnqueueSCMWorkflowResult) graphql.Marshaler {
-	switch obj := (obj).(type) {
-	case nil:
-		return graphql.Null
-	case models.GraphError:
-		return ec._GraphError(ctx, sel, &obj)
-	case *models.GraphError:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._GraphError(ctx, sel, obj)
-	case models.EnqueueSCMWorkflowSuccess:
-		return ec._EnqueueSCMWorkflowSuccess(ctx, sel, &obj)
-	case *models.EnqueueSCMWorkflowSuccess:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._EnqueueSCMWorkflowSuccess(ctx, sel, obj)
-	default:
-		if typedObj, ok := obj.(graphql.Marshaler); ok {
-			return typedObj
-		} else {
-			panic(fmt.Errorf("unexpected type %T; non-generated variants of EnqueueSCMWorkflowResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -9809,94 +9144,6 @@ func (ec *executionContext) _DeleteProjectSetupSuccess(ctx context.Context, sel 
 	return out
 }
 
-var enqueueIngestionWorkflowSuccessImplementors = []string{"EnqueueIngestionWorkflowSuccess", "EnqueueIngestionWorkflowResult"}
-
-func (ec *executionContext) _EnqueueIngestionWorkflowSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.EnqueueIngestionWorkflowSuccess) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, enqueueIngestionWorkflowSuccessImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("EnqueueIngestionWorkflowSuccess")
-		case "queueTaskID":
-			out.Values[i] = ec._EnqueueIngestionWorkflowSuccess_queueTaskID(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "duplicate":
-			out.Values[i] = ec._EnqueueIngestionWorkflowSuccess_duplicate(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.ProcessDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var enqueueSCMWorkflowSuccessImplementors = []string{"EnqueueSCMWorkflowSuccess", "EnqueueSCMWorkflowResult"}
-
-func (ec *executionContext) _EnqueueSCMWorkflowSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.EnqueueSCMWorkflowSuccess) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, enqueueSCMWorkflowSuccessImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("EnqueueSCMWorkflowSuccess")
-		case "queueTaskID":
-			out.Values[i] = ec._EnqueueSCMWorkflowSuccess_queueTaskID(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "duplicate":
-			out.Values[i] = ec._EnqueueSCMWorkflowSuccess_duplicate(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.ProcessDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
 var executionHistoryRecordImplementors = []string{"ExecutionHistoryRecord"}
 
 func (ec *executionContext) _ExecutionHistoryRecord(ctx context.Context, sel ast.SelectionSet, obj *models.ExecutionHistoryRecord) graphql.Marshaler {
@@ -10017,7 +9264,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "EnqueueIngestionWorkflowResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "EnqueueSCMWorkflowResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -10082,13 +9329,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
-		case "enqueueIngestionWorkflow":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_enqueueIngestionWorkflow(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "approveIssueIntake":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_approveIssueIntake(ctx, field)
@@ -10120,13 +9360,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateWorkerSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateWorkerSettings(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "enqueueScmWorkflow":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_enqueueScmWorkflow(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -12063,36 +11296,6 @@ func (ec *executionContext) marshalNDeleteProjectSetupResult2agenticᚑorchestra
 	return ec._DeleteProjectSetupResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNEnqueueIngestionWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowInput(ctx context.Context, v any) (models.EnqueueIngestionWorkflowInput, error) {
-	res, err := ec.unmarshalInputEnqueueIngestionWorkflowInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNEnqueueIngestionWorkflowResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueIngestionWorkflowResult(ctx context.Context, sel ast.SelectionSet, v models.EnqueueIngestionWorkflowResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._EnqueueIngestionWorkflowResult(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNEnqueueSCMWorkflowInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueSCMWorkflowInput(ctx context.Context, v any) (models.EnqueueSCMWorkflowInput, error) {
-	res, err := ec.unmarshalInputEnqueueSCMWorkflowInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNEnqueueSCMWorkflowResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐEnqueueSCMWorkflowResult(ctx context.Context, sel ast.SelectionSet, v models.EnqueueSCMWorkflowResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._EnqueueSCMWorkflowResult(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNExecutionHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ExecutionHistoryRecord) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -12163,26 +11366,6 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNIngestionBoardSourceInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInputᚄ(ctx context.Context, v any) ([]*models.IngestionBoardSourceInput, error) {
-	var vSlice []any
-	vSlice = graphql.CoerceList(v)
-	var err error
-	res := make([]*models.IngestionBoardSourceInput, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) unmarshalNIngestionBoardSourceInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐIngestionBoardSourceInput(ctx context.Context, v any) (*models.IngestionBoardSourceInput, error) {
-	res, err := ec.unmarshalInputIngestionBoardSourceInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
@@ -12989,38 +12172,6 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
 	return res
-}
-
-func (ec *executionContext) unmarshalOSCMMergeMethod2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMMergeMethod(ctx context.Context, v any) (*models.SCMMergeMethod, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var res = new(models.SCMMergeMethod)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOSCMMergeMethod2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMMergeMethod(ctx context.Context, sel ast.SelectionSet, v *models.SCMMergeMethod) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return v
-}
-
-func (ec *executionContext) unmarshalOSCMReviewDecision2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMReviewDecision(ctx context.Context, v any) (*models.SCMReviewDecision, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var res = new(models.SCMReviewDecision)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOSCMReviewDecision2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMReviewDecision(ctx context.Context, sel ast.SelectionSet, v *models.SCMReviewDecision) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return v
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

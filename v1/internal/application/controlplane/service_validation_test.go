@@ -10,6 +10,7 @@ func validProjectSetupRequest() UpsertProjectSetupRequest {
 			{
 				RepositoryID:  "repo-1",
 				SCMProvider:   "github",
+				SCMToken:      "token",
 				RepositoryURL: "https://github.com/acme/repo",
 				IsPrimary:     true,
 			},
@@ -17,7 +18,7 @@ func validProjectSetupRequest() UpsertProjectSetupRequest {
 		Boards: []ProjectBoard{
 			{
 				BoardID:                  "board-1",
-				TrackerProvider:          "github_issues",
+				TrackerProvider:          "internal",
 				TaskboardName:            "Acme Repo Board",
 				AppliesToAllRepositories: true,
 				RepositoryIDs:            nil,
@@ -46,7 +47,7 @@ func TestUpsertProjectSetupValidateRejectsUnsupportedTrackerProvider(t *testing.
 	request.Boards[0].TrackerProvider = "jira"
 
 	err := request.Validate()
-	if err == nil || err.Error() != "boards[0].tracker_provider must be one of: internal, github_issues" {
+	if err == nil || err.Error() != "boards[0].tracker_provider must be internal" {
 		t.Fatalf("expected tracker-provider validation error, got %v", err)
 	}
 }
@@ -59,45 +60,5 @@ func TestUpsertProjectSetupValidateRejectsRepositoryScopedBoard(t *testing.T) {
 	err := request.Validate()
 	if err == nil || err.Error() != "boards[0].applies_to_all_repositories must be true" {
 		t.Fatalf("expected project-scoped board validation error, got %v", err)
-	}
-}
-
-func validIngestionRequest() EnqueueIngestionWorkflowRequest {
-	return EnqueueIngestionWorkflowRequest{
-		RunID:          "run-1",
-		TaskID:         "task-1",
-		JobID:          "job-1",
-		IdempotencyKey: "idem-1",
-		Prompt:         "ingest",
-		ProjectID:      "project-1",
-		WorkflowID:     "workflow-1",
-		BoardSources: []IngestionBoardSource{
-			{
-				BoardID:                  "board-1",
-				Kind:                     "github_issues",
-				Location:                 "acme/repo",
-				AppliesToAllRepositories: true,
-			},
-		},
-	}
-}
-
-func TestEnqueueIngestionWorkflowValidateRequiresExactlyOneBoardSource(t *testing.T) {
-	request := validIngestionRequest()
-	request.BoardSources = append(request.BoardSources, IngestionBoardSource{BoardID: "board-2", Kind: "internal", Location: "taskboard.json", AppliesToAllRepositories: true})
-
-	err := request.Validate()
-	if err == nil || err.Error() != "exactly one board_source is required" {
-		t.Fatalf("expected exact board_source-count validation error, got %v", err)
-	}
-}
-
-func TestEnqueueIngestionWorkflowValidateRejectsUnsupportedKind(t *testing.T) {
-	request := validIngestionRequest()
-	request.BoardSources[0].Kind = "jira"
-
-	err := request.Validate()
-	if err == nil {
-		t.Fatalf("expected source-kind validation error")
 	}
 }

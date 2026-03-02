@@ -831,11 +831,13 @@ class Input$ProjectRepositoryInput {
   factory Input$ProjectRepositoryInput({
     required String repositoryID,
     required Enum$SCMProvider scmProvider,
+    required String scmToken,
     required String repositoryURL,
     required bool isPrimary,
   }) => Input$ProjectRepositoryInput._({
     r'repositoryID': repositoryID,
     r'scmProvider': scmProvider,
+    r'scmToken': scmToken,
     r'repositoryURL': repositoryURL,
     r'isPrimary': isPrimary,
   });
@@ -850,6 +852,8 @@ class Input$ProjectRepositoryInput {
     result$data['scmProvider'] = fromJson$Enum$SCMProvider(
       (l$scmProvider as String),
     );
+    final l$scmToken = data['scmToken'];
+    result$data['scmToken'] = (l$scmToken as String);
     final l$repositoryURL = data['repositoryURL'];
     result$data['repositoryURL'] = (l$repositoryURL as String);
     final l$isPrimary = data['isPrimary'];
@@ -864,6 +868,8 @@ class Input$ProjectRepositoryInput {
   Enum$SCMProvider get scmProvider =>
       (_$data['scmProvider'] as Enum$SCMProvider);
 
+  String get scmToken => (_$data['scmToken'] as String);
+
   String get repositoryURL => (_$data['repositoryURL'] as String);
 
   bool get isPrimary => (_$data['isPrimary'] as bool);
@@ -874,6 +880,8 @@ class Input$ProjectRepositoryInput {
     result$data['repositoryID'] = l$repositoryID;
     final l$scmProvider = scmProvider;
     result$data['scmProvider'] = toJson$Enum$SCMProvider(l$scmProvider);
+    final l$scmToken = scmToken;
+    result$data['scmToken'] = l$scmToken;
     final l$repositoryURL = repositoryURL;
     result$data['repositoryURL'] = l$repositoryURL;
     final l$isPrimary = isPrimary;
@@ -903,6 +911,11 @@ class Input$ProjectRepositoryInput {
     if (l$scmProvider != lOther$scmProvider) {
       return false;
     }
+    final l$scmToken = scmToken;
+    final lOther$scmToken = other.scmToken;
+    if (l$scmToken != lOther$scmToken) {
+      return false;
+    }
     final l$repositoryURL = repositoryURL;
     final lOther$repositoryURL = other.repositoryURL;
     if (l$repositoryURL != lOther$repositoryURL) {
@@ -920,11 +933,13 @@ class Input$ProjectRepositoryInput {
   int get hashCode {
     final l$repositoryID = repositoryID;
     final l$scmProvider = scmProvider;
+    final l$scmToken = scmToken;
     final l$repositoryURL = repositoryURL;
     final l$isPrimary = isPrimary;
     return Object.hashAll([
       l$repositoryID,
       l$scmProvider,
+      l$scmToken,
       l$repositoryURL,
       l$isPrimary,
     ]);
@@ -943,6 +958,7 @@ abstract class CopyWith$Input$ProjectRepositoryInput<TRes> {
   TRes call({
     String? repositoryID,
     Enum$SCMProvider? scmProvider,
+    String? scmToken,
     String? repositoryURL,
     bool? isPrimary,
   });
@@ -961,6 +977,7 @@ class _CopyWithImpl$Input$ProjectRepositoryInput<TRes>
   TRes call({
     Object? repositoryID = _undefined,
     Object? scmProvider = _undefined,
+    Object? scmToken = _undefined,
     Object? repositoryURL = _undefined,
     Object? isPrimary = _undefined,
   }) => _then(
@@ -970,6 +987,8 @@ class _CopyWithImpl$Input$ProjectRepositoryInput<TRes>
         'repositoryID': (repositoryID as String),
       if (scmProvider != _undefined && scmProvider != null)
         'scmProvider': (scmProvider as Enum$SCMProvider),
+      if (scmToken != _undefined && scmToken != null)
+        'scmToken': (scmToken as String),
       if (repositoryURL != _undefined && repositoryURL != null)
         'repositoryURL': (repositoryURL as String),
       if (isPrimary != _undefined && isPrimary != null)
@@ -987,6 +1006,7 @@ class _CopyWithStubImpl$Input$ProjectRepositoryInput<TRes>
   call({
     String? repositoryID,
     Enum$SCMProvider? scmProvider,
+    String? scmToken,
     String? repositoryURL,
     bool? isPrimary,
   }) => _res;

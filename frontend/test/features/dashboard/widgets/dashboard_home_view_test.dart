@@ -43,8 +43,6 @@ void main() {
   late TextEditingController projectController;
   late TextEditingController workflowController;
   late TextEditingController promptController;
-  late TextEditingController scmOwnerController;
-  late TextEditingController scmRepoController;
 
   setUp(() {
     api = _StubControlPlaneApi();
@@ -54,8 +52,6 @@ void main() {
     projectController = TextEditingController(text: 'project-1');
     workflowController = TextEditingController(text: 'workflow-1');
     promptController = TextEditingController(text: 'prompt');
-    scmOwnerController = TextEditingController(text: 'acme');
-    scmRepoController = TextEditingController(text: 'repo');
   });
 
   tearDown(() {
@@ -65,8 +61,6 @@ void main() {
     projectController.dispose();
     workflowController.dispose();
     promptController.dispose();
-    scmOwnerController.dispose();
-    scmRepoController.dispose();
   });
 
   Future<void> pumpSubject(
@@ -94,13 +88,9 @@ void main() {
             projectController: projectController,
             workflowController: workflowController,
             promptController: promptController,
-            scmOwnerController: scmOwnerController,
-            scmRepoController: scmRepoController,
             isRunningAction: false,
             onJobSelected: (_) {},
-            onEnqueueIngestion: () {},
             onApproveIssue: () {},
-            onEnqueueScm: () {},
             onShowWorkerSessions: () {},
             onCreateProject: () {},
           ),

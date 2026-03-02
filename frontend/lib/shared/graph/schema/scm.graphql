@@ -28,43 +28,12 @@ enum SCMReviewDecision {
   COMMENT
 }
 
-type EnqueueSCMWorkflowSuccess {
-  queueTaskID: ID!
-  duplicate: Boolean!
-}
-
-union EnqueueSCMWorkflowResult = EnqueueSCMWorkflowSuccess | GraphError
-
 type ScmSupportedOperationsSuccess {
   operations: [SCMOperation!]!
 }
 
 union ScmSupportedOperationsResult = ScmSupportedOperationsSuccess | GraphError
 
-input EnqueueSCMWorkflowInput {
-  operation: SCMOperation!
-  provider: SCMProvider!
-  owner: String!
-  repository: String!
-  runID: String!
-  taskID: String!
-  jobID: String!
-  idempotencyKey: String!
-  worktreePath: String
-  baseBranch: String
-  targetBranch: String
-  pullRequestNumber: Int
-  mergeMethod: SCMMergeMethod
-  pullRequestTitle: String
-  pullRequestBody: String
-  reviewDecision: SCMReviewDecision
-  reviewBody: String
-}
-
 extend type Query {
   scmSupportedOperations: ScmSupportedOperationsResult!
-}
-
-extend type Mutation {
-  enqueueScmWorkflow(input: EnqueueSCMWorkflowInput!): EnqueueSCMWorkflowResult!
 }

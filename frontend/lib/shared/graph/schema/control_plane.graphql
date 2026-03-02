@@ -177,6 +177,7 @@ union ProjectSetupResult = ProjectSetupSuccess | GraphError
 input ProjectRepositoryInput {
   repositoryID: String!
   scmProvider: SCMProvider!
+  scmToken: String!
   repositoryURL: String!
   isPrimary: Boolean!
 }
