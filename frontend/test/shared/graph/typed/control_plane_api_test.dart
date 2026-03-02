@@ -299,4 +299,22 @@ void main() {
       expect(result.data!.heartbeatIntervalSeconds, 15);
     });
   });
+
+  group('upsertProjectSetup', () {
+    test('rejects unsupported scm provider before mutation', () async {
+      final result = await api.upsertProjectSetup(
+        projectID: 'project_1',
+        projectName: 'Project 1',
+        scmProvider: 'UNSUPPORTED',
+        repositoryURLs: const <String>['https://example.com/acme/repo'],
+        trackerProvider: 'GITHUB_ISSUES',
+        trackerLocations: const <String>['acme/repo'],
+        trackerBoardIDs: const <String>['board-1'],
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('unsupported scm provider'));
+      verifyNever(client.mutate<gql_ops.Mutation$UpsertProjectSetup>(any));
+    });
+  });
 }

@@ -19,6 +19,13 @@ func TestRepoCacheKeyFromRepositoryBuildsNormalizedKey(t *testing.T) {
 	}
 }
 
+func TestRepositoryValidateRejectsUnsupportedProvider(t *testing.T) {
+	err := (Repository{Provider: "unsupported", Owner: "Acme", Name: "Repo"}).Validate()
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
 func TestRepoLeaseValidateRequiresFields(t *testing.T) {
 	err := (RepoLease{}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {

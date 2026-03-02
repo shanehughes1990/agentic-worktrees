@@ -14,9 +14,17 @@ type Repository struct {
 	Name     string
 }
 
+const ProviderGitHub = "github"
+
+var SupportedProviders = []string{ProviderGitHub}
+
 func (repository Repository) Validate() error {
-	if strings.TrimSpace(repository.Provider) == "" {
+	provider := strings.ToLower(strings.TrimSpace(repository.Provider))
+	if provider == "" {
 		return failures.WrapTerminal(errors.New("provider is required"))
+	}
+	if !isSupportedProvider(provider) {
+		return failures.WrapTerminal(fmt.Errorf("unsupported provider %q", repository.Provider))
 	}
 	if strings.TrimSpace(repository.Owner) == "" {
 		return failures.WrapTerminal(errors.New("owner is required"))
@@ -25,6 +33,15 @@ func (repository Repository) Validate() error {
 		return failures.WrapTerminal(errors.New("name is required"))
 	}
 	return nil
+}
+
+func isSupportedProvider(provider string) bool {
+	for _, supportedProvider := range SupportedProviders {
+		if provider == supportedProvider {
+			return true
+		}
+	}
+	return false
 }
 
 type RepoCacheKey string

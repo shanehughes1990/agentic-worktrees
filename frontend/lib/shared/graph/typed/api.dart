@@ -431,6 +431,16 @@ class ControlPlaneApi {
         .map((String trackerLocation) => trackerLocation.trim())
         .where((String trackerLocation) => trackerLocation.isNotEmpty)
         .toList(growable: false);
+    final projectScmProvider = _toProjectScmProvider(scmProvider);
+    if (projectScmProvider == null) {
+      return ApiResult<ProjectSetupConfig>.failure(
+        _graphErrorMessageTyped(
+          code: 'VALIDATION',
+          message: 'unsupported scm provider',
+          field: 'scmProvider',
+        ),
+      );
+    }
     final result = await _client.mutate$UpsertProjectSetup(
       gql_ops.Options$Mutation$UpsertProjectSetup(
         variables: gql_ops.Variables$Mutation$UpsertProjectSetup(
@@ -444,7 +454,7 @@ class ControlPlaneApi {
                   (entry) => gql_cp.Input$ProjectRepositoryInput(
                     repositoryID:
                         '${projectID.isEmpty ? 'project' : projectID}-repo-${entry.key + 1}',
-                    scmProvider: _toProjectScmProvider(scmProvider),
+                    scmProvider: projectScmProvider,
                     repositoryURL: entry.value,
                     isPrimary: entry.key == 0,
                   ),
@@ -923,12 +933,12 @@ class ControlPlaneApi {
     return null;
   }
 
-  gql_scm.Enum$SCMProvider _toProjectScmProvider(String value) {
+  gql_scm.Enum$SCMProvider? _toProjectScmProvider(String value) {
     switch (value.toUpperCase()) {
       case 'GITHUB':
         return gql_scm.Enum$SCMProvider.GITHUB;
       default:
-        return gql_scm.Enum$SCMProvider.$unknown;
+        return null;
     }
   }
 
