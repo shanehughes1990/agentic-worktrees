@@ -1514,8 +1514,6 @@ union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
 enum TrackerSourceKind {
   LOCAL_JSON
   GITHUB_ISSUES
-  JIRA
-  LINEAR
 }
 
 input IngestionBoardSourceInput {

@@ -420,17 +420,15 @@ class ControlPlaneApi {
     required String scmProvider,
     required List<String> repositoryURLs,
     required String trackerProvider,
-    required List<String> trackerLocations,
-    required List<String> trackerBoardIDs,
+    required String trackerLocation,
+    required String trackerBoardID,
   }) async {
     final repositories = repositoryURLs
         .map((String repositoryURL) => repositoryURL.trim())
         .where((String repositoryURL) => repositoryURL.isNotEmpty)
         .toList(growable: false);
-    final boards = trackerLocations
-        .map((String trackerLocation) => trackerLocation.trim())
-        .where((String trackerLocation) => trackerLocation.isNotEmpty)
-        .toList(growable: false);
+    final normalizedTrackerLocation = trackerLocation.trim();
+    final normalizedTrackerBoardID = trackerBoardID.trim();
     final projectScmProvider = _toProjectScmProvider(scmProvider);
     if (projectScmProvider == null) {
       return ApiResult<ProjectSetupConfig>.failure(
@@ -438,6 +436,25 @@ class ControlPlaneApi {
           code: 'VALIDATION',
           message: 'unsupported scm provider',
           field: 'scmProvider',
+        ),
+      );
+    }
+    final projectTrackerProvider = _toTrackerSourceKind(trackerProvider);
+    if (projectTrackerProvider == null) {
+      return ApiResult<ProjectSetupConfig>.failure(
+        _graphErrorMessageTyped(
+          code: 'VALIDATION',
+          message: 'unsupported tracker provider',
+          field: 'trackerProvider',
+        ),
+      );
+    }
+    if (normalizedTrackerLocation.isEmpty) {
+      return ApiResult<ProjectSetupConfig>.failure(
+        _graphErrorMessageTyped(
+          code: 'VALIDATION',
+          message: 'tracker location is required',
+          field: 'trackerLocation',
         ),
       );
     }
@@ -460,22 +477,18 @@ class ControlPlaneApi {
                   ),
                 )
                 .toList(growable: false),
-            boards: boards
-                .asMap()
-                .entries
-                .map(
-                  (entry) => gql_cp.Input$ProjectBoardInput(
-                    boardID:
-                        '${projectID.isEmpty ? 'project' : projectID}-board-${entry.key + 1}',
-                    trackerProvider: _toTrackerSourceKind(trackerProvider),
-                    trackerLocation: entry.value,
-                    trackerBoardID: trackerBoardIDs.length > entry.key
-                        ? trackerBoardIDs[entry.key]
-                        : null,
-                    appliesToAllRepositories: true,
-                  ),
-                )
-                .toList(growable: false),
+            boards: <gql_cp.Input$ProjectBoardInput>[
+              gql_cp.Input$ProjectBoardInput(
+                boardID: '${projectID.isEmpty ? 'project' : projectID}-board-1',
+                trackerProvider: projectTrackerProvider,
+                trackerLocation: normalizedTrackerLocation,
+                trackerBoardID: normalizedTrackerBoardID.isEmpty
+                    ? null
+                    : normalizedTrackerBoardID,
+                appliesToAllRepositories: true,
+                repositoryIDs: const <String>[],
+              ),
+            ],
           ),
         ),
       ),
@@ -942,18 +955,14 @@ class ControlPlaneApi {
     }
   }
 
-  gql_cp.Enum$TrackerSourceKind _toTrackerSourceKind(String value) {
+  gql_cp.Enum$TrackerSourceKind? _toTrackerSourceKind(String value) {
     switch (value.toUpperCase()) {
       case 'LOCAL_JSON':
         return gql_cp.Enum$TrackerSourceKind.LOCAL_JSON;
       case 'GITHUB_ISSUES':
         return gql_cp.Enum$TrackerSourceKind.GITHUB_ISSUES;
-      case 'JIRA':
-        return gql_cp.Enum$TrackerSourceKind.JIRA;
-      case 'LINEAR':
-        return gql_cp.Enum$TrackerSourceKind.LINEAR;
       default:
-        return gql_cp.Enum$TrackerSourceKind.$unknown;
+        return null;
     }
   }
 

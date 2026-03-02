@@ -99,8 +99,8 @@ func TestSourceRefValidateRequiresLocationForGitHubIssues(t *testing.T) {
 	}
 }
 
-func TestSourceRefValidateRequiresBoardForExternalSources(t *testing.T) {
-	err := (SourceRef{Kind: SourceKindJira}).Validate()
+func TestSourceRefValidateRejectsUnsupportedSourceKind(t *testing.T) {
+	err := (SourceRef{Kind: SourceKind("jira")}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
 	}

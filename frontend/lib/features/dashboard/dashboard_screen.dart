@@ -313,17 +313,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final repositoryURLs = ProjectSetupLogic.parseMultilineEntries(
       _repositoryUrlController.text,
     );
-    final trackerLocations = ProjectSetupLogic.parseMultilineEntries(
-      _trackerLocationController.text,
-    );
-    final trackerBoardIDs = ProjectSetupLogic.parseMultilineEntries(
-      _trackerBoardIDController.text,
-    );
+    final trackerLocation = _trackerLocationController.text.trim();
+    final trackerBoardID = _trackerBoardIDController.text.trim();
     final validationError = ProjectSetupLogic.validateRequiredFields(
       projectID: projectID,
       projectName: projectName,
       repositoryURLs: repositoryURLs,
-      trackerLocations: trackerLocations,
+      trackerLocation: trackerLocation,
     );
     if (validationError != null) {
       setState(() => _statusMessage = validationError);
@@ -337,8 +333,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       scmProvider: _setupScmProvider,
       repositoryURLs: repositoryURLs,
       trackerProvider: _setupTrackerProvider,
-      trackerLocations: trackerLocations,
-      trackerBoardIDs: trackerBoardIDs,
+      trackerLocation: trackerLocation,
+      trackerBoardID: trackerBoardID,
     );
     if (!mounted) {
       return;

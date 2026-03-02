@@ -147,6 +147,35 @@ func TestIngestionAgentHandlerReturnsServiceError(t *testing.T) {
 	}
 }
 
+func TestIngestionAgentHandlerRejectsMultipleBoardSources(t *testing.T) {
+	service := &fakeTrackerService{}
+	handler, err := NewIngestionAgentHandler(service)
+	if err != nil {
+		t.Fatalf("new handler: %v", err)
+	}
+
+	payload, _ := json.Marshal(IngestionAgentPayload{
+		RunID:      "run-1",
+		TaskID:     "task-1",
+		JobID:      "job-1",
+		Prompt:     "ingest tracker board",
+		ProjectID:  "project-1",
+		WorkflowID: "workflow-1",
+		BoardSources: []IngestionBoardSourcePayload{
+			{BoardID: "board-1", Kind: "local_json", Location: "board-1.json", AppliesToAllRepositories: true},
+			{BoardID: "board-2", Kind: "local_json", Location: "board-2.json", AppliesToAllRepositories: true},
+		},
+	})
+
+	err = handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payload})
+	if err == nil {
+		t.Fatalf("expected validation error for multiple board sources")
+	}
+	if service.called {
+		t.Fatalf("did not expect tracker service call")
+	}
+}
+
 func TestIngestionAgentHandlerEmitsIssueOpenedPerGitHubIssueTask(t *testing.T) {
 	supervisorService := &fakeSupervisorSignalService{}
 	trackerService := &fakeTrackerService{board: domaintracker.Board{

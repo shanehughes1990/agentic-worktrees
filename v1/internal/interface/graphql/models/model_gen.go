@@ -1328,20 +1328,16 @@ type TrackerSourceKind string
 const (
 	TrackerSourceKindLocalJSON    TrackerSourceKind = "LOCAL_JSON"
 	TrackerSourceKindGithubIssues TrackerSourceKind = "GITHUB_ISSUES"
-	TrackerSourceKindJira         TrackerSourceKind = "JIRA"
-	TrackerSourceKindLinear       TrackerSourceKind = "LINEAR"
 )
 
 var AllTrackerSourceKind = []TrackerSourceKind{
 	TrackerSourceKindLocalJSON,
 	TrackerSourceKindGithubIssues,
-	TrackerSourceKindJira,
-	TrackerSourceKindLinear,
 }
 
 func (e TrackerSourceKind) IsValid() bool {
 	switch e {
-	case TrackerSourceKindLocalJSON, TrackerSourceKindGithubIssues, TrackerSourceKindJira, TrackerSourceKindLinear:
+	case TrackerSourceKindLocalJSON, TrackerSourceKindGithubIssues:
 		return true
 	}
 	return false

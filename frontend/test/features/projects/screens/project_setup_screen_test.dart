@@ -79,8 +79,9 @@ void main() {
     expect(find.text('SCM Provider'), findsOneWidget);
     expect(find.text('Repository Setup'), findsOneWidget);
     expect(find.text('Tracker Setup'), findsOneWidget);
+    expect(find.text('Tracker Provider'), findsOneWidget);
     expect(find.text('Add Repository'), findsOneWidget);
-    expect(find.text('Add Tracker'), findsOneWidget);
+    expect(find.text('Add Tracker'), findsNothing);
     expect(find.text('status'), findsOneWidget);
   });
 
@@ -130,9 +131,7 @@ void main() {
     expect(reloadCount, 1);
   });
 
-  testWidgets('adds repository and tracker setup blocks', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('adds repository setup blocks', (WidgetTester tester) async {
     await pumpSubject(
       tester,
       onSave: () {},
@@ -144,12 +143,9 @@ void main() {
 
     await tester.tap(find.text('Add Repository'));
     await tester.pump();
-    await tester.ensureVisible(find.text('Add Tracker'));
-    await tester.tap(find.text('Add Tracker'));
-    await tester.pump();
 
     expect(find.text('Repository 2'), findsOneWidget);
-    expect(find.text('Tracker 2'), findsOneWidget);
+    expect(find.text('Tracker 2'), findsNothing);
   });
 
   testWidgets('disables save button while saving', (WidgetTester tester) async {

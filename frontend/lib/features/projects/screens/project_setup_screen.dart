@@ -48,10 +48,10 @@ class ProjectSetupScreen extends StatefulWidget {
 class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
   final List<TextEditingController> _repositoryControllers =
       <TextEditingController>[];
-  final List<TextEditingController> _trackerLocationControllers =
-      <TextEditingController>[];
-  final List<TextEditingController> _trackerBoardIDControllers =
-      <TextEditingController>[];
+  final TextEditingController _trackerLocationController =
+      TextEditingController();
+  final TextEditingController _trackerBoardIDController =
+      TextEditingController();
 
   String _lastRepositoryRaw = '';
   String _lastTrackerLocationRaw = '';
@@ -74,13 +74,8 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
     for (final TextEditingController controller in _repositoryControllers) {
       controller.dispose();
     }
-    for (final TextEditingController controller
-        in _trackerLocationControllers) {
-      controller.dispose();
-    }
-    for (final TextEditingController controller in _trackerBoardIDControllers) {
-      controller.dispose();
-    }
+    _trackerLocationController.dispose();
+    _trackerBoardIDController.dispose();
     super.dispose();
   }
 
@@ -103,16 +98,7 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
     for (final TextEditingController controller in _repositoryControllers) {
       controller.dispose();
     }
-    for (final TextEditingController controller
-        in _trackerLocationControllers) {
-      controller.dispose();
-    }
-    for (final TextEditingController controller in _trackerBoardIDControllers) {
-      controller.dispose();
-    }
     _repositoryControllers.clear();
-    _trackerLocationControllers.clear();
-    _trackerBoardIDControllers.clear();
 
     final repositoryURLs = ProjectSetupLogic.parseMultilineEntries(
       repositoryRaw,
@@ -131,22 +117,12 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
     final trackerBoardIDs = ProjectSetupLogic.parseMultilineEntries(
       trackerBoardIDRaw,
     );
-
-    if (trackerLocations.isEmpty) {
-      _trackerLocationControllers.add(TextEditingController());
-      _trackerBoardIDControllers.add(TextEditingController());
-    } else {
-      for (var index = 0; index < trackerLocations.length; index++) {
-        _trackerLocationControllers.add(
-          TextEditingController(text: trackerLocations[index]),
-        );
-        _trackerBoardIDControllers.add(
-          TextEditingController(
-            text: trackerBoardIDs.length > index ? trackerBoardIDs[index] : '',
-          ),
-        );
-      }
-    }
+    _trackerLocationController.text = trackerLocations.isNotEmpty
+        ? trackerLocations.first
+        : '';
+    _trackerBoardIDController.text = trackerBoardIDs.isNotEmpty
+        ? trackerBoardIDs.first
+        : '';
 
     if (mounted) {
       setState(() {});
@@ -159,16 +135,10 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
         .where((String value) => value.isNotEmpty)
         .join('\n');
 
-    final trackerLocations = _trackerLocationControllers
-        .map((TextEditingController controller) => controller.text.trim())
-        .where((String value) => value.isNotEmpty)
-        .toList(growable: false);
-    final trackerBoardIDs = _trackerBoardIDControllers
-        .map((TextEditingController controller) => controller.text.trim())
-        .toList(growable: false);
-
-    widget.trackerLocationController.text = trackerLocations.join('\n');
-    widget.trackerBoardIDController.text = trackerBoardIDs.join('\n');
+    widget.trackerLocationController.text = _trackerLocationController.text
+        .trim();
+    widget.trackerBoardIDController.text = _trackerBoardIDController.text
+        .trim();
 
     _lastRepositoryRaw = widget.repositoryUrlController.text;
     _lastTrackerLocationRaw = widget.trackerLocationController.text;
@@ -195,25 +165,6 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
     setState(() {
       final removed = _repositoryControllers.removeAt(index);
       removed.dispose();
-    });
-  }
-
-  void _addTrackerBlock() {
-    setState(() {
-      _trackerLocationControllers.add(TextEditingController());
-      _trackerBoardIDControllers.add(TextEditingController());
-    });
-  }
-
-  void _removeTrackerBlock(int index) {
-    if (_trackerLocationControllers.length <= 1) {
-      return;
-    }
-    setState(() {
-      final removedLocation = _trackerLocationControllers.removeAt(index);
-      final removedBoard = _trackerBoardIDControllers.removeAt(index);
-      removedLocation.dispose();
-      removedBoard.dispose();
     });
   }
 
@@ -312,10 +263,10 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
           if (hasProvider) ...<Widget>[
             const SizedBox(height: 12),
             _TrackerSetupSection(
-              locationControllers: _trackerLocationControllers,
-              boardIDControllers: _trackerBoardIDControllers,
-              onAdd: _addTrackerBlock,
-              onRemove: _removeTrackerBlock,
+              trackerProvider: widget.setupTrackerProvider,
+              onTrackerProviderChanged: widget.onSetupTrackerProviderChanged,
+              locationController: _trackerLocationController,
+              boardIDController: _trackerBoardIDController,
             ),
           ],
           const SizedBox(height: 12),
@@ -437,16 +388,16 @@ class _RepositorySetupSection extends StatelessWidget {
 
 class _TrackerSetupSection extends StatelessWidget {
   const _TrackerSetupSection({
-    required this.locationControllers,
-    required this.boardIDControllers,
-    required this.onAdd,
-    required this.onRemove,
+    required this.trackerProvider,
+    required this.onTrackerProviderChanged,
+    required this.locationController,
+    required this.boardIDController,
   });
 
-  final List<TextEditingController> locationControllers;
-  final List<TextEditingController> boardIDControllers;
-  final VoidCallback onAdd;
-  final ValueChanged<int> onRemove;
+  final String trackerProvider;
+  final ValueChanged<String> onTrackerProviderChanged;
+  final TextEditingController locationController;
+  final TextEditingController boardIDController;
 
   @override
   Widget build(BuildContext context) {
@@ -456,68 +407,50 @@ class _TrackerSetupSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                const Expanded(
-                  child: Text(
-                    'Tracker Setup',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onAdd,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Tracker'),
-                ),
-              ],
+            const Text(
+              'Tracker Setup',
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
-            for (
-              var index = 0;
-              index < locationControllers.length;
-              index++
-            ) ...<Widget>[
-              Card(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Text('Tracker ${index + 1}'),
-                          const Spacer(),
-                          if (locationControllers.length > 1)
-                            IconButton(
-                              onPressed: () => onRemove(index),
-                              icon: const Icon(Icons.delete_outline),
-                              tooltip: 'Remove Tracker',
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: locationControllers[index],
-                        decoration: const InputDecoration(
-                          labelText: 'Tracker Location',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: boardIDControllers[index],
-                        decoration: const InputDecoration(
-                          labelText: 'Tracker Board ID (optional)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            DropdownButtonFormField<String>(
+              initialValue: trackerProvider,
+              decoration: const InputDecoration(
+                labelText: 'Tracker Provider',
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 8),
-            ],
+              items: const <DropdownMenuItem<String>>[
+                DropdownMenuItem<String>(
+                  value: 'GITHUB_ISSUES',
+                  child: Text('GitHub Issues'),
+                ),
+                DropdownMenuItem<String>(
+                  value: 'LOCAL_JSON',
+                  child: Text('Local JSON Taskboard'),
+                ),
+              ],
+              onChanged: (String? value) {
+                if (value == null) {
+                  return;
+                }
+                onTrackerProviderChanged(value);
+              },
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: locationController,
+              decoration: const InputDecoration(
+                labelText: 'Tracker Location',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: boardIDController,
+              decoration: const InputDecoration(
+                labelText: 'Tracker Board ID (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
           ],
         ),
       ),

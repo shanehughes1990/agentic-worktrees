@@ -31,13 +31,11 @@ type SourceKind string
 const (
 	SourceKindLocalJSON    SourceKind = "local_json"
 	SourceKindGitHubIssues SourceKind = "github_issues"
-	SourceKindJira         SourceKind = "jira"
-	SourceKindLinear       SourceKind = "linear"
 )
 
 func (kind SourceKind) Validate() error {
 	switch kind {
-	case SourceKindLocalJSON, SourceKindGitHubIssues, SourceKindJira, SourceKindLinear:
+	case SourceKindLocalJSON, SourceKindGitHubIssues:
 		return nil
 	default:
 		return failures.WrapTerminal(fmt.Errorf("unsupported source kind %q", kind))
@@ -64,10 +62,6 @@ func (source SourceRef) Validate() error {
 	case SourceKindGitHubIssues:
 		if strings.TrimSpace(source.Location) == "" {
 			return failures.WrapTerminal(errors.New("location is required for github_issues source (owner/repo)"))
-		}
-	case SourceKindJira, SourceKindLinear:
-		if strings.TrimSpace(source.BoardID) == "" {
-			return failures.WrapTerminal(errors.New("board_id is required for external tracker source"))
 		}
 	}
 	return nil

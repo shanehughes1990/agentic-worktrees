@@ -1753,8 +1753,6 @@ Enum$JobKind fromJson$Enum$JobKind(String value) {
 enum Enum$TrackerSourceKind {
   LOCAL_JSON,
   GITHUB_ISSUES,
-  JIRA,
-  LINEAR,
   $unknown;
 
   factory Enum$TrackerSourceKind.fromJson(String value) =>
@@ -1769,10 +1767,6 @@ String toJson$Enum$TrackerSourceKind(Enum$TrackerSourceKind e) {
       return r'LOCAL_JSON';
     case Enum$TrackerSourceKind.GITHUB_ISSUES:
       return r'GITHUB_ISSUES';
-    case Enum$TrackerSourceKind.JIRA:
-      return r'JIRA';
-    case Enum$TrackerSourceKind.LINEAR:
-      return r'LINEAR';
     case Enum$TrackerSourceKind.$unknown:
       return r'$unknown';
   }
@@ -1784,10 +1778,6 @@ Enum$TrackerSourceKind fromJson$Enum$TrackerSourceKind(String value) {
       return Enum$TrackerSourceKind.LOCAL_JSON;
     case r'GITHUB_ISSUES':
       return Enum$TrackerSourceKind.GITHUB_ISSUES;
-    case r'JIRA':
-      return Enum$TrackerSourceKind.JIRA;
-    case r'LINEAR':
-      return Enum$TrackerSourceKind.LINEAR;
     default:
       return Enum$TrackerSourceKind.$unknown;
   }

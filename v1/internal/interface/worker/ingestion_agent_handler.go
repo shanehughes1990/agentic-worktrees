@@ -57,42 +57,41 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 	if err := json.Unmarshal(job.Payload, &payload); err != nil {
 		return fmt.Errorf("decode ingestion agent payload: %w", err)
 	}
-	if len(payload.BoardSources) == 0 {
-		return fmt.Errorf("ingestion board_sources is required")
+	if len(payload.BoardSources) != 1 {
+		return fmt.Errorf("ingestion requires exactly one board_source")
 	}
 	correlation := taskengine.CorrelationIDs{RunID: payload.RunID, TaskID: payload.TaskID, JobID: payload.JobID, ProjectID: payload.ProjectID}
-	for _, boardSource := range payload.BoardSources {
-		sourceKind := domaintracker.SourceKind(strings.TrimSpace(boardSource.Kind))
-		sourceLocation := strings.TrimSpace(boardSource.Location)
-		if sourceKind == domaintracker.SourceKindLocalJSON {
-			sourceLocation = scopedLocalTrackerLocation(payload.ProjectID, sourceLocation)
+	boardSource := payload.BoardSources[0]
+	sourceKind := domaintracker.SourceKind(strings.TrimSpace(boardSource.Kind))
+	sourceLocation := strings.TrimSpace(boardSource.Location)
+	if sourceKind == domaintracker.SourceKindLocalJSON {
+		sourceLocation = scopedLocalTrackerLocation(payload.ProjectID, sourceLocation)
+	}
+	request := applicationtracker.SyncBoardRequest{
+		RunID:      strings.TrimSpace(payload.RunID),
+		Prompt:     strings.TrimSpace(payload.Prompt),
+		ProjectID:  strings.TrimSpace(payload.ProjectID),
+		WorkflowID: strings.TrimSpace(payload.WorkflowID),
+		Source: domaintracker.SourceRef{
+			Kind:     sourceKind,
+			Location: sourceLocation,
+			BoardID:  strings.TrimSpace(boardSource.ExternalBoardID),
+			Config:   boardSource.Config,
+		},
+	}
+	board, err := handler.service.SyncBoard(ctx, request)
+	if err != nil {
+		handler.safeSupervisorAttention(ctx, correlation, err.Error())
+		return err
+	}
+	if sourceKind == domaintracker.SourceKindGitHubIssues {
+		references := issueReferencesFromBoard(board)
+		if len(references) == 0 {
+			handler.safeSupervisorIssueOpened(ctx, correlation, sourceLocation, sourceLocation)
+			return nil
 		}
-		request := applicationtracker.SyncBoardRequest{
-			RunID:      strings.TrimSpace(payload.RunID),
-			Prompt:     strings.TrimSpace(payload.Prompt),
-			ProjectID:  strings.TrimSpace(payload.ProjectID),
-			WorkflowID: strings.TrimSpace(payload.WorkflowID),
-			Source: domaintracker.SourceRef{
-				Kind:     sourceKind,
-				Location: sourceLocation,
-				BoardID:  strings.TrimSpace(boardSource.ExternalBoardID),
-				Config:   boardSource.Config,
-			},
-		}
-		board, err := handler.service.SyncBoard(ctx, request)
-		if err != nil {
-			handler.safeSupervisorAttention(ctx, correlation, err.Error())
-			return err
-		}
-		if sourceKind == domaintracker.SourceKindGitHubIssues {
-			references := issueReferencesFromBoard(board)
-			if len(references) == 0 {
-				handler.safeSupervisorIssueOpened(ctx, correlation, sourceLocation, sourceLocation)
-				continue
-			}
-			for _, reference := range references {
-				handler.safeSupervisorIssueOpened(ctx, correlation, sourceLocation, reference)
-			}
+		for _, reference := range references {
+			handler.safeSupervisorIssueOpened(ctx, correlation, sourceLocation, reference)
 		}
 	}
 	return nil

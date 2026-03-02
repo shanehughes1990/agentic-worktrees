@@ -20,8 +20,8 @@ func (r *mutationResolver) EnqueueIngestionWorkflow(ctx context.Context, input m
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
 	}
-	if len(input.BoardSources) == 0 {
-		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "boardSources is required", Field: strPtr("boardSources")}, nil
+	if len(input.BoardSources) != 1 {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "exactly one boardSource is required", Field: strPtr("boardSources")}, nil
 	}
 	boardSources := make([]applicationcontrolplane.IngestionBoardSource, 0, len(input.BoardSources))
 	for _, boardSource := range input.BoardSources {

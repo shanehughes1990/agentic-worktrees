@@ -145,10 +145,6 @@ func toTrackerSourceKindString(kind models.TrackerSourceKind) string {
 		return "local_json"
 	case models.TrackerSourceKindGithubIssues:
 		return "github_issues"
-	case models.TrackerSourceKindJira:
-		return "jira"
-	case models.TrackerSourceKindLinear:
-		return "linear"
 	default:
 		return ""
 	}
@@ -160,10 +156,6 @@ func toGraphTrackerSourceKind(kind string) (models.TrackerSourceKind, error) {
 		return models.TrackerSourceKindLocalJSON, nil
 	case "github_issues":
 		return models.TrackerSourceKindGithubIssues, nil
-	case "jira":
-		return models.TrackerSourceKindJira, nil
-	case "linear":
-		return models.TrackerSourceKindLinear, nil
 	default:
 		return "", fmt.Errorf("unsupported tracker provider %q", kind)
 	}

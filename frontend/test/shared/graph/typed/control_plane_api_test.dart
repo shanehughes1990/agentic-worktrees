@@ -308,8 +308,8 @@ void main() {
         scmProvider: 'UNSUPPORTED',
         repositoryURLs: const <String>['https://example.com/acme/repo'],
         trackerProvider: 'GITHUB_ISSUES',
-        trackerLocations: const <String>['acme/repo'],
-        trackerBoardIDs: const <String>['board-1'],
+        trackerLocation: 'acme/repo',
+        trackerBoardID: 'board-1',
       );
 
       expect(result.isSuccess, isFalse);

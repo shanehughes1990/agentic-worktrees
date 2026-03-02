@@ -237,6 +237,7 @@ func TestControlPlaneMutationsReturnTypedUnionSuccess(t *testing.T) {
 		BoardSources: []*models.IngestionBoardSourceInput{{
 			BoardID:                  "board-1",
 			Kind:                     models.TrackerSourceKindGithubIssues,
+				Location:                 strPtr("octo/repo"),
 			AppliesToAllRepositories: true,
 		}},
 	})

@@ -51,7 +51,7 @@ func TestProviderRegistryResolveRejectsUnregisteredKind(t *testing.T) {
 		RunID:      "run-1",
 		ProjectID:  "project-1",
 		WorkflowID: "workflow-1",
-		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKindLinear, BoardID: "TEAM-1"},
+		Source:     domaintracker.SourceRef{Kind: domaintracker.SourceKind("unsupported"), BoardID: "TEAM-1"},
 	})
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal error classification, got %q (%v)", failures.ClassOf(err), err)

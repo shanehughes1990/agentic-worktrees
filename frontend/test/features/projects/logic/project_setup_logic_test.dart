@@ -11,7 +11,7 @@ void main() {
         projectID: '',
         projectName: 'name',
         repositoryURLs: const <String>['https://example.com/repo'],
-        trackerLocations: const <String>['acme/repo'],
+        trackerLocation: 'acme/repo',
       );
 
       expect(
@@ -25,21 +25,21 @@ void main() {
         projectID: 'projectOne',
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
-        trackerLocations: const <String>['acme/repo'],
+        trackerLocation: 'acme/repo',
       );
 
       expect(error, isNull);
     });
 
-    test('returns error when tracker list is empty', () {
+    test('returns error when tracker location is empty', () {
       final error = ProjectSetupLogic.validateRequiredFields(
         projectID: 'projectOne',
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
-        trackerLocations: const <String>[],
+        trackerLocation: '   ',
       );
 
-      expect(error, 'At least one Tracker Location is required.');
+      expect(error, 'Tracker Location is required.');
     });
   });
 

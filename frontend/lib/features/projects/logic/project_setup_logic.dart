@@ -11,13 +11,13 @@ class ProjectSetupLogic {
     required String projectID,
     required String projectName,
     required List<String> repositoryURLs,
-    required List<String> trackerLocations,
+    required String trackerLocation,
   }) {
     if (projectID.isEmpty || projectName.isEmpty || repositoryURLs.isEmpty) {
       return 'Project ID, Project Name, and at least one Repository URL are required.';
     }
-    if (trackerLocations.isEmpty) {
-      return 'At least one Tracker Location is required.';
+    if (trackerLocation.trim().isEmpty) {
+      return 'Tracker Location is required.';
     }
     return null;
   }
@@ -66,16 +66,9 @@ class ProjectSetupLogic {
         : null;
     onScmProviderChanged(repository?.scmProvider ?? defaultScmProvider);
 
-    final boardLocations = setup.boards
-        .map((ProjectBoardConfig board) => board.trackerLocation)
-        .where((String trackerLocation) => trackerLocation.trim().isNotEmpty)
-        .toList(growable: false);
-    trackerLocationController.text = boardLocations.join('\n');
-    trackerBoardIDController.text = setup.boards
-        .map((ProjectBoardConfig board) => board.trackerBoardID)
-        .toList(growable: false)
-        .join('\n');
     final board = setup.boards.isNotEmpty ? setup.boards.first : null;
+    trackerLocationController.text = board?.trackerLocation ?? '';
+    trackerBoardIDController.text = board?.trackerBoardID ?? '';
     onTrackerProviderChanged(board?.trackerProvider ?? defaultTrackerProvider);
   }
 }

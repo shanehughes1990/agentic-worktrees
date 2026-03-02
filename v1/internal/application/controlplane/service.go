@@ -91,6 +91,11 @@ type UpsertProjectSetupRequest struct {
 	Boards       []ProjectBoard
 }
 
+var supportedTrackerProviders = map[string]struct{}{
+	"local_json":    {},
+	"github_issues": {},
+}
+
 func (request UpsertProjectSetupRequest) Validate() error {
 	if strings.TrimSpace(request.ProjectID) == "" {
 		return fmt.Errorf("project_id is required")
@@ -117,33 +122,25 @@ func (request UpsertProjectSetupRequest) Validate() error {
 			return fmt.Errorf("repositories[%d].repository_url must be a valid absolute URL", index)
 		}
 	}
-	if len(request.Boards) == 0 {
-		return fmt.Errorf("at least one board is required")
-	}
-	repositoryByID := map[string]struct{}{}
-	for _, repository := range request.Repositories {
-		repositoryByID[strings.TrimSpace(repository.RepositoryID)] = struct{}{}
+	if len(request.Boards) != 1 {
+		return fmt.Errorf("exactly one board is required")
 	}
 	for index, board := range request.Boards {
 		if strings.TrimSpace(board.BoardID) == "" {
 			return fmt.Errorf("boards[%d].board_id is required", index)
 		}
-		if err := domaintracker.SourceKind(strings.TrimSpace(board.TrackerProvider)).Validate(); err != nil {
-			return fmt.Errorf("boards[%d].tracker_provider: %w", index, err)
+		trackerProvider := strings.ToLower(strings.TrimSpace(board.TrackerProvider))
+		if _, supported := supportedTrackerProviders[trackerProvider]; !supported {
+			return fmt.Errorf("boards[%d].tracker_provider must be one of: local_json, github_issues", index)
 		}
 		if !board.AppliesToAllRepositories {
-			if len(board.RepositoryIDs) == 0 {
-				return fmt.Errorf("boards[%d].repository_ids is required when applies_to_all_repositories is false", index)
-			}
-			for repositoryIndex, repositoryID := range board.RepositoryIDs {
-				trimmedID := strings.TrimSpace(repositoryID)
-				if trimmedID == "" {
-					return fmt.Errorf("boards[%d].repository_ids[%d] is required", index, repositoryIndex)
-				}
-				if _, exists := repositoryByID[trimmedID]; !exists {
-					return fmt.Errorf("boards[%d].repository_ids[%d] references unknown repository_id %q", index, repositoryIndex, trimmedID)
-				}
-			}
+			return fmt.Errorf("boards[%d].applies_to_all_repositories must be true", index)
+		}
+		if len(board.RepositoryIDs) > 0 {
+			return fmt.Errorf("boards[%d].repository_ids is not supported", index)
+		}
+		if strings.TrimSpace(board.TrackerLocation) == "" {
+			return fmt.Errorf("boards[%d].tracker_location is required", index)
 		}
 	}
 	return nil
@@ -218,15 +215,24 @@ func (request EnqueueIngestionWorkflowRequest) Validate() error {
 	if strings.TrimSpace(request.WorkflowID) == "" {
 		return fmt.Errorf("workflow_id is required")
 	}
-	if len(request.BoardSources) == 0 {
-		return fmt.Errorf("board_sources is required")
+	if len(request.BoardSources) != 1 {
+		return fmt.Errorf("exactly one board_source is required")
 	}
 	for index, source := range request.BoardSources {
 		if strings.TrimSpace(source.BoardID) == "" {
 			return fmt.Errorf("board_sources[%d].board_id is required", index)
 		}
-		if strings.TrimSpace(source.Kind) == "" {
-			return fmt.Errorf("board_sources[%d].kind is required", index)
+		if err := domaintracker.SourceKind(strings.ToLower(strings.TrimSpace(source.Kind))).Validate(); err != nil {
+			return fmt.Errorf("board_sources[%d].kind: %w", index, err)
+		}
+		if !source.AppliesToAllRepositories {
+			return fmt.Errorf("board_sources[%d].applies_to_all_repositories must be true", index)
+		}
+		if len(source.RepositoryIDs) > 0 {
+			return fmt.Errorf("board_sources[%d].repository_ids is not supported", index)
+		}
+		if strings.TrimSpace(source.Location) == "" {
+			return fmt.Errorf("board_sources[%d].location is required", index)
 		}
 	}
 	return nil
@@ -358,12 +364,11 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	}
 	for index := range request.Boards {
 		request.Boards[index].BoardID = strings.TrimSpace(request.Boards[index].BoardID)
-		request.Boards[index].TrackerProvider = strings.TrimSpace(request.Boards[index].TrackerProvider)
+		request.Boards[index].TrackerProvider = strings.ToLower(strings.TrimSpace(request.Boards[index].TrackerProvider))
 		request.Boards[index].TrackerLocation = strings.TrimSpace(request.Boards[index].TrackerLocation)
 		request.Boards[index].TrackerBoardID = strings.TrimSpace(request.Boards[index].TrackerBoardID)
-		for repositoryIndex := range request.Boards[index].RepositoryIDs {
-			request.Boards[index].RepositoryIDs[repositoryIndex] = strings.TrimSpace(request.Boards[index].RepositoryIDs[repositoryIndex])
-		}
+		request.Boards[index].AppliesToAllRepositories = true
+		request.Boards[index].RepositoryIDs = nil
 	}
 	if err := request.Validate(); err != nil {
 		return nil, err

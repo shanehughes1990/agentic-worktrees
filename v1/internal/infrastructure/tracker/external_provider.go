@@ -50,14 +50,6 @@ func NewGitHubIssuesProviderWithConfig(baseURL string, httpClient *http.Client, 
 	}, nil
 }
 
-func NewJiraProvider() *ExternalProvider {
-	return &ExternalProvider{sourceKind: domaintracker.SourceKindJira}
-}
-
-func NewLinearProvider() *ExternalProvider {
-	return &ExternalProvider{sourceKind: domaintracker.SourceKindLinear}
-}
-
 func (provider *ExternalProvider) SyncBoard(ctx context.Context, request applicationtracker.ProviderSyncRequest) (domaintracker.Board, error) {
 	if err := request.Validate(); err != nil {
 		return domaintracker.Board{}, err

@@ -351,8 +351,8 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
     required String? scmProvider,
     required List<String>? repositoryURLs,
     required String? trackerProvider,
-    required List<String>? trackerLocations,
-    required List<String>? trackerBoardIDs,
+    required String? trackerLocation,
+    required String? trackerBoardID,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#upsertProjectSetup, [], {
@@ -361,8 +361,8 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
               #scmProvider: scmProvider,
               #repositoryURLs: repositoryURLs,
               #trackerProvider: trackerProvider,
-              #trackerLocations: trackerLocations,
-              #trackerBoardIDs: trackerBoardIDs,
+              #trackerLocation: trackerLocation,
+              #trackerBoardID: trackerBoardID,
             }),
             returnValue:
                 _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>.value(
@@ -374,8 +374,8 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #scmProvider: scmProvider,
                       #repositoryURLs: repositoryURLs,
                       #trackerProvider: trackerProvider,
-                      #trackerLocations: trackerLocations,
-                      #trackerBoardIDs: trackerBoardIDs,
+                      #trackerLocation: trackerLocation,
+                      #trackerBoardID: trackerBoardID,
                     }),
                   ),
                 ),
@@ -389,8 +389,8 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #scmProvider: scmProvider,
                       #repositoryURLs: repositoryURLs,
                       #trackerProvider: trackerProvider,
-                      #trackerLocations: trackerLocations,
-                      #trackerBoardIDs: trackerBoardIDs,
+                      #trackerLocation: trackerLocation,
+                      #trackerBoardID: trackerBoardID,
                     }),
                   ),
                 ),
