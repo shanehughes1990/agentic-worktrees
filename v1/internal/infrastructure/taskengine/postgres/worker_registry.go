@@ -289,6 +289,24 @@ func (registry *WorkerRegistry) CreateRegistrationSubmission(ctx context.Context
 	return submission, nil
 }
 
+func (registry *WorkerRegistry) GetRegistrationSubmission(ctx context.Context, submissionID string) (domainrealtime.RegistrationSubmission, error) {
+	if registry == nil || registry.db == nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("worker registry is not initialized")
+	}
+	trimmedSubmissionID := strings.TrimSpace(submissionID)
+	if trimmedSubmissionID == "" {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("submission_id is required")
+	}
+	record := workerRegistrationSubmissionRecord{}
+	if err := registry.db.WithContext(ctx).Where("submission_id = ?", trimmedSubmissionID).Take(&record).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domainrealtime.RegistrationSubmission{}, fmt.Errorf("%w: %q", applicationworker.ErrSubmissionNotFound, trimmedSubmissionID)
+		}
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load registration submission: %w", err)
+	}
+	return submissionToDomain(record)
+}
+
 func (registry *WorkerRegistry) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")

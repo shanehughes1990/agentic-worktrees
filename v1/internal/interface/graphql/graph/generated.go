@@ -230,6 +230,7 @@ type ComplexityRoot struct {
 		AgentOutputStream               func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		SessionActivityStream           func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		SupervisorDecisionHistoryStream func(childComplexity int, correlation models.SupervisorCorrelationInput, intervalMs *int32) int
+		WorkerSessionStream             func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		WorkflowExecutionStream         func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 	}
 
@@ -334,6 +335,7 @@ type QueryResolver interface {
 	SupervisorDecisionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput) (models.SupervisorDecisionHistoryResult, error)
 }
 type SubscriptionResolver interface {
+	WorkerSessionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	WorkflowExecutionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	AgentOutputStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
@@ -1153,6 +1155,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.SupervisorDecisionHistoryStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["intervalMS"].(*int32)), true
+	case "Subscription.workerSessionStream":
+		if e.ComplexityRoot.Subscription.WorkerSessionStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_workerSessionStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.WorkerSessionStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["fromOffset"].(*int32)), true
 	case "Subscription.workflowExecutionStream":
 		if e.ComplexityRoot.Subscription.WorkflowExecutionStream == nil {
 			break
@@ -1897,6 +1910,7 @@ extend type Mutation {
 }
 
 extend type Subscription {
+  workerSessionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
@@ -2383,6 +2397,22 @@ func (ec *executionContext) field_Subscription_supervisorDecisionHistoryStream_a
 		return nil, err
 	}
 	args["intervalMS"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_workerSessionStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
 	return args, nil
 }
 
@@ -6128,6 +6158,47 @@ func (ec *executionContext) fieldContext_StreamEventSuccess_event(_ context.Cont
 			}
 			return nil, fmt.Errorf("no field named %q was found under type StreamEvent", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_workerSessionStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_workerSessionStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().WorkerSessionStream(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_workerSessionStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_workerSessionStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -11866,6 +11937,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 
 	switch fields[0].Name {
+	case "workerSessionStream":
+		return ec._Subscription_workerSessionStream(ctx, fields[0])
 	case "sessionActivityStream":
 		return ec._Subscription_sessionActivityStream(ctx, fields[0])
 	case "workflowExecutionStream":

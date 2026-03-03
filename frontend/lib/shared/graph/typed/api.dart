@@ -695,7 +695,7 @@ class ControlPlaneApi {
                 \$jobID: String!
                 \$fromOffset: Int!
               ) {
-                sessionActivityStream(
+                workerSessionStream(
                   correlation: {runID: \$runID, taskID: \$taskID, jobID: \$jobID}
                   fromOffset: \$fromOffset
                 ) {
@@ -728,16 +728,16 @@ class ControlPlaneApi {
         .map((QueryResult result) {
           final error = _extractOperationError(
             result,
-            field: 'sessionActivityStream',
+            field: 'workerSessionStream',
           );
           if (error != null) {
             return ApiResult<StreamEvent>.failure(error);
           }
           final payload =
-              result.data?['sessionActivityStream'] as Map<String, dynamic>?;
+              result.data?['workerSessionStream'] as Map<String, dynamic>?;
           if (payload == null) {
             return const ApiResult<StreamEvent>.failure(
-              'sessionActivityStream returned no data',
+              'workerSessionStream returned no data',
             );
           }
           if (payload['__typename'] == 'GraphError') {

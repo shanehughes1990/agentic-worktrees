@@ -351,7 +351,7 @@ func (app *WorkerApp) Run() error {
 	}); err != nil {
 		return fmt.Errorf("publish registration submission: %w", err)
 	}
-	decision, err := waitForRegistrationDecision(signalCtx, app.realtimeTransport, registrationSubmission.SubmissionID, workerID, 20*time.Second)
+	decision, err := waitForRegistrationDecision(signalCtx, app.realtimeTransport, app.workerService, registrationSubmission.SubmissionID, workerID, 20*time.Second)
 	if err != nil {
 		if _, revokeErr := app.workerService.RevokeRegistrationSubmission(context.Background(), registrationSubmission.SubmissionID, "registration decision timeout"); revokeErr != nil {
 			return fmt.Errorf("wait registration decision: %w (revoke failed: %v)", err, revokeErr)
@@ -493,15 +493,20 @@ func (app *WorkerApp) Run() error {
 	return errors.Join(runErr, shutdownErr)
 }
 
-func waitForRegistrationDecision(ctx context.Context, transport domainrealtime.WorkerLifecycleTransport, submissionID string, workerID string, timeout time.Duration) (domainrealtime.RegistrationDecisionEvent, error) {
+func waitForRegistrationDecision(ctx context.Context, transport domainrealtime.WorkerLifecycleTransport, service *applicationworker.Service, submissionID string, workerID string, timeout time.Duration) (domainrealtime.RegistrationDecisionEvent, error) {
 	if transport == nil {
 		return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("realtime transport is required")
+	}
+	if service == nil {
+		return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("worker service is required")
 	}
 	if timeout <= 0 {
 		timeout = 20 * time.Second
 	}
 	decisionCh := make(chan domainrealtime.RegistrationDecisionEvent, 1)
 	errCh := make(chan error, 1)
+	statusTicker := time.NewTicker(500 * time.Millisecond)
+	defer statusTicker.Stop()
 	listenCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go func() {
@@ -509,7 +514,10 @@ func waitForRegistrationDecision(ctx context.Context, transport domainrealtime.W
 			if event.SubmissionID != submissionID || strings.TrimSpace(event.WorkerID) != strings.TrimSpace(workerID) {
 				return nil
 			}
-			decisionCh <- event
+			select {
+			case decisionCh <- event:
+			default:
+			}
 			cancel()
 			return nil
 		})
@@ -519,15 +527,55 @@ func waitForRegistrationDecision(ctx context.Context, transport domainrealtime.W
 	}()
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-	select {
-	case decision := <-decisionCh:
-		return decision, nil
-	case err := <-errCh:
-		return domainrealtime.RegistrationDecisionEvent{}, err
-	case <-timer.C:
-		return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("registration decision timeout")
-	case <-ctx.Done():
-		return domainrealtime.RegistrationDecisionEvent{}, ctx.Err()
+	for {
+		select {
+		case decision := <-decisionCh:
+			return decision, nil
+		case err := <-errCh:
+			return domainrealtime.RegistrationDecisionEvent{}, err
+		case <-statusTicker.C:
+			submission, err := service.GetRegistrationSubmission(ctx, submissionID)
+			if err != nil {
+				if errors.Is(err, applicationworker.ErrSubmissionNotFound) {
+					continue
+				}
+				return domainrealtime.RegistrationDecisionEvent{}, err
+			}
+			if strings.TrimSpace(submission.WorkerID) != strings.TrimSpace(workerID) {
+				return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("registration decision worker mismatch")
+			}
+			switch submission.Status {
+			case domainrealtime.RegistrationStatusAccepted:
+				respondedAt := submission.ResolvedAt
+				if respondedAt.IsZero() {
+					respondedAt = time.Now().UTC()
+				}
+				return domainrealtime.RegistrationDecisionEvent{
+					SubmissionID: submission.SubmissionID,
+					WorkerID:     submission.WorkerID,
+					Decision:     domainrealtime.RegistrationDecisionAccept,
+					RespondedAt:  respondedAt,
+				}, nil
+			case domainrealtime.RegistrationStatusRejected:
+				respondedAt := submission.ResolvedAt
+				if respondedAt.IsZero() {
+					respondedAt = time.Now().UTC()
+				}
+				return domainrealtime.RegistrationDecisionEvent{
+					SubmissionID: submission.SubmissionID,
+					WorkerID:     submission.WorkerID,
+					Decision:     domainrealtime.RegistrationDecisionReject,
+					Reasons:      submission.RejectReasons,
+					RespondedAt:  respondedAt,
+				}, nil
+			case domainrealtime.RegistrationStatusRevoked:
+				return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("registration submission revoked")
+			}
+		case <-timer.C:
+			return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("registration decision timeout")
+		case <-ctx.Done():
+			return domainrealtime.RegistrationDecisionEvent{}, ctx.Err()
+		}
 	}
 }
 

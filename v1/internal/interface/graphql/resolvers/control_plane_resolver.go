@@ -395,6 +395,18 @@ func (r *queryResolver) WorkerSettings(ctx context.Context) (models.WorkerSettin
 	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
 }
 
+// WorkerSessionStream is the resolver for the workerSessionStream field.
+func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
+		switch eventType {
+		case domainstream.EventWorkerRegistrationAccepted, domainstream.EventWorkerHeartbeat, domainstream.EventWorkerInvalidated:
+			return true
+		default:
+			return false
+		}
+	})
+}
+
 // SessionActivityStream is the resolver for the sessionActivityStream field.
 func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {

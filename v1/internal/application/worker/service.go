@@ -15,6 +15,7 @@ var (
 	ErrRepositoryRequired = errors.New("worker repository is required")
 	ErrEpochMismatch      = errors.New("worker epoch mismatch")
 	ErrSettingsNotFound   = errors.New("worker settings not found")
+	ErrSubmissionNotFound = errors.New("worker registration submission not found")
 )
 
 type Repository interface {
@@ -26,6 +27,7 @@ type Repository interface {
 	GetSettings(ctx context.Context) (domainrealtime.Settings, error)
 	UpsertSettings(ctx context.Context, settings domainrealtime.Settings) (domainrealtime.Settings, error)
 	CreateRegistrationSubmission(ctx context.Context, submission domainrealtime.RegistrationSubmission) (domainrealtime.RegistrationSubmission, error)
+	GetRegistrationSubmission(ctx context.Context, submissionID string) (domainrealtime.RegistrationSubmission, error)
 	ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error)
 	ResolveRegistrationSubmission(ctx context.Context, submissionID string, status domainrealtime.RegistrationStatus, reasons []string, resolvedAt time.Time) (domainrealtime.RegistrationSubmission, error)
 	RevokeRegistrationSubmission(ctx context.Context, submissionID string, reason string, revokedAt time.Time) (domainrealtime.RegistrationSubmission, error)
@@ -107,6 +109,13 @@ func (service *Service) CreateRegistrationSubmission(ctx context.Context, submis
 		return domainrealtime.RegistrationSubmission{}, err
 	}
 	return service.repository.CreateRegistrationSubmission(ctx, submission)
+}
+
+func (service *Service) GetRegistrationSubmission(ctx context.Context, submissionID string) (domainrealtime.RegistrationSubmission, error) {
+	if service == nil || service.repository == nil {
+		return domainrealtime.RegistrationSubmission{}, ErrRepositoryRequired
+	}
+	return service.repository.GetRegistrationSubmission(ctx, strings.TrimSpace(submissionID))
 }
 
 func (service *Service) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {

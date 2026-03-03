@@ -339,6 +339,7 @@ extend type Mutation {
 }
 
 extend type Subscription {
+  workerSessionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!

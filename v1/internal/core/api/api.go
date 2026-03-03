@@ -225,6 +225,7 @@ func (app *APIApp) Run() error {
 	go app.runRegistrationStartupCatchup(signalCtx)
 	go app.runHeartbeatResponseListener(signalCtx)
 	go app.runHeartbeatRequestLoop(signalCtx)
+	go app.runWorkerSessionStreamPublisher(signalCtx)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -365,6 +366,12 @@ func (app *APIApp) processRegistrationSubmission(ctx context.Context, submission
 	if err != nil {
 		return err
 	}
+	_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerRegistrationAccepted, submission.SubmissionID, map[string]any{
+		"submission_id": resolved.SubmissionID,
+		"worker_id":     resolved.WorkerID,
+		"decision":      string(domainrealtime.RegistrationDecisionAccept),
+		"responded_at":  time.Now().UTC().Format(time.RFC3339Nano),
+	})
 	return app.realtimeTransport.PublishRegistrationDecision(ctx, domainrealtime.RegistrationDecisionEvent{
 		SubmissionID: resolved.SubmissionID,
 		WorkerID:     resolved.WorkerID,
@@ -437,6 +444,12 @@ func (app *APIApp) runHeartbeatResponseListener(ctx context.Context) {
 		if _, err := app.workerService.RecordHeartbeat(ctx, response.WorkerID, response.Epoch, settings.HeartbeatInterval); err != nil {
 			return nil
 		}
+		_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerHeartbeat, response.RequestID, map[string]any{
+			"request_id":  response.RequestID,
+			"worker_id":   response.WorkerID,
+			"epoch":       response.Epoch,
+			"responded_at": response.RespondedAt.UTC().Format(time.RFC3339Nano),
+		})
 		_ = request
 		return nil
 	})
@@ -459,6 +472,13 @@ func (app *APIApp) enforceHeartbeatDeadlines(ctx context.Context) {
 	for _, request := range expired {
 		_, _ = app.workerService.Invalidate(ctx, request.WorkerID, request.Epoch)
 		_, _ = app.workerService.ForceDeregister(ctx, request.WorkerID, request.Epoch)
+		_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerInvalidated, request.RequestID, map[string]any{
+			"request_id":  request.RequestID,
+			"worker_id":   request.WorkerID,
+			"epoch":       request.Epoch,
+			"reason":      "heartbeat deadline missed",
+			"deadline_at": request.DeadlineAt.UTC().Format(time.RFC3339Nano),
+		})
 		_ = app.realtimeTransport.PublishInvalidationIntent(ctx, domainrealtime.InvalidationIntent{
 			WorkerID: request.WorkerID,
 			Epoch:    request.Epoch,
@@ -466,6 +486,102 @@ func (app *APIApp) enforceHeartbeatDeadlines(ctx context.Context) {
 			IssuedAt: now,
 		})
 	}
+}
+
+func (app *APIApp) runWorkerSessionStreamPublisher(ctx context.Context) {
+	if app == nil || app.workerService == nil || app.streamService == nil {
+		return
+	}
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	previous := map[string]domainrealtime.Worker{}
+	initialized := false
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			workers, err := app.workerService.ListWorkers(ctx, 500)
+			if err != nil {
+				continue
+			}
+			current := make(map[string]domainrealtime.Worker, len(workers))
+			for _, worker := range workers {
+				current[worker.WorkerID] = worker
+			}
+
+			if !initialized {
+				previous = current
+				initialized = true
+				continue
+			}
+
+			for workerID, worker := range current {
+				before, exists := previous[workerID]
+				if !exists {
+					_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerRegistrationAccepted, workerID, map[string]any{
+						"worker_id":       worker.WorkerID,
+						"epoch":           worker.Epoch,
+						"state":           string(worker.State),
+						"last_heartbeat":  worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
+						"lease_expires_at": worker.LeaseExpiresAt.UTC().Format(time.RFC3339Nano),
+						"updated_at":      worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
+					})
+					continue
+				}
+
+				if before.Epoch != worker.Epoch ||
+					before.State != worker.State ||
+					!before.LastHeartbeat.Equal(worker.LastHeartbeat) ||
+					!before.LeaseExpiresAt.Equal(worker.LeaseExpiresAt) {
+					_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerHeartbeat, workerID, map[string]any{
+						"worker_id":       worker.WorkerID,
+						"epoch":           worker.Epoch,
+						"state":           string(worker.State),
+						"last_heartbeat":  worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
+						"lease_expires_at": worker.LeaseExpiresAt.UTC().Format(time.RFC3339Nano),
+						"updated_at":      worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
+					})
+				}
+			}
+
+			for workerID, worker := range previous {
+				if _, exists := current[workerID]; exists {
+					continue
+				}
+				_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerInvalidated, workerID, map[string]any{
+					"worker_id":       worker.WorkerID,
+					"epoch":           worker.Epoch,
+					"state":           string(worker.State),
+					"reason":          "worker removed from registry",
+					"last_heartbeat":  worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
+					"lease_expires_at": worker.LeaseExpiresAt.UTC().Format(time.RFC3339Nano),
+					"updated_at":      worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
+				})
+			}
+
+			previous = current
+		}
+	}
+}
+
+func (app *APIApp) publishWorkerStreamEvent(ctx context.Context, eventType domainstream.EventType, correlationID string, payload map[string]any) error {
+	if app == nil || app.streamService == nil {
+		return nil
+	}
+	resolvedCorrelationID := strings.TrimSpace(correlationID)
+	if resolvedCorrelationID == "" {
+		resolvedCorrelationID = fmt.Sprintf("worker-%d", time.Now().UTC().UnixNano())
+	}
+	_, err := app.streamService.AppendAndPublish(ctx, domainstream.Event{
+		EventID:      fmt.Sprintf("%s-%d", strings.ReplaceAll(string(eventType), ".", "_"), time.Now().UTC().UnixNano()),
+		OccurredAt:   time.Now().UTC(),
+		Source:       domainstream.SourceWorker,
+		EventType:    eventType,
+		CorrelationIDs: domainstream.CorrelationIDs{CorrelationID: resolvedCorrelationID},
+		Payload:      payload,
+	})
+	return err
 }
 
 func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Platform, *healthcheck.Platform, error) {

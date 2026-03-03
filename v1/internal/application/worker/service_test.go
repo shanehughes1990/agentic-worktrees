@@ -68,6 +68,13 @@ func (repository *fakeRepository) CreateRegistrationSubmission(ctx context.Conte
 	return submission, nil
 }
 
+func (repository *fakeRepository) GetRegistrationSubmission(ctx context.Context, submissionID string) (domainrealtime.RegistrationSubmission, error) {
+	if repository.submission.SubmissionID == "" || repository.submission.SubmissionID != submissionID {
+		return domainrealtime.RegistrationSubmission{}, errors.New("submission not found")
+	}
+	return repository.submission, nil
+}
+
 func (repository *fakeRepository) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {
 	if repository.submission.SubmissionID == "" {
 		return []domainrealtime.RegistrationSubmission{}, nil
