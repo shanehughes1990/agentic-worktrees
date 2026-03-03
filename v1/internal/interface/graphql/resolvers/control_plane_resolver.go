@@ -155,16 +155,12 @@ func (r *mutationResolver) UpdateWorkerSettings(ctx context.Context, input model
 	settings, err := r.Resolver.WorkerService.UpdateSettings(ctx, domainrealtime.Settings{
 		HeartbeatInterval: time.Duration(input.HeartbeatIntervalSeconds) * time.Second,
 		ResponseDeadline:  time.Duration(input.ResponseDeadlineSeconds) * time.Second,
-		StaleAfter:        time.Duration(input.StaleAfterSeconds) * time.Second,
-		DrainTimeout:      time.Duration(input.DrainTimeoutSeconds) * time.Second,
-		TerminateTimeout:  time.Duration(input.TerminateTimeoutSeconds) * time.Second,
-		RogueThreshold:    int(input.RogueThreshold),
 		UpdatedAt:         time.Now().UTC(),
 	})
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("update worker settings: %w", err)), nil
 	}
-	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), StaleAfterSeconds: int32(settings.StaleAfter.Seconds()), DrainTimeoutSeconds: int32(settings.DrainTimeout.Seconds()), TerminateTimeoutSeconds: int32(settings.TerminateTimeout.Seconds()), RogueThreshold: int32(settings.RogueThreshold), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
+	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
 }
 
 // Sessions is the resolver for the sessions field.
@@ -382,7 +378,7 @@ func (r *queryResolver) WorkerSessions(ctx context.Context, limit *int32) (model
 	}
 	sessions := make([]*models.WorkerSession, 0, len(workers))
 	for _, worker := range workers {
-		sessions = append(sessions, &models.WorkerSession{WorkerID: worker.WorkerID, Epoch: int32(worker.Epoch), State: string(worker.State), DesiredState: string(worker.DesiredState), LastHeartbeat: worker.LastHeartbeat.UTC(), LeaseExpiresAt: worker.LeaseExpiresAt.UTC(), RogueReason: nilIfEmpty(worker.RogueReason), UpdatedAt: worker.UpdatedAt.UTC()})
+		sessions = append(sessions, &models.WorkerSession{WorkerID: worker.WorkerID, Epoch: int32(worker.Epoch), State: string(worker.State), LastHeartbeat: worker.LastHeartbeat.UTC(), LeaseExpiresAt: worker.LeaseExpiresAt.UTC(), UpdatedAt: worker.UpdatedAt.UTC()})
 	}
 	return models.WorkerSessionsSuccess{Sessions: sessions}, nil
 }
@@ -396,7 +392,7 @@ func (r *queryResolver) WorkerSettings(ctx context.Context) (models.WorkerSettin
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("load worker settings: %w", err)), nil
 	}
-	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), StaleAfterSeconds: int32(settings.StaleAfter.Seconds()), DrainTimeoutSeconds: int32(settings.DrainTimeout.Seconds()), TerminateTimeoutSeconds: int32(settings.TerminateTimeout.Seconds()), RogueThreshold: int32(settings.RogueThreshold), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
+	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
 }
 
 // SessionActivityStream is the resolver for the sessionActivityStream field.
@@ -435,14 +431,3 @@ func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlatio
 	})
 }
 
-// WorkerSessionStream is the resolver for the workerSessionStream field.
-func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
-		switch eventType {
-		case domainstream.EventWorkerHeartbeat, domainstream.EventWorkerShutdown, domainstream.EventWorkerDeregistered, domainstream.EventWorkerRogueDetected:
-			return true
-		default:
-			return false
-		}
-	})
-}

@@ -21,11 +21,9 @@ type workerRegistryRecord struct {
 	WorkerID          string `gorm:"column:worker_id;size:255;not null;uniqueIndex"`
 	Epoch             int64  `gorm:"column:epoch;not null"`
 	State             string `gorm:"column:state;size:64;not null;index"`
-	DesiredState      string `gorm:"column:desired_state;size:64;not null;index"`
 	CapabilitiesJSON  []byte `gorm:"column:capabilities_json;not null"`
 	LastHeartbeatUnix int64  `gorm:"column:last_heartbeat_unix;not null;index"`
 	LeaseExpiresUnix  int64  `gorm:"column:lease_expires_unix;not null;index"`
-	RogueReason       string `gorm:"column:rogue_reason;type:text"`
 }
 
 func (workerRegistryRecord) TableName() string {
@@ -36,10 +34,6 @@ type workerRegistrySettingsRecord struct {
 	ID                       uint  `gorm:"primaryKey"`
 	HeartbeatIntervalSeconds int64 `gorm:"column:heartbeat_interval_seconds;not null"`
 	ResponseDeadlineSeconds  int64 `gorm:"column:response_deadline_seconds;not null"`
-	StaleAfterSeconds        int64 `gorm:"column:stale_after_seconds;not null"`
-	DrainTimeoutSeconds      int64 `gorm:"column:drain_timeout_seconds;not null"`
-	TerminateTimeoutSeconds  int64 `gorm:"column:terminate_timeout_seconds;not null"`
-	RogueThreshold           int64 `gorm:"column:rogue_threshold;not null"`
 	UpdatedAtUnix            int64 `gorm:"column:updated_at_unix;not null"`
 	UpdatedAt                time.Time
 	CreatedAt                time.Time
@@ -98,12 +92,10 @@ func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, c
 			return err
 		}
 		record.State = string(domainrealtime.StateHealthy)
-		record.DesiredState = string(domainrealtime.StateHealthy)
 		record.CapabilitiesJSON = encodedCapabilities
 		record.LastHeartbeatUnix = heartbeatAt.UTC().Unix()
 		record.LeaseExpiresUnix = leaseExpiresAt.UTC().Unix()
-		record.RogueReason = ""
-		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "worker_id"}}, DoUpdates: clause.AssignmentColumns([]string{"epoch", "state", "desired_state", "capabilities_json", "last_heartbeat_unix", "lease_expires_unix", "rogue_reason", "updated_at"})}).Create(&record).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "worker_id"}}, DoUpdates: clause.AssignmentColumns([]string{"epoch", "state", "capabilities_json", "last_heartbeat_unix", "lease_expires_unix", "updated_at"})}).Create(&record).Error; err != nil {
 			return fmt.Errorf("upsert worker registration: %w", err)
 		}
 		return nil
@@ -114,31 +106,7 @@ func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, c
 	return registry.toDomain(record)
 }
 
-func (registry *WorkerRegistry) RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
-	if registry == nil || registry.db == nil {
-		return nil, fmt.Errorf("worker registry is not initialized")
-	}
-	record := workerRegistryRecord{}
-	err := registry.db.WithContext(ctx).Where("worker_id = ?", strings.TrimSpace(workerID)).Take(&record).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("%w: %q", applicationworker.ErrWorkerNotRegistered, strings.TrimSpace(workerID))
-		}
-		return nil, fmt.Errorf("load worker heartbeat: %w", err)
-	}
-	if record.Epoch != epoch {
-		return nil, fmt.Errorf("%w: expected=%d actual=%d", applicationworker.ErrEpochMismatch, epoch, record.Epoch)
-	}
-	record.LastHeartbeatUnix = heartbeatAt.UTC().Unix()
-	record.LeaseExpiresUnix = leaseExpiresAt.UTC().Unix()
-	record.State = string(domainrealtime.StateHealthy)
-	if err := registry.db.WithContext(ctx).Model(&workerRegistryRecord{}).Where("worker_id = ?", strings.TrimSpace(workerID)).Updates(map[string]any{"state": record.State, "last_heartbeat_unix": record.LastHeartbeatUnix, "lease_expires_unix": record.LeaseExpiresUnix, "updated_at": time.Now().UTC()}).Error; err != nil {
-		return nil, fmt.Errorf("update worker heartbeat: %w", err)
-	}
-	return registry.toDomain(record)
-}
-
-func (registry *WorkerRegistry) UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, desiredState domainrealtime.State, reason string, changedAt time.Time) (*domainrealtime.Worker, error) {
+func (registry *WorkerRegistry) UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, changedAt time.Time) (*domainrealtime.Worker, error) {
 	if registry == nil || registry.db == nil {
 		return nil, fmt.Errorf("worker registry is not initialized")
 	}
@@ -154,9 +122,7 @@ func (registry *WorkerRegistry) UpdateState(ctx context.Context, workerID string
 		return nil, fmt.Errorf("%w: expected=%d actual=%d", applicationworker.ErrEpochMismatch, epoch, record.Epoch)
 	}
 	record.State = string(state)
-	record.DesiredState = string(desiredState)
-	record.RogueReason = strings.TrimSpace(reason)
-	if err := registry.db.WithContext(ctx).Model(&workerRegistryRecord{}).Where("worker_id = ?", strings.TrimSpace(workerID)).Updates(map[string]any{"state": record.State, "desired_state": record.DesiredState, "rogue_reason": record.RogueReason, "updated_at": changedAt.UTC()}).Error; err != nil {
+	if err := registry.db.WithContext(ctx).Model(&workerRegistryRecord{}).Where("worker_id = ?", strings.TrimSpace(workerID)).Updates(map[string]any{"state": record.State, "updated_at": changedAt.UTC()}).Error; err != nil {
 		return nil, fmt.Errorf("update worker state: %w", err)
 	}
 	return registry.toDomain(record)
@@ -209,28 +175,6 @@ func (registry *WorkerRegistry) ListWorkers(ctx context.Context, limit int) ([]d
 	return workers, nil
 }
 
-func (registry *WorkerRegistry) ListStaleWorkers(ctx context.Context, staleBefore time.Time, limit int) ([]domainrealtime.Worker, error) {
-	if registry == nil || registry.db == nil {
-		return nil, fmt.Errorf("worker registry is not initialized")
-	}
-	if limit <= 0 {
-		limit = 100
-	}
-	records := make([]workerRegistryRecord, 0)
-	if err := registry.db.WithContext(ctx).Where("lease_expires_unix < ? AND state IN ?", staleBefore.UTC().Unix(), []string{string(domainrealtime.StateHealthy), string(domainrealtime.StateDegraded), string(domainrealtime.StateDraining)}).Order("lease_expires_unix ASC").Limit(limit).Find(&records).Error; err != nil {
-		return nil, fmt.Errorf("list stale workers: %w", err)
-	}
-	workers := make([]domainrealtime.Worker, 0, len(records))
-	for _, record := range records {
-		worker, err := registry.toDomain(record)
-		if err != nil {
-			return nil, err
-		}
-		workers = append(workers, *worker)
-	}
-	return workers, nil
-}
-
 func (registry *WorkerRegistry) GetSettings(ctx context.Context) (domainrealtime.Settings, error) {
 	if registry == nil || registry.db == nil {
 		return domainrealtime.Settings{}, fmt.Errorf("worker registry is not initialized")
@@ -242,7 +186,7 @@ func (registry *WorkerRegistry) GetSettings(ctx context.Context) (domainrealtime
 	} else if err != nil {
 		return domainrealtime.Settings{}, fmt.Errorf("load worker settings: %w", err)
 	}
-	settings := domainrealtime.Settings{HeartbeatInterval: time.Duration(record.HeartbeatIntervalSeconds) * time.Second, ResponseDeadline: time.Duration(record.ResponseDeadlineSeconds) * time.Second, StaleAfter: time.Duration(record.StaleAfterSeconds) * time.Second, DrainTimeout: time.Duration(record.DrainTimeoutSeconds) * time.Second, TerminateTimeout: time.Duration(record.TerminateTimeoutSeconds) * time.Second, RogueThreshold: int(record.RogueThreshold), UpdatedAt: time.Unix(record.UpdatedAtUnix, 0).UTC()}
+	settings := domainrealtime.Settings{HeartbeatInterval: time.Duration(record.HeartbeatIntervalSeconds) * time.Second, ResponseDeadline: time.Duration(record.ResponseDeadlineSeconds) * time.Second, UpdatedAt: time.Unix(record.UpdatedAtUnix, 0).UTC()}
 	if err := settings.Validate(); err != nil {
 		return domainrealtime.Settings{}, err
 	}
@@ -256,8 +200,8 @@ func (registry *WorkerRegistry) UpsertSettings(ctx context.Context, settings dom
 	if err := settings.Validate(); err != nil {
 		return domainrealtime.Settings{}, err
 	}
-	record := workerRegistrySettingsRecord{ID: 1, HeartbeatIntervalSeconds: int64(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int64(settings.ResponseDeadline.Seconds()), StaleAfterSeconds: int64(settings.StaleAfter.Seconds()), DrainTimeoutSeconds: int64(settings.DrainTimeout.Seconds()), TerminateTimeoutSeconds: int64(settings.TerminateTimeout.Seconds()), RogueThreshold: int64(settings.RogueThreshold), UpdatedAtUnix: settings.UpdatedAt.UTC().Unix()}
-	if err := registry.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"heartbeat_interval_seconds", "response_deadline_seconds", "stale_after_seconds", "drain_timeout_seconds", "terminate_timeout_seconds", "rogue_threshold", "updated_at_unix", "updated_at"})}).Create(&record).Error; err != nil {
+	record := workerRegistrySettingsRecord{ID: 1, HeartbeatIntervalSeconds: int64(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int64(settings.ResponseDeadline.Seconds()), UpdatedAtUnix: settings.UpdatedAt.UTC().Unix()}
+	if err := registry.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"heartbeat_interval_seconds", "response_deadline_seconds", "updated_at_unix", "updated_at"})}).Create(&record).Error; err != nil {
 		return domainrealtime.Settings{}, fmt.Errorf("upsert worker settings: %w", err)
 	}
 	return settings, nil
@@ -304,11 +248,9 @@ func (registry *WorkerRegistry) toDomain(record workerRegistryRecord) (*domainre
 		WorkerID:       strings.TrimSpace(record.WorkerID),
 		Epoch:          record.Epoch,
 		State:          domainrealtime.State(strings.TrimSpace(record.State)),
-		DesiredState:   domainrealtime.State(strings.TrimSpace(record.DesiredState)),
 		Capabilities:   capabilities,
 		LastHeartbeat:  time.Unix(record.LastHeartbeatUnix, 0).UTC(),
 		LeaseExpiresAt: time.Unix(record.LeaseExpiresUnix, 0).UTC(),
-		RogueReason:    strings.TrimSpace(record.RogueReason),
 		UpdatedAt:      record.UpdatedAt.UTC(),
 	}
 	if err := worker.Validate(); err != nil {

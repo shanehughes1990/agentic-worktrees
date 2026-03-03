@@ -10,7 +10,6 @@ import (
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
-	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
@@ -339,17 +338,6 @@ func (app *WorkerApp) Run() error {
 		serverErrCh <- nil
 	}()
 
-	heartbeatCtx, heartbeatCancel := context.WithCancel(signalCtx)
-	defer heartbeatCancel()
-	heartbeatErrCh := make(chan error, 1)
-	go func() {
-		err := runWorkerHeartbeat(heartbeatCtx, app.workerService, workerID, registeredWorker.Epoch, settings.HeartbeatInterval)
-		if err == nil || errors.Is(err, context.Canceled) {
-			return
-		}
-		heartbeatErrCh <- err
-	}()
-
 	shutdownReason := "shutdown signal"
 	var runErr error
 
@@ -364,28 +352,16 @@ func (app *WorkerApp) Run() error {
 		} else {
 			return nil
 		}
-	case err := <-heartbeatErrCh:
-		shutdownReason = "application stopping"
-		runErr = err
-		if entry != nil {
-			entry.WithError(err).WithField("runtime", "worker").Warn("worker heartbeat loop stopped")
-		}
 	case <-signalCtx.Done():
 		if entry != nil {
 			entry.WithField("runtime", "worker").Info("shutdown signal received")
 		}
 	}
-	heartbeatCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), app.config.App.ShutdownTimeout)
 	defer cancel()
 
 	var shutdownErr error
-	if app.workerService != nil {
-		if _, err := app.workerService.RequestShutdown(shutdownCtx, workerID, registeredWorker.Epoch, shutdownReason); err != nil {
-			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("request shutdown state: %w", err))
-		}
-	}
 	if err := app.httpServer.Shutdown(shutdownCtx); err != nil {
 		if entry != nil {
 			entry.WithError(err).WithField("runtime", "worker").Error("shutdown worker health server failed")
@@ -401,8 +377,8 @@ func (app *WorkerApp) Run() error {
 		}
 	}
 	if app.workerService != nil {
-		if _, err := app.workerService.Deregister(shutdownCtx, workerID, registeredWorker.Epoch, shutdownReason); err != nil {
-			if _, forceErr := app.workerService.ForceDeregister(shutdownCtx, workerID, registeredWorker.Epoch, shutdownReason); forceErr != nil {
+		if _, err := app.workerService.Deregister(shutdownCtx, workerID, registeredWorker.Epoch); err != nil {
+			if _, forceErr := app.workerService.ForceDeregister(shutdownCtx, workerID, registeredWorker.Epoch); forceErr != nil {
 				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("force deregister worker: %w", forceErr))
 			}
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("deregister worker: %w", err))
@@ -472,34 +448,6 @@ func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, worke
 		return fmt.Errorf("advertise worker capabilities: %w", err)
 	}
 	return nil
-}
-
-func runWorkerHeartbeat(ctx context.Context, service *applicationworker.Service, workerID string, epoch int64, interval time.Duration) error {
-	if service == nil {
-		return fmt.Errorf("worker service is not initialized")
-	}
-	if interval <= 0 {
-		return fmt.Errorf("heartbeat interval must be greater than zero")
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			worker, err := service.Heartbeat(ctx, workerID, epoch, interval)
-			if err != nil {
-				if errors.Is(err, applicationworker.ErrApplicationStopping) {
-					return fmt.Errorf("%w: worker requested shutdown", applicationworker.ErrApplicationStopping)
-				}
-				return err
-			}
-			if worker != nil && (worker.DesiredState == domainrealtime.StateShutdownRequested || worker.DesiredState == domainrealtime.StateDraining || worker.DesiredState == domainrealtime.StateTerminated || worker.DesiredState == domainrealtime.StateDeregistered) {
-				return fmt.Errorf("%w: desired state is %s", applicationworker.ErrApplicationStopping, worker.DesiredState)
-			}
-		}
-	}
 }
 
 func workerCapabilities(registrations []workerJobRegistration) []taskengine.JobKind {

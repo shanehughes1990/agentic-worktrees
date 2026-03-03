@@ -65,10 +65,6 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 }
 
 func matchesCorrelation(event domainstream.Event, correlation models.SupervisorCorrelationInput) bool {
-	switch event.EventType {
-	case domainstream.EventWorkerHeartbeat, domainstream.EventWorkerShutdown, domainstream.EventWorkerDeregistered, domainstream.EventWorkerRogueDetected:
-		return true
-	}
 	if strings.TrimSpace(correlation.RunID) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(correlation.RunID) {
 		return false
 	}

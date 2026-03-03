@@ -14,18 +14,14 @@ import (
 var (
 	ErrRepositoryRequired  = errors.New("worker repository is required")
 	ErrEpochMismatch       = errors.New("worker epoch mismatch")
-	ErrApplicationStopping = errors.New("application stopping")
-	ErrWorkerNotRegistered = errors.New("worker not registered")
 	ErrSettingsNotFound    = errors.New("worker settings not found")
 )
 
 type Repository interface {
 	Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error)
-	RenewHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error)
-	UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, desiredState domainrealtime.State, reason string, changedAt time.Time) (*domainrealtime.Worker, error)
+	UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, changedAt time.Time) (*domainrealtime.Worker, error)
 	RemoveRegistration(ctx context.Context, workerID string, epoch int64) error
 	ListWorkers(ctx context.Context, limit int) ([]domainrealtime.Worker, error)
-	ListStaleWorkers(ctx context.Context, staleBefore time.Time, limit int) ([]domainrealtime.Worker, error)
 	GetSettings(ctx context.Context) (domainrealtime.Settings, error)
 	UpsertSettings(ctx context.Context, settings domainrealtime.Settings) (domainrealtime.Settings, error)
 }
@@ -48,10 +44,6 @@ func DefaultSettings(now time.Time) domainrealtime.Settings {
 	return domainrealtime.Settings{
 		HeartbeatInterval: 15 * time.Second,
 		ResponseDeadline:  5 * time.Second,
-		StaleAfter:        45 * time.Second,
-		DrainTimeout:      20 * time.Second,
-		TerminateTimeout:  10 * time.Second,
-		RogueThreshold:    3,
 		UpdatedAt:         now.UTC(),
 	}
 }
@@ -74,39 +66,11 @@ func (service *Service) Register(ctx context.Context, workerID string, capabilit
 	return service.repository.Register(ctx, workerID, capabilities, now, now.Add(heartbeatInterval*3))
 }
 
-func (service *Service) Heartbeat(ctx context.Context, workerID string, epoch int64, heartbeatInterval time.Duration) (*domainrealtime.Worker, error) {
+func (service *Service) ForceDeregister(ctx context.Context, workerID string, epoch int64) (*domainrealtime.Worker, error) {
 	if service == nil || service.repository == nil {
 		return nil, ErrRepositoryRequired
 	}
-	now := time.Now().UTC()
-	worker, err := service.repository.RenewHeartbeat(ctx, strings.TrimSpace(workerID), epoch, now, now.Add(heartbeatInterval*3))
-	if err != nil {
-		if errors.Is(err, ErrEpochMismatch) || errors.Is(err, ErrWorkerNotRegistered) {
-			return nil, ErrApplicationStopping
-		}
-		return nil, err
-	}
-	if worker.DesiredState == domainrealtime.StateShutdownRequested || worker.DesiredState == domainrealtime.StateDraining || worker.DesiredState == domainrealtime.StateTerminated || worker.DesiredState == domainrealtime.StateDeregistered {
-		return worker, ErrApplicationStopping
-	}
-	if worker.State == domainrealtime.StateDeregistered {
-		return worker, ErrApplicationStopping
-	}
-	return worker, nil
-}
-
-func (service *Service) RequestShutdown(ctx context.Context, workerID string, epoch int64, reason string) (*domainrealtime.Worker, error) {
-	if service == nil || service.repository == nil {
-		return nil, ErrRepositoryRequired
-	}
-	return service.repository.UpdateState(ctx, strings.TrimSpace(workerID), epoch, domainrealtime.StateDraining, domainrealtime.StateShutdownRequested, strings.TrimSpace(reason), time.Now().UTC())
-}
-
-func (service *Service) ForceDeregister(ctx context.Context, workerID string, epoch int64, reason string) (*domainrealtime.Worker, error) {
-	if service == nil || service.repository == nil {
-		return nil, ErrRepositoryRequired
-	}
-	worker, err := service.repository.UpdateState(ctx, strings.TrimSpace(workerID), epoch, domainrealtime.StateTerminated, domainrealtime.StateDeregistered, strings.TrimSpace(reason), time.Now().UTC())
+	worker, err := service.repository.UpdateState(ctx, strings.TrimSpace(workerID), epoch, domainrealtime.StateDeregistered, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -116,11 +80,11 @@ func (service *Service) ForceDeregister(ctx context.Context, workerID string, ep
 	return worker, nil
 }
 
-func (service *Service) Deregister(ctx context.Context, workerID string, epoch int64, reason string) (*domainrealtime.Worker, error) {
+func (service *Service) Deregister(ctx context.Context, workerID string, epoch int64) (*domainrealtime.Worker, error) {
 	if service == nil || service.repository == nil {
 		return nil, ErrRepositoryRequired
 	}
-	worker, err := service.repository.UpdateState(ctx, strings.TrimSpace(workerID), epoch, domainrealtime.StateDeregistered, domainrealtime.StateDeregistered, strings.TrimSpace(reason), time.Now().UTC())
+	worker, err := service.repository.UpdateState(ctx, strings.TrimSpace(workerID), epoch, domainrealtime.StateDeregistered, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}

@@ -423,10 +423,6 @@ type SupervisorDecisionMetadataEntry struct {
 type UpdateWorkerSettingsInput struct {
 	HeartbeatIntervalSeconds int32 `json:"heartbeatIntervalSeconds"`
 	ResponseDeadlineSeconds  int32 `json:"responseDeadlineSeconds"`
-	StaleAfterSeconds        int32 `json:"staleAfterSeconds"`
-	DrainTimeoutSeconds      int32 `json:"drainTimeoutSeconds"`
-	TerminateTimeoutSeconds  int32 `json:"terminateTimeoutSeconds"`
-	RogueThreshold           int32 `json:"rogueThreshold"`
 }
 
 type UpsertProjectSetupInput struct {
@@ -447,10 +443,8 @@ type WorkerSession struct {
 	WorkerID       string    `json:"workerID"`
 	Epoch          int32     `json:"epoch"`
 	State          string    `json:"state"`
-	DesiredState   string    `json:"desiredState"`
 	LastHeartbeat  time.Time `json:"lastHeartbeat"`
 	LeaseExpiresAt time.Time `json:"leaseExpiresAt"`
-	RogueReason    *string   `json:"rogueReason,omitempty"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
@@ -463,10 +457,6 @@ func (WorkerSessionsSuccess) IsWorkerSessionsResult() {}
 type WorkerSettings struct {
 	HeartbeatIntervalSeconds int32     `json:"heartbeatIntervalSeconds"`
 	ResponseDeadlineSeconds  int32     `json:"responseDeadlineSeconds"`
-	StaleAfterSeconds        int32     `json:"staleAfterSeconds"`
-	DrainTimeoutSeconds      int32     `json:"drainTimeoutSeconds"`
-	TerminateTimeoutSeconds  int32     `json:"terminateTimeoutSeconds"`
-	RogueThreshold           int32     `json:"rogueThreshold"`
 	UpdatedAt                time.Time `json:"updatedAt"`
 }
 

@@ -286,10 +286,8 @@ type WorkerSession {
   workerID: String!
   epoch: Int!
   state: String!
-  desiredState: String!
   lastHeartbeat: Time!
   leaseExpiresAt: Time!
-  rogueReason: String
   updatedAt: Time!
 }
 
@@ -302,10 +300,6 @@ union WorkerSessionsResult = WorkerSessionsSuccess | GraphError
 type WorkerSettings {
   heartbeatIntervalSeconds: Int!
   responseDeadlineSeconds: Int!
-  staleAfterSeconds: Int!
-  drainTimeoutSeconds: Int!
-  terminateTimeoutSeconds: Int!
-  rogueThreshold: Int!
   updatedAt: Time!
 }
 
@@ -318,10 +312,6 @@ union WorkerSettingsResult = WorkerSettingsSuccess | GraphError
 input UpdateWorkerSettingsInput {
   heartbeatIntervalSeconds: Int!
   responseDeadlineSeconds: Int!
-  staleAfterSeconds: Int!
-  drainTimeoutSeconds: Int!
-  terminateTimeoutSeconds: Int!
-  rogueThreshold: Int!
 }
 
 extend type Query {
@@ -352,5 +342,4 @@ extend type Subscription {
   sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
-  workerSessionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
 }

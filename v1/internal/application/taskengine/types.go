@@ -15,9 +15,6 @@ const (
 	JobKindSCMWorkflow           JobKind = "scm.workflow.run"
 	JobKindProjectDocumentUploadPrepare JobKind = "project.document.upload.prepare"
 	JobKindProjectDocumentDelete        JobKind = "project.document.delete"
-	JobKindWorkerShutdownAgent   JobKind = "worker.shutdown.agent"
-	JobKindWorkerShutdownRuntime JobKind = "worker.shutdown.runtime"
-	JobKindWorkerForceDeregister JobKind = "worker.force.deregister"
 )
 
 type CorrelationIDs struct {

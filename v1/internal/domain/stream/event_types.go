@@ -14,8 +14,4 @@ const (
 	EventSessionRecovered     EventType = "stream.session.recovered"
 	EventSessionHealth        EventType = "stream.session.health"
 	EventSessionInjectedPrompt EventType = "stream.session.injected_prompt"
-	EventWorkerHeartbeat      EventType = "stream.worker.heartbeat"
-	EventWorkerShutdown       EventType = "stream.worker.shutdown"
-	EventWorkerDeregistered   EventType = "stream.worker.deregistered"
-	EventWorkerRogueDetected  EventType = "stream.worker.rogue_detected"
 )
