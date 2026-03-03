@@ -150,39 +150,35 @@ class DashboardHomeView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    'Select a Project',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'Select a Project',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: onCreateProject,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create New Project'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Expanded(
                     child: Card(
                       child: projectSetups.isEmpty
                           ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Text(
-                                    'No project setups configured.',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ElevatedButton(
-                                    onPressed: onCreateProject,
-                                    child: const Text('Create New Project'),
-                                  ),
-                                ],
+                              child: Text(
+                                'No project setups configured.',
+                                style: Theme.of(context).textTheme.bodyLarge,
+                                textAlign: TextAlign.center,
                               ),
                             )
-                          : ListView.separated(
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(8),
                               itemCount: projectSetups.length,
-                              separatorBuilder:
-                                  (BuildContext context, int index) {
-                                    return const Divider(height: 1);
-                                  },
                               itemBuilder: (BuildContext context, int index) {
                                 final setup = projectSetups[index];
                                 final selected =
@@ -191,16 +187,20 @@ class DashboardHomeView extends StatelessWidget {
                                     setup.repositories.isNotEmpty
                                     ? setup.repositories.first.repositoryURL
                                     : 'No repository configured';
-                                return ListTile(
-                                  selected: selected,
-                                  title: Text(setup.projectID),
-                                  subtitle: Text(
-                                    '${setup.projectName}\n$repositoryURL',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                return Card(
+                                  elevation: selected ? 3 : 1,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    selected: selected,
+                                    title: Text(setup.projectID),
+                                    subtitle: Text(
+                                      '${setup.projectName}\n$repositoryURL',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: const Icon(Icons.chevron_right),
+                                    onTap: () => onProjectSelected(setup),
                                   ),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () => onProjectSelected(setup),
                                 );
                               },
                             ),

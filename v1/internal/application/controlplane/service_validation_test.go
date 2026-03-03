@@ -43,7 +43,17 @@ func TestUpsertProjectSetupValidateRequiresRepositorySCMReference(t *testing.T) 
 	}
 }
 
-func TestUpsertProjectSetupValidateRequiresExactlyOneBoard(t *testing.T) {
+func TestUpsertProjectSetupValidateAllowsZeroBoards(t *testing.T) {
+	request := validProjectSetupRequest()
+	request.Boards = nil
+
+	err := request.Validate()
+	if err != nil {
+		t.Fatalf("expected no board-count validation error, got %v", err)
+	}
+}
+
+func TestUpsertProjectSetupValidateRejectsMoreThanOneBoard(t *testing.T) {
 	request := validProjectSetupRequest()
 	request.Boards = append(request.Boards, ProjectBoard{
 		BoardID:                  "board-2",
@@ -53,7 +63,7 @@ func TestUpsertProjectSetupValidateRequiresExactlyOneBoard(t *testing.T) {
 	})
 
 	err := request.Validate()
-	if err == nil || err.Error() != "exactly one board is required" {
+	if err == nil || err.Error() != "at most one board is supported" {
 		t.Fatalf("expected exact board-count validation error, got %v", err)
 	}
 }

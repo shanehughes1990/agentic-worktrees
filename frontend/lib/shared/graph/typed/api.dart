@@ -195,6 +195,7 @@ class ControlPlaneApi {
         ),
       ),
     );
+
     final error = _extractOperationError(result, field: 'approveIssueIntake');
     if (error != null) {
       return ApiResult<String>.failure(error);
@@ -308,14 +309,11 @@ class ControlPlaneApi {
     required String scmProvider,
     required List<String> repositoryURLs,
     required String scmToken,
-    required String trackerProvider,
-    required String taskboardName,
   }) async {
     final repositories = repositoryURLs
         .map((String repositoryURL) => repositoryURL.trim())
         .where((String repositoryURL) => repositoryURL.isNotEmpty)
         .toList(growable: false);
-    final normalizedTaskboardName = taskboardName.trim();
     final projectScmProvider = _toProjectScmProvider(scmProvider);
     if (projectScmProvider == null) {
       return ApiResult<ProjectSetupConfig>.failure(
@@ -323,25 +321,6 @@ class ControlPlaneApi {
           code: 'VALIDATION',
           message: 'unsupported scm provider',
           field: 'scmProvider',
-        ),
-      );
-    }
-    final projectTrackerProvider = _toTrackerSourceKind(trackerProvider);
-    if (projectTrackerProvider == null) {
-      return ApiResult<ProjectSetupConfig>.failure(
-        _graphErrorMessageTyped(
-          code: 'VALIDATION',
-          message: 'unsupported tracker provider',
-          field: 'trackerProvider',
-        ),
-      );
-    }
-    if (normalizedTaskboardName.isEmpty) {
-      return ApiResult<ProjectSetupConfig>.failure(
-        _graphErrorMessageTyped(
-          code: 'VALIDATION',
-          message: 'taskboard name is required',
-          field: 'taskboardName',
         ),
       );
     }
@@ -372,14 +351,7 @@ class ControlPlaneApi {
                   ),
                 )
                 .toList(growable: false),
-            boards: <gql_cp.Input$ProjectBoardInput>[
-              gql_cp.Input$ProjectBoardInput(
-                trackerProvider: projectTrackerProvider,
-                taskboardName: normalizedTaskboardName,
-                appliesToAllRepositories: true,
-                repositoryIDs: const <String>[],
-              ),
-            ],
+            boards: const <gql_cp.Input$ProjectBoardInput>[],
           ),
         ),
       ),
@@ -848,15 +820,6 @@ class ControlPlaneApi {
     switch (value.toUpperCase()) {
       case 'GITHUB':
         return gql_scm.Enum$SCMProvider.GITHUB;
-      default:
-        return null;
-    }
-  }
-
-  gql_cp.Enum$TrackerSourceKind? _toTrackerSourceKind(String value) {
-    switch (value.toUpperCase()) {
-      case 'INTERNAL':
-        return gql_cp.Enum$TrackerSourceKind.INTERNAL;
       default:
         return null;
     }

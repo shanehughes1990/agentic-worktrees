@@ -1,22 +1,17 @@
 import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import '../../../support/test_data.dart';
 
 void main() {
   late TextEditingController projectController;
   late TextEditingController projectNameController;
   late TextEditingController repositoryController;
-  late TextEditingController taskboardNameController;
   late TextEditingController scmTokenController;
 
   setUp(() {
     projectController = TextEditingController();
     projectNameController = TextEditingController();
     repositoryController = TextEditingController();
-    taskboardNameController = TextEditingController();
     scmTokenController = TextEditingController();
   });
 
@@ -24,16 +19,13 @@ void main() {
     projectController.dispose();
     projectNameController.dispose();
     repositoryController.dispose();
-    taskboardNameController.dispose();
     scmTokenController.dispose();
   });
 
   Future<void> pumpSubject(
     WidgetTester tester, {
     required VoidCallback onSave,
-    required VoidCallback onReload,
     required ValueChanged<String> onScmProviderChanged,
-    required ValueChanged<ProjectSetupConfig> onProjectSelected,
     bool isSaving = false,
   }) async {
     await tester.pumpWidget(
@@ -43,16 +35,11 @@ void main() {
             projectController: projectController,
             projectNameController: projectNameController,
             repositoryUrlController: repositoryController,
-            taskboardNameController: taskboardNameController,
             setupScmProvider: 'GITHUB',
             scmTokenController: scmTokenController,
             onSetupScmProviderChanged: onScmProviderChanged,
             isSavingProjectSetup: isSaving,
             onSaveProjectSetup: onSave,
-            onReloadProjectSetups: onReload,
-            projectSetups: <ProjectSetupConfig>[sampleProjectSetup()],
-            selectedProjectID: 'project-1',
-            onProjectSelected: onProjectSelected,
             statusMessage: 'status',
           ),
         ),
@@ -63,19 +50,14 @@ void main() {
   testWidgets('renders reshaped blocks and status', (
     WidgetTester tester,
   ) async {
-    await pumpSubject(
-      tester,
-      onSave: () {},
-      onReload: () {},
-      onScmProviderChanged: (_) {},
-      onProjectSelected: (_) {},
-    );
+    await pumpSubject(tester, onSave: () {}, onScmProviderChanged: (_) {});
 
     expect(find.text('Project Setup'), findsNWidgets(2));
     expect(find.text('SCM Provider'), findsOneWidget);
     expect(find.text('Repository Setup'), findsOneWidget);
     expect(find.text('Tracker Setup'), findsOneWidget);
     expect(find.text('Add Repository'), findsOneWidget);
+    expect(find.text('Configured Projects'), findsNothing);
     expect(find.text('Add Tracker'), findsNothing);
     expect(find.text('status'), findsOneWidget);
   });
@@ -83,13 +65,7 @@ void main() {
   testWidgets('project id auto-generates and is read-only', (
     WidgetTester tester,
   ) async {
-    await pumpSubject(
-      tester,
-      onSave: () {},
-      onReload: () {},
-      onScmProviderChanged: (_) {},
-      onProjectSelected: (_) {},
-    );
+    await pumpSubject(tester, onSave: () {}, onScmProviderChanged: (_) {});
 
     await tester.enterText(find.byType(TextField).at(0), 'My Sample Project');
     await tester.pump();
@@ -101,37 +77,28 @@ void main() {
     expect(projectIDField.readOnly, isTrue);
   });
 
-  testWidgets('invokes save and reload callbacks', (WidgetTester tester) async {
+  testWidgets('invokes save callback and shows back button', (
+    WidgetTester tester,
+  ) async {
     var saveCount = 0;
-    var reloadCount = 0;
 
     await pumpSubject(
       tester,
       onSave: () => saveCount++,
-      onReload: () => reloadCount++,
       onScmProviderChanged: (_) {},
-      onProjectSelected: (_) {},
     );
 
     await tester.ensureVisible(find.text('Save Project Setup'));
     await tester.tap(find.text('Save Project Setup'));
     await tester.pump();
-    await tester.ensureVisible(find.text('Reload'));
-    await tester.tap(find.text('Reload'));
-    await tester.pump();
+    expect(find.text('Reload'), findsNothing);
+    expect(find.text('Back'), findsOneWidget);
 
     expect(saveCount, 1);
-    expect(reloadCount, 1);
   });
 
   testWidgets('adds repository setup blocks', (WidgetTester tester) async {
-    await pumpSubject(
-      tester,
-      onSave: () {},
-      onReload: () {},
-      onScmProviderChanged: (_) {},
-      onProjectSelected: (_) {},
-    );
+    await pumpSubject(tester, onSave: () {}, onScmProviderChanged: (_) {});
 
     await tester.tap(find.text('Add Repository'));
     await tester.pump();
@@ -145,9 +112,7 @@ void main() {
       tester,
       isSaving: true,
       onSave: () {},
-      onReload: () {},
       onScmProviderChanged: (_) {},
-      onProjectSelected: (_) {},
     );
 
     final saveButton = tester.widget<FilledButton>(

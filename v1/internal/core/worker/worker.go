@@ -6,6 +6,7 @@ import (
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
@@ -16,6 +17,7 @@ import (
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
+	infratrackerpostgres "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
 	"context"
 	"errors"
@@ -185,8 +187,18 @@ func (app *WorkerApp) Run() error {
 		return githubAdapter, nil
 	}
 
-	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithProjectSetup(
+	trackerStore, err := infratrackerpostgres.NewPostgresBoardStore(app.databaseClient.DB())
+	if err != nil {
+		return fmt.Errorf("init tracker board store: %w", err)
+	}
+	taskMutationService, err := applicationtracker.NewTaskMutationService(trackerStore)
+	if err != nil {
+		return fmt.Errorf("init tracker task mutation service: %w", err)
+	}
+
+	agentHandler, err := workerinterface.NewAgentWorkflowHandlerWithProjectSetupAndTracker(
 		app.projectSetupRepository,
+		taskMutationService,
 		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.AgentRuntimeService, error) {
 			_ = ctx
 			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm)

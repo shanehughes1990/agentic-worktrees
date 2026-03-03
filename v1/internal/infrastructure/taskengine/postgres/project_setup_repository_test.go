@@ -4,6 +4,8 @@ import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"gorm.io/driver/sqlite"
@@ -12,7 +14,8 @@ import (
 
 func newProjectSetupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -165,5 +168,30 @@ func TestProjectSetupRepositoryEncryptsSCMTokenAtRest(t *testing.T) {
 	}
 	if loadedSetup.SCMs[0].SCMToken != "ghp_super_secret_token" {
 		t.Fatalf("expected decrypted scm token for internal use, got %q", loadedSetup.SCMs[0].SCMToken)
+	}
+}
+
+func TestProjectSetupRepositoryWithoutBoardsDoesNotSeedSnapshot(t *testing.T) {
+	db := newProjectSetupTestDB(t)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	setup := sampleProjectSetup()
+	setup.Boards = nil
+	if _, err := repo.UpsertProjectSetup(context.Background(), setup); err != nil {
+		t.Fatalf("upsert setup: %v", err)
+	}
+
+	var snapshotCount int64
+	if err := db.Model(&trackerBoardSnapshotRecord{}).
+		Where("run_id = ?", "project-1").
+		Count(&snapshotCount).Error; err != nil {
+		t.Fatalf("count snapshots: %v", err)
+	}
+	if snapshotCount != 0 {
+		t.Fatalf("expected no tracker snapshots for setup without boards, got %d", snapshotCount)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type IngestionSourceRequest struct {
@@ -39,6 +40,74 @@ type IngestionSourceResolver interface {
 
 type BoardStore interface {
 	UpsertBoard(ctx context.Context, board domaintracker.Board) error
+	ClaimNextTask(ctx context.Context, projectID string, boardID string, workerID string) (domaintracker.Board, domaintracker.Task, string, int64, error)
+	ApplyTaskResult(ctx context.Context, projectID string, boardID string, claimID string, taskID string, nextStatus domaintracker.Status, outcome domaintracker.TaskOutcome) (domaintracker.Board, int64, error)
+}
+
+type ClaimNextTaskRequest struct {
+	ProjectID string
+	BoardID   string
+	WorkerID  string
+}
+
+func (request ClaimNextTaskRequest) Validate() error {
+	if strings.TrimSpace(request.ProjectID) == "" {
+		return failures.WrapTerminal(errors.New("project_id is required"))
+	}
+	if strings.TrimSpace(request.BoardID) == "" {
+		return failures.WrapTerminal(errors.New("board_id is required"))
+	}
+	if strings.TrimSpace(request.WorkerID) == "" {
+		return failures.WrapTerminal(errors.New("worker_id is required"))
+	}
+	return nil
+}
+
+type ClaimedTask struct {
+	Board    domaintracker.Board
+	Task     domaintracker.Task
+	ClaimID  string
+	Revision int64
+}
+
+type ApplyTaskResultRequest struct {
+	ProjectID       string
+	BoardID         string
+	ClaimID         string
+	TaskID          string
+	NextStatus      domaintracker.Status
+	OutcomeStatus   string
+	OutcomeReason   string
+	TaskBranch      string
+	Worktree        string
+	ResumeSessionID string
+}
+
+func (request ApplyTaskResultRequest) Validate() error {
+	if strings.TrimSpace(request.ProjectID) == "" {
+		return failures.WrapTerminal(errors.New("project_id is required"))
+	}
+	if strings.TrimSpace(request.BoardID) == "" {
+		return failures.WrapTerminal(errors.New("board_id is required"))
+	}
+	if strings.TrimSpace(request.ClaimID) == "" {
+		return failures.WrapTerminal(errors.New("claim_id is required"))
+	}
+	if strings.TrimSpace(request.TaskID) == "" {
+		return failures.WrapTerminal(errors.New("task_id is required"))
+	}
+	if err := request.NextStatus.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(request.OutcomeStatus) == "" {
+		return failures.WrapTerminal(errors.New("outcome_status is required"))
+	}
+	return nil
+}
+
+type AppliedTaskResult struct {
+	Board    domaintracker.Board
+	Revision int64
 }
 
 type SyncBoardRequest struct {
@@ -80,6 +149,13 @@ func NewService(sourceResolver IngestionSourceResolver, boardStore BoardStore) (
 	return &Service{sourceResolver: sourceResolver, boardStore: boardStore}, nil
 }
 
+func NewTaskMutationService(boardStore BoardStore) (*Service, error) {
+	if boardStore == nil {
+		return nil, failures.WrapTerminal(errors.New("tracker board store is required"))
+	}
+	return &Service{boardStore: boardStore}, nil
+}
+
 func (service *Service) SyncBoard(ctx context.Context, request SyncBoardRequest) (domaintracker.Board, error) {
 	if err := request.Validate(); err != nil {
 		return domaintracker.Board{}, err
@@ -106,6 +182,57 @@ func (service *Service) SyncBoard(ctx context.Context, request SyncBoardRequest)
 		return domaintracker.Board{}, ensureClassified(err)
 	}
 	return board, nil
+}
+
+func (service *Service) ClaimNextTask(ctx context.Context, request ClaimNextTaskRequest) (ClaimedTask, error) {
+	if err := request.Validate(); err != nil {
+		return ClaimedTask{}, err
+	}
+	board, task, claimID, revision, err := service.boardStore.ClaimNextTask(
+		ctx,
+		strings.TrimSpace(request.ProjectID),
+		strings.TrimSpace(request.BoardID),
+		strings.TrimSpace(request.WorkerID),
+	)
+	if err != nil {
+		return ClaimedTask{}, ensureClassified(err)
+	}
+	return ClaimedTask{
+		Board:    board,
+		Task:     task,
+		ClaimID:  claimID,
+		Revision: revision,
+	}, nil
+}
+
+func (service *Service) ApplyTaskResult(ctx context.Context, request ApplyTaskResultRequest) (AppliedTaskResult, error) {
+	if err := request.Validate(); err != nil {
+		return AppliedTaskResult{}, err
+	}
+	outcome := domaintracker.TaskOutcome{
+		Status:          strings.TrimSpace(request.OutcomeStatus),
+		Reason:          strings.TrimSpace(request.OutcomeReason),
+		TaskBranch:      strings.TrimSpace(request.TaskBranch),
+		Worktree:        strings.TrimSpace(request.Worktree),
+		ResumeSessionID: strings.TrimSpace(request.ResumeSessionID),
+		UpdatedAt:       time.Now().UTC(),
+	}
+	if err := outcome.Validate(); err != nil {
+		return AppliedTaskResult{}, err
+	}
+	board, revision, err := service.boardStore.ApplyTaskResult(
+		ctx,
+		strings.TrimSpace(request.ProjectID),
+		strings.TrimSpace(request.BoardID),
+		strings.TrimSpace(request.ClaimID),
+		strings.TrimSpace(request.TaskID),
+		request.NextStatus,
+		outcome,
+	)
+	if err != nil {
+		return AppliedTaskResult{}, ensureClassified(err)
+	}
+	return AppliedTaskResult{Board: board, Revision: revision}, nil
 }
 
 func ensureClassified(err error) error {

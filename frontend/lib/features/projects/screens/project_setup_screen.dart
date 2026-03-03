@@ -1,6 +1,4 @@
 import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
-import 'package:agentic_worktrees/features/projects/widgets/project_setups_list.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
 
 class ProjectSetupScreen extends StatefulWidget {
@@ -8,16 +6,11 @@ class ProjectSetupScreen extends StatefulWidget {
     required this.projectController,
     required this.projectNameController,
     required this.repositoryUrlController,
-    required this.taskboardNameController,
     required this.setupScmProvider,
     required this.scmTokenController,
     required this.onSetupScmProviderChanged,
     required this.isSavingProjectSetup,
     required this.onSaveProjectSetup,
-    required this.onReloadProjectSetups,
-    required this.projectSetups,
-    required this.selectedProjectID,
-    required this.onProjectSelected,
     required this.statusMessage,
     super.key,
   });
@@ -25,16 +18,11 @@ class ProjectSetupScreen extends StatefulWidget {
   final TextEditingController projectController;
   final TextEditingController projectNameController;
   final TextEditingController repositoryUrlController;
-  final TextEditingController taskboardNameController;
   final String setupScmProvider;
   final TextEditingController scmTokenController;
   final ValueChanged<String> onSetupScmProviderChanged;
   final bool isSavingProjectSetup;
   final VoidCallback onSaveProjectSetup;
-  final VoidCallback onReloadProjectSetups;
-  final List<ProjectSetupConfig> projectSetups;
-  final String selectedProjectID;
-  final ValueChanged<ProjectSetupConfig> onProjectSelected;
   final String? statusMessage;
 
   @override
@@ -44,11 +32,7 @@ class ProjectSetupScreen extends StatefulWidget {
 class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
   final List<TextEditingController> _repositoryControllers =
       <TextEditingController>[];
-  final TextEditingController _taskboardNameController =
-      TextEditingController();
-
   String _lastRepositoryRaw = '';
-  String _lastTaskboardNameRaw = '';
 
   @override
   void initState() {
@@ -67,22 +51,17 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
     for (final TextEditingController controller in _repositoryControllers) {
       controller.dispose();
     }
-    _taskboardNameController.dispose();
     super.dispose();
   }
 
   void _syncDraftControllersFromForm({bool force = false}) {
     final repositoryRaw = widget.repositoryUrlController.text;
-    final taskboardNameRaw = widget.taskboardNameController.text;
 
-    if (!force &&
-        repositoryRaw == _lastRepositoryRaw &&
-        taskboardNameRaw == _lastTaskboardNameRaw) {
+    if (!force && repositoryRaw == _lastRepositoryRaw) {
       return;
     }
 
     _lastRepositoryRaw = repositoryRaw;
-    _lastTaskboardNameRaw = taskboardNameRaw;
 
     for (final TextEditingController controller in _repositoryControllers) {
       controller.dispose();
@@ -100,13 +79,6 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
       );
     }
 
-    final taskboardNames = ProjectSetupLogic.parseMultilineEntries(
-      taskboardNameRaw,
-    );
-    _taskboardNameController.text = taskboardNames.isNotEmpty
-        ? taskboardNames.first
-        : '';
-
     if (mounted) {
       setState(() {});
     }
@@ -118,10 +90,7 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
         .where((String value) => value.isNotEmpty)
         .join('\n');
 
-    widget.taskboardNameController.text = _taskboardNameController.text.trim();
-
     _lastRepositoryRaw = widget.repositoryUrlController.text;
-    _lastTaskboardNameRaw = widget.taskboardNameController.text;
   }
 
   void _onProjectNameChanged(String value) {
@@ -151,167 +120,165 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
   Widget build(BuildContext context) {
     final hasProvider = widget.setupScmProvider.trim().isNotEmpty;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text(
-            'Project Setup',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    'Project Setup',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: widget.projectNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Project Name',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: _onProjectNameChanged,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: widget.projectController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Project ID',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    'SCM Provider',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: widget.setupScmProvider,
-                    decoration: const InputDecoration(
-                      labelText: 'Provider',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem<String>(
-                        value: 'GITHUB',
-                        child: Text('GitHub'),
-                      ),
-                    ],
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      widget.onSetupScmProviderChanged(value);
-                    },
-                  ),
-                  if (hasProvider) ...<Widget>[
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: widget.scmTokenController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'SCM Token',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _RepositorySetupSection(
-                      controllers: _repositoryControllers,
-                      onAdd: _addRepositoryBlock,
-                      onRemove: _removeRepositoryBlock,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          if (hasProvider) ...<Widget>[
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      'Tracker Setup',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _taskboardNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Taskboard Name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
+    return Column(
+      children: <Widget>[
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Project Setup',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                 ),
-              ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          'Project Setup',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: widget.projectNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Project Name',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: _onProjectNameChanged,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: widget.projectController,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Project ID',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          'SCM Provider',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: widget.setupScmProvider,
+                          decoration: const InputDecoration(
+                            labelText: 'Provider',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const <DropdownMenuItem<String>>[
+                            DropdownMenuItem<String>(
+                              value: 'GITHUB',
+                              child: Text('GitHub'),
+                            ),
+                          ],
+                          onChanged: (String? value) {
+                            if (value == null) {
+                              return;
+                            }
+                            widget.onSetupScmProviderChanged(value);
+                          },
+                        ),
+                        if (hasProvider) ...<Widget>[
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: widget.scmTokenController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'SCM Token',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _RepositorySetupSection(
+                            controllers: _repositoryControllers,
+                            onAdd: _addRepositoryBlock,
+                            onRemove: _removeRepositoryBlock,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                if (hasProvider) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            'Tracker Setup',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                if (widget.statusMessage != null) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.statusMessage!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              FilledButton(
-                onPressed: widget.isSavingProjectSetup
-                    ? null
-                    : () {
-                        _syncFormControllersFromDraft();
-                        widget.onSaveProjectSetup();
-                      },
-                child: const Text('Save Project Setup'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: widget.onReloadProjectSetups,
-                child: const Text('Reload'),
-              ),
-            ],
           ),
-          if (widget.projectSetups.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            const Text(
-              'Configured Projects',
-              style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                top: BorderSide(color: Theme.of(context).dividerColor),
+              ),
             ),
-            const SizedBox(height: 8),
-            ProjectSetupsList(
-              projectSetups: widget.projectSetups,
-              selectedProjectID: widget.selectedProjectID,
-              onProjectSelected: widget.onProjectSelected,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  child: const Text('Back'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: widget.isSavingProjectSetup
+                      ? null
+                      : () {
+                          _syncFormControllersFromDraft();
+                          widget.onSaveProjectSetup();
+                        },
+                  child: const Text('Save Project Setup'),
+                ),
+              ],
             ),
-          ],
-          if (widget.statusMessage != null) ...<Widget>[
-            const SizedBox(height: 12),
-            Text(
-              widget.statusMessage!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

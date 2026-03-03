@@ -5,23 +5,18 @@ class ProjectSetupLogic {
   const ProjectSetupLogic._();
 
   static const String defaultScmProvider = 'GITHUB';
-  static const String defaultTrackerProvider = 'INTERNAL';
 
   static String? validateRequiredFields({
     required String projectID,
     required String projectName,
     required List<String> repositoryURLs,
     required String scmToken,
-    required String taskboardName,
   }) {
     if (projectID.isEmpty || projectName.isEmpty || repositoryURLs.isEmpty) {
       return 'Project ID, Project Name, and at least one Repository URL are required.';
     }
     if (scmToken.trim().isEmpty) {
       return 'SCM Token is required.';
-    }
-    if (taskboardName.trim().isEmpty) {
-      return 'Taskboard Name is required.';
     }
     return null;
   }
@@ -52,9 +47,7 @@ class ProjectSetupLogic {
     required TextEditingController projectController,
     required TextEditingController projectNameController,
     required TextEditingController repositoryUrlController,
-    required TextEditingController taskboardNameController,
     required ValueChanged<String> onScmProviderChanged,
-    required ValueChanged<String> onTrackerProviderChanged,
   }) {
     projectController.text = setup.projectID;
     projectNameController.text = setup.projectName;
@@ -66,9 +59,5 @@ class ProjectSetupLogic {
     repositoryUrlController.text = repositoryURLs.join('\n');
     final scm = setup.scms.isNotEmpty ? setup.scms.first : null;
     onScmProviderChanged(scm?.scmProvider ?? defaultScmProvider);
-
-    final board = setup.boards.isNotEmpty ? setup.boards.first : null;
-    taskboardNameController.text = board?.taskboardName ?? '';
-    onTrackerProviderChanged(board?.trackerProvider ?? defaultTrackerProvider);
   }
 }

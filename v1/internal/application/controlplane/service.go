@@ -151,8 +151,8 @@ func (request UpsertProjectSetupRequest) Validate() error {
 			return fmt.Errorf("repositories[%d].repository_url must be a valid absolute URL", index)
 		}
 	}
-	if len(request.Boards) != 1 {
-		return fmt.Errorf("exactly one board is required")
+	if len(request.Boards) > 1 {
+		return fmt.Errorf("at most one board is supported")
 	}
 	for index, board := range request.Boards {
 		trackerProvider := strings.ToLower(strings.TrimSpace(board.TrackerProvider))

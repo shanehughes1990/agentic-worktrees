@@ -12,7 +12,6 @@ void main() {
         projectName: 'name',
         repositoryURLs: const <String>['https://example.com/repo'],
         scmToken: 'token',
-        taskboardName: 'Main Board',
       );
 
       expect(
@@ -27,22 +26,9 @@ void main() {
         projectName: 'Project One',
         repositoryURLs: const <String>['https://example.com/repo'],
         scmToken: 'token',
-        taskboardName: 'Main Board',
       );
 
       expect(error, isNull);
-    });
-
-    test('returns error when taskboard name is empty', () {
-      final error = ProjectSetupLogic.validateRequiredFields(
-        projectID: 'projectOne',
-        projectName: 'Project One',
-        repositoryURLs: const <String>['https://example.com/repo'],
-        scmToken: 'token',
-        taskboardName: '   ',
-      );
-
-      expect(error, 'Taskboard Name is required.');
     });
   });
 
@@ -51,31 +37,24 @@ void main() {
     final projectController = TextEditingController();
     final projectNameController = TextEditingController();
     final repositoryController = TextEditingController();
-    final taskboardNameController = TextEditingController();
     String scmProvider = '';
-    String trackerProvider = '';
 
     ProjectSetupLogic.applySetupToForm(
       setup: setup,
       projectController: projectController,
       projectNameController: projectNameController,
       repositoryUrlController: repositoryController,
-      taskboardNameController: taskboardNameController,
       onScmProviderChanged: (String value) => scmProvider = value,
-      onTrackerProviderChanged: (String value) => trackerProvider = value,
     );
 
     expect(projectController.text, setup.projectID);
     expect(projectNameController.text, setup.projectName);
     expect(repositoryController.text, setup.repositories.first.repositoryURL);
-    expect(taskboardNameController.text, setup.boards.first.taskboardName);
     expect(scmProvider, setup.scms.first.scmProvider);
-    expect(trackerProvider, setup.boards.first.trackerProvider);
 
     projectController.dispose();
     projectNameController.dispose();
     repositoryController.dispose();
-    taskboardNameController.dispose();
   });
 
   test('parseMultilineEntries filters blanks and trims', () {

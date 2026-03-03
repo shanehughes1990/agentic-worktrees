@@ -4,8 +4,10 @@ import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	domainagent "agentic-orchestrator/internal/domain/agent"
 	domainscm "agentic-orchestrator/internal/domain/scm"
+	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -24,9 +26,17 @@ type AgentWorkflowPayload struct {
 	JobID                 string                 `json:"job_id"`
 	ProjectID             string                 `json:"project_id"`
 	IdempotencyKey        string                 `json:"idempotency_key"`
+	TrackerBoardID        string                 `json:"tracker_board_id,omitempty"`
+	TrackerTaskID         string                 `json:"tracker_task_id,omitempty"`
+	TrackerClaimID        string                 `json:"tracker_claim_id,omitempty"`
 	ResumeCheckpoint      *taskengine.Checkpoint `json:"resume_checkpoint,omitempty"`
 	ResumeCheckpointStep  string                 `json:"resume_checkpoint_step,omitempty"`
 	ResumeCheckpointToken string                 `json:"resume_checkpoint_token,omitempty"`
+}
+
+type trackerTaskService interface {
+	ClaimNextTask(ctx context.Context, request applicationtracker.ClaimNextTaskRequest) (applicationtracker.ClaimedTask, error)
+	ApplyTaskResult(ctx context.Context, request applicationtracker.ApplyTaskResultRequest) (applicationtracker.AppliedTaskResult, error)
 }
 
 type AgentRuntimeService interface {
@@ -97,6 +107,8 @@ func (resolver *projectSetupAgentRuntimeResolver) Resolve(ctx context.Context, p
 
 type AgentWorkflowHandler struct {
 	runtimeResolver   agentRuntimeResolver
+	projectRepository projectSetupLookup
+	trackerService    trackerTaskService
 	checkpointStore   taskengine.CheckpointStore
 	executionJournal  taskengine.ExecutionJournal
 	supervisorService supervisorSignalService
@@ -119,14 +131,36 @@ func NewAgentWorkflowHandlerWithSupervisor(service AgentRuntimeService, checkpoi
 }
 
 func NewAgentWorkflowHandlerWithProjectSetup(projectRepository projectSetupLookup, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(&projectSetupAgentRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory}, checkpointStore, executionJournal, supervisorService)
+	return newAgentWorkflowHandlerWithTracker(
+		&projectSetupAgentRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory},
+		projectRepository,
+		nil,
+		checkpointStore,
+		executionJournal,
+		supervisorService,
+	)
+}
+
+func NewAgentWorkflowHandlerWithProjectSetupAndTracker(projectRepository projectSetupLookup, trackerService trackerTaskService, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandlerWithTracker(
+		&projectSetupAgentRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory},
+		projectRepository,
+		trackerService,
+		checkpointStore,
+		executionJournal,
+		supervisorService,
+	)
 }
 
 func newAgentWorkflowHandler(runtimeResolver agentRuntimeResolver, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandlerWithTracker(runtimeResolver, nil, nil, checkpointStore, executionJournal, supervisorService)
+}
+
+func newAgentWorkflowHandlerWithTracker(runtimeResolver agentRuntimeResolver, projectRepository projectSetupLookup, trackerService trackerTaskService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
 	if runtimeResolver == nil {
 		return nil, fmt.Errorf("agent runtime resolver is required")
 	}
-	return &AgentWorkflowHandler{runtimeResolver: runtimeResolver, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
+	return &AgentWorkflowHandler{runtimeResolver: runtimeResolver, projectRepository: projectRepository, trackerService: trackerService, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
 }
 
 func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -163,6 +197,35 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 	}
 	request.Session.Repository = repository
 
+	boardID := strings.TrimSpace(payload.TrackerBoardID)
+	if boardID == "" && handler.projectRepository != nil && strings.TrimSpace(payload.ProjectID) != "" {
+		setup, setupErr := handler.projectRepository.GetProjectSetup(ctx, strings.TrimSpace(payload.ProjectID))
+		if setupErr != nil {
+			handler.safeRecordExecution(ctx, request, job.Kind, "source_state", taskengine.ExecutionStatusFailed, setupErr.Error())
+			return fmt.Errorf("load project setup for tracker claim: %w", setupErr)
+		}
+		if setup != nil && len(setup.Boards) > 0 {
+			boardID = strings.TrimSpace(setup.Boards[0].BoardID)
+		}
+	}
+
+	claimID := strings.TrimSpace(payload.TrackerClaimID)
+	claimedTaskID := strings.TrimSpace(payload.TrackerTaskID)
+	if handler.trackerService != nil && strings.TrimSpace(payload.ProjectID) != "" && boardID != "" && claimID == "" {
+		claimed, claimErr := handler.trackerService.ClaimNextTask(ctx, applicationtracker.ClaimNextTaskRequest{
+			ProjectID: strings.TrimSpace(payload.ProjectID),
+			BoardID:   boardID,
+			WorkerID:  strings.TrimSpace(payload.SessionID),
+		})
+		if claimErr != nil {
+			handler.safeRecordExecution(ctx, request, job.Kind, "source_state", taskengine.ExecutionStatusFailed, claimErr.Error())
+			return fmt.Errorf("claim next tracker task: %w", claimErr)
+		}
+		claimID = strings.TrimSpace(claimed.ClaimID)
+		claimedTaskID = strings.TrimSpace(string(claimed.Task.ID))
+		request.Prompt = mergeTaskPrompt(request.Prompt, claimed.Task)
+	}
+
 	step := "source_state"
 	if record, err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, ""); err == nil {
 		handler.safeSupervisorExecution(ctx, record)
@@ -192,6 +255,22 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 	if err := service.Execute(ctx, request); err != nil {
 		handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 		return err
+	}
+
+	if handler.trackerService != nil && strings.TrimSpace(payload.ProjectID) != "" && boardID != "" && claimID != "" && claimedTaskID != "" {
+		_, applyErr := handler.trackerService.ApplyTaskResult(ctx, applicationtracker.ApplyTaskResultRequest{
+			ProjectID:     strings.TrimSpace(payload.ProjectID),
+			BoardID:       boardID,
+			ClaimID:       claimID,
+			TaskID:        claimedTaskID,
+			NextStatus:    domaintracker.StatusCompleted,
+			OutcomeStatus: "completed",
+			OutcomeReason: "agent workflow completed",
+		})
+		if applyErr != nil {
+			handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, applyErr.Error())
+			return fmt.Errorf("apply tracker task result: %w", applyErr)
+		}
 	}
 
 	if handler.checkpointStore != nil && idempotencyKey != "" {
@@ -247,4 +326,20 @@ func (handler *AgentWorkflowHandler) safeSupervisorCheckpoint(ctx context.Contex
 		return
 	}
 	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, taskengine.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID}, kind, idempotencyKey, step)
+}
+
+func mergeTaskPrompt(basePrompt string, task domaintracker.Task) string {
+	title := strings.TrimSpace(task.Title)
+	if title == "" {
+		title = strings.TrimSpace(string(task.ID))
+	}
+	details := strings.TrimSpace(task.Description)
+	if details == "" {
+		details = "No additional task description provided."
+	}
+	taskPrompt := fmt.Sprintf("Work item: %s\nTask ID: %s\nDetails: %s", title, strings.TrimSpace(string(task.ID)), details)
+	if strings.TrimSpace(basePrompt) == "" {
+		return taskPrompt
+	}
+	return fmt.Sprintf("%s\n\n%s", strings.TrimSpace(basePrompt), taskPrompt)
 }

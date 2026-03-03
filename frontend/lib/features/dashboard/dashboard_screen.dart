@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:agentic_worktrees/features/dashboard/logic/dashboard_workflow_logic.dart';
 import 'package:agentic_worktrees/features/dashboard/widgets/dashboard_home_view.dart';
 import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
+import 'package:agentic_worktrees/features/projects/screens/project_dashboard_screen.dart';
 import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
 import 'package:agentic_worktrees/features/settings/logic/connection_settings_logic.dart';
 import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
@@ -16,13 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum _DashboardView {
-  dashboard,
-  projectSetup,
-  workerSessions,
-  workerSettings,
-  settings,
-}
+enum _DashboardView { dashboard, workerSessions, workerSettings, settings }
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({required this.initialEndpoint, super.key});
@@ -53,9 +48,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final TextEditingController _repositoryUrlController = TextEditingController(
     text: 'https://github.com/acme/repo',
   );
-  final TextEditingController _taskboardNameController = TextEditingController(
-    text: 'acme/repo',
-  );
   final TextEditingController _scmTokenController = TextEditingController();
   final TextEditingController _workflowController = TextEditingController(
     text: 'workflow-1',
@@ -73,7 +65,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _refreshToken = 0;
   _DashboardView _activeView = _DashboardView.dashboard;
   String _setupScmProvider = ProjectSetupLogic.defaultScmProvider;
-  String _setupTrackerProvider = ProjectSetupLogic.defaultTrackerProvider;
   List<ProjectSetupConfig> _projectSetups = const <ProjectSetupConfig>[];
   final List<StreamEvent> _streamEvents = <StreamEvent>[];
   StreamSubscription<ApiResult<StreamEvent>>? _streamSubscription;
@@ -109,23 +100,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     setState(() => _activeView = _DashboardView.workerSettings);
   }
 
-  void _startNewProjectSetup(BuildContext context) {
-    Navigator.of(context).pop();
-    _beginNewProjectSetup();
-  }
-
-  void _beginNewProjectSetup() {
+  void _prepareNewProjectSetup() {
     setState(() {
-      _activeView = _DashboardView.projectSetup;
       _projectController.text = '';
       _projectNameController.text = '';
       _repositoryUrlController.text = '';
-      _taskboardNameController.text = '';
       _scmTokenController.clear();
       _setupScmProvider = ProjectSetupLogic.defaultScmProvider;
-      _setupTrackerProvider = ProjectSetupLogic.defaultTrackerProvider;
-      _statusMessage = 'Creating a new project setup';
+      _statusMessage = null;
     });
+  }
+
+  void _openProjectSetup() {
+    _prepareNewProjectSetup();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('New Project Setup')),
+            body: _buildProjectSetupBody(),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _exitApp(BuildContext context) async {
@@ -145,7 +142,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _projectController.dispose();
     _projectNameController.dispose();
     _repositoryUrlController.dispose();
-    _taskboardNameController.dispose();
     _scmTokenController.dispose();
     _workflowController.dispose();
     _promptController.dispose();
@@ -305,13 +301,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final repositoryURLs = ProjectSetupLogic.parseMultilineEntries(
       _repositoryUrlController.text,
     );
-    final taskboardName = _taskboardNameController.text.trim();
     final validationError = ProjectSetupLogic.validateRequiredFields(
       projectID: projectID,
       projectName: projectName,
       repositoryURLs: repositoryURLs,
       scmToken: _scmTokenController.text,
-      taskboardName: taskboardName,
     );
     if (validationError != null) {
       setState(() => _statusMessage = validationError);
@@ -325,8 +319,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       scmProvider: _setupScmProvider,
       repositoryURLs: repositoryURLs,
       scmToken: _scmTokenController.text.trim(),
-      trackerProvider: _setupTrackerProvider,
-      taskboardName: taskboardName,
     );
     if (!mounted) {
       return;
@@ -351,13 +343,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectController: _projectController,
       projectNameController: _projectNameController,
       repositoryUrlController: _repositoryUrlController,
-      taskboardNameController: _taskboardNameController,
       onScmProviderChanged: (String provider) {
         _setupScmProvider = provider;
       },
-      onTrackerProviderChanged: (String provider) {
-        _setupTrackerProvider = provider;
-      },
+    );
+  }
+
+  void _openProjectDashboard(ProjectSetupConfig setup, String endpoint) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) =>
+            ProjectDashboardScreen(projectSetup: setup, endpoint: endpoint),
+      ),
     );
   }
 
@@ -425,13 +422,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _ensureWorkerSessionSubscription(endpoint);
     final api = _apiFor(endpoint);
     final isDashboard = _activeView == _DashboardView.dashboard;
-    final isProjectSetup = _activeView == _DashboardView.projectSetup;
     final isWorkerSessions = _activeView == _DashboardView.workerSessions;
     final isWorkerSettings = _activeView == _DashboardView.workerSettings;
     final title = isDashboard
         ? 'Dashboard'
-        : isProjectSetup
-        ? 'New Project Setup'
         : isWorkerSessions
         ? 'Worker Sessions'
         : isWorkerSettings
@@ -460,12 +454,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       title: const Text('Dashboard'),
                       selected: isDashboard,
                       onTap: () => _showDashboard(context),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.add_box_outlined),
-                      title: const Text('New Project Setup'),
-                      selected: isProjectSetup,
-                      onTap: () => _startNewProjectSetup(context),
                     ),
                     ListTile(
                       leading: const Icon(Icons.memory_outlined),
@@ -501,7 +489,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: AppBar(
         title: Text(title),
         actions: <Widget>[
-          if (isDashboard || isProjectSetup)
+          if (isDashboard)
             IconButton(
               onPressed: () {
                 setState(() => _refreshToken++);
@@ -513,9 +501,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
       body: isDashboard
-          ? _buildDashboardBody(api)
-          : isProjectSetup
-          ? _buildProjectSetupBody()
+          ? _buildDashboardBody(api, endpoint)
           : isWorkerSessions
           ? _buildWorkerSessionsBody(api)
           : isWorkerSettings
@@ -524,7 +510,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildDashboardBody(ControlPlaneApi api) {
+  Widget _buildDashboardBody(ControlPlaneApi api, String endpoint) {
     return DashboardHomeView(
       api: api,
       refreshToken: _refreshToken,
@@ -536,6 +522,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           _applyProjectSetup(setup);
           _statusMessage = 'Selected project ${setup.projectID}';
         });
+        _openProjectDashboard(setup, endpoint);
       },
       selectedSession: _selectedSession,
       onSessionSelected: (SessionSummary session) =>
@@ -556,7 +543,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       onShowWorkerSessions: () {
         setState(() => _activeView = _DashboardView.workerSessions);
       },
-      onCreateProject: _beginNewProjectSetup,
+      onCreateProject: _openProjectSetup,
     );
   }
 
@@ -576,7 +563,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       projectController: _projectController,
       projectNameController: _projectNameController,
       repositoryUrlController: _repositoryUrlController,
-      taskboardNameController: _taskboardNameController,
       setupScmProvider: _setupScmProvider,
       scmTokenController: _scmTokenController,
       onSetupScmProviderChanged: (String value) {
@@ -584,15 +570,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       },
       isSavingProjectSetup: _isSavingProjectSetup,
       onSaveProjectSetup: _saveProjectSetup,
-      onReloadProjectSetups: _loadProjectSetups,
-      projectSetups: _projectSetups,
-      selectedProjectID: _projectController.text.trim(),
-      onProjectSelected: (ProjectSetupConfig setup) {
-        setState(() {
-          _applyProjectSetup(setup);
-          _statusMessage = 'Loaded project setup ${setup.projectID}';
-        });
-      },
       statusMessage: _statusMessage,
     );
   }

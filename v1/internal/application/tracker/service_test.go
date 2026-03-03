@@ -28,14 +28,30 @@ type fakeSourceResolver struct {
 }
 
 type fakeBoardStore struct {
-	board domaintracker.Board
-	err   error
+	board          domaintracker.Board
+	err            error
+	claimTask      domaintracker.Task
+	claimID        string
+	claimRevision  int64
+	applyRevision  int64
 }
 
 func (store *fakeBoardStore) UpsertBoard(ctx context.Context, board domaintracker.Board) error {
 	_ = ctx
 	store.board = board
 	return store.err
+}
+
+func (store *fakeBoardStore) ClaimNextTask(ctx context.Context, projectID string, boardID string, workerID string) (domaintracker.Board, domaintracker.Task, string, int64, error) {
+	_, _, _ = projectID, boardID, workerID
+	_ = ctx
+	return store.board, store.claimTask, store.claimID, store.claimRevision, store.err
+}
+
+func (store *fakeBoardStore) ApplyTaskResult(ctx context.Context, projectID string, boardID string, claimID string, taskID string, nextStatus domaintracker.Status, outcome domaintracker.TaskOutcome) (domaintracker.Board, int64, error) {
+	_, _, _, _, _, _ = projectID, boardID, claimID, taskID, nextStatus, outcome
+	_ = ctx
+	return store.board, store.applyRevision, store.err
 }
 
 func (resolver *fakeSourceResolver) Resolve(ctx context.Context, request IngestionSourceRequest) (IngestionSource, error) {
@@ -157,5 +173,29 @@ func TestServiceSyncBoardClassifiesBoardStoreErrorsAsTransient(t *testing.T) {
 	})
 	if !failures.IsClass(err, failures.ClassTransient) {
 		t.Fatalf("expected transient error classification, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
+func TestClaimNextTaskValidatesRequiredFields(t *testing.T) {
+	service, err := NewService(&fakeSourceResolver{}, &fakeBoardStore{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, err = service.ClaimNextTask(context.Background(), ClaimNextTaskRequest{})
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
+	}
+}
+
+func TestApplyTaskResultValidatesRequiredFields(t *testing.T) {
+	service, err := NewService(&fakeSourceResolver{}, &fakeBoardStore{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, err = service.ApplyTaskResult(context.Background(), ApplyTaskResultRequest{})
+	if !failures.IsClass(err, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
 	}
 }
