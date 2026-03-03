@@ -350,19 +350,11 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
   _i5.Future<_i2.ApiResult<_i2.WorkerSettings>> updateWorkerSettings({
     required int? heartbeatIntervalSeconds,
     required int? responseDeadlineSeconds,
-    required int? staleAfterSeconds,
-    required int? drainTimeoutSeconds,
-    required int? terminateTimeoutSeconds,
-    required int? rogueThreshold,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#updateWorkerSettings, [], {
               #heartbeatIntervalSeconds: heartbeatIntervalSeconds,
               #responseDeadlineSeconds: responseDeadlineSeconds,
-              #staleAfterSeconds: staleAfterSeconds,
-              #drainTimeoutSeconds: drainTimeoutSeconds,
-              #terminateTimeoutSeconds: terminateTimeoutSeconds,
-              #rogueThreshold: rogueThreshold,
             }),
             returnValue: _i5.Future<_i2.ApiResult<_i2.WorkerSettings>>.value(
               _FakeApiResult_0<_i2.WorkerSettings>(
@@ -370,10 +362,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                 Invocation.method(#updateWorkerSettings, [], {
                   #heartbeatIntervalSeconds: heartbeatIntervalSeconds,
                   #responseDeadlineSeconds: responseDeadlineSeconds,
-                  #staleAfterSeconds: staleAfterSeconds,
-                  #drainTimeoutSeconds: drainTimeoutSeconds,
-                  #terminateTimeoutSeconds: terminateTimeoutSeconds,
-                  #rogueThreshold: rogueThreshold,
                 }),
               ),
             ),
@@ -384,10 +372,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                     Invocation.method(#updateWorkerSettings, [], {
                       #heartbeatIntervalSeconds: heartbeatIntervalSeconds,
                       #responseDeadlineSeconds: responseDeadlineSeconds,
-                      #staleAfterSeconds: staleAfterSeconds,
-                      #drainTimeoutSeconds: drainTimeoutSeconds,
-                      #terminateTimeoutSeconds: terminateTimeoutSeconds,
-                      #rogueThreshold: rogueThreshold,
                     }),
                   ),
                 ),

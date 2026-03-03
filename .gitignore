@@ -19,6 +19,7 @@ tmp/
 
 # Local docs and working scopes
 .docs/
+.secrets/
 
 # Keep environment sample tracked
 !.env

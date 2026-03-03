@@ -2,16 +2,19 @@ package api
 
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
+	applicationrealtime "agentic-orchestrator/internal/application/realtime"
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
+	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
@@ -24,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -48,6 +52,9 @@ type APIApp struct {
 	sessionStateReader    *infraagent.SessionStateReader
 	acpClient             *infraagent.ACPClient
 	workerService         *applicationworker.Service
+	realtimeTransport     domainrealtime.WorkerLifecycleTransport
+	pendingHeartbeats     map[string]domainrealtime.HeartbeatRequest
+	pendingHeartbeatsMu   sync.Mutex
 }
 
 func New() (*APIApp, error) {
@@ -130,6 +137,10 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init worker service: %w", err)
 	}
+	realtimeTransport, err := infrastructure_realtime.NewPGNotifyTransport(databaseClient.DB(), config.App.DatabaseDSN)
+	if err != nil {
+		return nil, fmt.Errorf("init realtime transport: %w", err)
+	}
 	if _, err := workerService.EnsureBaseSettings(context.Background(), applicationworker.DefaultSettings(time.Now().UTC())); err != nil {
 		return nil, fmt.Errorf("ensure base worker settings: %w", err)
 	}
@@ -176,6 +187,8 @@ func New() (*APIApp, error) {
 		sessionStateReader:    sessionStateReader,
 		acpClient:             acpClient,
 		workerService:         workerService,
+		realtimeTransport:     realtimeTransport,
+		pendingHeartbeats:     map[string]domainrealtime.HeartbeatRequest{},
 	}, nil
 }
 
@@ -201,9 +214,17 @@ func (app *APIApp) Run() error {
 			return fmt.Errorf("start copilot acp client: %w", err)
 		}
 	}
+	if app.realtimeTransport == nil {
+		return fmt.Errorf("realtime transport is not configured")
+	}
 
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	go app.runRegistrationSubmissionListener(signalCtx)
+	go app.runRegistrationStartupCatchup(signalCtx)
+	go app.runHeartbeatResponseListener(signalCtx)
+	go app.runHeartbeatRequestLoop(signalCtx)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -271,6 +292,180 @@ func (app *APIApp) Run() error {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
 	return shutdownErr
+}
+
+func (app *APIApp) runRegistrationStartupCatchup(ctx context.Context) {
+	if app == nil || app.workerService == nil || app.realtimeTransport == nil {
+		return
+	}
+	pending, err := app.workerService.ListPendingRegistrationSubmissions(ctx, 500)
+	if err != nil {
+		return
+	}
+	for _, submission := range pending {
+		_ = app.processRegistrationSubmission(ctx, submission)
+	}
+}
+
+func (app *APIApp) runRegistrationSubmissionListener(ctx context.Context) {
+	if app == nil || app.workerService == nil || app.realtimeTransport == nil {
+		return
+	}
+	_ = app.realtimeTransport.ListenRegistrationSubmissions(ctx, func(event domainrealtime.RegistrationSubmissionEvent) error {
+		submission := domainrealtime.RegistrationSubmission{
+			SubmissionID: event.SubmissionID,
+			WorkerID:     event.WorkerID,
+			RequestedAt:  event.RequestedAt,
+			ExpiresAt:    event.ExpiresAt,
+			Status:       domainrealtime.RegistrationStatusPending,
+			Capabilities: event.Capabilities,
+		}
+		return app.processRegistrationSubmission(ctx, submission)
+	})
+}
+
+func (app *APIApp) processRegistrationSubmission(ctx context.Context, submission domainrealtime.RegistrationSubmission) error {
+	if app == nil || app.workerService == nil || app.realtimeTransport == nil {
+		return fmt.Errorf("api app is not initialized")
+	}
+	if time.Now().UTC().After(submission.ExpiresAt) {
+		resolved, err := app.workerService.ResolveRegistrationSubmission(ctx, submission.SubmissionID, false, []string{"registration request expired"})
+		if err != nil {
+			return err
+		}
+		return app.realtimeTransport.PublishRegistrationDecision(ctx, domainrealtime.RegistrationDecisionEvent{
+			SubmissionID: resolved.SubmissionID,
+			WorkerID:     resolved.WorkerID,
+			Decision:     domainrealtime.RegistrationDecisionReject,
+			Reasons:      resolved.RejectReasons,
+			RespondedAt:  time.Now().UTC(),
+		})
+	}
+	apiRequirements := domainrealtime.APIContractRequirements{Required: []domainrealtime.Capability{{
+		Contract:     domainrealtime.ContractWorkerRegistry,
+		Version:      "v1",
+		SubContracts: []domainrealtime.SubContract{domainrealtime.SubContractHeartbeatRequest, domainrealtime.SubContractHeartbeatResponse},
+	}}}
+	workerAdvertisement := domainrealtime.WorkerContractAdvertisement{Implemented: submission.Capabilities}
+	compatibilityErr := applicationrealtime.EnsureAPIToWorkerCompatibility(apiRequirements, workerAdvertisement)
+	if compatibilityErr != nil {
+		resolved, err := app.workerService.ResolveRegistrationSubmission(ctx, submission.SubmissionID, false, []string{compatibilityErr.Error()})
+		if err != nil {
+			return err
+		}
+		return app.realtimeTransport.PublishRegistrationDecision(ctx, domainrealtime.RegistrationDecisionEvent{
+			SubmissionID: resolved.SubmissionID,
+			WorkerID:     resolved.WorkerID,
+			Decision:     domainrealtime.RegistrationDecisionReject,
+			Reasons:      resolved.RejectReasons,
+			RespondedAt:  time.Now().UTC(),
+		})
+	}
+	resolved, err := app.workerService.ResolveRegistrationSubmission(ctx, submission.SubmissionID, true, nil)
+	if err != nil {
+		return err
+	}
+	return app.realtimeTransport.PublishRegistrationDecision(ctx, domainrealtime.RegistrationDecisionEvent{
+		SubmissionID: resolved.SubmissionID,
+		WorkerID:     resolved.WorkerID,
+		Decision:     domainrealtime.RegistrationDecisionAccept,
+		RespondedAt:  time.Now().UTC(),
+	})
+}
+
+func (app *APIApp) runHeartbeatRequestLoop(ctx context.Context) {
+	if app == nil || app.workerService == nil || app.realtimeTransport == nil {
+		return
+	}
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			settings, err := app.workerService.GetSettings(ctx)
+			if err != nil {
+				continue
+			}
+			workers, err := app.workerService.ListWorkers(ctx, 500)
+			if err != nil {
+				continue
+			}
+			now := time.Now().UTC()
+			for _, worker := range workers {
+				if worker.State != domainrealtime.StateRegistered && worker.State != domainrealtime.StateHealthy {
+					continue
+				}
+				request := domainrealtime.HeartbeatRequest{
+					RequestID:   fmt.Sprintf("%s-%d", worker.WorkerID, now.UnixNano()),
+					WorkerID:    worker.WorkerID,
+					Epoch:       worker.Epoch,
+					RequestedAt: now,
+					DeadlineAt:  now.Add(settings.ResponseDeadline),
+				}
+				if err := app.realtimeTransport.PublishRequest(ctx, request); err != nil {
+					continue
+				}
+				app.pendingHeartbeatsMu.Lock()
+				app.pendingHeartbeats[request.RequestID] = request
+				app.pendingHeartbeatsMu.Unlock()
+			}
+			app.enforceHeartbeatDeadlines(ctx)
+		}
+	}
+}
+
+func (app *APIApp) runHeartbeatResponseListener(ctx context.Context) {
+	if app == nil || app.workerService == nil || app.realtimeTransport == nil {
+		return
+	}
+	_ = app.realtimeTransport.ListenResponses(ctx, func(response domainrealtime.HeartbeatResponse) error {
+		app.pendingHeartbeatsMu.Lock()
+		request, exists := app.pendingHeartbeats[response.RequestID]
+		if exists {
+			delete(app.pendingHeartbeats, response.RequestID)
+		}
+		app.pendingHeartbeatsMu.Unlock()
+		if !exists {
+			return nil
+		}
+		settings, err := app.workerService.GetSettings(ctx)
+		if err != nil {
+			return nil
+		}
+		if _, err := app.workerService.RecordHeartbeat(ctx, response.WorkerID, response.Epoch, settings.HeartbeatInterval); err != nil {
+			return nil
+		}
+		_ = request
+		return nil
+	})
+}
+
+func (app *APIApp) enforceHeartbeatDeadlines(ctx context.Context) {
+	if app == nil || app.workerService == nil || app.realtimeTransport == nil {
+		return
+	}
+	now := time.Now().UTC()
+	expired := make([]domainrealtime.HeartbeatRequest, 0)
+	app.pendingHeartbeatsMu.Lock()
+	for key, request := range app.pendingHeartbeats {
+		if now.After(request.DeadlineAt) {
+			expired = append(expired, request)
+			delete(app.pendingHeartbeats, key)
+		}
+	}
+	app.pendingHeartbeatsMu.Unlock()
+	for _, request := range expired {
+		_, _ = app.workerService.Invalidate(ctx, request.WorkerID, request.Epoch)
+		_, _ = app.workerService.ForceDeregister(ctx, request.WorkerID, request.Epoch)
+		_ = app.realtimeTransport.PublishInvalidationIntent(ctx, domainrealtime.InvalidationIntent{
+			WorkerID: request.WorkerID,
+			Epoch:    request.Epoch,
+			Reason:   "heartbeat deadline missed",
+			IssuedAt: now,
+		})
+	}
 }
 
 func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Platform, *healthcheck.Platform, error) {

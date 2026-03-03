@@ -39,6 +39,24 @@ type workerRegistrySettingsRecord struct {
 	CreatedAt                time.Time
 }
 
+type workerRegistrationSubmissionRecord struct {
+	ID               uint   `gorm:"primaryKey"`
+	SubmissionID     string `gorm:"column:submission_id;size:255;not null;uniqueIndex"`
+	WorkerID         string `gorm:"column:worker_id;size:255;not null;index"`
+	RequestedAtUnix  int64  `gorm:"column:requested_at_unix;not null;index"`
+	ExpiresAtUnix    int64  `gorm:"column:expires_at_unix;not null;index"`
+	Status           string `gorm:"column:status;size:64;not null;index"`
+	CapabilitiesJSON []byte `gorm:"column:capabilities_json;not null"`
+	ReasonsJSON      []byte `gorm:"column:reasons_json;not null"`
+	ResolvedAtUnix   int64  `gorm:"column:resolved_at_unix;not null;default:0"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+func (workerRegistrationSubmissionRecord) TableName() string {
+	return "worker_registration_submissions"
+}
+
 func (workerRegistrySettingsRecord) TableName() string {
 	return "worker_registry_settings"
 }
@@ -51,7 +69,7 @@ func NewWorkerRegistry(db *gorm.DB) (*WorkerRegistry, error) {
 	if db == nil {
 		return nil, fmt.Errorf("worker registry db is required")
 	}
-	if err := db.AutoMigrate(&workerRegistryRecord{}, &workerRegistrySettingsRecord{}); err != nil {
+	if err := db.AutoMigrate(&workerRegistryRecord{}, &workerRegistrySettingsRecord{}, &workerRegistrationSubmissionRecord{}); err != nil {
 		return nil, fmt.Errorf("worker registry migrate: %w", err)
 	}
 	return &WorkerRegistry{db: db}, nil
@@ -102,6 +120,39 @@ func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, c
 	})
 	if transactionErr != nil {
 		return nil, transactionErr
+	}
+	return registry.toDomain(record)
+}
+
+func (registry *WorkerRegistry) TouchHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
+	if registry == nil || registry.db == nil {
+		return nil, fmt.Errorf("worker registry is not initialized")
+	}
+	trimmedWorkerID := strings.TrimSpace(workerID)
+	if trimmedWorkerID == "" {
+		return nil, fmt.Errorf("worker_id is required")
+	}
+	record := workerRegistryRecord{}
+	err := registry.db.WithContext(ctx).Where("worker_id = ?", trimmedWorkerID).Take(&record).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("worker %q is not registered", trimmedWorkerID)
+		}
+		return nil, fmt.Errorf("load worker registration: %w", err)
+	}
+	if epoch > 0 && record.Epoch != epoch {
+		return nil, fmt.Errorf("%w: expected=%d actual=%d", applicationworker.ErrEpochMismatch, epoch, record.Epoch)
+	}
+	record.LastHeartbeatUnix = heartbeatAt.UTC().Unix()
+	record.LeaseExpiresUnix = leaseExpiresAt.UTC().Unix()
+	record.State = string(domainrealtime.StateHealthy)
+	if err := registry.db.WithContext(ctx).Model(&workerRegistryRecord{}).Where("worker_id = ?", trimmedWorkerID).Updates(map[string]any{
+		"state":               record.State,
+		"last_heartbeat_unix": record.LastHeartbeatUnix,
+		"lease_expires_unix":  record.LeaseExpiresUnix,
+		"updated_at":          heartbeatAt.UTC(),
+	}).Error; err != nil {
+		return nil, fmt.Errorf("update worker heartbeat: %w", err)
 	}
 	return registry.toDomain(record)
 }
@@ -207,6 +258,119 @@ func (registry *WorkerRegistry) UpsertSettings(ctx context.Context, settings dom
 	return settings, nil
 }
 
+func (registry *WorkerRegistry) CreateRegistrationSubmission(ctx context.Context, submission domainrealtime.RegistrationSubmission) (domainrealtime.RegistrationSubmission, error) {
+	if registry == nil || registry.db == nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("worker registry is not initialized")
+	}
+	if err := submission.Validate(); err != nil {
+		return domainrealtime.RegistrationSubmission{}, err
+	}
+	capabilitiesJSON, err := json.Marshal(submission.Capabilities)
+	if err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("encode submission capabilities: %w", err)
+	}
+	reasonsJSON, err := json.Marshal(submission.RejectReasons)
+	if err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("encode submission reasons: %w", err)
+	}
+	record := workerRegistrationSubmissionRecord{
+		SubmissionID:     submission.SubmissionID,
+		WorkerID:         submission.WorkerID,
+		RequestedAtUnix:  submission.RequestedAt.UTC().Unix(),
+		ExpiresAtUnix:    submission.ExpiresAt.UTC().Unix(),
+		Status:           string(submission.Status),
+		CapabilitiesJSON: capabilitiesJSON,
+		ReasonsJSON:      reasonsJSON,
+		ResolvedAtUnix:   0,
+	}
+	if err := registry.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "submission_id"}}, DoNothing: true}).Create(&record).Error; err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("create registration submission: %w", err)
+	}
+	return submission, nil
+}
+
+func (registry *WorkerRegistry) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {
+	if registry == nil || registry.db == nil {
+		return nil, fmt.Errorf("worker registry is not initialized")
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+	records := make([]workerRegistrationSubmissionRecord, 0)
+	if err := registry.db.WithContext(ctx).Where("status = ?", string(domainrealtime.RegistrationStatusPending)).Order("requested_at_unix ASC").Limit(limit).Find(&records).Error; err != nil {
+		return nil, fmt.Errorf("list pending registration submissions: %w", err)
+	}
+	result := make([]domainrealtime.RegistrationSubmission, 0, len(records))
+	for _, record := range records {
+		submission, err := submissionToDomain(record)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, submission)
+	}
+	return result, nil
+}
+
+func (registry *WorkerRegistry) ResolveRegistrationSubmission(ctx context.Context, submissionID string, status domainrealtime.RegistrationStatus, reasons []string, resolvedAt time.Time) (domainrealtime.RegistrationSubmission, error) {
+	if registry == nil || registry.db == nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("worker registry is not initialized")
+	}
+	if status != domainrealtime.RegistrationStatusAccepted && status != domainrealtime.RegistrationStatusRejected {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("resolved status must be accepted or rejected")
+	}
+	trimmedSubmissionID := strings.TrimSpace(submissionID)
+	if trimmedSubmissionID == "" {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("submission_id is required")
+	}
+	reasonsJSON, err := json.Marshal(reasons)
+	if err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("encode resolve reasons: %w", err)
+	}
+	if err := registry.db.WithContext(ctx).Model(&workerRegistrationSubmissionRecord{}).Where("submission_id = ? AND status = ?", trimmedSubmissionID, string(domainrealtime.RegistrationStatusPending)).Updates(map[string]any{
+		"status":           string(status),
+		"reasons_json":     reasonsJSON,
+		"resolved_at_unix": resolvedAt.UTC().Unix(),
+		"updated_at":       resolvedAt.UTC(),
+	}).Error; err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("resolve registration submission: %w", err)
+	}
+	record := workerRegistrationSubmissionRecord{}
+	if err := registry.db.WithContext(ctx).Where("submission_id = ?", trimmedSubmissionID).Take(&record).Error; err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load resolved registration submission: %w", err)
+	}
+	return submissionToDomain(record)
+}
+
+func (registry *WorkerRegistry) RevokeRegistrationSubmission(ctx context.Context, submissionID string, reason string, revokedAt time.Time) (domainrealtime.RegistrationSubmission, error) {
+	if registry == nil || registry.db == nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("worker registry is not initialized")
+	}
+	trimmedSubmissionID := strings.TrimSpace(submissionID)
+	if trimmedSubmissionID == "" {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("submission_id is required")
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "revoked"
+	}
+	reasonsJSON, err := json.Marshal([]string{reason})
+	if err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("encode revoke reason: %w", err)
+	}
+	if err := registry.db.WithContext(ctx).Model(&workerRegistrationSubmissionRecord{}).Where("submission_id = ? AND status = ?", trimmedSubmissionID, string(domainrealtime.RegistrationStatusPending)).Updates(map[string]any{
+		"status":           string(domainrealtime.RegistrationStatusRevoked),
+		"reasons_json":     reasonsJSON,
+		"resolved_at_unix": revokedAt.UTC().Unix(),
+		"updated_at":       revokedAt.UTC(),
+	}).Error; err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("revoke registration submission: %w", err)
+	}
+	record := workerRegistrationSubmissionRecord{}
+	if err := registry.db.WithContext(ctx).Where("submission_id = ?", trimmedSubmissionID).Take(&record).Error; err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load revoked registration submission: %w", err)
+	}
+	return submissionToDomain(record)
+}
+
 func encodeCapabilities(capabilities []taskengine.JobKind) ([]byte, error) {
 	normalized := make([]string, 0, len(capabilities))
 	seen := map[string]struct{}{}
@@ -257,6 +421,35 @@ func (registry *WorkerRegistry) toDomain(record workerRegistryRecord) (*domainre
 		return nil, err
 	}
 	return worker, nil
+}
+
+func submissionToDomain(record workerRegistrationSubmissionRecord) (domainrealtime.RegistrationSubmission, error) {
+	capabilities := make([]domainrealtime.Capability, 0)
+	if err := json.Unmarshal(record.CapabilitiesJSON, &capabilities); err != nil {
+		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("decode submission capabilities: %w", err)
+	}
+	reasons := make([]string, 0)
+	if len(record.ReasonsJSON) > 0 {
+		if err := json.Unmarshal(record.ReasonsJSON, &reasons); err != nil {
+			return domainrealtime.RegistrationSubmission{}, fmt.Errorf("decode submission reasons: %w", err)
+		}
+	}
+	submission := domainrealtime.RegistrationSubmission{
+		SubmissionID:  strings.TrimSpace(record.SubmissionID),
+		WorkerID:      strings.TrimSpace(record.WorkerID),
+		RequestedAt:   time.Unix(record.RequestedAtUnix, 0).UTC(),
+		ExpiresAt:     time.Unix(record.ExpiresAtUnix, 0).UTC(),
+		Status:        domainrealtime.RegistrationStatus(strings.TrimSpace(record.Status)),
+		Capabilities:  capabilities,
+		RejectReasons: reasons,
+	}
+	if record.ResolvedAtUnix > 0 {
+		submission.ResolvedAt = time.Unix(record.ResolvedAtUnix, 0).UTC()
+	}
+	if err := submission.Validate(); err != nil {
+		return domainrealtime.RegistrationSubmission{}, err
+	}
+	return submission, nil
 }
 
 var _ applicationworker.Repository = (*WorkerRegistry)(nil)

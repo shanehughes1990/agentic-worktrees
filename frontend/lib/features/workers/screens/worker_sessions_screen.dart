@@ -99,7 +99,7 @@ class _WorkerSessionsScreenState extends State<WorkerSessionsScreen> {
                         '${session.workerID} (epoch ${session.epoch})',
                       ),
                       subtitle: Text(
-                        'state=${session.state}, desired=${session.desiredState}, lastHeartbeat=${session.lastHeartbeat.toIso8601String()}, rogue=${session.rogueReason ?? '-'}',
+                        'state=${session.state}, lastHeartbeat=${session.lastHeartbeat.toIso8601String()}, leaseExpiresAt=${session.leaseExpiresAt.toIso8601String()}',
                       ),
                     );
                   },

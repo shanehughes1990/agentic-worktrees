@@ -13,8 +13,11 @@ import (
 )
 
 const (
-	heartbeatRequestChannel  = "worker_heartbeat_request"
-	heartbeatResponseChannel = "worker_heartbeat_response"
+	heartbeatRequestChannel       = "worker_heartbeat_request"
+	heartbeatResponseChannel      = "worker_heartbeat_response"
+	registrationSubmissionChannel = "worker_registration_submission"
+	registrationDecisionChannel   = "worker_registration_decision"
+	invalidationIntentChannel     = "worker_invalidation_intent"
 )
 
 type PGNotifyTransport struct {
@@ -92,6 +95,96 @@ func (transport *PGNotifyTransport) ListenResponses(ctx context.Context, handler
 	})
 }
 
+func (transport *PGNotifyTransport) PublishRegistrationSubmission(ctx context.Context, event domainrealtime.RegistrationSubmissionEvent) error {
+	if transport == nil || transport.db == nil {
+		return fmt.Errorf("pg notify transport is not initialized")
+	}
+	if err := event.Validate(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("marshal registration submission: %w", err)
+	}
+	if err := transport.db.WithContext(ctx).Exec("SELECT pg_notify(?, ?)", registrationSubmissionChannel, string(payload)).Error; err != nil {
+		return fmt.Errorf("publish registration submission: %w", err)
+	}
+	return nil
+}
+
+func (transport *PGNotifyTransport) PublishRegistrationDecision(ctx context.Context, event domainrealtime.RegistrationDecisionEvent) error {
+	if transport == nil || transport.db == nil {
+		return fmt.Errorf("pg notify transport is not initialized")
+	}
+	if err := event.Validate(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("marshal registration decision: %w", err)
+	}
+	if err := transport.db.WithContext(ctx).Exec("SELECT pg_notify(?, ?)", registrationDecisionChannel, string(payload)).Error; err != nil {
+		return fmt.Errorf("publish registration decision: %w", err)
+	}
+	return nil
+}
+
+func (transport *PGNotifyTransport) ListenRegistrationSubmissions(ctx context.Context, handler func(domainrealtime.RegistrationSubmissionEvent) error) error {
+	return transport.listen(ctx, registrationSubmissionChannel, func(payload []byte) error {
+		event := domainrealtime.RegistrationSubmissionEvent{}
+		if err := json.Unmarshal(payload, &event); err != nil {
+			return fmt.Errorf("decode registration submission: %w", err)
+		}
+		if err := event.Validate(); err != nil {
+			return err
+		}
+		return handler(event)
+	})
+}
+
+func (transport *PGNotifyTransport) ListenRegistrationDecisions(ctx context.Context, handler func(domainrealtime.RegistrationDecisionEvent) error) error {
+	return transport.listen(ctx, registrationDecisionChannel, func(payload []byte) error {
+		event := domainrealtime.RegistrationDecisionEvent{}
+		if err := json.Unmarshal(payload, &event); err != nil {
+			return fmt.Errorf("decode registration decision: %w", err)
+		}
+		if err := event.Validate(); err != nil {
+			return err
+		}
+		return handler(event)
+	})
+}
+
+func (transport *PGNotifyTransport) PublishInvalidationIntent(ctx context.Context, intent domainrealtime.InvalidationIntent) error {
+	if transport == nil || transport.db == nil {
+		return fmt.Errorf("pg notify transport is not initialized")
+	}
+	if err := intent.Validate(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(intent)
+	if err != nil {
+		return fmt.Errorf("marshal invalidation intent: %w", err)
+	}
+	if err := transport.db.WithContext(ctx).Exec("SELECT pg_notify(?, ?)", invalidationIntentChannel, string(payload)).Error; err != nil {
+		return fmt.Errorf("publish invalidation intent: %w", err)
+	}
+	return nil
+}
+
+func (transport *PGNotifyTransport) ListenInvalidationIntents(ctx context.Context, handler func(domainrealtime.InvalidationIntent) error) error {
+	return transport.listen(ctx, invalidationIntentChannel, func(payload []byte) error {
+		intent := domainrealtime.InvalidationIntent{}
+		if err := json.Unmarshal(payload, &intent); err != nil {
+			return fmt.Errorf("decode invalidation intent: %w", err)
+		}
+		if err := intent.Validate(); err != nil {
+			return err
+		}
+		return handler(intent)
+	})
+}
+
 func (transport *PGNotifyTransport) listen(ctx context.Context, channel string, decode func([]byte) error) error {
 	if transport == nil || strings.TrimSpace(transport.dsn) == "" {
 		return fmt.Errorf("pg notify transport dsn is not configured")
@@ -118,4 +211,4 @@ func (transport *PGNotifyTransport) listen(ctx context.Context, channel string, 
 	}
 }
 
-var _ domainrealtime.HeartbeatTransport = (*PGNotifyTransport)(nil)
+var _ domainrealtime.WorkerLifecycleTransport = (*PGNotifyTransport)(nil)

@@ -10,10 +10,12 @@ import (
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
+	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
@@ -33,19 +35,20 @@ import (
 )
 
 type WorkerApp struct {
-	config                 Config
-	httpServer             *http.Server
-	observabilityPlatform  *observability.Platform
-	healthPlatform         *healthcheck.Platform
-	taskScheduler          *taskengine.Scheduler
-	taskEnginePlatform     taskengine.Consumer
-	databaseClient         *postgresdb.Client
-	checkpointStore        taskengine.CheckpointStore
-	executionJournal       taskengine.ExecutionJournal
-	projectSetupRepository applicationcontrolplane.ProjectSetupRepository
+	config                    Config
+	httpServer                *http.Server
+	observabilityPlatform     *observability.Platform
+	healthPlatform            *healthcheck.Platform
+	taskScheduler             *taskengine.Scheduler
+	taskEnginePlatform        taskengine.Consumer
+	databaseClient            *postgresdb.Client
+	checkpointStore           taskengine.CheckpointStore
+	executionJournal          taskengine.ExecutionJournal
+	projectSetupRepository    applicationcontrolplane.ProjectSetupRepository
 	projectDocumentRepository applicationcontrolplane.ProjectDocumentRepository
-	supervisorService      *applicationsupervisor.Service
-	workerService          *applicationworker.Service
+	supervisorService         *applicationsupervisor.Service
+	workerService             *applicationworker.Service
+	realtimeTransport         domainrealtime.WorkerLifecycleTransport
 }
 
 type workerJobRegistration struct {
@@ -118,6 +121,10 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init worker service: %w", err)
 	}
+	realtimeTransport, err := infrastructure_realtime.NewPGNotifyTransport(databaseClient.DB(), config.App.DatabaseDSN)
+	if err != nil {
+		return nil, fmt.Errorf("init realtime transport: %w", err)
+	}
 	scmTokenCrypto, err := infrataskenginepostgres.NewSCMTokenCrypto(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init scm token crypto: %w", err)
@@ -138,19 +145,20 @@ func New() (*WorkerApp, error) {
 	healthPlatform.Mount(mux)
 
 	return &WorkerApp{
-		config:                 config,
-		httpServer:             &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
-		observabilityPlatform:  observabilityPlatform,
-		healthPlatform:         healthPlatform,
-		taskScheduler:          taskScheduler,
-		taskEnginePlatform:     taskEnginePlatform,
-		databaseClient:         databaseClient,
-		checkpointStore:        checkpointStore,
-		executionJournal:       executionJournal,
-		projectSetupRepository: projectSetupRepository,
+		config:                    config,
+		httpServer:                &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
+		observabilityPlatform:     observabilityPlatform,
+		healthPlatform:            healthPlatform,
+		taskScheduler:             taskScheduler,
+		taskEnginePlatform:        taskEnginePlatform,
+		databaseClient:            databaseClient,
+		checkpointStore:           checkpointStore,
+		executionJournal:          executionJournal,
+		projectSetupRepository:    projectSetupRepository,
 		projectDocumentRepository: projectDocumentRepository,
-		supervisorService:      supervisorService,
-		workerService:          workerService,
+		supervisorService:         supervisorService,
+		workerService:             workerService,
+		realtimeTransport:         realtimeTransport,
 	}, nil
 }
 
@@ -314,10 +322,88 @@ func (app *WorkerApp) Run() error {
 		return err
 	}
 	capabilities := workerCapabilities(registrations)
+	registrationSubmissionID := fmt.Sprintf("%s-%d", workerID, time.Now().UTC().UnixNano())
+	registrationCapabilities := []domainrealtime.Capability{{
+		Contract:     domainrealtime.ContractWorkerRegistry,
+		Version:      "v1",
+		SubContracts: []domainrealtime.SubContract{domainrealtime.SubContractHeartbeatRequest, domainrealtime.SubContractHeartbeatResponse},
+	}}
+	registrationSubmission := domainrealtime.RegistrationSubmission{
+		SubmissionID: registrationSubmissionID,
+		WorkerID:     workerID,
+		RequestedAt:  time.Now().UTC(),
+		ExpiresAt:    time.Now().UTC().Add(20 * time.Second),
+		Status:       domainrealtime.RegistrationStatusPending,
+		Capabilities: registrationCapabilities,
+	}
+	if _, err := app.workerService.CreateRegistrationSubmission(context.Background(), registrationSubmission); err != nil {
+		return fmt.Errorf("create registration submission: %w", err)
+	}
+	if app.realtimeTransport == nil {
+		return fmt.Errorf("realtime transport is not initialized")
+	}
+	if err := app.realtimeTransport.PublishRegistrationSubmission(context.Background(), domainrealtime.RegistrationSubmissionEvent{
+		SubmissionID: registrationSubmission.SubmissionID,
+		WorkerID:     registrationSubmission.WorkerID,
+		RequestedAt:  registrationSubmission.RequestedAt,
+		ExpiresAt:    registrationSubmission.ExpiresAt,
+		Capabilities: registrationSubmission.Capabilities,
+	}); err != nil {
+		return fmt.Errorf("publish registration submission: %w", err)
+	}
+	decision, err := waitForRegistrationDecision(signalCtx, app.realtimeTransport, registrationSubmission.SubmissionID, workerID, 20*time.Second)
+	if err != nil {
+		if _, revokeErr := app.workerService.RevokeRegistrationSubmission(context.Background(), registrationSubmission.SubmissionID, "registration decision timeout"); revokeErr != nil {
+			return fmt.Errorf("wait registration decision: %w (revoke failed: %v)", err, revokeErr)
+		}
+		return fmt.Errorf("wait registration decision: %w", err)
+	}
+	if decision.Decision != domainrealtime.RegistrationDecisionAccept {
+		_, _ = app.workerService.ResolveRegistrationSubmission(context.Background(), registrationSubmission.SubmissionID, false, decision.Reasons)
+		return fmt.Errorf("registration rejected: %s", strings.Join(decision.Reasons, "; "))
+	}
+	if _, err := app.workerService.ResolveRegistrationSubmission(context.Background(), registrationSubmission.SubmissionID, true, nil); err != nil {
+		return fmt.Errorf("resolve registration submission accepted: %w", err)
+	}
 	registeredWorker, err := app.workerService.Register(context.Background(), workerID, capabilities, settings.HeartbeatInterval)
 	if err != nil {
 		return fmt.Errorf("register worker lifecycle: %w", err)
 	}
+
+	invalidationErrCh := make(chan error, 1)
+	go func() {
+		listenerErr := app.realtimeTransport.ListenRequests(signalCtx, func(request domainrealtime.HeartbeatRequest) error {
+			if strings.TrimSpace(request.WorkerID) != workerID {
+				return nil
+			}
+			if request.Epoch != registeredWorker.Epoch {
+				return nil
+			}
+			return app.realtimeTransport.PublishResponse(context.Background(), domainrealtime.HeartbeatResponse{
+				RequestID:   request.RequestID,
+				WorkerID:    workerID,
+				Epoch:       request.Epoch,
+				ReceivedAt:  time.Now().UTC(),
+				RespondedAt: time.Now().UTC(),
+				Healthy:     true,
+			})
+		})
+		if listenerErr != nil && signalCtx.Err() == nil {
+			invalidationErrCh <- fmt.Errorf("listen heartbeat requests: %w", listenerErr)
+		}
+	}()
+	go func() {
+		listenerErr := app.realtimeTransport.ListenInvalidationIntents(signalCtx, func(intent domainrealtime.InvalidationIntent) error {
+			if strings.TrimSpace(intent.WorkerID) != workerID || intent.Epoch != registeredWorker.Epoch {
+				return nil
+			}
+			invalidationErrCh <- fmt.Errorf("worker invalidated by api: %s", intent.Reason)
+			return nil
+		})
+		if listenerErr != nil && signalCtx.Err() == nil {
+			invalidationErrCh <- fmt.Errorf("listen invalidation intents: %w", listenerErr)
+		}
+	}()
 	if err := app.taskEnginePlatform.Start(); err != nil {
 		if entry != nil {
 			entry.WithError(err).WithField("runtime", "worker").Error("failed to start task engine worker")
@@ -338,19 +424,22 @@ func (app *WorkerApp) Run() error {
 		serverErrCh <- nil
 	}()
 
-	shutdownReason := "shutdown signal"
 	var runErr error
 
 	select {
 	case err := <-serverErrCh:
 		if err != nil {
-			shutdownReason = "health server error"
 			runErr = fmt.Errorf("worker health server error: %w", err)
 			if entry != nil {
 				entry.WithError(err).WithField("runtime", "worker").Error("worker health server error")
 			}
 		} else {
 			return nil
+		}
+	case err := <-invalidationErrCh:
+		runErr = err
+		if entry != nil {
+			entry.WithError(err).WithField("runtime", "worker").Error("worker invalidation triggered shutdown")
 		}
 	case <-signalCtx.Done():
 		if entry != nil {
@@ -402,6 +491,44 @@ func (app *WorkerApp) Run() error {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown observability platform: %w", err))
 	}
 	return errors.Join(runErr, shutdownErr)
+}
+
+func waitForRegistrationDecision(ctx context.Context, transport domainrealtime.WorkerLifecycleTransport, submissionID string, workerID string, timeout time.Duration) (domainrealtime.RegistrationDecisionEvent, error) {
+	if transport == nil {
+		return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("realtime transport is required")
+	}
+	if timeout <= 0 {
+		timeout = 20 * time.Second
+	}
+	decisionCh := make(chan domainrealtime.RegistrationDecisionEvent, 1)
+	errCh := make(chan error, 1)
+	listenCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		listenErr := transport.ListenRegistrationDecisions(listenCtx, func(event domainrealtime.RegistrationDecisionEvent) error {
+			if event.SubmissionID != submissionID || strings.TrimSpace(event.WorkerID) != strings.TrimSpace(workerID) {
+				return nil
+			}
+			decisionCh <- event
+			cancel()
+			return nil
+		})
+		if listenErr != nil && listenCtx.Err() == nil {
+			errCh <- listenErr
+		}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case decision := <-decisionCh:
+		return decision, nil
+	case err := <-errCh:
+		return domainrealtime.RegistrationDecisionEvent{}, err
+	case <-timer.C:
+		return domainrealtime.RegistrationDecisionEvent{}, fmt.Errorf("registration decision timeout")
+	case <-ctx.Done():
+		return domainrealtime.RegistrationDecisionEvent{}, ctx.Err()
+	}
 }
 
 func ensureRuntimeFilesystem(config Config) error {

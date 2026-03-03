@@ -496,10 +496,8 @@ class ControlPlaneApi {
                   workerID
                   epoch
                   state
-                  desiredState
                   lastHeartbeat
                   leaseExpiresAt
-                  rogueReason
                   updatedAt
                 }
               }
@@ -542,14 +540,12 @@ class ControlPlaneApi {
                 workerID: item['workerID'] as String,
                 epoch: item['epoch'] as int,
                 state: item['state'] as String,
-                desiredState: item['desiredState'] as String,
                 lastHeartbeat: DateTime.parse(
                   item['lastHeartbeat'] as String,
                 ).toLocal(),
                 leaseExpiresAt: DateTime.parse(
                   item['leaseExpiresAt'] as String,
                 ).toLocal(),
-                rogueReason: item['rogueReason'] as String?,
                 updatedAt: DateTime.parse(
                   item['updatedAt'] as String,
                 ).toLocal(),
@@ -570,10 +566,6 @@ class ControlPlaneApi {
                 settings {
                   heartbeatIntervalSeconds
                   responseDeadlineSeconds
-                  staleAfterSeconds
-                  drainTimeoutSeconds
-                  terminateTimeoutSeconds
-                  rogueThreshold
                   updatedAt
                 }
               }
@@ -617,10 +609,6 @@ class ControlPlaneApi {
       WorkerSettings(
         heartbeatIntervalSeconds: settings['heartbeatIntervalSeconds'] as int,
         responseDeadlineSeconds: settings['responseDeadlineSeconds'] as int,
-        staleAfterSeconds: settings['staleAfterSeconds'] as int,
-        drainTimeoutSeconds: settings['drainTimeoutSeconds'] as int,
-        terminateTimeoutSeconds: settings['terminateTimeoutSeconds'] as int,
-        rogueThreshold: settings['rogueThreshold'] as int,
         updatedAt: DateTime.parse(settings['updatedAt'] as String).toLocal(),
       ),
     );
@@ -629,10 +617,6 @@ class ControlPlaneApi {
   Future<ApiResult<WorkerSettings>> updateWorkerSettings({
     required int heartbeatIntervalSeconds,
     required int responseDeadlineSeconds,
-    required int staleAfterSeconds,
-    required int drainTimeoutSeconds,
-    required int terminateTimeoutSeconds,
-    required int rogueThreshold,
   }) async {
     final result = await _client.mutate(
       MutationOptions(
@@ -646,10 +630,6 @@ class ControlPlaneApi {
                 settings {
                   heartbeatIntervalSeconds
                   responseDeadlineSeconds
-                  staleAfterSeconds
-                  drainTimeoutSeconds
-                  terminateTimeoutSeconds
-                  rogueThreshold
                   updatedAt
                 }
               }
@@ -665,10 +645,6 @@ class ControlPlaneApi {
           'input': <String, dynamic>{
             'heartbeatIntervalSeconds': heartbeatIntervalSeconds,
             'responseDeadlineSeconds': responseDeadlineSeconds,
-            'staleAfterSeconds': staleAfterSeconds,
-            'drainTimeoutSeconds': drainTimeoutSeconds,
-            'terminateTimeoutSeconds': terminateTimeoutSeconds,
-            'rogueThreshold': rogueThreshold,
           },
         },
       ),
@@ -703,10 +679,6 @@ class ControlPlaneApi {
       WorkerSettings(
         heartbeatIntervalSeconds: settings['heartbeatIntervalSeconds'] as int,
         responseDeadlineSeconds: settings['responseDeadlineSeconds'] as int,
-        staleAfterSeconds: settings['staleAfterSeconds'] as int,
-        drainTimeoutSeconds: settings['drainTimeoutSeconds'] as int,
-        terminateTimeoutSeconds: settings['terminateTimeoutSeconds'] as int,
-        rogueThreshold: settings['rogueThreshold'] as int,
         updatedAt: DateTime.parse(settings['updatedAt'] as String).toLocal(),
       ),
     );
@@ -723,7 +695,7 @@ class ControlPlaneApi {
                 \$jobID: String!
                 \$fromOffset: Int!
               ) {
-                workerSessionStream(
+                sessionActivityStream(
                   correlation: {runID: \$runID, taskID: \$taskID, jobID: \$jobID}
                   fromOffset: \$fromOffset
                 ) {
@@ -756,16 +728,16 @@ class ControlPlaneApi {
         .map((QueryResult result) {
           final error = _extractOperationError(
             result,
-            field: 'workerSessionStream',
+            field: 'sessionActivityStream',
           );
           if (error != null) {
             return ApiResult<StreamEvent>.failure(error);
           }
           final payload =
-              result.data?['workerSessionStream'] as Map<String, dynamic>?;
+              result.data?['sessionActivityStream'] as Map<String, dynamic>?;
           if (payload == null) {
             return const ApiResult<StreamEvent>.failure(
-              'workerSessionStream returned no data',
+              'sessionActivityStream returned no data',
             );
           }
           if (payload['__typename'] == 'GraphError') {

@@ -20,11 +20,6 @@ class WorkerSettingsScreen extends StatefulWidget {
 class _WorkerSettingsScreenState extends State<WorkerSettingsScreen> {
   final TextEditingController _heartbeatController = TextEditingController();
   final TextEditingController _deadlineController = TextEditingController();
-  final TextEditingController _staleController = TextEditingController();
-  final TextEditingController _drainController = TextEditingController();
-  final TextEditingController _terminateController = TextEditingController();
-  final TextEditingController _rogueThresholdController =
-      TextEditingController();
   bool _saving = false;
 
   @override
@@ -37,10 +32,6 @@ class _WorkerSettingsScreenState extends State<WorkerSettingsScreen> {
   void dispose() {
     _heartbeatController.dispose();
     _deadlineController.dispose();
-    _staleController.dispose();
-    _drainController.dispose();
-    _terminateController.dispose();
-    _rogueThresholdController.dispose();
     super.dispose();
   }
 
@@ -55,26 +46,13 @@ class _WorkerSettingsScreenState extends State<WorkerSettingsScreen> {
     final settings = result.data!;
     _heartbeatController.text = settings.heartbeatIntervalSeconds.toString();
     _deadlineController.text = settings.responseDeadlineSeconds.toString();
-    _staleController.text = settings.staleAfterSeconds.toString();
-    _drainController.text = settings.drainTimeoutSeconds.toString();
-    _terminateController.text = settings.terminateTimeoutSeconds.toString();
-    _rogueThresholdController.text = settings.rogueThreshold.toString();
     widget.onStatus('Loaded worker settings.');
   }
 
   Future<void> _save() async {
     final heartbeat = int.tryParse(_heartbeatController.text.trim());
     final deadline = int.tryParse(_deadlineController.text.trim());
-    final stale = int.tryParse(_staleController.text.trim());
-    final drain = int.tryParse(_drainController.text.trim());
-    final terminate = int.tryParse(_terminateController.text.trim());
-    final rogue = int.tryParse(_rogueThresholdController.text.trim());
-    if (heartbeat == null ||
-        deadline == null ||
-        stale == null ||
-        drain == null ||
-        terminate == null ||
-        rogue == null) {
+    if (heartbeat == null || deadline == null) {
       widget.onStatus('All settings fields must be valid integers.');
       return;
     }
@@ -82,10 +60,6 @@ class _WorkerSettingsScreenState extends State<WorkerSettingsScreen> {
     final result = await widget.api.updateWorkerSettings(
       heartbeatIntervalSeconds: heartbeat,
       responseDeadlineSeconds: deadline,
-      staleAfterSeconds: stale,
-      drainTimeoutSeconds: drain,
-      terminateTimeoutSeconds: terminate,
-      rogueThreshold: rogue,
     );
     if (!mounted) {
       return;
@@ -115,22 +89,6 @@ class _WorkerSettingsScreenState extends State<WorkerSettingsScreen> {
         _numberField(
           label: 'Response Deadline (seconds)',
           controller: _deadlineController,
-        ),
-        _numberField(
-          label: 'Stale After (seconds)',
-          controller: _staleController,
-        ),
-        _numberField(
-          label: 'Drain Timeout (seconds)',
-          controller: _drainController,
-        ),
-        _numberField(
-          label: 'Terminate Timeout (seconds)',
-          controller: _terminateController,
-        ),
-        _numberField(
-          label: 'Rogue Threshold',
-          controller: _rogueThresholdController,
         ),
         const SizedBox(height: 16),
         Row(

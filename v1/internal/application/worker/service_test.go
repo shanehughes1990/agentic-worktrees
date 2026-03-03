@@ -11,12 +11,13 @@ import (
 )
 
 type fakeRepository struct {
-	worker           *domainrealtime.Worker
-	settings         domainrealtime.Settings
-	updated          *domainrealtime.Worker
-	getSettingsErr   error
-	removedWorkerID  string
-	removedEpoch     int64
+	worker          *domainrealtime.Worker
+	settings        domainrealtime.Settings
+	updated         *domainrealtime.Worker
+	getSettingsErr  error
+	removedWorkerID string
+	removedEpoch    int64
+	submission      domainrealtime.RegistrationSubmission
 }
 
 func (repository *fakeRepository) Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
@@ -26,6 +27,11 @@ func (repository *fakeRepository) Register(ctx context.Context, workerID string,
 
 func (repository *fakeRepository) UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, changedAt time.Time) (*domainrealtime.Worker, error) {
 	repository.updated = &domainrealtime.Worker{WorkerID: workerID, Epoch: epoch, State: state, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: changedAt.Add(-time.Second), LeaseExpiresAt: changedAt.Add(time.Second), UpdatedAt: changedAt}
+	return repository.updated, nil
+}
+
+func (repository *fakeRepository) TouchHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error) {
+	repository.updated = &domainrealtime.Worker{WorkerID: workerID, Epoch: epoch, State: domainrealtime.StateHealthy, Capabilities: []taskengine.JobKind{taskengine.JobKindAgentWorkflow}, LastHeartbeat: heartbeatAt, LeaseExpiresAt: leaseExpiresAt, UpdatedAt: heartbeatAt}
 	return repository.updated, nil
 }
 
@@ -57,6 +63,32 @@ func (repository *fakeRepository) UpsertSettings(ctx context.Context, settings d
 	return settings, nil
 }
 
+func (repository *fakeRepository) CreateRegistrationSubmission(ctx context.Context, submission domainrealtime.RegistrationSubmission) (domainrealtime.RegistrationSubmission, error) {
+	repository.submission = submission
+	return submission, nil
+}
+
+func (repository *fakeRepository) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {
+	if repository.submission.SubmissionID == "" {
+		return []domainrealtime.RegistrationSubmission{}, nil
+	}
+	return []domainrealtime.RegistrationSubmission{repository.submission}, nil
+}
+
+func (repository *fakeRepository) ResolveRegistrationSubmission(ctx context.Context, submissionID string, status domainrealtime.RegistrationStatus, reasons []string, resolvedAt time.Time) (domainrealtime.RegistrationSubmission, error) {
+	repository.submission.Status = status
+	repository.submission.RejectReasons = reasons
+	repository.submission.ResolvedAt = resolvedAt
+	return repository.submission, nil
+}
+
+func (repository *fakeRepository) RevokeRegistrationSubmission(ctx context.Context, submissionID string, reason string, revokedAt time.Time) (domainrealtime.RegistrationSubmission, error) {
+	repository.submission.Status = domainrealtime.RegistrationStatusRevoked
+	repository.submission.RejectReasons = []string{reason}
+	repository.submission.ResolvedAt = revokedAt
+	return repository.submission, nil
+}
+
 func TestEnsureBaseSettingsCreatesWhenMissing(t *testing.T) {
 	repository := &fakeRepository{getSettingsErr: ErrSettingsNotFound}
 	service, err := NewService(repository)
@@ -86,4 +118,3 @@ func TestEnsureBaseSettingsReturnsErrorForNonNotFound(t *testing.T) {
 		t.Fatalf("expected ensure base settings error")
 	}
 }
-

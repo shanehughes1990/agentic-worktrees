@@ -46,10 +46,26 @@ services:
       redis:
         condition: service_healthy
     environment:
-      APP_ENV: local
       APP_PORT: 8080
       DATABASE_DSN: postgres://postgres:postgres@postgres:5432/agentic_orchestrator?sslmode=disable
       REDIS_URL: redis://redis:6379/0
+      SHUTDOWN_TIMEOUT: 15s
+      HEALTH_LIVE_PATH: /live
+      HEALTH_READY_PATH: /ready
+      OTEL_DEPLOYMENT_ENVIRONMENT: local
+      OTEL_SERVICE_NAME: agentic-api
+      REMOTE_STORAGE_TYPE: gcs
+      REMOTE_STORAGE_BUCKET_PREFIX: projects
+      GOOGLE_CLOUD_STORAGE_BUCKET: ${GOOGLE_CLOUD_STORAGE_BUCKET}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-application-credentials.json
+      GOOGLE_CDN_BASE_URL: ${GOOGLE_CDN_BASE_URL}
+      GOOGLE_CDN_KEY_NAME: ${GOOGLE_CDN_KEY_NAME}
+      GOOGLE_CDN_KEY_VALUE: ${GOOGLE_CDN_KEY_VALUE}
+    volumes:
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS}
+        target: /run/secrets/google-application-credentials.json
+        read_only: true
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -67,10 +83,26 @@ services:
       redis:
         condition: service_healthy
     environment:
-      APP_ENV: local
       APP_PORT: 8081
       DATABASE_DSN: postgres://postgres:postgres@postgres:5432/agentic_orchestrator?sslmode=disable
       REDIS_URL: redis://redis:6379/0
+      SHUTDOWN_TIMEOUT: 15s
+      HEALTH_LIVE_PATH: /live
+      HEALTH_READY_PATH: /ready
+      OTEL_DEPLOYMENT_ENVIRONMENT: local
+      OTEL_SERVICE_NAME: agentic-worker
+      REMOTE_STORAGE_TYPE: gcs
+      REMOTE_STORAGE_BUCKET_PREFIX: projects
+      GOOGLE_CLOUD_STORAGE_BUCKET: ${GOOGLE_CLOUD_STORAGE_BUCKET}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-application-credentials.json
+      GOOGLE_CDN_BASE_URL: ${GOOGLE_CDN_BASE_URL}
+      GOOGLE_CDN_KEY_NAME: ${GOOGLE_CDN_KEY_NAME}
+      GOOGLE_CDN_KEY_VALUE: ${GOOGLE_CDN_KEY_VALUE}
+    volumes:
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS}
+        target: /run/secrets/google-application-credentials.json
+        read_only: true
     expose:
       - "8081"
     restart: unless-stopped

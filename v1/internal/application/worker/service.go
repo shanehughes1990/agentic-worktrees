@@ -12,18 +12,23 @@ import (
 )
 
 var (
-	ErrRepositoryRequired  = errors.New("worker repository is required")
-	ErrEpochMismatch       = errors.New("worker epoch mismatch")
-	ErrSettingsNotFound    = errors.New("worker settings not found")
+	ErrRepositoryRequired = errors.New("worker repository is required")
+	ErrEpochMismatch      = errors.New("worker epoch mismatch")
+	ErrSettingsNotFound   = errors.New("worker settings not found")
 )
 
 type Repository interface {
 	Register(ctx context.Context, workerID string, capabilities []taskengine.JobKind, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error)
+	TouchHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatAt time.Time, leaseExpiresAt time.Time) (*domainrealtime.Worker, error)
 	UpdateState(ctx context.Context, workerID string, epoch int64, state domainrealtime.State, changedAt time.Time) (*domainrealtime.Worker, error)
 	RemoveRegistration(ctx context.Context, workerID string, epoch int64) error
 	ListWorkers(ctx context.Context, limit int) ([]domainrealtime.Worker, error)
 	GetSettings(ctx context.Context) (domainrealtime.Settings, error)
 	UpsertSettings(ctx context.Context, settings domainrealtime.Settings) (domainrealtime.Settings, error)
+	CreateRegistrationSubmission(ctx context.Context, submission domainrealtime.RegistrationSubmission) (domainrealtime.RegistrationSubmission, error)
+	ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error)
+	ResolveRegistrationSubmission(ctx context.Context, submissionID string, status domainrealtime.RegistrationStatus, reasons []string, resolvedAt time.Time) (domainrealtime.RegistrationSubmission, error)
+	RevokeRegistrationSubmission(ctx context.Context, submissionID string, reason string, revokedAt time.Time) (domainrealtime.RegistrationSubmission, error)
 }
 
 type Service struct {
@@ -64,6 +69,72 @@ func (service *Service) Register(ctx context.Context, workerID string, capabilit
 	}
 	now := time.Now().UTC()
 	return service.repository.Register(ctx, workerID, capabilities, now, now.Add(heartbeatInterval*3))
+}
+
+func (service *Service) RecordHeartbeat(ctx context.Context, workerID string, epoch int64, heartbeatInterval time.Duration) (*domainrealtime.Worker, error) {
+	if service == nil || service.repository == nil {
+		return nil, ErrRepositoryRequired
+	}
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return nil, fmt.Errorf("worker_id is required")
+	}
+	if epoch <= 0 {
+		return nil, fmt.Errorf("epoch must be greater than zero")
+	}
+	if heartbeatInterval <= 0 {
+		return nil, fmt.Errorf("heartbeat_interval must be greater than zero")
+	}
+	now := time.Now().UTC()
+	return service.repository.TouchHeartbeat(ctx, workerID, epoch, now, now.Add(heartbeatInterval*3))
+}
+
+func (service *Service) Invalidate(ctx context.Context, workerID string, epoch int64) (*domainrealtime.Worker, error) {
+	if service == nil || service.repository == nil {
+		return nil, ErrRepositoryRequired
+	}
+	return service.repository.UpdateState(ctx, strings.TrimSpace(workerID), epoch, domainrealtime.StateInvalidated, time.Now().UTC())
+}
+
+func (service *Service) CreateRegistrationSubmission(ctx context.Context, submission domainrealtime.RegistrationSubmission) (domainrealtime.RegistrationSubmission, error) {
+	if service == nil || service.repository == nil {
+		return domainrealtime.RegistrationSubmission{}, ErrRepositoryRequired
+	}
+	if submission.Status == "" {
+		submission.Status = domainrealtime.RegistrationStatusPending
+	}
+	if err := submission.Validate(); err != nil {
+		return domainrealtime.RegistrationSubmission{}, err
+	}
+	return service.repository.CreateRegistrationSubmission(ctx, submission)
+}
+
+func (service *Service) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {
+	if service == nil || service.repository == nil {
+		return nil, ErrRepositoryRequired
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+	return service.repository.ListPendingRegistrationSubmissions(ctx, limit)
+}
+
+func (service *Service) ResolveRegistrationSubmission(ctx context.Context, submissionID string, accepted bool, reasons []string) (domainrealtime.RegistrationSubmission, error) {
+	if service == nil || service.repository == nil {
+		return domainrealtime.RegistrationSubmission{}, ErrRepositoryRequired
+	}
+	status := domainrealtime.RegistrationStatusRejected
+	if accepted {
+		status = domainrealtime.RegistrationStatusAccepted
+	}
+	return service.repository.ResolveRegistrationSubmission(ctx, strings.TrimSpace(submissionID), status, reasons, time.Now().UTC())
+}
+
+func (service *Service) RevokeRegistrationSubmission(ctx context.Context, submissionID string, reason string) (domainrealtime.RegistrationSubmission, error) {
+	if service == nil || service.repository == nil {
+		return domainrealtime.RegistrationSubmission{}, ErrRepositoryRequired
+	}
+	return service.repository.RevokeRegistrationSubmission(ctx, strings.TrimSpace(submissionID), strings.TrimSpace(reason), time.Now().UTC())
 }
 
 func (service *Service) ForceDeregister(ctx context.Context, workerID string, epoch int64) (*domainrealtime.Worker, error) {

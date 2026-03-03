@@ -11,14 +11,16 @@ import (
 type State string
 
 const (
-	StateRegistered        State = "registered"
-	StateHealthy           State = "healthy"
-	StateDeregistered      State = "deregistered"
+	StatePendingRegistration State = "pending_registration"
+	StateRegistered          State = "registered"
+	StateHealthy             State = "healthy"
+	StateInvalidated         State = "invalidated"
+	StateDeregistered        State = "deregistered"
 )
 
 func (state State) Validate() error {
 	switch state {
-	case StateRegistered, StateHealthy, StateDeregistered:
+	case StatePendingRegistration, StateRegistered, StateHealthy, StateInvalidated, StateDeregistered:
 		return nil
 	default:
 		return fmt.Errorf("unsupported worker state %q", state)

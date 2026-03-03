@@ -47,6 +47,12 @@ Goal is to keep worker as a pure Asynq consumer/processor. Current scheduler usa
 
 # TODO: Realtime Worker Registry + Heartbeat Refactor (LISTEN/NOTIFY First)
 
+## Status
+
+- Current: completed
+- End state target: completed
+- Completion gate: do not mark completed until desktop + API + worker compile successfully and full project tests pass again
+
 ## Scope mandate
 
 This is a complete refactor/rewrite of the worker registration + heartbeat subsystem.
@@ -58,6 +64,72 @@ This is a complete refactor/rewrite of the worker registration + heartbeat subsy
 - Breaking changes are explicitly accepted for this refactor
 - No migration path is required for previous worker heartbeat/registration flow
 - No backward-compatibility guarantees are required for legacy contracts in this subsystem
+
+## End-to-end implementation plan
+
+### 1) Domain contracts and lifecycle model
+- [ ] Define durable registration submission domain contracts (request, response, status, reason, timeout, revoke)
+- [ ] Define realtime heartbeat request/response contracts (API initiated, worker response, deadline semantics)
+- [ ] Define explicit worker lifecycle transitions for new model (`pending_registration`, `registered`, `healthy`, `invalidated`, `deregistered`)
+- [ ] Remove/replace any remaining legacy state semantics not used by the new flow
+
+### 2) Infrastructure persistence (minimal Postgres)
+- [ ] Add minimal durable registration submission persistence (create/list pending/update status/revoke)
+- [ ] Keep worker registry persistence minimal and aligned with new lifecycle only
+- [ ] Remove obsolete persistence fields and write paths that are no longer reused
+- [ ] Ensure API startup catch-up query path processes pending registration submissions
+
+### 3) Realtime transport abstraction and PG implementation
+- [ ] Keep/establish transport abstraction at domain/application boundaries
+- [ ] Implement/align PostgreSQL LISTEN/NOTIFY adapter for registration + heartbeat channels
+- [ ] Ensure deterministic envelopes (correlation IDs + idempotency keys)
+- [ ] Ensure transport usage remains swappable for future non-PG backend
+
+### 4) API runtime implementation
+- [ ] API listens for registration submissions in realtime and judges compatibility
+- [ ] API responds accept/reject in realtime and persists outcome atomically
+- [ ] API periodically initiates heartbeat requests to registered/healthy workers via realtime transport
+- [ ] API enforces deadline, invalidates missed workers, and persists deregistration/invalidation
+- [ ] API startup catch-up handles pending submissions created while API was down
+
+### 5) Worker runtime implementation
+- [ ] Worker startup creates durable registration submission + realtime notify
+- [ ] Worker waits for API decision with bounded timeout/retry policy
+- [ ] Worker revokes pending submission on timeout before exiting non-zero
+- [ ] Worker exits non-zero on reject and logs explicit reasons
+- [ ] Worker handles API heartbeat requests and responds with health proof
+- [ ] Worker handles API invalidation/shutdown intent and exits non-zero when live
+- [ ] Worker restart always performs fresh registration; old epoch/session never reused
+
+### 6) Desktop scope (frontend)
+- [ ] Update desktop worker-related GraphQL operations/models to new contract shape
+- [ ] Preserve desktop realtime visibility for registered worker count and worker session information
+- [ ] Remove desktop dependencies on deleted legacy fields/events
+- [ ] Ensure desktop builds cleanly with updated schema/generated artifacts
+
+### 7) GraphQL/schema/codegen reconciliation
+- [ ] Finalize GraphQL schema for worker sessions/settings/events under new model
+- [ ] Regenerate GraphQL server artifacts and frontend/client artifacts
+- [ ] Remove stale generated code and stale resolver paths no longer used
+
+### 8) Test strategy and required coverage
+- [ ] Add API tests: registration accept/reject, startup catch-up, heartbeat request loop, invalidation on missed proof
+- [ ] Add worker tests: timeout revoke path, reject non-zero path, heartbeat response path, shutdown intent non-zero exit path
+- [ ] Add transport tests: abstraction conformance + PG adapter behavior
+- [ ] Add persistence tests: submission durability, pending query, status transitions, revoke semantics
+- [ ] Add desktop tests for worker realtime/session/count rendering against new contract
+- [ ] Remove obsolete tests from deleted legacy behavior
+
+### 9) Compile and verification gate
+- [x] API compile/build green
+- [x] Worker compile/build green
+- [x] Desktop compile/build green
+- [x] Full backend test suite green (`go test ./...`)
+- [x] Frontend test suite green (desktop/frontend tests)
+- [ ] End-to-end regression passes for registration + heartbeat lifecycle
+
+### 10) Completion status update
+- [x] Update this TODO status from `implementing` to `completed` only after all compile + test gates above pass
 
 ## Target behavior
 
@@ -117,14 +189,14 @@ Realtime transport architecture must remain swappable:
    - Map failures to typed classes (`transient` vs `terminal`) and deterministic worker exit behavior
 
 5. Verification:
-   - Add integration coverage for:
-     - startup compatibility accept path
-     - startup compatibility reject path (worker exits non-zero)
-       - startup compatibility timeout path (worker revokes pending submission and exits non-zero)
-       - API restart catch-up path (processes pending DB submissions created before API became available)
-     - API heartbeat request loop over `LISTEN/NOTIFY`
-   - missed heartbeat proof handling causes force deregistration for the targeted epoch
-   - live worker receives shutdown intent and exits non-zero
-   - restarted worker after invalidation must submit new registration and cannot reuse old epoch
-   - transport abstraction conformance tests (shared contract tests runnable against PG implementation)
-   - Run full `go test ./...`
+    - Add integration coverage for:
+       - startup compatibility accept path
+       - startup compatibility reject path (worker exits non-zero)
+          - startup compatibility timeout path (worker revokes pending submission and exits non-zero)
+          - API restart catch-up path (processes pending DB submissions created before API became available)
+       - API heartbeat request loop over `LISTEN/NOTIFY`
+    - missed heartbeat proof handling causes force deregistration for the targeted epoch
+    - live worker receives shutdown intent and exits non-zero
+    - restarted worker after invalidation must submit new registration and cannot reuse old epoch
+    - transport abstraction conformance tests (shared contract tests runnable against PG implementation)
+    - Run full `go test ./...`
