@@ -89,13 +89,17 @@ func TestEnsureWorktreeFetchesOriginBeforeWorktreeAdd(t *testing.T) {
 	if len(runner.calls) < 3 {
 		t.Fatalf("expected at least 3 git calls, got %d (%v)", len(runner.calls), runner.calls)
 	}
+	expectedRepoProbe := "/tmp/repo::[rev-parse --is-inside-work-tree]"
+	if runner.calls[0] != expectedRepoProbe {
+		t.Fatalf("expected first call %q, got %q", expectedRepoProbe, runner.calls[0])
+	}
 	expectedFetch := "/tmp/repo::[fetch origin main]"
-	if runner.calls[0] != expectedFetch {
-		t.Fatalf("expected first call %q, got %q", expectedFetch, runner.calls[0])
+	if runner.calls[1] != expectedFetch {
+		t.Fatalf("expected second call %q, got %q", expectedFetch, runner.calls[1])
 	}
 	expectedWorktreeAdd := "/tmp/repo::[worktree add -B feature/one /tmp/worktree/feature-one origin/main]"
-	if runner.calls[1] != expectedWorktreeAdd {
-		t.Fatalf("expected second call %q, got %q", expectedWorktreeAdd, runner.calls[1])
+	if runner.calls[2] != expectedWorktreeAdd {
+		t.Fatalf("expected third call %q, got %q", expectedWorktreeAdd, runner.calls[2])
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -20,12 +21,14 @@ type GitHubAdapterConfig struct {
 	APIBaseURL       string
 	RepoPath         string
 	WorktreeRootPath string
+	RepositoryURL    string
 }
 
 type GitHubAdapter struct {
 	baseURL          string
 	repoPath         string
 	worktreeRootPath string
+	repositoryURL    string
 	httpClient       *http.Client
 	tokenProvider    TokenProvider
 	gitRunner        GitRunner
@@ -43,9 +46,17 @@ func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, token
 	if repoPath == "" {
 		return nil, failures.WrapTerminal(fmt.Errorf("repo path is required"))
 	}
+	absRepoPath, err := filepath.Abs(repoPath)
+	if err != nil {
+		return nil, failures.WrapTerminal(fmt.Errorf("resolve repo path: %w", err))
+	}
 	worktreeRootPath := strings.TrimSpace(config.WorktreeRootPath)
 	if worktreeRootPath == "" {
 		return nil, failures.WrapTerminal(fmt.Errorf("worktree root path is required"))
+	}
+	absWorktreeRootPath, err := filepath.Abs(worktreeRootPath)
+	if err != nil {
+		return nil, failures.WrapTerminal(fmt.Errorf("resolve worktree root path: %w", err))
 	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -58,8 +69,9 @@ func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, token
 	}
 	return &GitHubAdapter{
 		baseURL:          strings.TrimRight(baseURL, "/"),
-		repoPath:         filepath.Clean(repoPath),
-		worktreeRootPath: filepath.Clean(worktreeRootPath),
+		repoPath:         filepath.Clean(absRepoPath),
+		worktreeRootPath: filepath.Clean(absWorktreeRootPath),
+		repositoryURL:    strings.TrimSpace(config.RepositoryURL),
 		httpClient:       httpClient,
 		tokenProvider:    tokenProvider,
 		gitRunner:        gitRunner,
@@ -99,6 +111,9 @@ func (adapter *GitHubAdapter) EnsureWorktree(ctx context.Context, repository dom
 	if err := spec.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err
 	}
+	if err := adapter.ensureLocalRepository(ctx, repository); err != nil {
+		return domainscm.WorktreeState{}, err
+	}
 	worktreePath, err := adapter.resolveWorktreePath(spec.Path)
 	if err != nil {
 		return domainscm.WorktreeState{}, err
@@ -120,6 +135,28 @@ func (adapter *GitHubAdapter) EnsureWorktree(ctx context.Context, repository dom
 	return state, nil
 }
 
+func (adapter *GitHubAdapter) ensureLocalRepository(ctx context.Context, repository domainscm.Repository) error {
+	if err := os.MkdirAll(adapter.repoPath, 0o755); err != nil {
+		return failures.WrapTransient(fmt.Errorf("create repo path: %w", err))
+	}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "rev-parse", "--is-inside-work-tree"); err == nil {
+		return nil
+	}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "init"); err != nil {
+		return failures.WrapTransient(err)
+	}
+	remoteURL := strings.TrimSpace(adapter.repositoryURL)
+	if remoteURL == "" {
+		remoteURL = fmt.Sprintf("https://github.com/%s/%s.git", strings.TrimSpace(repository.Owner), strings.TrimSpace(repository.Name))
+	}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "remote", "add", "origin", remoteURL); err == nil {
+		return nil
+	}
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "remote", "set-url", "origin", remoteURL); err != nil {
+		return failures.WrapTerminal(err)
+	}
+	return nil
+}
 func (adapter *GitHubAdapter) SyncWorktree(ctx context.Context, repository domainscm.Repository, worktreePath string) (domainscm.WorktreeState, error) {
 	if err := repository.Validate(); err != nil {
 		return domainscm.WorktreeState{}, err

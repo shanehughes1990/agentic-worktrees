@@ -11,6 +11,7 @@ import (
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
+	domainscm "agentic-orchestrator/internal/domain/scm"
 	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
@@ -26,12 +27,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 type WorkerApp struct {
@@ -185,16 +189,25 @@ func (app *WorkerApp) Run() error {
 		return fmt.Errorf("init postgres repo lease manager: %w", err)
 	}
 
-	buildGitHubAdapter := func(projectID string, scm applicationcontrolplane.ProjectSCM) (*infrascm.GitHubAdapter, error) {
+	buildGitHubAdapter := func(projectID string, scm applicationcontrolplane.ProjectSCM, repositoryURL string) (*infrascm.GitHubAdapter, error) {
 		if strings.TrimSpace(scm.SCMProvider) != "github" {
 			return nil, fmt.Errorf("unsupported scm provider %q", scm.SCMProvider)
 		}
 		if strings.TrimSpace(scm.SCMToken) == "" {
 			return nil, fmt.Errorf("project scm_token is required")
 		}
+		repoPath := filepath.Join(app.config.ProjectPath(projectID), "repositories", "source")
+		if err := os.MkdirAll(repoPath, 0o755); err != nil {
+			return nil, fmt.Errorf("create project repository path: %w", err)
+		}
+		worktreeRootPath := app.config.ProjectsPath()
+		if err := os.MkdirAll(worktreeRootPath, 0o755); err != nil {
+			return nil, fmt.Errorf("create project worktree root path: %w", err)
+		}
 		githubAdapter, adapterErr := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
-			RepoPath:         filepath.Join(app.config.ProjectPath(projectID), "repositories", "source"),
-			WorktreeRootPath: app.config.ProjectsPath(),
+			RepoPath:         repoPath,
+			WorktreeRootPath: worktreeRootPath,
+			RepositoryURL:    strings.TrimSpace(repositoryURL),
 		}, nil, infrascm.NewStaticTokenProvider(scm.SCMToken), infrascm.NewExecGitRunner())
 		if adapterErr != nil {
 			return nil, fmt.Errorf("init github scm adapter: %w", adapterErr)
@@ -216,7 +229,7 @@ func (app *WorkerApp) Run() error {
 		taskMutationService,
 		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.AgentRuntimeService, error) {
 			_ = ctx
-			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm)
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm, repository.RepositoryURL)
 			if adapterErr != nil {
 				return nil, adapterErr
 			}
@@ -237,7 +250,7 @@ func (app *WorkerApp) Run() error {
 		app.projectSetupRepository,
 		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.SCMRuntimeService, error) {
 			_ = ctx
-			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm)
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm, repository.RepositoryURL)
 			if adapterErr != nil {
 				return nil, adapterErr
 			}
@@ -306,6 +319,32 @@ func (app *WorkerApp) Run() error {
 	workerID := buildWorkerID(strings.TrimSpace(app.config.OTEL.ServiceName), hostname, app.config.App.Port)
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	reconcileProjectSourcesOnce := func(ctx context.Context) {
+		reconcileCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+		if err := app.reconcileProjectSourceArtifacts(reconcileCtx, workerID, repoLeaseManager, buildGitHubAdapter); err != nil {
+			if entry != nil {
+				entry.WithError(err).WithField("runtime", "worker").Warn("project source reconciliation run failed")
+			}
+		}
+	}
+	reconcileProjectSourcesOnce(signalCtx)
+
+	reconcileCron := cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DefaultLogger)))
+	if _, err := reconcileCron.AddFunc("@every "+app.config.Worker.ProjectSourceReconcileInterval.String(), func() {
+		reconcileProjectSourcesOnce(signalCtx)
+	}); err != nil {
+		return fmt.Errorf("schedule project source reconciler: %w", err)
+	}
+	reconcileCron.Start()
+	defer func() {
+		stopCtx := reconcileCron.Stop()
+		select {
+		case <-stopCtx.Done():
+		case <-time.After(5 * time.Second):
+		}
+	}()
 
 	settings, err := waitForWorkerSettings(signalCtx, app.workerService, 2*time.Second)
 	if err != nil {
@@ -676,8 +715,8 @@ func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Plat
 		ServiceName:  config.OTEL.ServiceName,
 		Environment:  config.OTEL.ServiceEnvironment,
 		Version:      serviceVersion,
-		LogFormat:    observability.LogFormatText,
-		LogLevel:     observability.LogLevelInfo,
+		LogFormat:    parseAppLogFormat(config.App.LogType),
+		LogLevel:     parseAppLogLevel(config.App.LogLevel),
 		OTLPEndpoint: config.OTEL.OTLPEndpoint,
 		OTLPHeaders:  parseOTLPHeaders(config.OTEL.OTLPHeaders),
 	})
@@ -740,4 +779,257 @@ func parseOTLPHeaders(raw string) map[string]string {
 		headers[key] = value
 	}
 	return headers
+}
+
+func parseAppLogLevel(raw string) observability.LogLevel {
+	level := strings.ToLower(strings.TrimSpace(raw))
+	switch level {
+	case "debug":
+		return observability.LogLevelDebug
+	case "warn":
+		return observability.LogLevelWarn
+	case "error":
+		return observability.LogLevelError
+	default:
+		return observability.LogLevelInfo
+	}
+}
+
+func parseAppLogFormat(raw string) observability.LogFormat {
+	format := strings.ToLower(strings.TrimSpace(raw))
+	if format == "json" {
+		return observability.LogFormatJSON
+	}
+	return observability.LogFormatText
+}
+
+func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, workerID string, repoLeaseManager applicationscm.RepoLeaseManager, buildGitHubAdapter func(projectID string, scm applicationcontrolplane.ProjectSCM, repositoryURL string) (*infrascm.GitHubAdapter, error)) error {
+	if app == nil || app.projectSetupRepository == nil {
+		return fmt.Errorf("project setup repository is not initialized")
+	}
+	entry := app.observabilityPlatform.ServiceEntry()
+	startedAt := time.Now().UTC()
+	if entry != nil {
+		entry.WithFields(map[string]any{
+			"runtime":   "worker",
+			"worker_id": strings.TrimSpace(workerID),
+		}).Debug("project source reconciliation run started")
+	}
+	setups, err := app.projectSetupRepository.ListProjectSetups(ctx, 500)
+	if err != nil {
+		return fmt.Errorf("list project setups: %w", err)
+	}
+	processedRepositories := 0
+	syncedRepositories := 0
+	skippedRepositories := 0
+	for _, setup := range setups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if entry != nil {
+			entry.WithFields(map[string]any{
+				"runtime":      "worker",
+				"worker_id":    strings.TrimSpace(workerID),
+				"project_id":   strings.TrimSpace(setup.ProjectID),
+				"scm_count":    len(setup.SCMs),
+				"repo_count":   len(setup.Repositories),
+				"reconcile_run": startedAt.Format(time.RFC3339Nano),
+			}).Debug("reconciling project repositories")
+		}
+		scmByID := make(map[string]applicationcontrolplane.ProjectSCM, len(setup.SCMs))
+		for _, scm := range setup.SCMs {
+			scmByID[strings.TrimSpace(scm.SCMID)] = scm
+		}
+		for _, repository := range setup.Repositories {
+			processedRepositories++
+			projectID := strings.TrimSpace(setup.ProjectID)
+			repositoryID := strings.TrimSpace(repository.RepositoryID)
+			scmConfig, ok := scmByID[strings.TrimSpace(repository.SCMID)]
+			if !ok {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+						"scm_id":        strings.TrimSpace(repository.SCMID),
+					}).Debug("skipping repository reconcile due to missing scm configuration")
+				}
+				continue
+			}
+			adapter, adapterErr := buildGitHubAdapter(setup.ProjectID, scmConfig, repository.RepositoryURL)
+			if adapterErr != nil {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithError(adapterErr).WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+						"provider":      strings.TrimSpace(scmConfig.SCMProvider),
+					}).Debug("failed to build scm adapter for repository reconcile")
+				}
+				continue
+			}
+			scmService, serviceErr := applicationscm.NewServiceWithLeaseManager(adapter, repoLeaseManager)
+			if serviceErr != nil {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithError(serviceErr).WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+					}).Debug("failed to initialize scm service for repository reconcile")
+				}
+				continue
+			}
+			owner, repositoryName, parseErr := ownerRepositoryFromRepositoryURL(strings.TrimSpace(repository.RepositoryURL))
+			if parseErr != nil {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithError(parseErr).WithFields(map[string]any{
+						"runtime":         "worker",
+						"worker_id":       strings.TrimSpace(workerID),
+						"project_id":      projectID,
+						"repository_id":   repositoryID,
+						"repository_url":  strings.TrimSpace(repository.RepositoryURL),
+					}).Debug("failed to parse repository url for reconcile")
+				}
+				continue
+			}
+			repo := domainscm.Repository{Provider: strings.TrimSpace(scmConfig.SCMProvider), Owner: owner, Name: repositoryName}
+			jobID := fmt.Sprintf("project-source-reconcile:%s:%s:%d", projectID, repositoryID, time.Now().UTC().UnixNano())
+			idempotencyKey := fmt.Sprintf("project-source-reconcile:%s:%s:%s", projectID, repositoryID, strings.TrimSpace(workerID))
+			metadata := applicationscm.Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: "project-source-reconcile", TaskID: "project-source-reconcile", JobID: jobID, ProjectID: projectID}, IdempotencyKey: idempotencyKey}
+			state, stateErr := scmService.SourceState(ctx, applicationscm.SourceStateRequest{Repository: repo, Metadata: metadata})
+			if stateErr != nil {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithError(stateErr).WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+						"owner":         owner,
+						"repository":    repositoryName,
+					}).Debug("failed to read source state for repository reconcile")
+				}
+				continue
+			}
+			worktreePath := filepath.Join(projectID, "worktrees", "source", repositoryID)
+			if _, syncErr := scmService.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repo, Path: worktreePath, Metadata: metadata}); syncErr == nil {
+				syncedRepositories++
+				if entry != nil {
+					entry.WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+						"owner":         owner,
+						"repository":    repositoryName,
+						"worktree_path": worktreePath,
+					}).Debug("repository reconcile sync completed")
+				}
+				continue
+			}
+			if _, ensureErr := scmService.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{
+				Repository: repo,
+				Spec: domainscm.WorktreeSpec{
+					BaseBranch:   state.DefaultBranch,
+					TargetBranch: state.DefaultBranch,
+					Path:         worktreePath,
+					SyncStrategy: domainscm.SyncStrategyMerge,
+				},
+				Metadata: metadata,
+			}); ensureErr != nil {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithError(ensureErr).WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+						"owner":         owner,
+						"repository":    repositoryName,
+						"worktree_path": worktreePath,
+					}).Debug("failed to ensure worktree during repository reconcile")
+				}
+				continue
+			}
+			if _, syncErr := scmService.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repo, Path: worktreePath, Metadata: metadata}); syncErr != nil {
+				skippedRepositories++
+				if entry != nil {
+					entry.WithError(syncErr).WithFields(map[string]any{
+						"runtime":       "worker",
+						"worker_id":     strings.TrimSpace(workerID),
+						"project_id":    projectID,
+						"repository_id": repositoryID,
+						"owner":         owner,
+						"repository":    repositoryName,
+						"worktree_path": worktreePath,
+					}).Debug("failed to sync worktree after ensure during repository reconcile")
+				}
+				continue
+			}
+			syncedRepositories++
+			if entry != nil {
+				entry.WithFields(map[string]any{
+					"runtime":       "worker",
+					"worker_id":     strings.TrimSpace(workerID),
+					"project_id":    projectID,
+					"repository_id": repositoryID,
+					"owner":         owner,
+					"repository":    repositoryName,
+					"worktree_path": worktreePath,
+				}).Debug("repository reconcile ensure+sync completed")
+			}
+		}
+	}
+	if entry != nil {
+		entry.WithFields(map[string]any{
+			"runtime":                "worker",
+			"worker_id":              strings.TrimSpace(workerID),
+			"projects_seen":          len(setups),
+			"repositories_processed": processedRepositories,
+			"repositories_synced":    syncedRepositories,
+			"repositories_skipped":   skippedRepositories,
+			"duration_ms":            time.Since(startedAt).Milliseconds(),
+		}).Debug("project source reconciliation run completed")
+	}
+	return nil
+}
+
+func ownerRepositoryFromRepositoryURL(repositoryURL string) (string, string, error) {
+	trimmedURL := strings.TrimSpace(repositoryURL)
+	if trimmedURL == "" {
+		return "", "", fmt.Errorf("project repository_url is required")
+	}
+	if strings.HasPrefix(trimmedURL, "git@") {
+		parts := strings.SplitN(trimmedURL, ":", 2)
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("project repository_url %q is invalid", trimmedURL)
+		}
+		return ownerRepositoryFromPath(parts[1], trimmedURL)
+	}
+	parsedURL, err := url.Parse(trimmedURL)
+	if err != nil || parsedURL.Host == "" {
+		return "", "", fmt.Errorf("project repository_url %q is invalid", trimmedURL)
+	}
+	return ownerRepositoryFromPath(parsedURL.Path, trimmedURL)
+}
+
+func ownerRepositoryFromPath(pathValue string, rawURL string) (string, string, error) {
+	trimmedPath := strings.Trim(strings.TrimSpace(pathValue), "/")
+	parts := strings.Split(trimmedPath, "/")
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("project repository_url %q must include owner and repository", rawURL)
+	}
+	owner := strings.TrimSpace(parts[0])
+	repository := strings.TrimSuffix(strings.TrimSpace(parts[1]), ".git")
+	if owner == "" || repository == "" {
+		return "", "", fmt.Errorf("project repository_url %q must include owner and repository", rawURL)
+	}
+	return owner, repository, nil
 }

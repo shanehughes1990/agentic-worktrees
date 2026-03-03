@@ -45,6 +45,8 @@ type AppConfig struct {
 	Port            int           `envconfig:"APP_PORT" default:"8080" validate:"required,min=1,max=65535"`
 	DatabaseDSN     string        `envconfig:"DATABASE_DSN" validate:"required,database_dsn"`
 	RedisURL        string        `envconfig:"REDIS_URL" default:"redis://redis:6379/0" validate:"required,redis_url"`
+	LogLevel        string        `envconfig:"LOG_LEVEL" default:"info" validate:"required,oneof=debug info warn error"`
+	LogType         string        `envconfig:"LOG_TYPE" default:"text" validate:"required,oneof=text json"`
 	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s" validate:"required,gt=0"`
 }
 

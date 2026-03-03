@@ -53,7 +53,11 @@ type Platform struct {
 
 func Bootstrap(ctx context.Context, config Config) (*Platform, error) {
 	logger := logrus.New()
-	logger.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
+	if config.LogFormat == domainobservability.LogFormatJSON {
+		logger.SetFormatter(&logrus.JSONFormatter{})
+	} else {
+		logger.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
+	}
 	logger.SetLevel(toLogrusLevel(config.LogLevel))
 
 	resourceInstance, _ := resource.New(ctx,

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -17,6 +18,7 @@ type Config struct {
 type WorkerConfig struct {
 	ArtifactRootDirectory string `envconfig:"WORKER_ARTIFACT_ROOT_DIRECTORY" default:".agentic-orchestrator" validate:"required"`
 	TaskConcurrencyLimit int `envconfig:"WORKER_TASK_CONCURRENCY_LIMIT" default:"10" validate:"gte=1,lte=1024"`
+	ProjectSourceReconcileInterval time.Duration `envconfig:"WORKER_PROJECT_SOURCE_RECONCILE_INTERVAL" default:"15m" validate:"required,gt=0"`
 }
 
 func LoadConfigFromEnv() (Config, error) {

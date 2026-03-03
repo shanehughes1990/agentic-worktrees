@@ -594,8 +594,8 @@ func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Plat
 		ServiceName:  config.OTEL.ServiceName,
 		Environment:  config.OTEL.ServiceEnvironment,
 		Version:      serviceVersion,
-		LogFormat:    observability.LogFormatText,
-		LogLevel:     observability.LogLevelInfo,
+		LogFormat:    parseAppLogFormat(config.App.LogType),
+		LogLevel:     parseAppLogLevel(config.App.LogLevel),
 		OTLPEndpoint: config.OTEL.OTLPEndpoint,
 		OTLPHeaders:  parseOTLPHeaders(config.OTEL.OTLPHeaders),
 	})
@@ -657,6 +657,28 @@ func parseOTLPHeaders(raw string) map[string]string {
 		headers[key] = value
 	}
 	return headers
+}
+
+func parseAppLogLevel(raw string) observability.LogLevel {
+	level := strings.ToLower(strings.TrimSpace(raw))
+	switch level {
+	case "debug":
+		return observability.LogLevelDebug
+	case "warn":
+		return observability.LogLevelWarn
+	case "error":
+		return observability.LogLevelError
+	default:
+		return observability.LogLevelInfo
+	}
+}
+
+func parseAppLogFormat(raw string) observability.LogFormat {
+	format := strings.ToLower(strings.TrimSpace(raw))
+	if format == "json" {
+		return observability.LogFormatJSON
+	}
+	return observability.LogFormatText
 }
 
 func bootstrapRemoteStorage(config Config, service *applicationcontrolplane.Service) error {

@@ -49,6 +49,7 @@ services:
       APP_PORT: 8080
       DATABASE_DSN: postgres://postgres:postgres@postgres:5432/agentic_orchestrator?sslmode=disable
       REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: debug
       SHUTDOWN_TIMEOUT: 15s
       HEALTH_LIVE_PATH: /live
       HEALTH_READY_PATH: /ready
@@ -86,6 +87,7 @@ services:
       APP_PORT: 8081
       DATABASE_DSN: postgres://postgres:postgres@postgres:5432/agentic_orchestrator?sslmode=disable
       REDIS_URL: redis://redis:6379/0
+      LOG_LEVEL: debug
       SHUTDOWN_TIMEOUT: 15s
       HEALTH_LIVE_PATH: /live
       HEALTH_READY_PATH: /ready
