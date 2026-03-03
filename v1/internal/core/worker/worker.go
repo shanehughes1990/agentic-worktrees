@@ -3,6 +3,7 @@ package worker
 import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
+	applicationingestion "agentic-orchestrator/internal/application/ingestion"
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
@@ -10,6 +11,7 @@ import (
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
+	"agentic-orchestrator/internal/domain/failures"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domainscm "agentic-orchestrator/internal/domain/scm"
 	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
@@ -214,10 +216,39 @@ func (app *WorkerApp) Run() error {
 		}
 		return githubAdapter, nil
 	}
+	credentialBytes, err := os.ReadFile(app.config.RemoteStorage.GoogleCloudStorage.ApplicationCredentialsFilePath)
+	if err != nil {
+		return fmt.Errorf("read google application credentials: %w", err)
+	}
+	documentStore, err := infrastructurefilestoregcs.NewStore(context.Background(), infrastructurefilestoregcs.Config{
+		Bucket:             app.config.RemoteStorage.GoogleCloudStorage.Bucket,
+		ServiceAccountJSON: string(credentialBytes),
+		RootPrefix:         app.config.RemoteStorage.BucketPrefix,
+	})
+	if err != nil {
+		return fmt.Errorf("init gcs document store: %w", err)
+	}
 
 	trackerStore, err := infratrackerpostgres.NewPostgresBoardStore(app.databaseClient.DB())
 	if err != nil {
 		return fmt.Errorf("init tracker board store: %w", err)
+	}
+	ingestionArtifactFetcher := applicationingestion.ArtifactFetcherFunc(func(ctx context.Context, objectPath string, destinationPath string) error {
+		if err := documentStore.DownloadObjectToFile(ctx, strings.TrimSpace(objectPath), strings.TrimSpace(destinationPath)); err != nil {
+			if failures.ClassOf(err) == failures.ClassUnknown {
+				return failures.WrapTransient(err)
+			}
+			return err
+		}
+		return nil
+	})
+	ingestionService, err := applicationingestion.NewService(trackerStore, ingestionArtifactFetcher)
+	if err != nil {
+		return fmt.Errorf("init ingestion service: %w", err)
+	}
+	ingestionHandler, err := workerinterface.NewIngestionAgentHandler(ingestionService)
+	if err != nil {
+		return fmt.Errorf("create ingestion agent handler: %w", err)
 	}
 	taskMutationService, err := applicationtracker.NewTaskMutationService(trackerStore)
 	if err != nil {
@@ -275,19 +306,6 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("init document task service: %w", err)
 	}
-	credentialBytes, err := os.ReadFile(app.config.RemoteStorage.GoogleCloudStorage.ApplicationCredentialsFilePath)
-	if err != nil {
-		return fmt.Errorf("read google application credentials: %w", err)
-	}
-	documentStore, err := infrastructurefilestoregcs.NewStore(context.Background(), infrastructurefilestoregcs.Config{
-		Bucket:             app.config.RemoteStorage.GoogleCloudStorage.Bucket,
-		ServiceAccountJSON: string(credentialBytes),
-		RootPrefix:         app.config.RemoteStorage.BucketPrefix,
-	})
-	if err != nil {
-		return fmt.Errorf("init gcs document store: %w", err)
-	}
-
 	cdnSigner, err := infrastructurecdngoogle.NewSigner(infrastructurecdngoogle.Config{
 		BaseURL:      app.config.RemoteStorage.GoogleCloudStorage.CDNBaseURL,
 		KeyName:      app.config.RemoteStorage.GoogleCloudStorage.CDNKeyName,
@@ -352,6 +370,7 @@ func (app *WorkerApp) Run() error {
 	}
 
 	registrations := []workerJobRegistration{
+		{kind: taskengine.JobKindIngestionAgent, handler: ingestionHandler, label: "ingestion agent"},
 		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
 		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
 		{kind: taskengine.JobKindProjectDocumentUploadPrepare, handler: documentPrepareHandler, label: "project document prepare upload"},
@@ -828,11 +847,11 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 		}
 		if entry != nil {
 			entry.WithFields(map[string]any{
-				"runtime":      "worker",
-				"worker_id":    strings.TrimSpace(workerID),
-				"project_id":   strings.TrimSpace(setup.ProjectID),
-				"scm_count":    len(setup.SCMs),
-				"repo_count":   len(setup.Repositories),
+				"runtime":       "worker",
+				"worker_id":     strings.TrimSpace(workerID),
+				"project_id":    strings.TrimSpace(setup.ProjectID),
+				"scm_count":     len(setup.SCMs),
+				"repo_count":    len(setup.Repositories),
 				"reconcile_run": startedAt.Format(time.RFC3339Nano),
 			}).Debug("reconciling project repositories")
 		}
@@ -890,11 +909,11 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				skippedRepositories++
 				if entry != nil {
 					entry.WithError(parseErr).WithFields(map[string]any{
-						"runtime":         "worker",
-						"worker_id":       strings.TrimSpace(workerID),
-						"project_id":      projectID,
-						"repository_id":   repositoryID,
-						"repository_url":  strings.TrimSpace(repository.RepositoryURL),
+						"runtime":        "worker",
+						"worker_id":      strings.TrimSpace(workerID),
+						"project_id":     projectID,
+						"repository_id":  repositoryID,
+						"repository_url": strings.TrimSpace(repository.RepositoryURL),
 					}).Debug("failed to parse repository url for reconcile")
 				}
 				continue

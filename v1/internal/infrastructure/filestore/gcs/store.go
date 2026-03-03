@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -117,6 +120,39 @@ func (store *Store) DeleteObject(ctx context.Context, objectPath string) error {
 			return nil
 		}
 		return fmt.Errorf("delete gcs object: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) DownloadObjectToFile(ctx context.Context, objectPath string, destinationPath string) error {
+	if store == nil || store.storageClient == nil {
+		return fmt.Errorf("gcs store is not initialized")
+	}
+	store.operationLock.Lock()
+	defer store.operationLock.Unlock()
+	cleanObjectPath, err := store.lockedObjectPath(objectPath)
+	if err != nil {
+		return err
+	}
+	trimmedDestinationPath := strings.TrimSpace(destinationPath)
+	if trimmedDestinationPath == "" {
+		return fmt.Errorf("destination_path is required")
+	}
+	if err := os.MkdirAll(filepath.Dir(trimmedDestinationPath), 0o755); err != nil {
+		return fmt.Errorf("create destination directory: %w", err)
+	}
+	reader, err := store.storageClient.Bucket(store.bucket).Object(cleanObjectPath).NewReader(ctx)
+	if err != nil {
+		return fmt.Errorf("open gcs object reader: %w", err)
+	}
+	defer reader.Close()
+	outputFile, err := os.Create(trimmedDestinationPath)
+	if err != nil {
+		return fmt.Errorf("create destination file: %w", err)
+	}
+	defer outputFile.Close()
+	if _, err := io.Copy(outputFile, reader); err != nil {
+		return fmt.Errorf("copy gcs object to destination file: %w", err)
 	}
 	return nil
 }
