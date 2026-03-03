@@ -1,7 +1,10 @@
-import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
+import 'package:agentic_worktrees/features/projects/screens/project_setup_edit_screen.dart';
+import 'package:agentic_worktrees/features/workers/screens/worker_sessions_screen.dart';
+import 'package:agentic_worktrees/features/workers/screens/worker_settings_screen.dart';
 import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
 import 'package:agentic_worktrees/shared/graph/typed/client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ProjectDashboardScreen extends StatefulWidget {
   const ProjectDashboardScreen({
@@ -19,363 +22,255 @@ class ProjectDashboardScreen extends StatefulWidget {
 
 class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   late final ControlPlaneApi _api;
-  late final TextEditingController _projectIDController;
-  late final TextEditingController _projectNameController;
-  late final TextEditingController _scmTokenController;
-  final List<TextEditingController> _repositoryControllers =
-      <TextEditingController>[];
-
-  bool _isSaving = false;
+  late ProjectSetupConfig _projectSetup;
   String? _statusMessage;
-  String _scmProvider = ProjectSetupLogic.defaultScmProvider;
 
   @override
   void initState() {
     super.initState();
     _api = ControlPlaneApi(buildGraphqlClient(widget.endpoint));
-    _projectIDController = TextEditingController();
-    _projectNameController = TextEditingController();
-    _scmTokenController = TextEditingController();
-    _applySetup(widget.projectSetup);
+    _projectSetup = widget.projectSetup;
   }
 
-  @override
-  void dispose() {
-    _projectIDController.dispose();
-    _projectNameController.dispose();
-    _scmTokenController.dispose();
-    for (final TextEditingController controller in _repositoryControllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  void _applySetup(ProjectSetupConfig setup) {
-    _projectIDController.text = setup.projectID;
-    _projectNameController.text = setup.projectName;
-
-    for (final TextEditingController controller in _repositoryControllers) {
-      controller.dispose();
-    }
-    _repositoryControllers.clear();
-    if (setup.repositories.isEmpty) {
-      _repositoryControllers.add(TextEditingController());
-    } else {
-      _repositoryControllers.addAll(
-        setup.repositories.map(
-          (ProjectRepositoryConfig repository) =>
-              TextEditingController(text: repository.repositoryURL),
+  Future<void> _openEditProjectSetup() async {
+    final updated = await Navigator.of(context).push<ProjectSetupConfig>(
+      MaterialPageRoute<ProjectSetupConfig>(
+        builder: (BuildContext context) => ProjectSetupEditScreen(
+          projectSetup: _projectSetup,
+          endpoint: widget.endpoint,
         ),
-      );
-    }
-
-    _scmProvider = setup.scms.isNotEmpty
-        ? setup.scms.first.scmProvider
-        : ProjectSetupLogic.defaultScmProvider;
-  }
-
-  void _addRepositoryBlock() {
-    setState(() {
-      _repositoryControllers.add(TextEditingController());
-    });
-  }
-
-  void _removeRepositoryBlock(int index) {
-    if (_repositoryControllers.length <= 1) {
-      return;
-    }
-    setState(() {
-      final removed = _repositoryControllers.removeAt(index);
-      removed.dispose();
-    });
-  }
-
-  Future<void> _saveProjectSetup() async {
-    final projectID = _projectIDController.text.trim();
-    final projectName = _projectNameController.text.trim();
-    final repositoryURLs = _repositoryControllers
-        .map((TextEditingController controller) => controller.text.trim())
-        .where((String value) => value.isNotEmpty)
-        .toList(growable: false);
-    final validationError = ProjectSetupLogic.validateRequiredFields(
-      projectID: projectID,
-      projectName: projectName,
-      repositoryURLs: repositoryURLs,
-      scmToken: _scmTokenController.text,
+      ),
     );
-    if (validationError != null) {
-      setState(() => _statusMessage = validationError);
+
+    if (!mounted || updated == null) {
       return;
     }
 
     setState(() {
-      _isSaving = true;
-      _statusMessage = null;
+      _projectSetup = updated;
+      _statusMessage = 'Project setup updated.';
     });
+  }
 
-    final response = await _api.upsertProjectSetup(
-      projectID: projectID,
-      projectName: projectName,
-      scmProvider: _scmProvider,
-      repositoryURLs: repositoryURLs,
-      scmToken: _scmTokenController.text,
+  Future<void> _openWorkerSessions() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => Scaffold(
+          appBar: AppBar(title: const Text('Worker Sessions')),
+          body: WorkerSessionsScreen(
+            api: _api,
+            statusMessage: _statusMessage,
+            onStatus: (String message) {
+              if (!mounted) {
+                return;
+              }
+              setState(() => _statusMessage = message);
+            },
+          ),
+        ),
+      ),
     );
+  }
 
+  Future<void> _openWorkerSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => Scaffold(
+          appBar: AppBar(title: const Text('Worker Settings')),
+          body: WorkerSettingsScreen(
+            api: _api,
+            statusMessage: _statusMessage,
+            onStatus: (String message) {
+              if (!mounted) {
+                return;
+              }
+              setState(() => _statusMessage = message);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _goToDashboardHome() {
+    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+  }
+
+  Future<void> _copyProjectID() async {
+    await Clipboard.setData(ClipboardData(text: _projectSetup.projectID));
     if (!mounted) {
       return;
     }
-
-    setState(() {
-      _isSaving = false;
-      _statusMessage = response.isSuccess
-          ? 'Project setup saved.'
-          : 'Save failed: ${response.errorMessage ?? 'unknown error'}';
-    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Project ID copied')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasProvider = _scmProvider.trim().isNotEmpty;
+    final repositories = _projectSetup.repositories;
+    final scm = _projectSetup.scms.isNotEmpty ? _projectSetup.scms.first : null;
+    final hasTracker = _projectSetup.boards.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(widget.projectSetup.projectName),
-            Text(
-              _projectIDController.text,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    'Project Setup',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text(
-                            'Project Setup',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _projectNameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Project Name',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _projectIDController,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Project ID',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text(
-                            'SCM Provider',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: _scmProvider,
-                            decoration: const InputDecoration(
-                              labelText: 'Provider',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const <DropdownMenuItem<String>>[
-                              DropdownMenuItem<String>(
-                                value: 'GITHUB',
-                                child: Text('GitHub'),
-                              ),
-                            ],
-                            onChanged: (String? value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() => _scmProvider = value);
-                            },
-                          ),
-                          if (hasProvider) ...<Widget>[
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _scmTokenController,
-                              obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'SCM Token',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _RepositorySetupSection(
-                              controllers: _repositoryControllers,
-                              onAdd: _addRepositoryBlock,
-                              onRemove: _removeRepositoryBlock,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (hasProvider) ...<Widget>[
-                    const SizedBox(height: 12),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              'Tracker Setup',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (_statusMessage != null) ...<Widget>[
-                    const SizedBox(height: 12),
+      drawer: Drawer(
+        child: SafeArea(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: <Widget>[
+              DrawerHeader(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
                     Text(
-                      _statusMessage!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      _projectSetup.projectName,
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
+                    const SizedBox(height: 4),
+                    Text(_projectSetup.projectID),
                   ],
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(color: Theme.of(context).dividerColor),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: <Widget>[
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    child: const Text('Back'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _isSaving ? null : _saveProjectSetup,
-                    child: const Text('Save Project Setup'),
-                  ),
-                ],
+              ListTile(
+                leading: const Icon(Icons.dashboard_outlined),
+                title: const Text('Dashboard Home'),
+                onTap: _goToDashboardHome,
               ),
-            ),
+              ListTile(
+                leading: const Icon(Icons.memory_outlined),
+                title: const Text('Worker Sessions'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openWorkerSessions();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.tune),
+                title: const Text('Worker Settings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openWorkerSettings();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      appBar: AppBar(
+        automaticallyImplyLeading: true,
+        title: Text(_projectSetup.projectName),
+        actions: <Widget>[
+          IconButton(
+            onPressed: _copyProjectID,
+            icon: const Icon(Icons.copy_outlined),
+            tooltip: 'Copy Project ID',
           ),
         ],
       ),
-    );
-  }
-}
-
-class _RepositorySetupSection extends StatelessWidget {
-  const _RepositorySetupSection({
-    required this.controllers,
-    required this.onAdd,
-    required this.onRemove,
-  });
-
-  final List<TextEditingController> controllers;
-  final VoidCallback onAdd;
-  final ValueChanged<int> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        const Text(
-          'Repository Setup',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Row(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Spacer(),
-            OutlinedButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Repository'),
+            Row(
+              children: <Widget>[
+                const Expanded(
+                  child: Text(
+                    'Project Dashboard',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: _openEditProjectSetup,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit Project'),
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        for (var index = 0; index < controllers.length; index++) ...<Widget>[
-          Card(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Text('Repository ${index + 1}'),
-                      const Spacer(),
-                      if (controllers.length > 1)
-                        IconButton(
-                          onPressed: () => onRemove(index),
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Remove Repository',
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: controllers[index],
-                    decoration: const InputDecoration(
-                      labelText: 'Repository URL',
-                      border: OutlineInputBorder(),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Project Setup',
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text('Project Name: ${_projectSetup.projectName}'),
+                    const SizedBox(height: 4),
+                    Text('Project ID: ${_projectSetup.projectID}'),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ],
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'SCM Provider',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Provider: ${scm?.scmProvider ?? 'Not configured'}'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Repository Setup',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    if (repositories.isEmpty)
+                      const Text('No repositories configured.')
+                    else
+                      for (final repository in repositories) ...<Widget>[
+                        Text(repository.repositoryURL),
+                        const SizedBox(height: 6),
+                      ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Tracker Setup',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(hasTracker ? 'Configured' : 'Not configured yet'),
+                  ],
+                ),
+              ),
+            ),
+            if (_statusMessage != null) ...<Widget>[
+              const SizedBox(height: 12),
+              Text(_statusMessage!),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

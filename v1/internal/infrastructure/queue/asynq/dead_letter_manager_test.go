@@ -6,14 +6,14 @@ import (
 )
 
 func TestDeadLetterManagerListValidatesQueue(t *testing.T) {
-	platform := &Platform{}
+	platform := &APIPlatform{}
 	if _, err := platform.ListDeadLetters(context.Background(), "", 10); err == nil {
 		t.Fatalf("expected queue validation error")
 	}
 }
 
 func TestDeadLetterManagerRequeueValidatesInputs(t *testing.T) {
-	platform := &Platform{}
+	platform := &APIPlatform{}
 	if err := platform.RequeueDeadLetter(context.Background(), "", "task-1"); err == nil {
 		t.Fatalf("expected queue validation error")
 	}
@@ -23,7 +23,7 @@ func TestDeadLetterManagerRequeueValidatesInputs(t *testing.T) {
 }
 
 func TestDeadLetterManagerNilPlatformReturnsError(t *testing.T) {
-	var platform *Platform
+	var platform *APIPlatform
 	if _, err := platform.ListDeadLetters(context.Background(), "scm", 10); err == nil {
 		t.Fatalf("expected nil platform error")
 	}

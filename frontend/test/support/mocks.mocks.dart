@@ -249,8 +249,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
     required String? scmProvider,
     required List<String>? repositoryURLs,
     required String? scmToken,
-    required String? trackerProvider,
-    required String? taskboardName,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#upsertProjectSetup, [], {
@@ -259,8 +257,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
               #scmProvider: scmProvider,
               #repositoryURLs: repositoryURLs,
               #scmToken: scmToken,
-              #trackerProvider: trackerProvider,
-              #taskboardName: taskboardName,
             }),
             returnValue:
                 _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>.value(
@@ -272,8 +268,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #scmProvider: scmProvider,
                       #repositoryURLs: repositoryURLs,
                       #scmToken: scmToken,
-                      #trackerProvider: trackerProvider,
-                      #taskboardName: taskboardName,
                     }),
                   ),
                 ),
@@ -287,8 +281,6 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                       #scmProvider: scmProvider,
                       #repositoryURLs: repositoryURLs,
                       #scmToken: scmToken,
-                      #trackerProvider: trackerProvider,
-                      #taskboardName: taskboardName,
                     }),
                   ),
                 ),

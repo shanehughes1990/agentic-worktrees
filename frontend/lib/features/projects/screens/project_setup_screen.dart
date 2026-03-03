@@ -152,15 +152,6 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
                           ),
                           onChanged: _onProjectNameChanged,
                         ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: widget.projectController,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Project ID',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
                       ],
                     ),
                   ),

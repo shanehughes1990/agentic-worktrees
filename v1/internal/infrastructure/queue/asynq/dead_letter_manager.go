@@ -11,7 +11,7 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-func (platform *Platform) ListDeadLetters(ctx context.Context, queue string, limit int) ([]taskengine.DeadLetterTask, error) {
+func (platform *APIPlatform) ListDeadLetters(ctx context.Context, queue string, limit int) ([]taskengine.DeadLetterTask, error) {
 	_ = ctx
 	if platform == nil {
 		return nil, fmt.Errorf("task engine platform is not initialized")
@@ -23,12 +23,11 @@ func (platform *Platform) ListDeadLetters(ctx context.Context, queue string, lim
 	if limit <= 0 {
 		limit = 50
 	}
-
-	inspector := asynq.NewInspector(asynq.RedisClientOpt{
-		Addr:     platform.config.RedisAddress,
-		Password: platform.config.RedisPassword,
-		DB:       platform.config.RedisDatabase,
-	})
+	redisConnOpt, err := asynq.ParseRedisURI(platform.redisURL)
+	if err != nil {
+		return nil, fmt.Errorf("build redis client options: %w", err)
+	}
+	inspector := asynq.NewInspector(redisConnOpt)
 	defer inspector.Close()
 	tasks, err := inspector.ListArchivedTasks(queue, asynq.PageSize(limit), asynq.Page(0))
 	if err != nil {
@@ -57,7 +56,7 @@ func (platform *Platform) ListDeadLetters(ctx context.Context, queue string, lim
 	return result, nil
 }
 
-func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, taskID string) error {
+func (platform *APIPlatform) RequeueDeadLetter(ctx context.Context, queue string, taskID string) error {
 	if platform == nil {
 		return fmt.Errorf("task engine platform is not initialized")
 	}
@@ -70,11 +69,11 @@ func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, t
 		return fmt.Errorf("%w: task_id is required", taskengine.ErrInvalidDeadLetterRequest)
 	}
 
-	inspector := asynq.NewInspector(asynq.RedisClientOpt{
-		Addr:     platform.config.RedisAddress,
-		Password: platform.config.RedisPassword,
-		DB:       platform.config.RedisDatabase,
-	})
+	redisConnOpt, err := asynq.ParseRedisURI(platform.redisURL)
+	if err != nil {
+		return fmt.Errorf("build redis client options: %w", err)
+	}
+	inspector := asynq.NewInspector(redisConnOpt)
 	defer inspector.Close()
 
 	archivedTasks, err := inspector.ListArchivedTasks(queue, asynq.PageSize(500), asynq.Page(0))
@@ -113,7 +112,7 @@ func (platform *Platform) RequeueDeadLetter(ctx context.Context, queue string, t
 	return nil
 }
 
-func (platform *Platform) DeleteProjectTasks(ctx context.Context, projectID string) error {
+func (platform *APIPlatform) DeleteProjectTasks(ctx context.Context, projectID string) error {
 	_ = ctx
 	if platform == nil {
 		return fmt.Errorf("task engine platform is not initialized")
@@ -122,11 +121,11 @@ func (platform *Platform) DeleteProjectTasks(ctx context.Context, projectID stri
 	if projectID == "" {
 		return fmt.Errorf("project_id is required")
 	}
-	inspector := asynq.NewInspector(asynq.RedisClientOpt{
-		Addr:     platform.config.RedisAddress,
-		Password: platform.config.RedisPassword,
-		DB:       platform.config.RedisDatabase,
-	})
+	redisConnOpt, err := asynq.ParseRedisURI(platform.redisURL)
+	if err != nil {
+		return fmt.Errorf("build redis client options: %w", err)
+	}
+	inspector := asynq.NewInspector(redisConnOpt)
 	defer inspector.Close()
 
 	queues, err := inspector.Queues()

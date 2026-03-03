@@ -18,6 +18,10 @@ type DeadLetterHistoryResult interface {
 	IsDeadLetterHistoryResult()
 }
 
+type DeleteProjectDocumentResult interface {
+	IsDeleteProjectDocumentResult()
+}
+
 type DeleteProjectSetupResult interface {
 	IsDeleteProjectSetupResult()
 }
@@ -26,12 +30,24 @@ type ExecutionHistoryResult interface {
 	IsExecutionHistoryResult()
 }
 
+type ProjectDocumentPreviewResult interface {
+	IsProjectDocumentPreviewResult()
+}
+
+type ProjectDocumentsResult interface {
+	IsProjectDocumentsResult()
+}
+
 type ProjectSetupResult interface {
 	IsProjectSetupResult()
 }
 
 type ProjectSetupsResult interface {
 	IsProjectSetupsResult()
+}
+
+type RequestProjectDocumentUploadResult interface {
+	IsRequestProjectDocumentUploadResult()
 }
 
 type RequeueDeadLetterResult interface {
@@ -107,6 +123,17 @@ type DeadLetterHistorySuccess struct {
 
 func (DeadLetterHistorySuccess) IsDeadLetterHistoryResult() {}
 
+type DeleteProjectDocumentInput struct {
+	ProjectID  string `json:"projectID"`
+	DocumentID string `json:"documentID"`
+}
+
+type DeleteProjectDocumentSuccess struct {
+	Ok bool `json:"ok"`
+}
+
+func (DeleteProjectDocumentSuccess) IsDeleteProjectDocumentResult() {}
+
 type DeleteProjectSetupInput struct {
 	ProjectID string `json:"projectID"`
 }
@@ -164,6 +191,14 @@ func (GraphError) IsUpsertProjectSetupResult() {}
 
 func (GraphError) IsDeleteProjectSetupResult() {}
 
+func (GraphError) IsProjectDocumentsResult() {}
+
+func (GraphError) IsProjectDocumentPreviewResult() {}
+
+func (GraphError) IsRequestProjectDocumentUploadResult() {}
+
+func (GraphError) IsDeleteProjectDocumentResult() {}
+
 func (GraphError) IsStreamEventResult() {}
 
 func (GraphError) IsWorkerSessionsResult() {}
@@ -191,6 +226,30 @@ type ProjectBoardInput struct {
 	AppliesToAllRepositories bool              `json:"appliesToAllRepositories"`
 	RepositoryIDs            []string          `json:"repositoryIDs,omitempty"`
 }
+
+type ProjectDocument struct {
+	ProjectID   string    `json:"projectID"`
+	DocumentID  string    `json:"documentID"`
+	FileName    string    `json:"fileName"`
+	ContentType string    `json:"contentType"`
+	ObjectPath  string    `json:"objectPath"`
+	CdnURL      string    `json:"cdnURL"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type ProjectDocumentPreviewSuccess struct {
+	Document *ProjectDocument `json:"document"`
+}
+
+func (ProjectDocumentPreviewSuccess) IsProjectDocumentPreviewResult() {}
+
+type ProjectDocumentsSuccess struct {
+	Documents []*ProjectDocument `json:"documents"`
+}
+
+func (ProjectDocumentsSuccess) IsProjectDocumentsResult() {}
 
 type ProjectRepository struct {
 	RepositoryID  string `json:"repositoryID"`
@@ -241,6 +300,27 @@ func (ProjectSetupsSuccess) IsProjectSetupsResult() {}
 
 type Query struct {
 }
+
+type RequestProjectDocumentUploadInput struct {
+	ProjectID   string `json:"projectID"`
+	FileName    string `json:"fileName"`
+	ContentType string `json:"contentType"`
+}
+
+type RequestProjectDocumentUploadSuccess struct {
+	RequestID   string    `json:"requestID"`
+	ProjectID   string    `json:"projectID"`
+	DocumentID  string    `json:"documentID"`
+	FileName    string    `json:"fileName"`
+	ContentType string    `json:"contentType"`
+	ObjectPath  string    `json:"objectPath"`
+	UploadURL   string    `json:"uploadURL"`
+	CdnURL      string    `json:"cdnURL"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+	Status      string    `json:"status"`
+}
+
+func (RequestProjectDocumentUploadSuccess) IsRequestProjectDocumentUploadResult() {}
 
 type RequeueDeadLetterInput struct {
 	Queue  string `json:"queue"`
@@ -542,20 +622,24 @@ func (e GraphErrorCode) MarshalJSON() ([]byte, error) {
 type JobKind string
 
 const (
-	JobKindIngestionAgentRun JobKind = "INGESTION_AGENT_RUN"
-	JobKindAgentWorkflowRun  JobKind = "AGENT_WORKFLOW_RUN"
-	JobKindScmWorkflowRun    JobKind = "SCM_WORKFLOW_RUN"
+	JobKindIngestionAgentRun            JobKind = "INGESTION_AGENT_RUN"
+	JobKindAgentWorkflowRun             JobKind = "AGENT_WORKFLOW_RUN"
+	JobKindScmWorkflowRun               JobKind = "SCM_WORKFLOW_RUN"
+	JobKindProjectDocumentUploadPrepare JobKind = "PROJECT_DOCUMENT_UPLOAD_PREPARE"
+	JobKindProjectDocumentDelete        JobKind = "PROJECT_DOCUMENT_DELETE"
 )
 
 var AllJobKind = []JobKind{
 	JobKindIngestionAgentRun,
 	JobKindAgentWorkflowRun,
 	JobKindScmWorkflowRun,
+	JobKindProjectDocumentUploadPrepare,
+	JobKindProjectDocumentDelete,
 }
 
 func (e JobKind) IsValid() bool {
 	switch e {
-	case JobKindIngestionAgentRun, JobKindAgentWorkflowRun, JobKindScmWorkflowRun:
+	case JobKindIngestionAgentRun, JobKindAgentWorkflowRun, JobKindScmWorkflowRun, JobKindProjectDocumentUploadPrepare, JobKindProjectDocumentDelete:
 		return true
 	}
 	return false

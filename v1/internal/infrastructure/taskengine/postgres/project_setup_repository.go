@@ -159,6 +159,19 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 		ProjectID:   strings.TrimSpace(setup.ProjectID),
 		ProjectName: strings.TrimSpace(setup.ProjectName),
 	}
+	existingSCMByID := map[string]projectSCMRecord{}
+	if projectRecord.ProjectID != "" {
+		existingSCMRecords := make([]projectSCMRecord, 0)
+		if err := repository.db.WithContext(ctx).
+			Model(&projectSCMRecord{}).
+			Where("project_id = ?", projectRecord.ProjectID).
+			Find(&existingSCMRecords).Error; err != nil {
+			return nil, fmt.Errorf("load existing project scms: %w", err)
+		}
+		for _, record := range existingSCMRecords {
+			existingSCMByID[strings.TrimSpace(record.SCMID)] = record
+		}
+	}
 	err := repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "project_id"}},
@@ -178,14 +191,27 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 		if len(setup.SCMs) > 0 {
 			scms := make([]projectSCMRecord, 0, len(setup.SCMs))
 			for _, scmSetup := range setup.SCMs {
-				encryptedToken, encryptErr := repository.scmTokenCrypto.Encrypt(ctx, strings.TrimSpace(scmSetup.SCMToken))
-				if encryptErr != nil {
-					return fmt.Errorf("encrypt scm token for scm_id %q: %w", strings.TrimSpace(scmSetup.SCMID), encryptErr)
+				scmID := strings.TrimSpace(scmSetup.SCMID)
+				scmProvider := strings.TrimSpace(scmSetup.SCMProvider)
+				trimmedToken := strings.TrimSpace(scmSetup.SCMToken)
+				encryptedToken := ""
+				if trimmedToken == "" {
+					existing, ok := existingSCMByID[scmID]
+					if !ok || strings.TrimSpace(existing.SCMProvider) != scmProvider {
+						return fmt.Errorf("scm token is required for scm_id %q", scmID)
+					}
+					encryptedToken = existing.SCMToken
+				} else {
+					var encryptErr error
+					encryptedToken, encryptErr = repository.scmTokenCrypto.Encrypt(ctx, trimmedToken)
+					if encryptErr != nil {
+						return fmt.Errorf("encrypt scm token for scm_id %q: %w", scmID, encryptErr)
+					}
 				}
 				scms = append(scms, projectSCMRecord{
 					ProjectID:   projectRecord.ProjectID,
-					SCMID:       strings.TrimSpace(scmSetup.SCMID),
-					SCMProvider: strings.TrimSpace(scmSetup.SCMProvider),
+					SCMID:       scmID,
+					SCMProvider: scmProvider,
 					SCMToken:    encryptedToken,
 				})
 			}

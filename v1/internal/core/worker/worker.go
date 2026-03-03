@@ -11,7 +11,9 @@ import (
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
+	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
+	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
@@ -42,6 +44,7 @@ type WorkerApp struct {
 	checkpointStore        taskengine.CheckpointStore
 	executionJournal       taskengine.ExecutionJournal
 	projectSetupRepository applicationcontrolplane.ProjectSetupRepository
+	projectDocumentRepository applicationcontrolplane.ProjectDocumentRepository
 	supervisorService      *applicationsupervisor.Service
 	workerService          *applicationworker.Service
 }
@@ -124,6 +127,10 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init project setup repository: %w", err)
 	}
+	projectDocumentRepository, err := infrataskenginepostgres.NewProjectDocumentRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init project document repository: %w", err)
+	}
 	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
@@ -142,6 +149,7 @@ func New() (*WorkerApp, error) {
 		checkpointStore:        checkpointStore,
 		executionJournal:       executionJournal,
 		projectSetupRepository: projectSetupRepository,
+		projectDocumentRepository: projectDocumentRepository,
 		supervisorService:      supervisorService,
 		workerService:          workerService,
 	}, nil
@@ -158,7 +166,7 @@ func (app *WorkerApp) Run() error {
 			"runtime":             "worker",
 			"addr":                app.httpServer.Addr,
 			"env":                 app.config.OTEL.ServiceEnvironment,
-			"task_engine_backend": app.config.TaskEngineBackend,
+			"task_engine_backend": "asynq",
 		}).Info("worker runtime starting")
 	}
 
@@ -239,6 +247,51 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
 	}
+	controlPlaneQueryRepository, err := infrataskenginepostgres.NewControlPlaneQueryRepository(app.databaseClient.DB())
+	if err != nil {
+		return fmt.Errorf("init control-plane query repository: %w", err)
+	}
+	documentTaskService, err := applicationcontrolplane.NewService(app.taskScheduler, app.supervisorService, controlPlaneQueryRepository, app.projectSetupRepository, nil)
+	if err != nil {
+		return fmt.Errorf("init document task service: %w", err)
+	}
+	credentialBytes, err := os.ReadFile(app.config.RemoteStorage.GoogleCloudStorage.ApplicationCredentialsFilePath)
+	if err != nil {
+		return fmt.Errorf("read google application credentials: %w", err)
+	}
+	documentStore, err := infrastructurefilestoregcs.NewStore(context.Background(), infrastructurefilestoregcs.Config{
+		Bucket:             app.config.RemoteStorage.GoogleCloudStorage.Bucket,
+		ServiceAccountJSON: string(credentialBytes),
+		RootPrefix:         app.config.RemoteStorage.BucketPrefix,
+	})
+	if err != nil {
+		return fmt.Errorf("init gcs document store: %w", err)
+	}
+
+	cdnSigner, err := infrastructurecdngoogle.NewSigner(infrastructurecdngoogle.Config{
+		BaseURL:      app.config.RemoteStorage.GoogleCloudStorage.CDNBaseURL,
+		KeyName:      app.config.RemoteStorage.GoogleCloudStorage.CDNKeyName,
+		SignedKeyB64: app.config.RemoteStorage.GoogleCloudStorage.CDNKeyValue,
+	})
+	if err != nil {
+		return fmt.Errorf("init google cdn signer: %w", err)
+	}
+
+	if cdnSigner == nil {
+		return fmt.Errorf("init document delivery signer: nil signer for configured profile")
+	}
+	documentTaskService.SetProjectDocumentRepository(app.projectDocumentRepository)
+	documentTaskService.SetProjectFileStore(documentStore)
+	documentTaskService.SetProjectCDNSigner(cdnSigner)
+	documentTaskService.SetProjectDocumentRootPrefix(app.config.RemoteStorage.BucketPrefix)
+	documentPrepareHandler, err := workerinterface.NewProjectDocumentPrepareUploadHandler(documentTaskService)
+	if err != nil {
+		return fmt.Errorf("create project document prepare-upload handler: %w", err)
+	}
+	documentDeleteHandler, err := workerinterface.NewProjectDocumentDeleteHandler(documentTaskService)
+	if err != nil {
+		return fmt.Errorf("create project document delete handler: %w", err)
+	}
 	hostname, hostnameErr := os.Hostname()
 	if hostnameErr != nil {
 		hostname = "unknown-host"
@@ -255,6 +308,8 @@ func (app *WorkerApp) Run() error {
 	registrations := []workerJobRegistration{
 		{kind: taskengine.JobKindAgentWorkflow, handler: agentHandler, label: "agent workflow"},
 		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
+		{kind: taskengine.JobKindProjectDocumentUploadPrepare, handler: documentPrepareHandler, label: "project document prepare upload"},
+		{kind: taskengine.JobKindProjectDocumentDelete, handler: documentDeleteHandler, label: "project document delete"},
 	}
 	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
 		return err
@@ -520,27 +575,21 @@ func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Plat
 	return observabilityPlatform, healthPlatform, nil
 }
 
-func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Platform) (*taskengine.Scheduler, *asynqengine.Platform, error) {
-	if config.TaskEngineBackend != "asynq" {
-		return nil, nil, fmt.Errorf("unsupported task engine backend: %s", config.TaskEngineBackend)
-	}
-
+func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Platform) (*taskengine.Scheduler, *asynqengine.WorkerPlatform, error) {
 	entry := observabilityPlatform.ServiceEntry()
 	if entry != nil {
-		entry = entry.WithFields(map[string]any{"component": "taskengine", "backend": config.TaskEngineBackend})
+		entry = entry.WithFields(map[string]any{"component": "taskengine", "backend": "asynq"})
 	}
 
-	platform := asynqengine.NewPlatform(asynqengine.Config{
-		RedisAddress:  config.TaskEngineRedisAddress,
-		RedisPassword: config.TaskEngineRedisPassword,
-		RedisDatabase: config.TaskEngineRedisDatabase,
-		Concurrency:   config.TaskEngineConcurrency,
+	platform, err := asynqengine.NewWorkerPlatform(asynqengine.WorkerConfig{
+		RedisURL:    config.App.RedisURL,
+		Concurrency: config.Worker.TaskConcurrencyLimit,
 	}, entry)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bootstrap asynq platform: %w", err)
+	}
 
 	policies := taskengine.DefaultPolicies()
-	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
-	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
-	policies[taskengine.JobKindSCMWorkflow] = scmPolicy
 
 	scheduler, err := taskengine.NewScheduler(platform, policies)
 	if err != nil {

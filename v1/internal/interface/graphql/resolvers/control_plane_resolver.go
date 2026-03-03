@@ -109,6 +109,44 @@ func (r *mutationResolver) DeleteProjectSetup(ctx context.Context, input models.
 	return models.DeleteProjectSetupSuccess{Ok: true}, nil
 }
 
+// RequestProjectDocumentUpload is the resolver for the requestProjectDocumentUpload field.
+func (r *mutationResolver) RequestProjectDocumentUpload(ctx context.Context, input models.RequestProjectDocumentUploadInput) (models.RequestProjectDocumentUploadResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	result, err := r.Resolver.ControlPlaneService.RequestProjectDocumentUpload(ctx, applicationcontrolplane.RequestProjectDocumentUploadInput{
+		ProjectID:   input.ProjectID,
+		FileName:    input.FileName,
+		ContentType: input.ContentType,
+	})
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("request project document upload: %w", err)), nil
+	}
+	return models.RequestProjectDocumentUploadSuccess{
+		RequestID:   result.RequestID,
+		ProjectID:   result.ProjectID,
+		DocumentID:  result.DocumentID,
+		FileName:    result.FileName,
+		ContentType: result.ContentType,
+		ObjectPath:  result.ObjectPath,
+		UploadURL:   result.UploadURL,
+		CdnURL:      result.CDNURL,
+		ExpiresAt:   result.ExpiresAt.UTC(),
+		Status:      result.Status,
+	}, nil
+}
+
+// DeleteProjectDocument is the resolver for the deleteProjectDocument field.
+func (r *mutationResolver) DeleteProjectDocument(ctx context.Context, input models.DeleteProjectDocumentInput) (models.DeleteProjectDocumentResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	if err := r.Resolver.ControlPlaneService.DeleteProjectDocument(ctx, input.ProjectID, input.DocumentID); err != nil {
+		return graphErrorFromError(fmt.Errorf("delete project document: %w", err)), nil
+	}
+	return models.DeleteProjectDocumentSuccess{Ok: true}, nil
+}
+
 // UpdateWorkerSettings is the resolver for the updateWorkerSettings field.
 func (r *mutationResolver) UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.WorkerService == nil {
@@ -290,6 +328,47 @@ func (r *queryResolver) ProjectSetup(ctx context.Context, projectID string) (mod
 		return graphErrorFromError(mapErr), nil
 	}
 	return models.ProjectSetupSuccess{Project: mapped}, nil
+}
+
+// ProjectDocuments is the resolver for the projectDocuments field.
+func (r *queryResolver) ProjectDocuments(ctx context.Context, projectID string, limit *int32) (models.ProjectDocumentsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	documents, err := r.Resolver.ControlPlaneService.ProjectDocuments(ctx, projectID, int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load project documents: %w", err)), nil
+	}
+	items := make([]*models.ProjectDocument, 0, len(documents))
+	for _, document := range documents {
+		items = append(items, toGraphProjectDocument(document))
+	}
+	return models.ProjectDocumentsSuccess{Documents: items}, nil
+}
+
+// ProjectDocumentPreview is the resolver for the projectDocumentPreview field.
+func (r *queryResolver) ProjectDocumentPreview(ctx context.Context, projectID string, documentID string) (models.ProjectDocumentPreviewResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	preview, err := r.Resolver.ControlPlaneService.ProjectDocumentPreview(ctx, projectID, documentID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load project document preview: %w", err)), nil
+	}
+	if preview == nil {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "project document not found", Field: strPtr("documentID")}, nil
+	}
+	return models.ProjectDocumentPreviewSuccess{Document: &models.ProjectDocument{
+		ProjectID:   preview.ProjectID,
+		DocumentID:  preview.DocumentID,
+		FileName:    preview.FileName,
+		ContentType: preview.ContentType,
+		ObjectPath:  preview.ObjectPath,
+		CdnURL:      preview.CDNURL,
+		Status:      preview.Status,
+		CreatedAt:   preview.CreatedAt.UTC(),
+		UpdatedAt:   preview.UpdatedAt.UTC(),
+	}}, nil
 }
 
 // WorkerSessions is the resolver for the workerSessions field.

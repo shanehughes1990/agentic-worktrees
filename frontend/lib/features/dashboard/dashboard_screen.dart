@@ -331,10 +331,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
       return;
     }
+    final savedSetup = response.data!;
     setState(() {
-      _statusMessage = 'Saved project setup for ${response.data!.projectID}';
+      _statusMessage = 'Saved project setup for ${savedSetup.projectID}';
+      _applyProjectSetup(savedSetup);
     });
     await _loadProjectSetups();
+
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop();
+    _openProjectDashboard(savedSetup, endpoint);
   }
 
   void _applyProjectSetup(ProjectSetupConfig setup) {

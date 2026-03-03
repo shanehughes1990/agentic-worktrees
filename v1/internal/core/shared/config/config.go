@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -13,9 +14,24 @@ import (
 )
 
 type BaseConfig struct {
-	App    AppConfig    `validate:"required"`
-	Health HealthConfig `validate:"required"`
-	OTEL   OTELConfig   `validate:"required"`
+	App           AppConfig           `validate:"required"`
+	Health        HealthConfig        `validate:"required"`
+	OTEL          OTELConfig          `validate:"required"`
+	RemoteStorage RemoteStorageConfig `validate:"required"`
+}
+
+type RemoteStorageConfig struct {
+	Type               string                   `envconfig:"REMOTE_STORAGE_TYPE" default:"gcs" validate:"required,oneof=gcs"`
+	BucketPrefix       string                   `envconfig:"REMOTE_STORAGE_BUCKET_PREFIX" default:"projects" validate:"required"`
+	GoogleCloudStorage GoogleCloudStorageConfig
+}
+
+type GoogleCloudStorageConfig struct {
+	Bucket                         string `envconfig:"GOOGLE_CLOUD_STORAGE_BUCKET"`
+	ApplicationCredentialsFilePath string `envconfig:"GOOGLE_APPLICATION_CREDENTIALS" validate:"omitempty,google_application_credentials_path"`
+	CDNBaseURL                     string `envconfig:"GOOGLE_CDN_BASE_URL"`
+	CDNKeyName                     string `envconfig:"GOOGLE_CDN_KEY_NAME"`
+	CDNKeyValue                    string `envconfig:"GOOGLE_CDN_KEY_VALUE"`
 }
 
 type OTELConfig struct {
@@ -37,13 +53,15 @@ type HealthConfig struct {
 	ReadyPath string `envconfig:"HEALTH_READY_PATH" default:"/ready" validate:"required,startswith=/"`
 }
 
-func LoadConfigFromEnv[T any]() (T, error) {
+type ValidatorRegistrar func(validate *validator.Validate) error
+
+func LoadConfigFromEnv[T any](registrars ...ValidatorRegistrar) (T, error) {
 	var target T
 	_ = godotenv.Load()
 	if err := envconfig.Process("", &target); err != nil {
 		return target, fmt.Errorf("load env config: %w", err)
 	}
-	validate, err := newValidator()
+	validate, err := newValidator(registrars...)
 	if err != nil {
 		return target, err
 	}
@@ -53,8 +71,9 @@ func LoadConfigFromEnv[T any]() (T, error) {
 	return target, nil
 }
 
-func newValidator() (*validator.Validate, error) {
+func newValidator(registrars ...ValidatorRegistrar) (*validator.Validate, error) {
 	validate := validator.New(validator.WithRequiredStructEnabled())
+	validate.RegisterStructValidation(validateRemoteStorageConfig, RemoteStorageConfig{})
 	if err := validate.RegisterValidation("database_dsn", func(level validator.FieldLevel) bool {
 		return isValidDatabaseDSN(level.Field().String())
 	}); err != nil {
@@ -64,6 +83,19 @@ func newValidator() (*validator.Validate, error) {
 		return isValidRedisURL(level.Field().String())
 	}); err != nil {
 		return nil, fmt.Errorf("register redis_url validator: %w", err)
+	}
+	if err := validate.RegisterValidation("google_application_credentials_path", func(level validator.FieldLevel) bool {
+		return isValidGoogleApplicationCredentialsPath(level.Field().String())
+	}); err != nil {
+		return nil, fmt.Errorf("register google_application_credentials_path validator: %w", err)
+	}
+	for _, registrar := range registrars {
+		if registrar == nil {
+			continue
+		}
+		if err := registrar(validate); err != nil {
+			return nil, fmt.Errorf("register custom validator: %w", err)
+		}
 	}
 	return validate, nil
 }
@@ -99,4 +131,92 @@ func isValidRedisURL(raw string) bool {
 	}
 	_, err := asynq.ParseRedisURI(raw)
 	return err == nil
+}
+
+func isValidGoogleApplicationCredentialsPath(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	info, err := os.Stat(raw)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+func validateRemoteStorageConfig(level validator.StructLevel) {
+	config, ok := level.Current().Interface().(RemoteStorageConfig)
+	if !ok {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(config.Type), "gcs") {
+		return
+	}
+	bucket := strings.TrimSpace(config.GoogleCloudStorage.Bucket)
+	credentialsPath := strings.TrimSpace(config.GoogleCloudStorage.ApplicationCredentialsFilePath)
+	cdnBaseURL := strings.TrimSpace(config.GoogleCloudStorage.CDNBaseURL)
+	cdnKeyName := strings.TrimSpace(config.GoogleCloudStorage.CDNKeyName)
+	cdnKeyValue := strings.TrimSpace(config.GoogleCloudStorage.CDNKeyValue)
+	if bucket == "" {
+		level.ReportError(
+			config.GoogleCloudStorage.Bucket,
+			"Bucket",
+			"bucket",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+	}
+	if credentialsPath == "" {
+		level.ReportError(
+			config.GoogleCloudStorage,
+			"GoogleCloudStorage",
+			"googleCloudStorage",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+		level.ReportError(
+			config.GoogleCloudStorage.ApplicationCredentialsFilePath,
+			"ApplicationCredentialsFilePath",
+			"applicationCredentialsFilePath",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+	}
+	if credentialsPath != "" && !isValidGoogleApplicationCredentialsPath(credentialsPath) {
+		level.ReportError(
+			config.GoogleCloudStorage.ApplicationCredentialsFilePath,
+			"ApplicationCredentialsFilePath",
+			"applicationCredentialsFilePath",
+			"google_application_credentials_path",
+			"",
+		)
+	}
+	if cdnBaseURL == "" {
+		level.ReportError(
+			config.GoogleCloudStorage.CDNBaseURL,
+			"CDNBaseURL",
+			"cdnBaseURL",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+	}
+	if cdnKeyName == "" {
+		level.ReportError(
+			config.GoogleCloudStorage.CDNKeyName,
+			"CDNKeyName",
+			"cdnKeyName",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+	}
+	if cdnKeyValue == "" {
+		level.ReportError(
+			config.GoogleCloudStorage.CDNKeyValue,
+			"CDNKeyValue",
+			"cdnKeyValue",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+	}
 }

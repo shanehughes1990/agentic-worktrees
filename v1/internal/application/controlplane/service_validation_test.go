@@ -88,3 +88,13 @@ func TestUpsertProjectSetupValidateRejectsRepositoryScopedBoard(t *testing.T) {
 		t.Fatalf("expected project-scoped board validation error, got %v", err)
 	}
 }
+
+func TestUpsertProjectSetupValidateAllowsBlankSCMToken(t *testing.T) {
+	request := validProjectSetupRequest()
+	request.SCMs[0].SCMToken = ""
+
+	err := request.Validate()
+	if err != nil {
+		t.Fatalf("expected blank scm token to pass request validation, got %v", err)
+	}
+}

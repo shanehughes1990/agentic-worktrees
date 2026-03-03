@@ -11,14 +11,12 @@ import (
 type Config struct {
 	sharedconfig.BaseConfig
 
-	ApplicationRootDirectory string `envconfig:"APPLICATION_ROOT_DIRECTORY" default:".agentic-orchestrator" validate:"required"`
+	Worker WorkerConfig `validate:"required"`
+}
 
-	TaskEngineBackend        string `envconfig:"TASK_ENGINE_BACKEND" default:"asynq" validate:"required,oneof=asynq"`
-	TaskEngineRedisAddress   string `envconfig:"TASK_ENGINE_REDIS_ADDRESS" default:"127.0.0.1:6379" validate:"required"`
-	TaskEngineRedisPassword  string `envconfig:"TASK_ENGINE_REDIS_PASSWORD"`
-	TaskEngineRedisDatabase  int    `envconfig:"TASK_ENGINE_REDIS_DATABASE" default:"0" validate:"gte=0"`
-	TaskEngineConcurrency    int    `envconfig:"TASK_ENGINE_CONCURRENCY" default:"10" validate:"gte=1,lte=1024"`
-	TaskEngineSCMQueue       string `envconfig:"TASK_ENGINE_SCM_QUEUE" default:"scm" validate:"required"`
+type WorkerConfig struct {
+	ArtifactRootDirectory string `envconfig:"WORKER_ARTIFACT_ROOT_DIRECTORY" default:".agentic-orchestrator" validate:"required"`
+	TaskConcurrencyLimit int `envconfig:"WORKER_TASK_CONCURRENCY_LIMIT" default:"10" validate:"gte=1,lte=1024"`
 }
 
 func LoadConfigFromEnv() (Config, error) {
@@ -33,7 +31,7 @@ func LoadConfigFromEnv() (Config, error) {
 }
 
 func (config Config) ApplicationRootPath() string {
-	cleanPath := filepath.Clean(strings.TrimSpace(config.ApplicationRootDirectory))
+	cleanPath := filepath.Clean(strings.TrimSpace(config.Worker.ArtifactRootDirectory))
 	if cleanPath == "." || cleanPath == "" {
 		return ".agentic-orchestrator"
 	}

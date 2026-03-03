@@ -2,6 +2,8 @@ enum JobKind {
   INGESTION_AGENT_RUN
   AGENT_WORKFLOW_RUN
   SCM_WORKFLOW_RUN
+  PROJECT_DOCUMENT_UPLOAD_PREPARE
+  PROJECT_DOCUMENT_DELETE
 }
 
 type SessionSummary {
@@ -197,6 +199,62 @@ type DeleteProjectSetupSuccess {
 
 union DeleteProjectSetupResult = DeleteProjectSetupSuccess | GraphError
 
+type ProjectDocument {
+  projectID: String!
+  documentID: String!
+  fileName: String!
+  contentType: String!
+  objectPath: String!
+  cdnURL: String!
+  status: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ProjectDocumentsSuccess {
+  documents: [ProjectDocument!]!
+}
+
+union ProjectDocumentsResult = ProjectDocumentsSuccess | GraphError
+
+type ProjectDocumentPreviewSuccess {
+  document: ProjectDocument!
+}
+
+union ProjectDocumentPreviewResult = ProjectDocumentPreviewSuccess | GraphError
+
+input RequestProjectDocumentUploadInput {
+  projectID: String!
+  fileName: String!
+  contentType: String!
+}
+
+type RequestProjectDocumentUploadSuccess {
+  requestID: String!
+  projectID: String!
+  documentID: String!
+  fileName: String!
+  contentType: String!
+  objectPath: String!
+  uploadURL: String!
+  cdnURL: String!
+  expiresAt: Time!
+  status: String!
+}
+
+union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess | GraphError
+
+input DeleteProjectDocumentInput {
+  projectID: String!
+  documentID: String!
+}
+
+type DeleteProjectDocumentSuccess {
+  ok: Boolean!
+}
+
+union DeleteProjectDocumentResult = DeleteProjectDocumentSuccess | GraphError
+
 enum StreamEventSource {
   ACP
   SESSION_FILE
@@ -274,6 +332,8 @@ extend type Query {
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
   projectSetups(limit: Int = 50): ProjectSetupsResult!
   projectSetup(projectID: String!): ProjectSetupResult!
+  projectDocuments(projectID: String!, limit: Int = 100): ProjectDocumentsResult!
+  projectDocumentPreview(projectID: String!, documentID: String!): ProjectDocumentPreviewResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
 }
@@ -283,6 +343,8 @@ extend type Mutation {
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
+  requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
+  deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }
 

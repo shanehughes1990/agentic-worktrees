@@ -134,6 +134,10 @@ func toGraphJobKind(value taskengine.JobKind) (models.JobKind, error) {
 		return models.JobKindAgentWorkflowRun, nil
 	case string(taskengine.JobKindSCMWorkflow):
 		return models.JobKindScmWorkflowRun, nil
+	case string(taskengine.JobKindProjectDocumentUploadPrepare):
+		return models.JobKindProjectDocumentUploadPrepare, nil
+	case string(taskengine.JobKindProjectDocumentDelete):
+		return models.JobKindProjectDocumentDelete, nil
 	default:
 		return "", fmt.Errorf("unsupported job kind %q", value)
 	}
@@ -223,6 +227,20 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 		CreatedAt:     project.CreatedAt.UTC(),
 		UpdatedAt:     project.UpdatedAt.UTC(),
 	}, nil
+}
+
+func toGraphProjectDocument(document applicationcontrolplane.ProjectDocument) *models.ProjectDocument {
+	return &models.ProjectDocument{
+		ProjectID:   document.ProjectID,
+		DocumentID:  document.DocumentID,
+		FileName:    document.FileName,
+		ContentType: document.ContentType,
+		ObjectPath:  document.ObjectPath,
+		CdnURL:      document.CDNURL,
+		Status:      document.Status,
+		CreatedAt:   document.CreatedAt.UTC(),
+		UpdatedAt:   document.UpdatedAt.UTC(),
+	}
 }
 
 func toGraphStreamEventSource(source domainstream.Source) models.StreamEventSource {

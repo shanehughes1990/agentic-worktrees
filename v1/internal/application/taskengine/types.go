@@ -13,6 +13,8 @@ const (
 	JobKindIngestionAgent        JobKind = "ingestion.agent.run"
 	JobKindAgentWorkflow         JobKind = "agent.workflow.run"
 	JobKindSCMWorkflow           JobKind = "scm.workflow.run"
+	JobKindProjectDocumentUploadPrepare JobKind = "project.document.upload.prepare"
+	JobKindProjectDocumentDelete        JobKind = "project.document.delete"
 	JobKindWorkerShutdownAgent   JobKind = "worker.shutdown.agent"
 	JobKindWorkerShutdownRuntime JobKind = "worker.shutdown.runtime"
 	JobKindWorkerForceDeregister JobKind = "worker.force.deregister"

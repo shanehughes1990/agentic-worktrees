@@ -42,7 +42,7 @@ type APIApp struct {
 	observabilityPlatform *observability.Platform
 	healthPlatform        *healthcheck.Platform
 	taskScheduler         *taskengine.Scheduler
-	taskEnginePlatform    *asynqengine.Platform
+	taskEnginePlatform    *asynqengine.APIPlatform
 	databaseClient        *postgresdb.Client
 	streamService         *applicationstream.Service
 	sessionStateReader    *infraagent.SessionStateReader
@@ -108,12 +108,20 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init project setup repository: %w", err)
 	}
+	projectDocumentRepository, err := infrataskenginepostgres.NewProjectDocumentRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init project document repository: %w", err)
+	}
 	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
 	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, supervisorService, controlPlaneQueryRepository, projectSetupRepository, taskEnginePlatform)
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
+	}
+	controlPlaneService.SetProjectDocumentRepository(projectDocumentRepository)
+	if err := bootstrapRemoteStorage(config, controlPlaneService); err != nil {
+		return nil, fmt.Errorf("bootstrap remote storage: %w", err)
 	}
 	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
 	if err != nil {
@@ -155,10 +163,10 @@ func New() (*APIApp, error) {
 	server.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
 
 	mux := http.NewServeMux()
-	if config.EnablePlayground {
-		mux.Handle(config.PlaygroundPath, playground.Handler("GraphQL playground", config.GraphQLPath))
+	if config.API.EnablePlayground {
+		mux.Handle(config.API.PlaygroundPath, playground.Handler("GraphQL playground", config.API.GraphQLPath))
 	}
-	mux.Handle(config.GraphQLPath, server)
+	mux.Handle(config.API.GraphQLPath, server)
 	healthPlatform.Mount(mux)
 
 	return &APIApp{
@@ -188,7 +196,7 @@ func (app *APIApp) Run() error {
 			"runtime":             "api",
 			"addr":                app.httpServer.Addr,
 			"env":                 app.config.OTEL.ServiceEnvironment,
-			"task_engine_backend": app.config.TaskEngineBackend,
+			"task_engine_backend": "asynq",
 		}).Info("runtime starting")
 	}
 	if app.acpClient != nil && app.streamService != nil {
@@ -354,27 +362,20 @@ func bootstrapPlatforms(ctx context.Context, config Config) (*observability.Plat
 	return observabilityPlatform, healthPlatform, nil
 }
 
-func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Platform) (*taskengine.Scheduler, *asynqengine.Platform, error) {
-	if config.TaskEngineBackend != "asynq" {
-		return nil, nil, fmt.Errorf("unsupported task engine backend: %s", config.TaskEngineBackend)
-	}
-
+func bootstrapTaskEngine(config Config, observabilityPlatform *observability.Platform) (*taskengine.Scheduler, *asynqengine.APIPlatform, error) {
 	entry := observabilityPlatform.ServiceEntry()
 	if entry != nil {
-		entry = entry.WithFields(map[string]any{"component": "taskengine", "backend": config.TaskEngineBackend})
+		entry = entry.WithFields(map[string]any{"component": "taskengine", "backend": "asynq"})
 	}
 
-	platform := asynqengine.NewPlatform(asynqengine.Config{
-		RedisAddress:  config.TaskEngineRedisAddress,
-		RedisPassword: config.TaskEngineRedisPassword,
-		RedisDatabase: config.TaskEngineRedisDatabase,
-		Concurrency:   config.TaskEngineConcurrency,
+	platform, err := asynqengine.NewAPIPlatform(asynqengine.APIConfig{
+		RedisURL: config.App.RedisURL,
 	}, entry)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bootstrap asynq platform: %w", err)
+	}
 
 	policies := taskengine.DefaultPolicies()
-	scmPolicy := policies[taskengine.JobKindSCMWorkflow]
-	scmPolicy.DefaultQueue = config.TaskEngineSCMQueue
-	policies[taskengine.JobKindSCMWorkflow] = scmPolicy
 
 	scheduler, err := taskengine.NewScheduler(platform, policies)
 	if err != nil {
@@ -402,4 +403,19 @@ func parseOTLPHeaders(raw string) map[string]string {
 		headers[key] = value
 	}
 	return headers
+}
+
+func bootstrapRemoteStorage(config Config, service *applicationcontrolplane.Service) error {
+	if service == nil {
+		return fmt.Errorf("control-plane service is required")
+	}
+	switch strings.ToLower(strings.TrimSpace(config.RemoteStorage.Type)) {
+	case "gcs":
+		service.SetProjectDocumentRootPrefix(config.RemoteStorage.BucketPrefix)
+		service.SetProjectDocumentRemoteStorageType("gcs")
+		service.SetProjectDocumentGoogleApplicationCredentialsPath(config.RemoteStorage.GoogleCloudStorage.ApplicationCredentialsFilePath)
+		return nil
+	default:
+		return fmt.Errorf("unsupported remote storage type %q", config.RemoteStorage.Type)
+	}
 }

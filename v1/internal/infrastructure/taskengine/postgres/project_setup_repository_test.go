@@ -195,3 +195,36 @@ func TestProjectSetupRepositoryWithoutBoardsDoesNotSeedSnapshot(t *testing.T) {
 		t.Fatalf("expected no tracker snapshots for setup without boards, got %d", snapshotCount)
 	}
 }
+
+func TestProjectSetupRepositoryPreservesStoredSCMTokenWhenBlankOnUpdate(t *testing.T) {
+	db := newProjectSetupTestDB(t)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	setup := sampleProjectSetup()
+	setup.SCMs[0].SCMToken = "ghp_initial_token"
+	if _, err := repo.UpsertProjectSetup(context.Background(), setup); err != nil {
+		t.Fatalf("initial upsert setup: %v", err)
+	}
+
+	update := sampleProjectSetup()
+	update.ProjectName = "Project One Updated"
+	update.SCMs[0].SCMToken = ""
+	if _, err := repo.UpsertProjectSetup(context.Background(), update); err != nil {
+		t.Fatalf("update setup with blank token: %v", err)
+	}
+
+	loadedSetup, err := repo.GetProjectSetup(context.Background(), "project-1")
+	if err != nil {
+		t.Fatalf("load project setup: %v", err)
+	}
+	if loadedSetup == nil || len(loadedSetup.SCMs) == 0 {
+		t.Fatalf("expected loaded project setup scm entry")
+	}
+	if loadedSetup.SCMs[0].SCMToken != "ghp_initial_token" {
+		t.Fatalf("expected preserved scm token, got %q", loadedSetup.SCMs[0].SCMToken)
+	}
+}

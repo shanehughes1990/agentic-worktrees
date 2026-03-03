@@ -28,6 +28,22 @@ func DefaultPolicies() map[JobKind]JobPolicy {
 			DefaultTimeout:        10 * time.Minute,
 			DefaultMaxRetry:       3,
 		},
+		JobKindProjectDocumentUploadPrepare: {
+			DefaultQueue:          "files",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      2 * time.Minute,
+			DefaultTimeout:        2 * time.Minute,
+			DefaultMaxRetry:       2,
+		},
+		JobKindProjectDocumentDelete: {
+			DefaultQueue:          "files",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      2 * time.Minute,
+			DefaultTimeout:        2 * time.Minute,
+			DefaultMaxRetry:       2,
+		},
 		JobKindWorkerShutdownAgent: {
 			DefaultQueue:          "control",
 			RequireIdempotencyKey: true,

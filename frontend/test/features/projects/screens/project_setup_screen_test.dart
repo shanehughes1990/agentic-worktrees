@@ -62,7 +62,7 @@ void main() {
     expect(find.text('status'), findsOneWidget);
   });
 
-  testWidgets('project id auto-generates and is read-only', (
+  testWidgets('project id auto-generates without visible field', (
     WidgetTester tester,
   ) async {
     await pumpSubject(tester, onSave: () {}, onScmProviderChanged: (_) {});
@@ -71,10 +71,8 @@ void main() {
     await tester.pump();
 
     expect(projectController.text, 'my_sample_project');
-    final projectIDField = tester.widget<TextField>(
-      find.byType(TextField).at(1),
-    );
-    expect(projectIDField.readOnly, isTrue);
+    expect(find.widgetWithText(TextField, 'Project ID'), findsNothing);
+    expect(find.text('Project ID'), findsNothing);
   });
 
   testWidgets('invokes save callback and shows back button', (

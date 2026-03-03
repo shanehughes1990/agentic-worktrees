@@ -56,6 +56,10 @@ type ComplexityRoot struct {
 		Records func(childComplexity int) int
 	}
 
+	DeleteProjectDocumentSuccess struct {
+		Ok func(childComplexity int) int
+	}
+
 	DeleteProjectSetupSuccess struct {
 		Ok func(childComplexity int) int
 	}
@@ -84,11 +88,13 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		ApproveIssueIntake   func(childComplexity int, input models.ApproveIssueIntakeInput) int
-		DeleteProjectSetup   func(childComplexity int, input models.DeleteProjectSetupInput) int
-		RequeueDeadLetter    func(childComplexity int, input models.RequeueDeadLetterInput) int
-		UpdateWorkerSettings func(childComplexity int, input models.UpdateWorkerSettingsInput) int
-		UpsertProjectSetup   func(childComplexity int, input models.UpsertProjectSetupInput) int
+		ApproveIssueIntake           func(childComplexity int, input models.ApproveIssueIntakeInput) int
+		DeleteProjectDocument        func(childComplexity int, input models.DeleteProjectDocumentInput) int
+		DeleteProjectSetup           func(childComplexity int, input models.DeleteProjectSetupInput) int
+		RequestProjectDocumentUpload func(childComplexity int, input models.RequestProjectDocumentUploadInput) int
+		RequeueDeadLetter            func(childComplexity int, input models.RequeueDeadLetterInput) int
+		UpdateWorkerSettings         func(childComplexity int, input models.UpdateWorkerSettingsInput) int
+		UpsertProjectSetup           func(childComplexity int, input models.UpsertProjectSetupInput) int
 	}
 
 	ProjectBoard struct {
@@ -97,6 +103,26 @@ type ComplexityRoot struct {
 		RepositoryIDs            func(childComplexity int) int
 		TaskboardName            func(childComplexity int) int
 		TrackerProvider          func(childComplexity int) int
+	}
+
+	ProjectDocument struct {
+		CdnURL      func(childComplexity int) int
+		ContentType func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		DocumentID  func(childComplexity int) int
+		FileName    func(childComplexity int) int
+		ObjectPath  func(childComplexity int) int
+		ProjectID   func(childComplexity int) int
+		Status      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	ProjectDocumentPreviewSuccess struct {
+		Document func(childComplexity int) int
+	}
+
+	ProjectDocumentsSuccess struct {
+		Documents func(childComplexity int) int
 	}
 
 	ProjectRepository struct {
@@ -132,6 +158,8 @@ type ComplexityRoot struct {
 	Query struct {
 		DeadLetterHistory         func(childComplexity int, queue *string, limit *int32) int
 		ExecutionHistory          func(childComplexity int, correlation models.SupervisorCorrelationInput, limit *int32) int
+		ProjectDocumentPreview    func(childComplexity int, projectID string, documentID string) int
+		ProjectDocuments          func(childComplexity int, projectID string, limit *int32) int
 		ProjectSetup              func(childComplexity int, projectID string) int
 		ProjectSetups             func(childComplexity int, limit *int32) int
 		ScmSupportedOperations    func(childComplexity int) int
@@ -141,6 +169,19 @@ type ComplexityRoot struct {
 		WorkerSessions            func(childComplexity int, limit *int32) int
 		WorkerSettings            func(childComplexity int) int
 		WorkflowJobs              func(childComplexity int, runID string, taskID *string, limit *int32) int
+	}
+
+	RequestProjectDocumentUploadSuccess struct {
+		CdnURL      func(childComplexity int) int
+		ContentType func(childComplexity int) int
+		DocumentID  func(childComplexity int) int
+		ExpiresAt   func(childComplexity int) int
+		FileName    func(childComplexity int) int
+		ObjectPath  func(childComplexity int) int
+		ProjectID   func(childComplexity int) int
+		RequestID   func(childComplexity int) int
+		Status      func(childComplexity int) int
+		UploadURL   func(childComplexity int) int
 	}
 
 	RequeueDeadLetterSuccess struct {
@@ -280,6 +321,8 @@ type MutationResolver interface {
 	RequeueDeadLetter(ctx context.Context, input models.RequeueDeadLetterInput) (models.RequeueDeadLetterResult, error)
 	UpsertProjectSetup(ctx context.Context, input models.UpsertProjectSetupInput) (models.UpsertProjectSetupResult, error)
 	DeleteProjectSetup(ctx context.Context, input models.DeleteProjectSetupInput) (models.DeleteProjectSetupResult, error)
+	RequestProjectDocumentUpload(ctx context.Context, input models.RequestProjectDocumentUploadInput) (models.RequestProjectDocumentUploadResult, error)
+	DeleteProjectDocument(ctx context.Context, input models.DeleteProjectDocumentInput) (models.DeleteProjectDocumentResult, error)
 	UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error)
 }
 type QueryResolver interface {
@@ -290,6 +333,8 @@ type QueryResolver interface {
 	DeadLetterHistory(ctx context.Context, queue *string, limit *int32) (models.DeadLetterHistoryResult, error)
 	ProjectSetups(ctx context.Context, limit *int32) (models.ProjectSetupsResult, error)
 	ProjectSetup(ctx context.Context, projectID string) (models.ProjectSetupResult, error)
+	ProjectDocuments(ctx context.Context, projectID string, limit *int32) (models.ProjectDocumentsResult, error)
+	ProjectDocumentPreview(ctx context.Context, projectID string, documentID string) (models.ProjectDocumentPreviewResult, error)
 	WorkerSessions(ctx context.Context, limit *int32) (models.WorkerSessionsResult, error)
 	WorkerSettings(ctx context.Context) (models.WorkerSettingsResult, error)
 	ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error)
@@ -379,6 +424,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeadLetterHistorySuccess.Records(childComplexity), true
+
+	case "DeleteProjectDocumentSuccess.ok":
+		if e.ComplexityRoot.DeleteProjectDocumentSuccess.Ok == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeleteProjectDocumentSuccess.Ok(childComplexity), true
 
 	case "DeleteProjectSetupSuccess.ok":
 		if e.ComplexityRoot.DeleteProjectSetupSuccess.Ok == nil {
@@ -485,6 +537,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ApproveIssueIntake(childComplexity, args["input"].(models.ApproveIssueIntakeInput)), true
+	case "Mutation.deleteProjectDocument":
+		if e.ComplexityRoot.Mutation.DeleteProjectDocument == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProjectDocument_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteProjectDocument(childComplexity, args["input"].(models.DeleteProjectDocumentInput)), true
 	case "Mutation.deleteProjectSetup":
 		if e.ComplexityRoot.Mutation.DeleteProjectSetup == nil {
 			break
@@ -496,6 +559,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectSetup(childComplexity, args["input"].(models.DeleteProjectSetupInput)), true
+	case "Mutation.requestProjectDocumentUpload":
+		if e.ComplexityRoot.Mutation.RequestProjectDocumentUpload == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_requestProjectDocumentUpload_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RequestProjectDocumentUpload(childComplexity, args["input"].(models.RequestProjectDocumentUploadInput)), true
 	case "Mutation.requeueDeadLetter":
 		if e.ComplexityRoot.Mutation.RequeueDeadLetter == nil {
 			break
@@ -560,6 +634,75 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProjectBoard.TrackerProvider(childComplexity), true
+
+	case "ProjectDocument.cdnURL":
+		if e.ComplexityRoot.ProjectDocument.CdnURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.CdnURL(childComplexity), true
+	case "ProjectDocument.contentType":
+		if e.ComplexityRoot.ProjectDocument.ContentType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.ContentType(childComplexity), true
+	case "ProjectDocument.createdAt":
+		if e.ComplexityRoot.ProjectDocument.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.CreatedAt(childComplexity), true
+	case "ProjectDocument.documentID":
+		if e.ComplexityRoot.ProjectDocument.DocumentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.DocumentID(childComplexity), true
+	case "ProjectDocument.fileName":
+		if e.ComplexityRoot.ProjectDocument.FileName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.FileName(childComplexity), true
+	case "ProjectDocument.objectPath":
+		if e.ComplexityRoot.ProjectDocument.ObjectPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.ObjectPath(childComplexity), true
+	case "ProjectDocument.projectID":
+		if e.ComplexityRoot.ProjectDocument.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.ProjectID(childComplexity), true
+	case "ProjectDocument.status":
+		if e.ComplexityRoot.ProjectDocument.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.Status(childComplexity), true
+	case "ProjectDocument.updatedAt":
+		if e.ComplexityRoot.ProjectDocument.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocument.UpdatedAt(childComplexity), true
+
+	case "ProjectDocumentPreviewSuccess.document":
+		if e.ComplexityRoot.ProjectDocumentPreviewSuccess.Document == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocumentPreviewSuccess.Document(childComplexity), true
+
+	case "ProjectDocumentsSuccess.documents":
+		if e.ComplexityRoot.ProjectDocumentsSuccess.Documents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectDocumentsSuccess.Documents(childComplexity), true
 
 	case "ProjectRepository.isPrimary":
 		if e.ComplexityRoot.ProjectRepository.IsPrimary == nil {
@@ -679,6 +822,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.ExecutionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["limit"].(*int32)), true
 
+	case "Query.projectDocumentPreview":
+		if e.ComplexityRoot.Query.ProjectDocumentPreview == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectDocumentPreview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectDocumentPreview(childComplexity, args["projectID"].(string), args["documentID"].(string)), true
+	case "Query.projectDocuments":
+		if e.ComplexityRoot.Query.ProjectDocuments == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectDocuments_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectDocuments(childComplexity, args["projectID"].(string), args["limit"].(*int32)), true
 	case "Query.projectSetup":
 		if e.ComplexityRoot.Query.ProjectSetup == nil {
 			break
@@ -768,6 +933,67 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.WorkflowJobs(childComplexity, args["runID"].(string), args["taskID"].(*string), args["limit"].(*int32)), true
+
+	case "RequestProjectDocumentUploadSuccess.cdnURL":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.CdnURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.CdnURL(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.contentType":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ContentType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ContentType(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.documentID":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.DocumentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.DocumentID(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.expiresAt":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ExpiresAt(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.fileName":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.FileName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.FileName(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.objectPath":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ObjectPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ObjectPath(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.projectID":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.ProjectID(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.requestID":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.RequestID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.RequestID(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.status":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.Status(childComplexity), true
+	case "RequestProjectDocumentUploadSuccess.uploadURL":
+		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.UploadURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RequestProjectDocumentUploadSuccess.UploadURL(childComplexity), true
 
 	case "RequeueDeadLetterSuccess.ok":
 		if e.ComplexityRoot.RequeueDeadLetterSuccess.Ok == nil {
@@ -1283,10 +1509,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputApproveIssueIntakeInput,
+		ec.unmarshalInputDeleteProjectDocumentInput,
 		ec.unmarshalInputDeleteProjectSetupInput,
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputProjectSCMInput,
+		ec.unmarshalInputRequestProjectDocumentUploadInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
 		ec.unmarshalInputUpdateWorkerSettingsInput,
@@ -1387,6 +1615,8 @@ var sources = []*ast.Source{
   INGESTION_AGENT_RUN
   AGENT_WORKFLOW_RUN
   SCM_WORKFLOW_RUN
+  PROJECT_DOCUMENT_UPLOAD_PREPARE
+  PROJECT_DOCUMENT_DELETE
 }
 
 type SessionSummary {
@@ -1582,6 +1812,62 @@ type DeleteProjectSetupSuccess {
 
 union DeleteProjectSetupResult = DeleteProjectSetupSuccess | GraphError
 
+type ProjectDocument {
+  projectID: String!
+  documentID: String!
+  fileName: String!
+  contentType: String!
+  objectPath: String!
+  cdnURL: String!
+  status: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type ProjectDocumentsSuccess {
+  documents: [ProjectDocument!]!
+}
+
+union ProjectDocumentsResult = ProjectDocumentsSuccess | GraphError
+
+type ProjectDocumentPreviewSuccess {
+  document: ProjectDocument!
+}
+
+union ProjectDocumentPreviewResult = ProjectDocumentPreviewSuccess | GraphError
+
+input RequestProjectDocumentUploadInput {
+  projectID: String!
+  fileName: String!
+  contentType: String!
+}
+
+type RequestProjectDocumentUploadSuccess {
+  requestID: String!
+  projectID: String!
+  documentID: String!
+  fileName: String!
+  contentType: String!
+  objectPath: String!
+  uploadURL: String!
+  cdnURL: String!
+  expiresAt: Time!
+  status: String!
+}
+
+union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess | GraphError
+
+input DeleteProjectDocumentInput {
+  projectID: String!
+  documentID: String!
+}
+
+type DeleteProjectDocumentSuccess {
+  ok: Boolean!
+}
+
+union DeleteProjectDocumentResult = DeleteProjectDocumentSuccess | GraphError
+
 enum StreamEventSource {
   ACP
   SESSION_FILE
@@ -1659,6 +1945,8 @@ extend type Query {
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
   projectSetups(limit: Int = 50): ProjectSetupsResult!
   projectSetup(projectID: String!): ProjectSetupResult!
+  projectDocuments(projectID: String!, limit: Int = 100): ProjectDocumentsResult!
+  projectDocumentPreview(projectID: String!, documentID: String!): ProjectDocumentPreviewResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
 }
@@ -1668,6 +1956,8 @@ extend type Mutation {
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
+  requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
+  deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }
 
@@ -1886,10 +2176,32 @@ func (ec *executionContext) field_Mutation_approveIssueIntake_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteProjectDocument_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteProjectDocumentInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectDocumentInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteProjectSetup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteProjectSetupInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectSetupInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_requestProjectDocumentUpload_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRequestProjectDocumentUploadInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequestProjectDocumentUploadInput)
 	if err != nil {
 		return nil, err
 	}
@@ -1965,6 +2277,38 @@ func (ec *executionContext) field_Query_executionHistory_args(ctx context.Contex
 		return nil, err
 	}
 	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectDocumentPreview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "documentID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["documentID"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectDocuments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
 	if err != nil {
 		return nil, err
@@ -2531,6 +2875,35 @@ func (ec *executionContext) fieldContext_DeadLetterHistorySuccess_records(_ cont
 				return ec.fieldContext_DeadLetterHistoryRecord_occurredAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DeadLetterHistoryRecord", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DeleteProjectDocumentSuccess_ok(ctx context.Context, field graphql.CollectedField, obj *models.DeleteProjectDocumentSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DeleteProjectDocumentSuccess_ok,
+		func(ctx context.Context) (any, error) {
+			return obj.Ok, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DeleteProjectDocumentSuccess_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeleteProjectDocumentSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3157,6 +3530,88 @@ func (ec *executionContext) fieldContext_Mutation_deleteProjectSetup(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_requestProjectDocumentUpload(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_requestProjectDocumentUpload,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RequestProjectDocumentUpload(ctx, fc.Args["input"].(models.RequestProjectDocumentUploadInput))
+		},
+		nil,
+		ec.marshalNRequestProjectDocumentUploadResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequestProjectDocumentUploadResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_requestProjectDocumentUpload(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type RequestProjectDocumentUploadResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_requestProjectDocumentUpload_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProjectDocument(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteProjectDocument,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteProjectDocument(ctx, fc.Args["input"].(models.DeleteProjectDocumentInput))
+		},
+		nil,
+		ec.marshalNDeleteProjectDocumentResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectDocumentResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteProjectDocument(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DeleteProjectDocumentResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProjectDocument_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_updateWorkerSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3338,6 +3793,365 @@ func (ec *executionContext) fieldContext_ProjectBoard_repositoryIDs(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_projectID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_documentID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_documentID,
+		func(ctx context.Context) (any, error) {
+			return obj.DocumentID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_documentID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_fileName(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_fileName,
+		func(ctx context.Context) (any, error) {
+			return obj.FileName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_fileName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_contentType(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_contentType,
+		func(ctx context.Context) (any, error) {
+			return obj.ContentType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_contentType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_objectPath(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_objectPath,
+		func(ctx context.Context) (any, error) {
+			return obj.ObjectPath, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_objectPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_cdnURL(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_cdnURL,
+		func(ctx context.Context) (any, error) {
+			return obj.CdnURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_cdnURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_status(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocument_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocument) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocument_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocument_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocument",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocumentPreviewSuccess_document(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocumentPreviewSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocumentPreviewSuccess_document,
+		func(ctx context.Context) (any, error) {
+			return obj.Document, nil
+		},
+		nil,
+		ec.marshalNProjectDocument2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocument,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocumentPreviewSuccess_document(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocumentPreviewSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_ProjectDocument_projectID(ctx, field)
+			case "documentID":
+				return ec.fieldContext_ProjectDocument_documentID(ctx, field)
+			case "fileName":
+				return ec.fieldContext_ProjectDocument_fileName(ctx, field)
+			case "contentType":
+				return ec.fieldContext_ProjectDocument_contentType(ctx, field)
+			case "objectPath":
+				return ec.fieldContext_ProjectDocument_objectPath(ctx, field)
+			case "cdnURL":
+				return ec.fieldContext_ProjectDocument_cdnURL(ctx, field)
+			case "status":
+				return ec.fieldContext_ProjectDocument_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ProjectDocument_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ProjectDocument_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectDocument", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectDocumentsSuccess_documents(ctx context.Context, field graphql.CollectedField, obj *models.ProjectDocumentsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectDocumentsSuccess_documents,
+		func(ctx context.Context) (any, error) {
+			return obj.Documents, nil
+		},
+		nil,
+		ec.marshalNProjectDocument2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocumentᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectDocumentsSuccess_documents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectDocumentsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_ProjectDocument_projectID(ctx, field)
+			case "documentID":
+				return ec.fieldContext_ProjectDocument_documentID(ctx, field)
+			case "fileName":
+				return ec.fieldContext_ProjectDocument_fileName(ctx, field)
+			case "contentType":
+				return ec.fieldContext_ProjectDocument_contentType(ctx, field)
+			case "objectPath":
+				return ec.fieldContext_ProjectDocument_objectPath(ctx, field)
+			case "cdnURL":
+				return ec.fieldContext_ProjectDocument_cdnURL(ctx, field)
+			case "status":
+				return ec.fieldContext_ProjectDocument_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_ProjectDocument_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_ProjectDocument_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectDocument", field.Name)
 		},
 	}
 	return fc, nil
@@ -4125,6 +4939,88 @@ func (ec *executionContext) fieldContext_Query_projectSetup(ctx context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_projectDocuments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_projectDocuments,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectDocuments(ctx, fc.Args["projectID"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNProjectDocumentsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocumentsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_projectDocuments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProjectDocumentsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectDocuments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectDocumentPreview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_projectDocumentPreview,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectDocumentPreview(ctx, fc.Args["projectID"].(string), fc.Args["documentID"].(string))
+		},
+		nil,
+		ec.marshalNProjectDocumentPreviewResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocumentPreviewResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_projectDocumentPreview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProjectDocumentPreviewResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectDocumentPreview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_workerSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4368,6 +5264,296 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_requestID(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_requestID,
+		func(ctx context.Context) (any, error) {
+			return obj.RequestID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_requestID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_projectID(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_documentID(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_documentID,
+		func(ctx context.Context) (any, error) {
+			return obj.DocumentID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_documentID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_fileName(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_fileName,
+		func(ctx context.Context) (any, error) {
+			return obj.FileName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_fileName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_contentType(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_contentType,
+		func(ctx context.Context) (any, error) {
+			return obj.ContentType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_contentType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_objectPath(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_objectPath,
+		func(ctx context.Context) (any, error) {
+			return obj.ObjectPath, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_objectPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_uploadURL(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_uploadURL,
+		func(ctx context.Context) (any, error) {
+			return obj.UploadURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_uploadURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_cdnURL(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_cdnURL,
+		func(ctx context.Context) (any, error) {
+			return obj.CdnURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_cdnURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_expiresAt(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_expiresAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess_status(ctx context.Context, field graphql.CollectedField, obj *models.RequestProjectDocumentUploadSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestProjectDocumentUploadSuccess_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestProjectDocumentUploadSuccess_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestProjectDocumentUploadSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -8344,6 +9530,39 @@ func (ec *executionContext) unmarshalInputApproveIssueIntakeInput(ctx context.Co
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputDeleteProjectDocumentInput(ctx context.Context, obj any) (models.DeleteProjectDocumentInput, error) {
+	var it models.DeleteProjectDocumentInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "documentID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "documentID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("documentID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DocumentID = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputDeleteProjectSetupInput(ctx context.Context, obj any) (models.DeleteProjectSetupInput, error) {
 	var it models.DeleteProjectSetupInput
 	asMap := map[string]any{}
@@ -8499,6 +9718,46 @@ func (ec *executionContext) unmarshalInputProjectSCMInput(ctx context.Context, o
 				return it, err
 			}
 			it.ScmToken = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputRequestProjectDocumentUploadInput(ctx context.Context, obj any) (models.RequestProjectDocumentUploadInput, error) {
+	var it models.RequestProjectDocumentUploadInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "fileName", "contentType"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "fileName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fileName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FileName = data
+		case "contentType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("contentType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ContentType = data
 		}
 	}
 	return it, nil
@@ -8757,6 +10016,33 @@ func (ec *executionContext) _DeadLetterHistoryResult(ctx context.Context, sel as
 	}
 }
 
+func (ec *executionContext) _DeleteProjectDocumentResult(ctx context.Context, sel ast.SelectionSet, obj models.DeleteProjectDocumentResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	case models.DeleteProjectDocumentSuccess:
+		return ec._DeleteProjectDocumentSuccess(ctx, sel, &obj)
+	case *models.DeleteProjectDocumentSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._DeleteProjectDocumentSuccess(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of DeleteProjectDocumentResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
 func (ec *executionContext) _DeleteProjectSetupResult(ctx context.Context, sel ast.SelectionSet, obj models.DeleteProjectSetupResult) graphql.Marshaler {
 	switch obj := (obj).(type) {
 	case nil:
@@ -8811,6 +10097,60 @@ func (ec *executionContext) _ExecutionHistoryResult(ctx context.Context, sel ast
 	}
 }
 
+func (ec *executionContext) _ProjectDocumentPreviewResult(ctx context.Context, sel ast.SelectionSet, obj models.ProjectDocumentPreviewResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.ProjectDocumentPreviewSuccess:
+		return ec._ProjectDocumentPreviewSuccess(ctx, sel, &obj)
+	case *models.ProjectDocumentPreviewSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectDocumentPreviewSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectDocumentPreviewResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _ProjectDocumentsResult(ctx context.Context, sel ast.SelectionSet, obj models.ProjectDocumentsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.ProjectDocumentsSuccess:
+		return ec._ProjectDocumentsSuccess(ctx, sel, &obj)
+	case *models.ProjectDocumentsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectDocumentsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectDocumentsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
 func (ec *executionContext) _ProjectSetupResult(ctx context.Context, sel ast.SelectionSet, obj models.ProjectSetupResult) graphql.Marshaler {
 	switch obj := (obj).(type) {
 	case nil:
@@ -8861,6 +10201,33 @@ func (ec *executionContext) _ProjectSetupsResult(ctx context.Context, sel ast.Se
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectSetupsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _RequestProjectDocumentUploadResult(ctx context.Context, sel ast.SelectionSet, obj models.RequestProjectDocumentUploadResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.RequestProjectDocumentUploadSuccess:
+		return ec._RequestProjectDocumentUploadSuccess(ctx, sel, &obj)
+	case *models.RequestProjectDocumentUploadSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RequestProjectDocumentUploadSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of RequestProjectDocumentUploadResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -9282,6 +10649,45 @@ func (ec *executionContext) _DeadLetterHistorySuccess(ctx context.Context, sel a
 	return out
 }
 
+var deleteProjectDocumentSuccessImplementors = []string{"DeleteProjectDocumentSuccess", "DeleteProjectDocumentResult"}
+
+func (ec *executionContext) _DeleteProjectDocumentSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.DeleteProjectDocumentSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deleteProjectDocumentSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeleteProjectDocumentSuccess")
+		case "ok":
+			out.Values[i] = ec._DeleteProjectDocumentSuccess_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var deleteProjectSetupSuccessImplementors = []string{"DeleteProjectSetupSuccess", "DeleteProjectSetupResult"}
 
 func (ec *executionContext) _DeleteProjectSetupSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.DeleteProjectSetupSuccess) graphql.Marshaler {
@@ -9441,7 +10847,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -9534,6 +10940,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "requestProjectDocumentUpload":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_requestProjectDocumentUpload(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProjectDocument":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProjectDocument(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateWorkerSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateWorkerSettings(ctx, field)
@@ -9594,6 +11014,163 @@ func (ec *executionContext) _ProjectBoard(ctx context.Context, sel ast.Selection
 			}
 		case "repositoryIDs":
 			out.Values[i] = ec._ProjectBoard_repositoryIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectDocumentImplementors = []string{"ProjectDocument"}
+
+func (ec *executionContext) _ProjectDocument(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectDocument) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectDocumentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectDocument")
+		case "projectID":
+			out.Values[i] = ec._ProjectDocument_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "documentID":
+			out.Values[i] = ec._ProjectDocument_documentID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fileName":
+			out.Values[i] = ec._ProjectDocument_fileName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentType":
+			out.Values[i] = ec._ProjectDocument_contentType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "objectPath":
+			out.Values[i] = ec._ProjectDocument_objectPath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cdnURL":
+			out.Values[i] = ec._ProjectDocument_cdnURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ProjectDocument_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._ProjectDocument_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._ProjectDocument_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectDocumentPreviewSuccessImplementors = []string{"ProjectDocumentPreviewSuccess", "ProjectDocumentPreviewResult"}
+
+func (ec *executionContext) _ProjectDocumentPreviewSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectDocumentPreviewSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectDocumentPreviewSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectDocumentPreviewSuccess")
+		case "document":
+			out.Values[i] = ec._ProjectDocumentPreviewSuccess_document(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectDocumentsSuccessImplementors = []string{"ProjectDocumentsSuccess", "ProjectDocumentsResult"}
+
+func (ec *executionContext) _ProjectDocumentsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectDocumentsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectDocumentsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectDocumentsSuccess")
+		case "documents":
+			out.Values[i] = ec._ProjectDocumentsSuccess_documents(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -10038,6 +11615,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectDocuments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectDocuments(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectDocumentPreview":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectDocumentPreview(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "workerSessions":
 			field := field
 
@@ -10134,6 +11755,90 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var requestProjectDocumentUploadSuccessImplementors = []string{"RequestProjectDocumentUploadSuccess", "RequestProjectDocumentUploadResult"}
+
+func (ec *executionContext) _RequestProjectDocumentUploadSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.RequestProjectDocumentUploadSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, requestProjectDocumentUploadSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RequestProjectDocumentUploadSuccess")
+		case "requestID":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_requestID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectID":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "documentID":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_documentID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "fileName":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_fileName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentType":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_contentType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "objectPath":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_objectPath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uploadURL":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_uploadURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cdnURL":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_cdnURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._RequestProjectDocumentUploadSuccess_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -11507,6 +13212,21 @@ func (ec *executionContext) marshalNDeadLetterHistoryResult2agenticᚑorchestrat
 	return ec._DeadLetterHistoryResult(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNDeleteProjectDocumentInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectDocumentInput(ctx context.Context, v any) (models.DeleteProjectDocumentInput, error) {
+	res, err := ec.unmarshalInputDeleteProjectDocumentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDeleteProjectDocumentResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectDocumentResult(ctx context.Context, sel ast.SelectionSet, v models.DeleteProjectDocumentResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeleteProjectDocumentResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNDeleteProjectSetupInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectSetupInput(ctx context.Context, v any) (models.DeleteProjectSetupInput, error) {
 	res, err := ec.unmarshalInputDeleteProjectSetupInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -11666,6 +13386,52 @@ func (ec *executionContext) unmarshalNProjectBoardInput2ᚖagenticᚑorchestrato
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNProjectDocument2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocumentᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectDocument) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectDocument2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocument(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectDocument2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocument(ctx context.Context, sel ast.SelectionSet, v *models.ProjectDocument) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectDocument(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectDocumentPreviewResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocumentPreviewResult(ctx context.Context, sel ast.SelectionSet, v models.ProjectDocumentPreviewResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectDocumentPreviewResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectDocumentsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectDocumentsResult(ctx context.Context, sel ast.SelectionSet, v models.ProjectDocumentsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectDocumentsResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProjectRepository2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectRepository) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -11802,6 +13568,21 @@ func (ec *executionContext) marshalNProjectSetupsResult2agenticᚑorchestrator�
 		return graphql.Null
 	}
 	return ec._ProjectSetupsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRequestProjectDocumentUploadInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequestProjectDocumentUploadInput(ctx context.Context, v any) (models.RequestProjectDocumentUploadInput, error) {
+	res, err := ec.unmarshalInputRequestProjectDocumentUploadInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRequestProjectDocumentUploadResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequestProjectDocumentUploadResult(ctx context.Context, sel ast.SelectionSet, v models.RequestProjectDocumentUploadResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RequestProjectDocumentUploadResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRequeueDeadLetterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterInput(ctx context.Context, v any) (models.RequeueDeadLetterInput, error) {

@@ -12,9 +12,19 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-type Platform struct {
-	config Config
-	entry  domainobservability.Entry
+type APIPlatform struct {
+	entry    domainobservability.Entry
+	redisURL string
+
+	client *asynq.Client
+
+	deadLetterAudit taskengine.DeadLetterAudit
+}
+
+type WorkerPlatform struct {
+	entry       domainobservability.Entry
+	redisURL    string
+	concurrency int
 
 	client *asynq.Client
 	server *asynq.Server
@@ -25,30 +35,50 @@ type Platform struct {
 	mu              sync.Mutex
 }
 
-func NewPlatform(config Config, entry domainobservability.Entry) *Platform {
+func NewAPIPlatform(config APIConfig, entry domainobservability.Entry) (*APIPlatform, error) {
 	normalizedConfig := config.normalized()
-	redisOptions := asynq.RedisClientOpt{
-		Addr:     normalizedConfig.RedisAddress,
-		Password: normalizedConfig.RedisPassword,
-		DB:       normalizedConfig.RedisDatabase,
+	redisConnOpt, err := normalizedConfig.redisClientOpt()
+	if err != nil {
+		return nil, err
 	}
-	return &Platform{
-		config: normalizedConfig,
-		entry:  entry,
-		client: asynq.NewClient(redisOptions),
-		server: asynq.NewServer(redisOptions, asynq.Config{Concurrency: normalizedConfig.Concurrency}),
-		mux:    asynq.NewServeMux(),
-	}
+	return &APIPlatform{
+		entry:    entry,
+		redisURL: normalizedConfig.RedisURL,
+		client:   asynq.NewClient(redisConnOpt),
+	}, nil
 }
 
-func (platform *Platform) SetDeadLetterAudit(audit taskengine.DeadLetterAudit) {
+func NewWorkerPlatform(config WorkerConfig, entry domainobservability.Entry) (*WorkerPlatform, error) {
+	normalizedConfig := config.normalized()
+	redisConnOpt, err := normalizedConfig.redisClientOpt()
+	if err != nil {
+		return nil, err
+	}
+	return &WorkerPlatform{
+		entry:       entry,
+		redisURL:    normalizedConfig.RedisURL,
+		concurrency: normalizedConfig.Concurrency,
+		client:      asynq.NewClient(redisConnOpt),
+		server:      asynq.NewServer(redisConnOpt, asynq.Config{Concurrency: normalizedConfig.Concurrency}),
+		mux:         asynq.NewServeMux(),
+	}, nil
+}
+
+func (platform *APIPlatform) SetDeadLetterAudit(audit taskengine.DeadLetterAudit) {
 	if platform == nil {
 		return
 	}
 	platform.deadLetterAudit = audit
 }
 
-func (platform *Platform) Enqueue(ctx context.Context, request taskengine.EnqueueRequest) (taskengine.EnqueueResult, error) {
+func (platform *WorkerPlatform) SetDeadLetterAudit(audit taskengine.DeadLetterAudit) {
+	if platform == nil {
+		return
+	}
+	platform.deadLetterAudit = audit
+}
+
+func (platform *APIPlatform) Enqueue(ctx context.Context, request taskengine.EnqueueRequest) (taskengine.EnqueueResult, error) {
 	if platform == nil || platform.client == nil {
 		return taskengine.EnqueueResult{}, fmt.Errorf("task engine platform is not initialized")
 	}
@@ -86,7 +116,45 @@ func (platform *Platform) Enqueue(ctx context.Context, request taskengine.Enqueu
 	return taskengine.EnqueueResult{QueueTaskID: taskInfo.ID}, nil
 }
 
-func (platform *Platform) Register(kind taskengine.JobKind, handler taskengine.Handler) error {
+func (platform *WorkerPlatform) Enqueue(ctx context.Context, request taskengine.EnqueueRequest) (taskengine.EnqueueResult, error) {
+	if platform == nil || platform.client == nil {
+		return taskengine.EnqueueResult{}, fmt.Errorf("task engine platform is not initialized")
+	}
+	task := asynq.NewTask(string(request.Kind), request.Payload)
+	options := make([]asynq.Option, 0, 5)
+	if strings.TrimSpace(request.Queue) != "" {
+		options = append(options, asynq.Queue(request.Queue))
+	}
+	if strings.TrimSpace(request.IdempotencyKey) != "" {
+		options = append(options, asynq.TaskID(request.IdempotencyKey))
+	}
+	if request.UniqueFor > 0 {
+		options = append(options, asynq.Unique(request.UniqueFor))
+	}
+	if request.Timeout > 0 {
+		options = append(options, asynq.Timeout(request.Timeout))
+	}
+	options = append(options, asynq.MaxRetry(request.MaxRetry))
+
+	taskInfo, enqueueErr := platform.client.EnqueueContext(ctx, task, options...)
+	if enqueueErr != nil {
+		if errors.Is(enqueueErr, asynq.ErrDuplicateTask) || errors.Is(enqueueErr, asynq.ErrTaskIDConflict) {
+			platform.logWarn("duplicate enqueue suppressed", map[string]any{
+				"job_kind":        request.Kind,
+				"idempotency_key": request.IdempotencyKey,
+				"queue":           request.Queue,
+			})
+			return taskengine.EnqueueResult{QueueTaskID: request.IdempotencyKey, Duplicate: true}, nil
+		}
+		return taskengine.EnqueueResult{}, fmt.Errorf("enqueue job: %w", enqueueErr)
+	}
+	if taskInfo == nil {
+		return taskengine.EnqueueResult{}, fmt.Errorf("enqueue job: missing task info")
+	}
+	return taskengine.EnqueueResult{QueueTaskID: taskInfo.ID}, nil
+}
+
+func (platform *WorkerPlatform) Register(kind taskengine.JobKind, handler taskengine.Handler) error {
 	if platform == nil || platform.mux == nil {
 		return fmt.Errorf("task engine platform is not initialized")
 	}
@@ -109,7 +177,7 @@ func (platform *Platform) Register(kind taskengine.JobKind, handler taskengine.H
 	return nil
 }
 
-func (platform *Platform) Start() error {
+func (platform *WorkerPlatform) Start() error {
 	if platform == nil || platform.server == nil || platform.mux == nil {
 		return fmt.Errorf("task engine platform is not initialized")
 	}
@@ -129,13 +197,27 @@ func (platform *Platform) Start() error {
 	}
 
 	platform.logInfo("asynq worker started", map[string]any{
-		"concurrency":   platform.config.Concurrency,
-		"redis_address": platform.config.RedisAddress,
+		"concurrency": platform.concurrency,
+		"redis_url":   platform.redisURL,
 	})
 	return nil
 }
 
-func (platform *Platform) Shutdown(ctx context.Context) error {
+func (platform *APIPlatform) Shutdown(ctx context.Context) error {
+	if platform == nil {
+		return nil
+	}
+	_ = ctx
+
+	if platform.client != nil {
+		if closeErr := platform.client.Close(); closeErr != nil {
+			return fmt.Errorf("close asynq client: %w", closeErr)
+		}
+	}
+	return nil
+}
+
+func (platform *WorkerPlatform) Shutdown(ctx context.Context) error {
 	if platform == nil {
 		return nil
 	}
@@ -158,14 +240,21 @@ func (platform *Platform) Shutdown(ctx context.Context) error {
 	return shutdownErr
 }
 
-func (platform *Platform) logInfo(message string, fields map[string]any) {
+func (platform *WorkerPlatform) logInfo(message string, fields map[string]any) {
 	if platform == nil || platform.entry == nil {
 		return
 	}
 	platform.entry.WithFields(fields).Info(message)
 }
 
-func (platform *Platform) logWarn(message string, fields map[string]any) {
+func (platform *APIPlatform) logWarn(message string, fields map[string]any) {
+	if platform == nil || platform.entry == nil {
+		return
+	}
+	platform.entry.WithFields(fields).Warn(message)
+}
+
+func (platform *WorkerPlatform) logWarn(message string, fields map[string]any) {
 	if platform == nil || platform.entry == nil {
 		return
 	}

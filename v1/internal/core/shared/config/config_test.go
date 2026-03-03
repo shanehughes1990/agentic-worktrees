@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -88,8 +90,48 @@ func (suite *ConfigSuite) TestIsValidRedisURL_InvalidURI() {
 	require.False(suite.T(), isValidRedisURL("http://localhost:6379"))
 }
 
+func (suite *ConfigSuite) TestLoadConfigFromEnv_RemoteStorageGCSRequiresGoogleCredentials() {
+	suite.setMinimalValidEnv()
+	suite.T().Setenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+
+	_, err := LoadConfigFromEnv[BaseConfig]()
+	require.Error(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "required_if_remote_storage_type")
+}
+
+func (suite *ConfigSuite) TestLoadConfigFromEnv_RemoteStorageGCSRequiresBucketAndCDNSettings() {
+	suite.setMinimalValidEnv()
+	suite.T().Setenv("GOOGLE_CLOUD_STORAGE_BUCKET", "")
+	suite.T().Setenv("GOOGLE_CDN_BASE_URL", "")
+	suite.T().Setenv("GOOGLE_CDN_KEY_NAME", "")
+	suite.T().Setenv("GOOGLE_CDN_KEY_VALUE", "")
+
+	_, err := LoadConfigFromEnv[BaseConfig]()
+	require.Error(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "required_if_remote_storage_type")
+}
+
+func (suite *ConfigSuite) TestIsValidGoogleApplicationCredentialsPath_ValidFile() {
+	credentialsPath := filepath.Join(suite.T().TempDir(), "gcp-sa.json")
+	require.NoError(suite.T(), os.WriteFile(credentialsPath, []byte("{}"), 0o600))
+	require.True(suite.T(), isValidGoogleApplicationCredentialsPath(credentialsPath))
+}
+
+func (suite *ConfigSuite) TestIsValidGoogleApplicationCredentialsPath_InvalidMissingFile() {
+	require.False(suite.T(), isValidGoogleApplicationCredentialsPath(filepath.Join(suite.T().TempDir(), "missing.json")))
+}
+
 func (suite *ConfigSuite) setMinimalValidEnv() {
 	suite.T().Setenv("DATABASE_DSN", "postgres://user:pass@localhost:5432/appdb")
 	suite.T().Setenv("REDIS_URL", "redis://localhost:6379/0")
 	suite.T().Setenv("OTEL_SERVICE_NAME", "service-a")
+	suite.T().Setenv("REMOTE_STORAGE_TYPE", "gcs")
+	suite.T().Setenv("REMOTE_STORAGE_BUCKET_PREFIX", "projects")
+	suite.T().Setenv("GOOGLE_CLOUD_STORAGE_BUCKET", "bucket-1")
+	suite.T().Setenv("GOOGLE_CDN_BASE_URL", "https://cdn.example.com")
+	suite.T().Setenv("GOOGLE_CDN_KEY_NAME", "k1")
+	suite.T().Setenv("GOOGLE_CDN_KEY_VALUE", "YWJj")
+	credentialsPath := filepath.Join(suite.T().TempDir(), "gcp-sa.json")
+	require.NoError(suite.T(), os.WriteFile(credentialsPath, []byte("{}"), 0o600))
+	suite.T().Setenv("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath)
 }

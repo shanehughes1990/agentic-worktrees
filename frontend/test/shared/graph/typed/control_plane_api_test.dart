@@ -232,8 +232,6 @@ void main() {
         scmProvider: 'UNSUPPORTED',
         repositoryURLs: const <String>['https://example.com/acme/repo'],
         scmToken: 'token',
-        trackerProvider: 'INTERNAL',
-        taskboardName: 'Acme Repo Board',
       );
 
       expect(result.isSuccess, isFalse);

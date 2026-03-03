@@ -127,9 +127,6 @@ func (request UpsertProjectSetupRequest) Validate() error {
 		if strings.TrimSpace(scm.SCMProvider) != "github" {
 			return fmt.Errorf("scms[%d].scm_provider must be github", index)
 		}
-		if strings.TrimSpace(scm.SCMToken) == "" {
-			return fmt.Errorf("scms[%d].scm_token is required", index)
-		}
 	}
 	for index, repository := range request.Repositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
@@ -232,6 +229,13 @@ type Service struct {
 	supervisorService *applicationsupervisor.Service
 	queryRepository   QueryRepository
 	projectRepository ProjectSetupRepository
+	projectDocumentRepository ProjectDocumentRepository
+	projectFileStore          ProjectFileStore
+	projectCDNSigner          ProjectCDNSigner
+	projectDocumentRootPrefix string
+	projectDocumentRemoteStorageType string
+	projectDocumentGoogleApplicationCredentialsPath string
+	projectDocumentUploadWait time.Duration
 	deadLetterManager taskengine.DeadLetterManager
 	cleanupManager    ProjectCleanupManager
 }
@@ -248,6 +252,9 @@ func NewService(scheduler *taskengine.Scheduler, supervisorService *applications
 		supervisorService: supervisorService,
 		queryRepository:   queryRepository,
 		projectRepository: projectRepository,
+		projectDocumentRootPrefix: "projects",
+		projectDocumentRemoteStorageType: "gcs",
+		projectDocumentUploadWait: 5 * time.Second,
 		deadLetterManager: deadLetterManager,
 	}, nil
 }
