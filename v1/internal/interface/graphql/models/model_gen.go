@@ -82,6 +82,22 @@ type SupervisorDecisionHistoryResult interface {
 	IsSupervisorDecisionHistoryResult()
 }
 
+type TaskboardDeleteResult interface {
+	IsTaskboardDeleteResult()
+}
+
+type TaskboardMutationResult interface {
+	IsTaskboardMutationResult()
+}
+
+type TaskboardResult interface {
+	IsTaskboardResult()
+}
+
+type TaskboardsResult interface {
+	IsTaskboardsResult()
+}
+
 type UpsertProjectSetupResult interface {
 	IsUpsertProjectSetupResult()
 }
@@ -113,6 +129,33 @@ type ApproveIssueIntakeSuccess struct {
 }
 
 func (ApproveIssueIntakeSuccess) IsApproveIssueIntakeResult() {}
+
+type CreateTaskboardEpicInput struct {
+	ProjectID        string   `json:"projectID"`
+	BoardID          string   `json:"boardID"`
+	Title            string   `json:"title"`
+	Objective        *string  `json:"objective,omitempty"`
+	State            string   `json:"state"`
+	Rank             int32    `json:"rank"`
+	DependsOnEpicIDs []string `json:"dependsOnEpicIDs,omitempty"`
+}
+
+type CreateTaskboardInput struct {
+	ProjectID string `json:"projectID"`
+	Name      string `json:"name"`
+}
+
+type CreateTaskboardTaskInput struct {
+	ProjectID        string   `json:"projectID"`
+	BoardID          string   `json:"boardID"`
+	EpicID           string   `json:"epicID"`
+	Title            string   `json:"title"`
+	Description      *string  `json:"description,omitempty"`
+	TaskType         string   `json:"taskType"`
+	State            string   `json:"state"`
+	Rank             int32    `json:"rank"`
+	DependsOnTaskIDs []string `json:"dependsOnTaskIDs,omitempty"`
+}
 
 type DeadLetterHistoryRecord struct {
 	Queue      string    `json:"queue"`
@@ -152,6 +195,23 @@ type DeleteProjectSetupSuccess struct {
 
 func (DeleteProjectSetupSuccess) IsDeleteProjectSetupResult() {}
 
+type DeleteTaskboardEpicInput struct {
+	ProjectID string `json:"projectID"`
+	BoardID   string `json:"boardID"`
+	EpicID    string `json:"epicID"`
+}
+
+type DeleteTaskboardInput struct {
+	ProjectID string `json:"projectID"`
+	BoardID   string `json:"boardID"`
+}
+
+type DeleteTaskboardTaskInput struct {
+	ProjectID string `json:"projectID"`
+	BoardID   string `json:"boardID"`
+	TaskID    string `json:"taskID"`
+}
+
 type ExecutionHistoryRecord struct {
 	RunID          string    `json:"runID"`
 	TaskID         string    `json:"taskID"`
@@ -190,6 +250,14 @@ func (GraphError) IsDeadLetterHistoryResult() {}
 func (GraphError) IsApproveIssueIntakeResult() {}
 
 func (GraphError) IsRequeueDeadLetterResult() {}
+
+func (GraphError) IsTaskboardsResult() {}
+
+func (GraphError) IsTaskboardResult() {}
+
+func (GraphError) IsTaskboardMutationResult() {}
+
+func (GraphError) IsTaskboardDeleteResult() {}
 
 func (GraphError) IsProjectSetupsResult() {}
 
@@ -466,6 +534,94 @@ func (SupervisorDecisionHistorySuccess) IsSupervisorDecisionHistoryResult() {}
 type SupervisorDecisionMetadataEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type Taskboard struct {
+	BoardID   string           `json:"boardID"`
+	ProjectID string           `json:"projectID"`
+	Name      string           `json:"name"`
+	State     string           `json:"state"`
+	Epics     []*TaskboardEpic `json:"epics"`
+	CreatedAt time.Time        `json:"createdAt"`
+	UpdatedAt time.Time        `json:"updatedAt"`
+}
+
+type TaskboardDeleteSuccess struct {
+	Ok bool `json:"ok"`
+}
+
+func (TaskboardDeleteSuccess) IsTaskboardDeleteResult() {}
+
+type TaskboardEpic struct {
+	ID               string           `json:"id"`
+	BoardID          string           `json:"boardID"`
+	Title            string           `json:"title"`
+	Objective        *string          `json:"objective,omitempty"`
+	State            string           `json:"state"`
+	Rank             int32            `json:"rank"`
+	DependsOnEpicIDs []string         `json:"dependsOnEpicIDs"`
+	Tasks            []*TaskboardTask `json:"tasks"`
+}
+
+type TaskboardMutationSuccess struct {
+	Board *Taskboard `json:"board"`
+}
+
+func (TaskboardMutationSuccess) IsTaskboardMutationResult() {}
+
+type TaskboardSuccess struct {
+	Board *Taskboard `json:"board"`
+}
+
+func (TaskboardSuccess) IsTaskboardResult() {}
+
+type TaskboardTask struct {
+	ID               string   `json:"id"`
+	BoardID          string   `json:"boardID"`
+	EpicID           string   `json:"epicID"`
+	Title            string   `json:"title"`
+	Description      *string  `json:"description,omitempty"`
+	TaskType         string   `json:"taskType"`
+	State            string   `json:"state"`
+	Rank             int32    `json:"rank"`
+	DependsOnTaskIDs []string `json:"dependsOnTaskIDs"`
+}
+
+type TaskboardsSuccess struct {
+	Boards []*Taskboard `json:"boards"`
+}
+
+func (TaskboardsSuccess) IsTaskboardsResult() {}
+
+type UpdateTaskboardEpicInput struct {
+	ProjectID        string   `json:"projectID"`
+	BoardID          string   `json:"boardID"`
+	EpicID           string   `json:"epicID"`
+	Title            string   `json:"title"`
+	Objective        *string  `json:"objective,omitempty"`
+	State            string   `json:"state"`
+	Rank             int32    `json:"rank"`
+	DependsOnEpicIDs []string `json:"dependsOnEpicIDs,omitempty"`
+}
+
+type UpdateTaskboardInput struct {
+	ProjectID string `json:"projectID"`
+	BoardID   string `json:"boardID"`
+	Name      string `json:"name"`
+	State     string `json:"state"`
+}
+
+type UpdateTaskboardTaskInput struct {
+	ProjectID        string   `json:"projectID"`
+	BoardID          string   `json:"boardID"`
+	TaskID           string   `json:"taskID"`
+	EpicID           string   `json:"epicID"`
+	Title            string   `json:"title"`
+	Description      *string  `json:"description,omitempty"`
+	TaskType         string   `json:"taskType"`
+	State            string   `json:"state"`
+	Rank             int32    `json:"rank"`
+	DependsOnTaskIDs []string `json:"dependsOnTaskIDs,omitempty"`
 }
 
 type UpdateWorkerSettingsInput struct {

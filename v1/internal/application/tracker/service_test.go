@@ -34,6 +34,24 @@ func (store *fakeBoardStore) ApplyTaskResult(ctx context.Context, projectID stri
 	return store.board, store.err
 }
 
+func (store *fakeBoardStore) ListBoards(ctx context.Context, projectID string) ([]domaintracker.Board, error) {
+	_, _ = ctx, projectID
+	if store.err != nil {
+		return nil, store.err
+	}
+	return []domaintracker.Board{store.board}, nil
+}
+
+func (store *fakeBoardStore) LoadBoard(ctx context.Context, projectID string, boardID string) (domaintracker.Board, error) {
+	_, _, _ = ctx, projectID, boardID
+	return store.board, store.err
+}
+
+func (store *fakeBoardStore) DeleteBoard(ctx context.Context, projectID string, boardID string) error {
+	_, _, _ = ctx, projectID, boardID
+	return store.err
+}
+
 func sampleBoard() domaintracker.Board {
 	now := time.Now().UTC()
 	return domaintracker.Board{

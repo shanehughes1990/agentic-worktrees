@@ -245,6 +245,72 @@ class WorkerSettings {
   final DateTime updatedAt;
 }
 
+class TaskboardModel {
+  const TaskboardModel({
+    required this.boardID,
+    required this.projectID,
+    required this.name,
+    required this.state,
+    required this.epics,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String boardID;
+  final String projectID;
+  final String name;
+  final String state;
+  final List<TaskboardEpicModel> epics;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+}
+
+class TaskboardEpicModel {
+  const TaskboardEpicModel({
+    required this.id,
+    required this.boardID,
+    required this.title,
+    required this.objective,
+    required this.state,
+    required this.rank,
+    required this.dependsOnEpicIDs,
+    required this.tasks,
+  });
+
+  final String id;
+  final String boardID;
+  final String title;
+  final String? objective;
+  final String state;
+  final int rank;
+  final List<String> dependsOnEpicIDs;
+  final List<TaskboardTaskModel> tasks;
+}
+
+class TaskboardTaskModel {
+  const TaskboardTaskModel({
+    required this.id,
+    required this.boardID,
+    required this.epicID,
+    required this.title,
+    required this.description,
+    required this.taskType,
+    required this.state,
+    required this.rank,
+    required this.dependsOnTaskIDs,
+  });
+
+  final String id;
+  final String boardID;
+  final String epicID;
+  final String title;
+  final String? description;
+  final String taskType;
+  final String state;
+  final int rank;
+  final List<String> dependsOnTaskIDs;
+}
+
 String prettyJson(String raw) {
   final trimmed = raw.trim();
   if (trimmed.isEmpty) {

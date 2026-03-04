@@ -182,6 +182,56 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 	})
 }
 
+func (store *PostgresBoardStore) ListBoards(ctx context.Context, projectID string) ([]domaintracker.Board, error) {
+	if store == nil || store.db == nil {
+		return nil, failures.WrapTerminal(errors.New("postgres board store is not initialized"))
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	if cleanProjectID == "" {
+		return nil, failures.WrapTerminal(errors.New("project_id is required"))
+	}
+	records := make([]projectBoardRecord, 0)
+	if err := store.db.WithContext(ctx).Where("project_id = ?", cleanProjectID).Order("updated_at desc").Find(&records).Error; err != nil {
+		return nil, failures.WrapTransient(fmt.Errorf("list boards: %w", err))
+	}
+	boards := make([]domaintracker.Board, 0, len(records))
+	for _, record := range records {
+		board, err := store.LoadBoard(ctx, cleanProjectID, record.ID)
+		if err != nil {
+			return nil, err
+		}
+		boards = append(boards, board)
+	}
+	return boards, nil
+}
+
+func (store *PostgresBoardStore) DeleteBoard(ctx context.Context, projectID string, boardID string) error {
+	if store == nil || store.db == nil {
+		return failures.WrapTerminal(errors.New("postgres board store is not initialized"))
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	cleanBoardID := strings.TrimSpace(boardID)
+	if cleanProjectID == "" || cleanBoardID == "" {
+		return failures.WrapTerminal(errors.New("project_id and board_id are required"))
+	}
+	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardTaskRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board tasks: %w", err))
+		}
+		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardEpicRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board epics: %w", err))
+		}
+		result := tx.Where("id = ? AND project_id = ?", cleanBoardID, cleanProjectID).Delete(&projectBoardRecord{})
+		if result.Error != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board: %w", result.Error))
+		}
+		if result.RowsAffected == 0 {
+			return failures.WrapTerminal(errors.New("board not found"))
+		}
+		return nil
+	})
+}
+
 func (store *PostgresBoardStore) ClaimNextTask(ctx context.Context, projectID string, boardID string, agentID string, leaseTTL time.Duration) (domaintracker.Board, domaintracker.Task, string, error) {
 	if store == nil || store.db == nil {
 		return domaintracker.Board{}, domaintracker.Task{}, "", failures.WrapTerminal(errors.New("postgres board store is not initialized"))

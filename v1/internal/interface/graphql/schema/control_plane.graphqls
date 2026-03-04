@@ -133,6 +133,138 @@ type ProjectBoard {
   repositoryIDs: [String!]!
 }
 
+type TaskboardTask {
+  id: String!
+  boardID: String!
+  epicID: String!
+  title: String!
+  description: String
+  taskType: String!
+  state: String!
+  rank: Int!
+  dependsOnTaskIDs: [String!]!
+}
+
+type TaskboardEpic {
+  id: String!
+  boardID: String!
+  title: String!
+  objective: String
+  state: String!
+  rank: Int!
+  dependsOnEpicIDs: [String!]!
+  tasks: [TaskboardTask!]!
+}
+
+type Taskboard {
+  boardID: String!
+  projectID: String!
+  name: String!
+  state: String!
+  epics: [TaskboardEpic!]!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type TaskboardsSuccess {
+  boards: [Taskboard!]!
+}
+
+union TaskboardsResult = TaskboardsSuccess | GraphError
+
+type TaskboardSuccess {
+  board: Taskboard!
+}
+
+union TaskboardResult = TaskboardSuccess | GraphError
+
+type TaskboardMutationSuccess {
+  board: Taskboard!
+}
+
+union TaskboardMutationResult = TaskboardMutationSuccess | GraphError
+
+type TaskboardDeleteSuccess {
+  ok: Boolean!
+}
+
+union TaskboardDeleteResult = TaskboardDeleteSuccess | GraphError
+
+input CreateTaskboardInput {
+  projectID: String!
+  name: String!
+}
+
+input UpdateTaskboardInput {
+  projectID: String!
+  boardID: String!
+  name: String!
+  state: String!
+}
+
+input DeleteTaskboardInput {
+  projectID: String!
+  boardID: String!
+}
+
+input CreateTaskboardEpicInput {
+  projectID: String!
+  boardID: String!
+  title: String!
+  objective: String
+  state: String!
+  rank: Int!
+  dependsOnEpicIDs: [String!]
+}
+
+input UpdateTaskboardEpicInput {
+  projectID: String!
+  boardID: String!
+  epicID: String!
+  title: String!
+  objective: String
+  state: String!
+  rank: Int!
+  dependsOnEpicIDs: [String!]
+}
+
+input DeleteTaskboardEpicInput {
+  projectID: String!
+  boardID: String!
+  epicID: String!
+}
+
+input CreateTaskboardTaskInput {
+  projectID: String!
+  boardID: String!
+  epicID: String!
+  title: String!
+  description: String
+  taskType: String!
+  state: String!
+  rank: Int!
+  dependsOnTaskIDs: [String!]
+}
+
+input UpdateTaskboardTaskInput {
+  projectID: String!
+  boardID: String!
+  taskID: String!
+  epicID: String!
+  title: String!
+  description: String
+  taskType: String!
+  state: String!
+  rank: Int!
+  dependsOnTaskIDs: [String!]
+}
+
+input DeleteTaskboardTaskInput {
+  projectID: String!
+  boardID: String!
+  taskID: String!
+}
+
 type ProjectSetup {
   projectID: String!
   projectName: String!
@@ -361,6 +493,8 @@ extend type Query {
   projectDocuments(projectID: String!, limit: Int = 100): ProjectDocumentsResult!
   projectDocumentPreview(projectID: String!, documentID: String!): ProjectDocumentPreviewResult!
   projectRepositoryBranches(projectID: String!): ProjectRepositoryBranchesResult!
+  taskboards(projectID: String!): TaskboardsResult!
+  taskboard(projectID: String!, boardID: String!): TaskboardResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
 }
@@ -372,6 +506,15 @@ extend type Mutation {
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
   runIngestionAgent(input: RunIngestionAgentInput!): RunIngestionAgentResult!
+  createTaskboard(input: CreateTaskboardInput!): TaskboardMutationResult!
+  updateTaskboard(input: UpdateTaskboardInput!): TaskboardMutationResult!
+  deleteTaskboard(input: DeleteTaskboardInput!): TaskboardDeleteResult!
+  createTaskboardEpic(input: CreateTaskboardEpicInput!): TaskboardMutationResult!
+  updateTaskboardEpic(input: UpdateTaskboardEpicInput!): TaskboardMutationResult!
+  deleteTaskboardEpic(input: DeleteTaskboardEpicInput!): TaskboardMutationResult!
+  createTaskboardTask(input: CreateTaskboardTaskInput!): TaskboardMutationResult!
+  updateTaskboardTask(input: UpdateTaskboardTaskInput!): TaskboardMutationResult!
+  deleteTaskboardTask(input: DeleteTaskboardTaskInput!): TaskboardMutationResult!
   deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }

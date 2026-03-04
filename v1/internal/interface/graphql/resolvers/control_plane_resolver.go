@@ -9,9 +9,11 @@ import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domainstream "agentic-orchestrator/internal/domain/stream"
+	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -179,6 +181,341 @@ func (r *mutationResolver) RunIngestionAgent(ctx context.Context, input models.R
 		QueueTaskID: result.QueueTaskID,
 		Duplicate:   result.Duplicate,
 	}, nil
+}
+
+// CreateTaskboard is the resolver for the createTaskboard field.
+func (r *mutationResolver) CreateTaskboard(ctx context.Context, input models.CreateTaskboardInput) (models.TaskboardMutationResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.TrackerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "tracker service is not configured"}, nil
+	}
+	projectID := strings.TrimSpace(input.ProjectID)
+	name := strings.TrimSpace(input.Name)
+	if projectID == "" || name == "" {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "project_id and name are required"}, nil
+	}
+	boardID := newTaskboardID(name)
+	now := time.Now().UTC()
+	board := domaintracker.Board{
+		BoardID:   boardID,
+		RunID:     projectID,
+		ProjectID: projectID,
+		Name:      name,
+		State:     domaintracker.BoardStatePending,
+		Epics:     []domaintracker.Epic{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("create taskboard: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, boardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load created taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": boardID, "action": "create"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// UpdateTaskboard is the resolver for the updateTaskboard field.
+func (r *mutationResolver) UpdateTaskboard(ctx context.Context, input models.UpdateTaskboardInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	board.Name = strings.TrimSpace(input.Name)
+	if board.Name == "" {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "name is required"}, nil
+	}
+	state, parseErr := parseBoardState(input.State)
+	if parseErr != nil {
+		return graphErrorFromError(parseErr), nil
+	}
+	board.State = state
+	board.UpdatedAt = time.Now().UTC()
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("update taskboard: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "update"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// DeleteTaskboard is the resolver for the deleteTaskboard field.
+func (r *mutationResolver) DeleteTaskboard(ctx context.Context, input models.DeleteTaskboardInput) (models.TaskboardDeleteResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.TrackerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "tracker service is not configured"}, nil
+	}
+	projectID := strings.TrimSpace(input.ProjectID)
+	boardID := strings.TrimSpace(input.BoardID)
+	if err := r.Resolver.TrackerService.DeleteBoard(ctx, projectID, boardID); err != nil {
+		return graphErrorFromError(fmt.Errorf("delete taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardDeleted, projectID, map[string]any{"project_id": projectID, "board_id": boardID, "action": "delete"})
+	return models.TaskboardDeleteSuccess{Ok: true}, nil
+}
+
+// CreateTaskboardEpic is the resolver for the createTaskboardEpic field.
+func (r *mutationResolver) CreateTaskboardEpic(ctx context.Context, input models.CreateTaskboardEpicInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	epicState, parseErr := parseEpicState(input.State)
+	if parseErr != nil {
+		return graphErrorFromError(parseErr), nil
+	}
+	now := time.Now().UTC()
+	epicID := newEpicID(strings.TrimSpace(input.Title))
+	epic := domaintracker.Epic{
+		ID:               domaintracker.WorkItemID(epicID),
+		BoardID:          board.BoardID,
+		Title:            strings.TrimSpace(input.Title),
+		Objective:        strings.TrimSpace(derefString(input.Objective)),
+		State:            epicState,
+		Rank:             int(input.Rank),
+		DependsOnEpicIDs: stringsToWorkItemIDs(derefStrings(input.DependsOnEpicIDs)),
+		Tasks:            []domaintracker.Task{},
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if strings.TrimSpace(epic.Title) == "" {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "title is required"}, nil
+	}
+	board.Epics = append(board.Epics, epic)
+	board.UpdatedAt = now
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("create taskboard epic: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "create_epic"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// UpdateTaskboardEpic is the resolver for the updateTaskboardEpic field.
+func (r *mutationResolver) UpdateTaskboardEpic(ctx context.Context, input models.UpdateTaskboardEpicInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	epicState, parseErr := parseEpicState(input.State)
+	if parseErr != nil {
+		return graphErrorFromError(parseErr), nil
+	}
+	epicIndex := -1
+	for index, epic := range board.Epics {
+		if strings.TrimSpace(string(epic.ID)) == strings.TrimSpace(input.EpicID) {
+			epicIndex = index
+			break
+		}
+	}
+	if epicIndex < 0 {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "epic not found"}, nil
+	}
+	epic := board.Epics[epicIndex]
+	epic.Title = strings.TrimSpace(input.Title)
+	epic.Objective = strings.TrimSpace(derefString(input.Objective))
+	epic.State = epicState
+	epic.Rank = int(input.Rank)
+	epic.DependsOnEpicIDs = stringsToWorkItemIDs(derefStrings(input.DependsOnEpicIDs))
+	epic.UpdatedAt = time.Now().UTC()
+	board.Epics[epicIndex] = epic
+	board.UpdatedAt = epic.UpdatedAt
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("update taskboard epic: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "update_epic"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// DeleteTaskboardEpic is the resolver for the deleteTaskboardEpic field.
+func (r *mutationResolver) DeleteTaskboardEpic(ctx context.Context, input models.DeleteTaskboardEpicInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	nextEpics := make([]domaintracker.Epic, 0, len(board.Epics))
+	deleted := false
+	for _, epic := range board.Epics {
+		if strings.TrimSpace(string(epic.ID)) == strings.TrimSpace(input.EpicID) {
+			deleted = true
+			continue
+		}
+		nextEpics = append(nextEpics, epic)
+	}
+	if !deleted {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "epic not found"}, nil
+	}
+	board.Epics = nextEpics
+	board.UpdatedAt = time.Now().UTC()
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("delete taskboard epic: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "delete_epic"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// CreateTaskboardTask is the resolver for the createTaskboardTask field.
+func (r *mutationResolver) CreateTaskboardTask(ctx context.Context, input models.CreateTaskboardTaskInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	taskState, parseErr := parseTaskState(input.State)
+	if parseErr != nil {
+		return graphErrorFromError(parseErr), nil
+	}
+	epicIndex := -1
+	for index, epic := range board.Epics {
+		if strings.TrimSpace(string(epic.ID)) == strings.TrimSpace(input.EpicID) {
+			epicIndex = index
+			break
+		}
+	}
+	if epicIndex < 0 {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "epic not found"}, nil
+	}
+	epic := board.Epics[epicIndex]
+	now := time.Now().UTC()
+	task := domaintracker.Task{
+		ID:               domaintracker.WorkItemID(newTaskID(strings.TrimSpace(input.Title))),
+		BoardID:          board.BoardID,
+		EpicID:           epic.ID,
+		Title:            strings.TrimSpace(input.Title),
+		Description:      strings.TrimSpace(derefString(input.Description)),
+		TaskType:         strings.TrimSpace(input.TaskType),
+		State:            taskState,
+		Rank:             int(input.Rank),
+		DependsOnTaskIDs: stringsToWorkItemIDs(derefStrings(input.DependsOnTaskIDs)),
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if task.Title == "" || task.TaskType == "" {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "title and task_type are required"}, nil
+	}
+	epic.Tasks = append(epic.Tasks, task)
+	epic.UpdatedAt = now
+	board.Epics[epicIndex] = epic
+	board.UpdatedAt = now
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("create taskboard task: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "create_task"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// UpdateTaskboardTask is the resolver for the updateTaskboardTask field.
+func (r *mutationResolver) UpdateTaskboardTask(ctx context.Context, input models.UpdateTaskboardTaskInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	taskState, parseErr := parseTaskState(input.State)
+	if parseErr != nil {
+		return graphErrorFromError(parseErr), nil
+	}
+	targetEpicIndex := -1
+	for index, epic := range board.Epics {
+		if strings.TrimSpace(string(epic.ID)) == strings.TrimSpace(input.EpicID) {
+			targetEpicIndex = index
+			break
+		}
+	}
+	if targetEpicIndex < 0 {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "epic not found"}, nil
+	}
+	var existingTask *domaintracker.Task
+	for epicIndex := range board.Epics {
+		tasks := make([]domaintracker.Task, 0, len(board.Epics[epicIndex].Tasks))
+		for _, task := range board.Epics[epicIndex].Tasks {
+			if strings.TrimSpace(string(task.ID)) == strings.TrimSpace(input.TaskID) {
+				t := task
+				existingTask = &t
+				continue
+			}
+			tasks = append(tasks, task)
+		}
+		board.Epics[epicIndex].Tasks = tasks
+	}
+	if existingTask == nil {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "task not found"}, nil
+	}
+	now := time.Now().UTC()
+	task := *existingTask
+	task.EpicID = domaintracker.WorkItemID(strings.TrimSpace(input.EpicID))
+	task.Title = strings.TrimSpace(input.Title)
+	task.Description = strings.TrimSpace(derefString(input.Description))
+	task.TaskType = strings.TrimSpace(input.TaskType)
+	task.State = taskState
+	task.Rank = int(input.Rank)
+	task.DependsOnTaskIDs = stringsToWorkItemIDs(derefStrings(input.DependsOnTaskIDs))
+	task.UpdatedAt = now
+	if task.Title == "" || task.TaskType == "" {
+		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "title and task_type are required"}, nil
+	}
+	board.Epics[targetEpicIndex].Tasks = append(board.Epics[targetEpicIndex].Tasks, task)
+	board.Epics[targetEpicIndex].UpdatedAt = now
+	board.UpdatedAt = now
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("update taskboard task: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "update_task"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
+}
+
+// DeleteTaskboardTask is the resolver for the deleteTaskboardTask field.
+func (r *mutationResolver) DeleteTaskboardTask(ctx context.Context, input models.DeleteTaskboardTaskInput) (models.TaskboardMutationResult, error) {
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
+	}
+	deleted := false
+	for epicIndex := range board.Epics {
+		tasks := make([]domaintracker.Task, 0, len(board.Epics[epicIndex].Tasks))
+		for _, task := range board.Epics[epicIndex].Tasks {
+			if strings.TrimSpace(string(task.ID)) == strings.TrimSpace(input.TaskID) {
+				deleted = true
+				continue
+			}
+			tasks = append(tasks, task)
+		}
+		board.Epics[epicIndex].Tasks = tasks
+		board.Epics[epicIndex].UpdatedAt = time.Now().UTC()
+	}
+	if !deleted {
+		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: "task not found"}, nil
+	}
+	board.UpdatedAt = time.Now().UTC()
+	if err := r.Resolver.TrackerService.UpsertBoard(ctx, board); err != nil {
+		return graphErrorFromError(fmt.Errorf("delete taskboard task: %w", err)), nil
+	}
+	stored, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, board.BoardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load updated taskboard: %w", err)), nil
+	}
+	publishTaskboardStreamEvent(ctx, r.Resolver.StreamService, domainstream.EventTaskboardUpdated, projectID, map[string]any{"project_id": projectID, "board_id": board.BoardID, "action": "delete_task"})
+	return models.TaskboardMutationSuccess{Board: toGraphTaskboard(stored)}, nil
 }
 
 // DeleteProjectDocument is the resolver for the deleteProjectDocument field.
@@ -431,6 +768,34 @@ func (r *queryResolver) ProjectRepositoryBranches(ctx context.Context, projectID
 		})
 	}
 	return models.ProjectRepositoryBranchesSuccess{Repositories: items}, nil
+}
+
+// Taskboards is the resolver for the taskboards field.
+func (r *queryResolver) Taskboards(ctx context.Context, projectID string) (models.TaskboardsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.TrackerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "tracker service is not configured"}, nil
+	}
+	boards, err := r.Resolver.TrackerService.ListBoards(ctx, projectID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("list taskboards: %w", err)), nil
+	}
+	items := make([]*models.Taskboard, 0, len(boards))
+	for _, board := range boards {
+		items = append(items, toGraphTaskboard(board))
+	}
+	return models.TaskboardsSuccess{Boards: items}, nil
+}
+
+// Taskboard is the resolver for the taskboard field.
+func (r *queryResolver) Taskboard(ctx context.Context, projectID string, boardID string) (models.TaskboardResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.TrackerService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "tracker service is not configured"}, nil
+	}
+	board, err := r.Resolver.TrackerService.LoadBoard(ctx, projectID, boardID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load taskboard: %w", err)), nil
+	}
+	return models.TaskboardSuccess{Board: toGraphTaskboard(board)}, nil
 }
 
 // WorkerSessions is the resolver for the workerSessions field.

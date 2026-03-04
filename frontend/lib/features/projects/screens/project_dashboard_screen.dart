@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:agentic_repositories/features/projects/screens/project_setup_edit_screen.dart';
+import 'package:agentic_repositories/features/projects/screens/taskboard_management_screen.dart';
 import 'package:agentic_repositories/features/workers/screens/worker_sessions_screen.dart';
 import 'package:agentic_repositories/features/workers/screens/worker_settings_screen.dart';
 import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
-import 'package:agentic_repositories/shared/graph/typed/client.dart';
 import 'package:agentic_repositories/shared/logging/app_logger.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +31,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   late ProjectSetupConfig _projectSetup;
   StreamSubscription<ApiResult<StreamEvent>>? _taskboardSubscription;
   List<ProjectDocument> _projectDocuments = const <ProjectDocument>[];
+  List<TaskboardModel> _taskboards = const <TaskboardModel>[];
   bool _isUploadingFiles = false;
   bool _isCreatingTaskboard = false;
   bool _isRefreshingProjectSetup = false;
@@ -45,6 +45,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     _startTaskboardSubscription();
     unawaited(_refreshProjectSetup(silent: true));
     unawaited(_loadProjectDocuments());
+    unawaited(_loadTaskboards());
   }
 
   @override
@@ -72,6 +73,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
             return;
           }
           unawaited(_refreshProjectSetup(silent: true));
+          unawaited(_loadTaskboards(silent: true));
         });
   }
 
@@ -190,6 +192,27 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     }
     setState(() {
       _projectDocuments = result.data!;
+    });
+  }
+
+  Future<void> _loadTaskboards({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _isRefreshingProjectSetup = true;
+      });
+    }
+    final result = await _api.taskboards(projectID: _projectSetup.projectID);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isRefreshingProjectSetup = false;
+      if (!result.isSuccess || result.data == null) {
+        _statusMessage =
+            'Failed loading taskboards: ${result.errorMessage ?? 'unknown error'}';
+        return;
+      }
+      _taskboards = result.data!;
     });
   }
 
@@ -427,7 +450,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: DropdownButtonFormField<String>(
-                              value: selectedBranch,
+                              initialValue: selectedBranch,
                               onChanged: branches.isEmpty
                                   ? null
                                   : (String? value) {
@@ -532,34 +555,48 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
           'Taskboard run enqueued (run=${result.data!.runID}, task=${result.data!.taskID}).';
     });
     await _refreshProjectSetup(silent: true);
+    await _loadTaskboards(silent: true);
   }
 
-  Widget _buildTaskboardCard(BuildContext context, ProjectBoardConfig board) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              board.taskboardName.trim().isEmpty
-                  ? board.boardID
-                  : board.taskboardName,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text('Board ID: ${board.boardID}'),
-            const SizedBox(height: 2),
-            Text('Provider: ${board.trackerProvider}'),
-            const SizedBox(height: 2),
-            Text(
-              board.appliesToAllRepositories
-                  ? 'Scope: all repositories'
-                  : 'Scope: ${board.repositoryIDs.length} repositories',
-            ),
-          ],
+  Future<void> _openTaskboardManagement(TaskboardModel board) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (BuildContext context) => TaskboardManagementScreen(
+          api: _api,
+          projectID: _projectSetup.projectID,
+          boardID: board.boardID,
+        ),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    await _loadTaskboards(silent: true);
+  }
+
+  Widget _buildTaskboardCard(BuildContext context, TaskboardModel board) {
+    return InkWell(
+      onTap: () => _openTaskboardManagement(board),
+      child: Card(
+        elevation: 0,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                board.name.trim().isEmpty ? board.boardID : board.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text('Board ID: ${board.boardID}'),
+              const SizedBox(height: 2),
+              Text('State: ${board.state}'),
+              const SizedBox(height: 2),
+              Text('Epics: ${board.epics.length}'),
+            ],
+          ),
         ),
       ),
     );
@@ -569,7 +606,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   Widget build(BuildContext context) {
     final repositories = _projectSetup.repositories;
     final scm = _projectSetup.scms.isNotEmpty ? _projectSetup.scms.first : null;
-    final hasTracker = _projectSetup.boards.isNotEmpty;
+    final hasTracker = _taskboards.isNotEmpty;
 
     return Scaffold(
       drawer: Drawer(
@@ -773,13 +810,13 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                         padding: EdgeInsets.only(bottom: 8),
                         child: LinearProgressIndicator(),
                       ),
-                    if (_projectSetup.boards.isEmpty)
+                    if (_taskboards.isEmpty)
                       const Text('No taskboards configured for this project.')
                     else
                       LayoutBuilder(
                         builder:
                             (BuildContext context, BoxConstraints constraints) {
-                              final boards = _projectSetup.boards;
+                              final boards = _taskboards;
                               final spacing = 8.0;
                               final preferredWidth = 320.0;
                               final visibleColumns =

@@ -11,6 +11,9 @@ import (
 
 type BoardStore interface {
 	UpsertBoard(ctx context.Context, board domaintracker.Board) error
+	ListBoards(ctx context.Context, projectID string) ([]domaintracker.Board, error)
+	LoadBoard(ctx context.Context, projectID string, boardID string) (domaintracker.Board, error)
+	DeleteBoard(ctx context.Context, projectID string, boardID string) error
 	ClaimNextTask(ctx context.Context, projectID string, boardID string, agentID string, leaseTTL time.Duration) (domaintracker.Board, domaintracker.Task, string, error)
 	ApplyTaskResult(ctx context.Context, projectID string, boardID string, claimToken string, taskID string, nextState domaintracker.TaskState, outcome domaintracker.TaskOutcome) (domaintracker.Board, error)
 }
@@ -107,6 +110,58 @@ func (service *Service) UpsertBoard(ctx context.Context, board domaintracker.Boa
 		return err
 	}
 	if err := service.boardStore.UpsertBoard(ctx, board); err != nil {
+		return ensureClassified(err)
+	}
+	return nil
+}
+
+func (service *Service) ListBoards(ctx context.Context, projectID string) ([]domaintracker.Board, error) {
+	if service == nil || service.boardStore == nil {
+		return nil, failures.WrapTerminal(errors.New("tracker service is not initialized"))
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	if cleanProjectID == "" {
+		return nil, failures.WrapTerminal(errors.New("project_id is required"))
+	}
+	boards, err := service.boardStore.ListBoards(ctx, cleanProjectID)
+	if err != nil {
+		return nil, ensureClassified(err)
+	}
+	return boards, nil
+}
+
+func (service *Service) LoadBoard(ctx context.Context, projectID string, boardID string) (domaintracker.Board, error) {
+	if service == nil || service.boardStore == nil {
+		return domaintracker.Board{}, failures.WrapTerminal(errors.New("tracker service is not initialized"))
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	if cleanProjectID == "" {
+		return domaintracker.Board{}, failures.WrapTerminal(errors.New("project_id is required"))
+	}
+	cleanBoardID := strings.TrimSpace(boardID)
+	if cleanBoardID == "" {
+		return domaintracker.Board{}, failures.WrapTerminal(errors.New("board_id is required"))
+	}
+	board, err := service.boardStore.LoadBoard(ctx, cleanProjectID, cleanBoardID)
+	if err != nil {
+		return domaintracker.Board{}, ensureClassified(err)
+	}
+	return board, nil
+}
+
+func (service *Service) DeleteBoard(ctx context.Context, projectID string, boardID string) error {
+	if service == nil || service.boardStore == nil {
+		return failures.WrapTerminal(errors.New("tracker service is not initialized"))
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	if cleanProjectID == "" {
+		return failures.WrapTerminal(errors.New("project_id is required"))
+	}
+	cleanBoardID := strings.TrimSpace(boardID)
+	if cleanBoardID == "" {
+		return failures.WrapTerminal(errors.New("board_id is required"))
+	}
+	if err := service.boardStore.DeleteBoard(ctx, cleanProjectID, cleanBoardID); err != nil {
 		return ensureClassified(err)
 	}
 	return nil

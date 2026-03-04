@@ -89,11 +89,20 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		ApproveIssueIntake           func(childComplexity int, input models.ApproveIssueIntakeInput) int
+		CreateTaskboard              func(childComplexity int, input models.CreateTaskboardInput) int
+		CreateTaskboardEpic          func(childComplexity int, input models.CreateTaskboardEpicInput) int
+		CreateTaskboardTask          func(childComplexity int, input models.CreateTaskboardTaskInput) int
 		DeleteProjectDocument        func(childComplexity int, input models.DeleteProjectDocumentInput) int
 		DeleteProjectSetup           func(childComplexity int, input models.DeleteProjectSetupInput) int
+		DeleteTaskboard              func(childComplexity int, input models.DeleteTaskboardInput) int
+		DeleteTaskboardEpic          func(childComplexity int, input models.DeleteTaskboardEpicInput) int
+		DeleteTaskboardTask          func(childComplexity int, input models.DeleteTaskboardTaskInput) int
 		RequestProjectDocumentUpload func(childComplexity int, input models.RequestProjectDocumentUploadInput) int
 		RequeueDeadLetter            func(childComplexity int, input models.RequeueDeadLetterInput) int
 		RunIngestionAgent            func(childComplexity int, input models.RunIngestionAgentInput) int
+		UpdateTaskboard              func(childComplexity int, input models.UpdateTaskboardInput) int
+		UpdateTaskboardEpic          func(childComplexity int, input models.UpdateTaskboardEpicInput) int
+		UpdateTaskboardTask          func(childComplexity int, input models.UpdateTaskboardTaskInput) int
 		UpdateWorkerSettings         func(childComplexity int, input models.UpdateWorkerSettingsInput) int
 		UpsertProjectSetup           func(childComplexity int, input models.UpsertProjectSetupInput) int
 	}
@@ -179,6 +188,8 @@ type ComplexityRoot struct {
 		Session                   func(childComplexity int, runID string) int
 		Sessions                  func(childComplexity int, limit *int32) int
 		SupervisorDecisionHistory func(childComplexity int, correlation models.SupervisorCorrelationInput) int
+		Taskboard                 func(childComplexity int, projectID string, boardID string) int
+		Taskboards                func(childComplexity int, projectID string) int
 		WorkerSessions            func(childComplexity int, limit *int32) int
 		WorkerSettings            func(childComplexity int) int
 		WorkflowJobs              func(childComplexity int, runID string, taskID *string, limit *int32) int
@@ -285,6 +296,55 @@ type ComplexityRoot struct {
 		Value func(childComplexity int) int
 	}
 
+	Taskboard struct {
+		BoardID   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		Epics     func(childComplexity int) int
+		Name      func(childComplexity int) int
+		ProjectID func(childComplexity int) int
+		State     func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
+	TaskboardDeleteSuccess struct {
+		Ok func(childComplexity int) int
+	}
+
+	TaskboardEpic struct {
+		BoardID          func(childComplexity int) int
+		DependsOnEpicIDs func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Objective        func(childComplexity int) int
+		Rank             func(childComplexity int) int
+		State            func(childComplexity int) int
+		Tasks            func(childComplexity int) int
+		Title            func(childComplexity int) int
+	}
+
+	TaskboardMutationSuccess struct {
+		Board func(childComplexity int) int
+	}
+
+	TaskboardSuccess struct {
+		Board func(childComplexity int) int
+	}
+
+	TaskboardTask struct {
+		BoardID          func(childComplexity int) int
+		DependsOnTaskIDs func(childComplexity int) int
+		Description      func(childComplexity int) int
+		EpicID           func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Rank             func(childComplexity int) int
+		State            func(childComplexity int) int
+		TaskType         func(childComplexity int) int
+		Title            func(childComplexity int) int
+	}
+
+	TaskboardsSuccess struct {
+		Boards func(childComplexity int) int
+	}
+
 	UpsertProjectSetupSuccess struct {
 		Project func(childComplexity int) int
 	}
@@ -339,6 +399,15 @@ type MutationResolver interface {
 	DeleteProjectSetup(ctx context.Context, input models.DeleteProjectSetupInput) (models.DeleteProjectSetupResult, error)
 	RequestProjectDocumentUpload(ctx context.Context, input models.RequestProjectDocumentUploadInput) (models.RequestProjectDocumentUploadResult, error)
 	RunIngestionAgent(ctx context.Context, input models.RunIngestionAgentInput) (models.RunIngestionAgentResult, error)
+	CreateTaskboard(ctx context.Context, input models.CreateTaskboardInput) (models.TaskboardMutationResult, error)
+	UpdateTaskboard(ctx context.Context, input models.UpdateTaskboardInput) (models.TaskboardMutationResult, error)
+	DeleteTaskboard(ctx context.Context, input models.DeleteTaskboardInput) (models.TaskboardDeleteResult, error)
+	CreateTaskboardEpic(ctx context.Context, input models.CreateTaskboardEpicInput) (models.TaskboardMutationResult, error)
+	UpdateTaskboardEpic(ctx context.Context, input models.UpdateTaskboardEpicInput) (models.TaskboardMutationResult, error)
+	DeleteTaskboardEpic(ctx context.Context, input models.DeleteTaskboardEpicInput) (models.TaskboardMutationResult, error)
+	CreateTaskboardTask(ctx context.Context, input models.CreateTaskboardTaskInput) (models.TaskboardMutationResult, error)
+	UpdateTaskboardTask(ctx context.Context, input models.UpdateTaskboardTaskInput) (models.TaskboardMutationResult, error)
+	DeleteTaskboardTask(ctx context.Context, input models.DeleteTaskboardTaskInput) (models.TaskboardMutationResult, error)
 	DeleteProjectDocument(ctx context.Context, input models.DeleteProjectDocumentInput) (models.DeleteProjectDocumentResult, error)
 	UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error)
 }
@@ -353,6 +422,8 @@ type QueryResolver interface {
 	ProjectDocuments(ctx context.Context, projectID string, limit *int32) (models.ProjectDocumentsResult, error)
 	ProjectDocumentPreview(ctx context.Context, projectID string, documentID string) (models.ProjectDocumentPreviewResult, error)
 	ProjectRepositoryBranches(ctx context.Context, projectID string) (models.ProjectRepositoryBranchesResult, error)
+	Taskboards(ctx context.Context, projectID string) (models.TaskboardsResult, error)
+	Taskboard(ctx context.Context, projectID string, boardID string) (models.TaskboardResult, error)
 	WorkerSessions(ctx context.Context, limit *int32) (models.WorkerSessionsResult, error)
 	WorkerSettings(ctx context.Context) (models.WorkerSettingsResult, error)
 	ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error)
@@ -556,6 +627,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ApproveIssueIntake(childComplexity, args["input"].(models.ApproveIssueIntakeInput)), true
+	case "Mutation.createTaskboard":
+		if e.ComplexityRoot.Mutation.CreateTaskboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createTaskboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateTaskboard(childComplexity, args["input"].(models.CreateTaskboardInput)), true
+	case "Mutation.createTaskboardEpic":
+		if e.ComplexityRoot.Mutation.CreateTaskboardEpic == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createTaskboardEpic_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateTaskboardEpic(childComplexity, args["input"].(models.CreateTaskboardEpicInput)), true
+	case "Mutation.createTaskboardTask":
+		if e.ComplexityRoot.Mutation.CreateTaskboardTask == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createTaskboardTask_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateTaskboardTask(childComplexity, args["input"].(models.CreateTaskboardTaskInput)), true
 	case "Mutation.deleteProjectDocument":
 		if e.ComplexityRoot.Mutation.DeleteProjectDocument == nil {
 			break
@@ -578,6 +682,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteProjectSetup(childComplexity, args["input"].(models.DeleteProjectSetupInput)), true
+	case "Mutation.deleteTaskboard":
+		if e.ComplexityRoot.Mutation.DeleteTaskboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteTaskboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteTaskboard(childComplexity, args["input"].(models.DeleteTaskboardInput)), true
+	case "Mutation.deleteTaskboardEpic":
+		if e.ComplexityRoot.Mutation.DeleteTaskboardEpic == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteTaskboardEpic_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteTaskboardEpic(childComplexity, args["input"].(models.DeleteTaskboardEpicInput)), true
+	case "Mutation.deleteTaskboardTask":
+		if e.ComplexityRoot.Mutation.DeleteTaskboardTask == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteTaskboardTask_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteTaskboardTask(childComplexity, args["input"].(models.DeleteTaskboardTaskInput)), true
 	case "Mutation.requestProjectDocumentUpload":
 		if e.ComplexityRoot.Mutation.RequestProjectDocumentUpload == nil {
 			break
@@ -611,6 +748,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RunIngestionAgent(childComplexity, args["input"].(models.RunIngestionAgentInput)), true
+	case "Mutation.updateTaskboard":
+		if e.ComplexityRoot.Mutation.UpdateTaskboard == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTaskboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTaskboard(childComplexity, args["input"].(models.UpdateTaskboardInput)), true
+	case "Mutation.updateTaskboardEpic":
+		if e.ComplexityRoot.Mutation.UpdateTaskboardEpic == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTaskboardEpic_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTaskboardEpic(childComplexity, args["input"].(models.UpdateTaskboardEpicInput)), true
+	case "Mutation.updateTaskboardTask":
+		if e.ComplexityRoot.Mutation.UpdateTaskboardTask == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateTaskboardTask_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateTaskboardTask(childComplexity, args["input"].(models.UpdateTaskboardTaskInput)), true
 	case "Mutation.updateWorkerSettings":
 		if e.ComplexityRoot.Mutation.UpdateWorkerSettings == nil {
 			break
@@ -978,6 +1148,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SupervisorDecisionHistory(childComplexity, args["correlation"].(models.SupervisorCorrelationInput)), true
+	case "Query.taskboard":
+		if e.ComplexityRoot.Query.Taskboard == nil {
+			break
+		}
+
+		args, err := ec.field_Query_taskboard_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Taskboard(childComplexity, args["projectID"].(string), args["boardID"].(string)), true
+	case "Query.taskboards":
+		if e.ComplexityRoot.Query.Taskboards == nil {
+			break
+		}
+
+		args, err := ec.field_Query_taskboards_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Taskboards(childComplexity, args["projectID"].(string)), true
 	case "Query.workerSessions":
 		if e.ComplexityRoot.Query.WorkerSessions == nil {
 			break
@@ -1422,6 +1614,181 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SupervisorDecisionMetadataEntry.Value(childComplexity), true
 
+	case "Taskboard.boardID":
+		if e.ComplexityRoot.Taskboard.BoardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.BoardID(childComplexity), true
+	case "Taskboard.createdAt":
+		if e.ComplexityRoot.Taskboard.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.CreatedAt(childComplexity), true
+	case "Taskboard.epics":
+		if e.ComplexityRoot.Taskboard.Epics == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.Epics(childComplexity), true
+	case "Taskboard.name":
+		if e.ComplexityRoot.Taskboard.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.Name(childComplexity), true
+	case "Taskboard.projectID":
+		if e.ComplexityRoot.Taskboard.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.ProjectID(childComplexity), true
+	case "Taskboard.state":
+		if e.ComplexityRoot.Taskboard.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.State(childComplexity), true
+	case "Taskboard.updatedAt":
+		if e.ComplexityRoot.Taskboard.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.UpdatedAt(childComplexity), true
+
+	case "TaskboardDeleteSuccess.ok":
+		if e.ComplexityRoot.TaskboardDeleteSuccess.Ok == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardDeleteSuccess.Ok(childComplexity), true
+
+	case "TaskboardEpic.boardID":
+		if e.ComplexityRoot.TaskboardEpic.BoardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.BoardID(childComplexity), true
+	case "TaskboardEpic.dependsOnEpicIDs":
+		if e.ComplexityRoot.TaskboardEpic.DependsOnEpicIDs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.DependsOnEpicIDs(childComplexity), true
+	case "TaskboardEpic.id":
+		if e.ComplexityRoot.TaskboardEpic.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.ID(childComplexity), true
+	case "TaskboardEpic.objective":
+		if e.ComplexityRoot.TaskboardEpic.Objective == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.Objective(childComplexity), true
+	case "TaskboardEpic.rank":
+		if e.ComplexityRoot.TaskboardEpic.Rank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.Rank(childComplexity), true
+	case "TaskboardEpic.state":
+		if e.ComplexityRoot.TaskboardEpic.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.State(childComplexity), true
+	case "TaskboardEpic.tasks":
+		if e.ComplexityRoot.TaskboardEpic.Tasks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.Tasks(childComplexity), true
+	case "TaskboardEpic.title":
+		if e.ComplexityRoot.TaskboardEpic.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.Title(childComplexity), true
+
+	case "TaskboardMutationSuccess.board":
+		if e.ComplexityRoot.TaskboardMutationSuccess.Board == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardMutationSuccess.Board(childComplexity), true
+
+	case "TaskboardSuccess.board":
+		if e.ComplexityRoot.TaskboardSuccess.Board == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardSuccess.Board(childComplexity), true
+
+	case "TaskboardTask.boardID":
+		if e.ComplexityRoot.TaskboardTask.BoardID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.BoardID(childComplexity), true
+	case "TaskboardTask.dependsOnTaskIDs":
+		if e.ComplexityRoot.TaskboardTask.DependsOnTaskIDs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.DependsOnTaskIDs(childComplexity), true
+	case "TaskboardTask.description":
+		if e.ComplexityRoot.TaskboardTask.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.Description(childComplexity), true
+	case "TaskboardTask.epicID":
+		if e.ComplexityRoot.TaskboardTask.EpicID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.EpicID(childComplexity), true
+	case "TaskboardTask.id":
+		if e.ComplexityRoot.TaskboardTask.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.ID(childComplexity), true
+	case "TaskboardTask.rank":
+		if e.ComplexityRoot.TaskboardTask.Rank == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.Rank(childComplexity), true
+	case "TaskboardTask.state":
+		if e.ComplexityRoot.TaskboardTask.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.State(childComplexity), true
+	case "TaskboardTask.taskType":
+		if e.ComplexityRoot.TaskboardTask.TaskType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.TaskType(childComplexity), true
+	case "TaskboardTask.title":
+		if e.ComplexityRoot.TaskboardTask.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.Title(childComplexity), true
+
+	case "TaskboardsSuccess.boards":
+		if e.ComplexityRoot.TaskboardsSuccess.Boards == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardsSuccess.Boards(childComplexity), true
+
 	case "UpsertProjectSetupSuccess.project":
 		if e.ComplexityRoot.UpsertProjectSetupSuccess.Project == nil {
 			break
@@ -1588,8 +1955,14 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputApproveIssueIntakeInput,
+		ec.unmarshalInputCreateTaskboardEpicInput,
+		ec.unmarshalInputCreateTaskboardInput,
+		ec.unmarshalInputCreateTaskboardTaskInput,
 		ec.unmarshalInputDeleteProjectDocumentInput,
 		ec.unmarshalInputDeleteProjectSetupInput,
+		ec.unmarshalInputDeleteTaskboardEpicInput,
+		ec.unmarshalInputDeleteTaskboardInput,
+		ec.unmarshalInputDeleteTaskboardTaskInput,
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputProjectSCMInput,
@@ -1598,6 +1971,9 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputRunIngestionAgentInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
+		ec.unmarshalInputUpdateTaskboardEpicInput,
+		ec.unmarshalInputUpdateTaskboardInput,
+		ec.unmarshalInputUpdateTaskboardTaskInput,
 		ec.unmarshalInputUpdateWorkerSettingsInput,
 		ec.unmarshalInputUpsertProjectSetupInput,
 	)
@@ -1825,6 +2201,138 @@ type ProjectBoard {
   taskboardName: String
   appliesToAllRepositories: Boolean!
   repositoryIDs: [String!]!
+}
+
+type TaskboardTask {
+  id: String!
+  boardID: String!
+  epicID: String!
+  title: String!
+  description: String
+  taskType: String!
+  state: String!
+  rank: Int!
+  dependsOnTaskIDs: [String!]!
+}
+
+type TaskboardEpic {
+  id: String!
+  boardID: String!
+  title: String!
+  objective: String
+  state: String!
+  rank: Int!
+  dependsOnEpicIDs: [String!]!
+  tasks: [TaskboardTask!]!
+}
+
+type Taskboard {
+  boardID: String!
+  projectID: String!
+  name: String!
+  state: String!
+  epics: [TaskboardEpic!]!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type TaskboardsSuccess {
+  boards: [Taskboard!]!
+}
+
+union TaskboardsResult = TaskboardsSuccess | GraphError
+
+type TaskboardSuccess {
+  board: Taskboard!
+}
+
+union TaskboardResult = TaskboardSuccess | GraphError
+
+type TaskboardMutationSuccess {
+  board: Taskboard!
+}
+
+union TaskboardMutationResult = TaskboardMutationSuccess | GraphError
+
+type TaskboardDeleteSuccess {
+  ok: Boolean!
+}
+
+union TaskboardDeleteResult = TaskboardDeleteSuccess | GraphError
+
+input CreateTaskboardInput {
+  projectID: String!
+  name: String!
+}
+
+input UpdateTaskboardInput {
+  projectID: String!
+  boardID: String!
+  name: String!
+  state: String!
+}
+
+input DeleteTaskboardInput {
+  projectID: String!
+  boardID: String!
+}
+
+input CreateTaskboardEpicInput {
+  projectID: String!
+  boardID: String!
+  title: String!
+  objective: String
+  state: String!
+  rank: Int!
+  dependsOnEpicIDs: [String!]
+}
+
+input UpdateTaskboardEpicInput {
+  projectID: String!
+  boardID: String!
+  epicID: String!
+  title: String!
+  objective: String
+  state: String!
+  rank: Int!
+  dependsOnEpicIDs: [String!]
+}
+
+input DeleteTaskboardEpicInput {
+  projectID: String!
+  boardID: String!
+  epicID: String!
+}
+
+input CreateTaskboardTaskInput {
+  projectID: String!
+  boardID: String!
+  epicID: String!
+  title: String!
+  description: String
+  taskType: String!
+  state: String!
+  rank: Int!
+  dependsOnTaskIDs: [String!]
+}
+
+input UpdateTaskboardTaskInput {
+  projectID: String!
+  boardID: String!
+  taskID: String!
+  epicID: String!
+  title: String!
+  description: String
+  taskType: String!
+  state: String!
+  rank: Int!
+  dependsOnTaskIDs: [String!]
+}
+
+input DeleteTaskboardTaskInput {
+  projectID: String!
+  boardID: String!
+  taskID: String!
 }
 
 type ProjectSetup {
@@ -2055,6 +2563,8 @@ extend type Query {
   projectDocuments(projectID: String!, limit: Int = 100): ProjectDocumentsResult!
   projectDocumentPreview(projectID: String!, documentID: String!): ProjectDocumentPreviewResult!
   projectRepositoryBranches(projectID: String!): ProjectRepositoryBranchesResult!
+  taskboards(projectID: String!): TaskboardsResult!
+  taskboard(projectID: String!, boardID: String!): TaskboardResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
 }
@@ -2066,6 +2576,15 @@ extend type Mutation {
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
   runIngestionAgent(input: RunIngestionAgentInput!): RunIngestionAgentResult!
+  createTaskboard(input: CreateTaskboardInput!): TaskboardMutationResult!
+  updateTaskboard(input: UpdateTaskboardInput!): TaskboardMutationResult!
+  deleteTaskboard(input: DeleteTaskboardInput!): TaskboardDeleteResult!
+  createTaskboardEpic(input: CreateTaskboardEpicInput!): TaskboardMutationResult!
+  updateTaskboardEpic(input: UpdateTaskboardEpicInput!): TaskboardMutationResult!
+  deleteTaskboardEpic(input: DeleteTaskboardEpicInput!): TaskboardMutationResult!
+  createTaskboardTask(input: CreateTaskboardTaskInput!): TaskboardMutationResult!
+  updateTaskboardTask(input: UpdateTaskboardTaskInput!): TaskboardMutationResult!
+  deleteTaskboardTask(input: DeleteTaskboardTaskInput!): TaskboardMutationResult!
   deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }
@@ -2286,6 +2805,39 @@ func (ec *executionContext) field_Mutation_approveIssueIntake_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createTaskboardEpic_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateTaskboardEpicInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCreateTaskboardEpicInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createTaskboardTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateTaskboardTaskInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCreateTaskboardTaskInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createTaskboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCreateTaskboardInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteProjectDocument_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2301,6 +2853,39 @@ func (ec *executionContext) field_Mutation_deleteProjectSetup_args(ctx context.C
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteProjectSetupInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteProjectSetupInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteTaskboardEpic_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteTaskboardEpicInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardEpicInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteTaskboardTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteTaskboardTaskInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardTaskInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteTaskboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2334,6 +2919,39 @@ func (ec *executionContext) field_Mutation_runIngestionAgent_args(ctx context.Co
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRunIngestionAgentInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRunIngestionAgentInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTaskboardEpic_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateTaskboardEpicInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateTaskboardEpicInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTaskboardTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateTaskboardTaskInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateTaskboardTaskInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateTaskboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateTaskboardInput)
 	if err != nil {
 		return nil, err
 	}
@@ -2501,6 +3119,33 @@ func (ec *executionContext) field_Query_supervisorDecisionHistory_args(ctx conte
 		return nil, err
 	}
 	args["correlation"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_taskboard_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "boardID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["boardID"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_taskboards_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
 	return args, nil
 }
 
@@ -3754,6 +4399,375 @@ func (ec *executionContext) fieldContext_Mutation_runIngestionAgent(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_runIngestionAgent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createTaskboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createTaskboard,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateTaskboard(ctx, fc.Args["input"].(models.CreateTaskboardInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createTaskboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createTaskboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTaskboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateTaskboard,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTaskboard(ctx, fc.Args["input"].(models.UpdateTaskboardInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateTaskboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTaskboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTaskboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteTaskboard,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteTaskboard(ctx, fc.Args["input"].(models.DeleteTaskboardInput))
+		},
+		nil,
+		ec.marshalNTaskboardDeleteResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardDeleteResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteTaskboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardDeleteResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteTaskboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createTaskboardEpic(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createTaskboardEpic,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateTaskboardEpic(ctx, fc.Args["input"].(models.CreateTaskboardEpicInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createTaskboardEpic(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createTaskboardEpic_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTaskboardEpic(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateTaskboardEpic,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTaskboardEpic(ctx, fc.Args["input"].(models.UpdateTaskboardEpicInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateTaskboardEpic(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTaskboardEpic_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTaskboardEpic(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteTaskboardEpic,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteTaskboardEpic(ctx, fc.Args["input"].(models.DeleteTaskboardEpicInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteTaskboardEpic(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteTaskboardEpic_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createTaskboardTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createTaskboardTask,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateTaskboardTask(ctx, fc.Args["input"].(models.CreateTaskboardTaskInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createTaskboardTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createTaskboardTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateTaskboardTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateTaskboardTask,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateTaskboardTask(ctx, fc.Args["input"].(models.UpdateTaskboardTaskInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateTaskboardTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateTaskboardTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTaskboardTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteTaskboardTask,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteTaskboardTask(ctx, fc.Args["input"].(models.DeleteTaskboardTaskInput))
+		},
+		nil,
+		ec.marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteTaskboardTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardMutationResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteTaskboardTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5400,6 +6414,88 @@ func (ec *executionContext) fieldContext_Query_projectRepositoryBranches(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_projectRepositoryBranches_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_taskboards(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_taskboards,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Taskboards(ctx, fc.Args["projectID"].(string))
+		},
+		nil,
+		ec.marshalNTaskboardsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_taskboards(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_taskboards_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_taskboard(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_taskboard,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Taskboard(ctx, fc.Args["projectID"].(string), fc.Args["boardID"].(string))
+		},
+		nil,
+		ec.marshalNTaskboardResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_taskboard(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type TaskboardResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_taskboard_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7607,6 +8703,904 @@ func (ec *executionContext) fieldContext_SupervisorDecisionMetadataEntry_value(_
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_boardID(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_boardID,
+		func(ctx context.Context) (any, error) {
+			return obj.BoardID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_boardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_projectID(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_name(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_state(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_state,
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_epics(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_epics,
+		func(ctx context.Context) (any, error) {
+			return obj.Epics, nil
+		},
+		nil,
+		ec.marshalNTaskboardEpic2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardEpicᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_epics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TaskboardEpic_id(ctx, field)
+			case "boardID":
+				return ec.fieldContext_TaskboardEpic_boardID(ctx, field)
+			case "title":
+				return ec.fieldContext_TaskboardEpic_title(ctx, field)
+			case "objective":
+				return ec.fieldContext_TaskboardEpic_objective(ctx, field)
+			case "state":
+				return ec.fieldContext_TaskboardEpic_state(ctx, field)
+			case "rank":
+				return ec.fieldContext_TaskboardEpic_rank(ctx, field)
+			case "dependsOnEpicIDs":
+				return ec.fieldContext_TaskboardEpic_dependsOnEpicIDs(ctx, field)
+			case "tasks":
+				return ec.fieldContext_TaskboardEpic_tasks(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TaskboardEpic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardDeleteSuccess_ok(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardDeleteSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardDeleteSuccess_ok,
+		func(ctx context.Context) (any, error) {
+			return obj.Ok, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardDeleteSuccess_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardDeleteSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_id(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_boardID(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_boardID,
+		func(ctx context.Context) (any, error) {
+			return obj.BoardID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_boardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_title(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_objective(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_objective,
+		func(ctx context.Context) (any, error) {
+			return obj.Objective, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_objective(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_state(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_state,
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_rank(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_rank,
+		func(ctx context.Context) (any, error) {
+			return obj.Rank, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_rank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_dependsOnEpicIDs(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_dependsOnEpicIDs,
+		func(ctx context.Context) (any, error) {
+			return obj.DependsOnEpicIDs, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_dependsOnEpicIDs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_tasks(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_tasks,
+		func(ctx context.Context) (any, error) {
+			return obj.Tasks, nil
+		},
+		nil,
+		ec.marshalNTaskboardTask2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardTaskᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_tasks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_TaskboardTask_id(ctx, field)
+			case "boardID":
+				return ec.fieldContext_TaskboardTask_boardID(ctx, field)
+			case "epicID":
+				return ec.fieldContext_TaskboardTask_epicID(ctx, field)
+			case "title":
+				return ec.fieldContext_TaskboardTask_title(ctx, field)
+			case "description":
+				return ec.fieldContext_TaskboardTask_description(ctx, field)
+			case "taskType":
+				return ec.fieldContext_TaskboardTask_taskType(ctx, field)
+			case "state":
+				return ec.fieldContext_TaskboardTask_state(ctx, field)
+			case "rank":
+				return ec.fieldContext_TaskboardTask_rank(ctx, field)
+			case "dependsOnTaskIDs":
+				return ec.fieldContext_TaskboardTask_dependsOnTaskIDs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TaskboardTask", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardMutationSuccess_board(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardMutationSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardMutationSuccess_board,
+		func(ctx context.Context) (any, error) {
+			return obj.Board, nil
+		},
+		nil,
+		ec.marshalNTaskboard2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboard,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardMutationSuccess_board(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardMutationSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "boardID":
+				return ec.fieldContext_Taskboard_boardID(ctx, field)
+			case "projectID":
+				return ec.fieldContext_Taskboard_projectID(ctx, field)
+			case "name":
+				return ec.fieldContext_Taskboard_name(ctx, field)
+			case "state":
+				return ec.fieldContext_Taskboard_state(ctx, field)
+			case "epics":
+				return ec.fieldContext_Taskboard_epics(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Taskboard_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Taskboard_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Taskboard", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardSuccess_board(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardSuccess_board,
+		func(ctx context.Context) (any, error) {
+			return obj.Board, nil
+		},
+		nil,
+		ec.marshalNTaskboard2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboard,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardSuccess_board(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "boardID":
+				return ec.fieldContext_Taskboard_boardID(ctx, field)
+			case "projectID":
+				return ec.fieldContext_Taskboard_projectID(ctx, field)
+			case "name":
+				return ec.fieldContext_Taskboard_name(ctx, field)
+			case "state":
+				return ec.fieldContext_Taskboard_state(ctx, field)
+			case "epics":
+				return ec.fieldContext_Taskboard_epics(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Taskboard_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Taskboard_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Taskboard", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_id(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_boardID(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_boardID,
+		func(ctx context.Context) (any, error) {
+			return obj.BoardID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_boardID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_epicID(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_epicID,
+		func(ctx context.Context) (any, error) {
+			return obj.EpicID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_epicID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_title(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_description(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_taskType(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_taskType,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_taskType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_state(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_state,
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_rank(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_rank,
+		func(ctx context.Context) (any, error) {
+			return obj.Rank, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_rank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_dependsOnTaskIDs(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_dependsOnTaskIDs,
+		func(ctx context.Context) (any, error) {
+			return obj.DependsOnTaskIDs, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_dependsOnTaskIDs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardsSuccess_boards(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardsSuccess_boards,
+		func(ctx context.Context) (any, error) {
+			return obj.Boards, nil
+		},
+		nil,
+		ec.marshalNTaskboard2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardsSuccess_boards(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "boardID":
+				return ec.fieldContext_Taskboard_boardID(ctx, field)
+			case "projectID":
+				return ec.fieldContext_Taskboard_projectID(ctx, field)
+			case "name":
+				return ec.fieldContext_Taskboard_name(ctx, field)
+			case "state":
+				return ec.fieldContext_Taskboard_state(ctx, field)
+			case "epics":
+				return ec.fieldContext_Taskboard_epics(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Taskboard_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Taskboard_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Taskboard", field.Name)
 		},
 	}
 	return fc, nil
@@ -9915,6 +11909,189 @@ func (ec *executionContext) unmarshalInputApproveIssueIntakeInput(ctx context.Co
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateTaskboardEpicInput(ctx context.Context, obj any) (models.CreateTaskboardEpicInput, error) {
+	var it models.CreateTaskboardEpicInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "title", "objective", "state", "rank", "dependsOnEpicIDs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "objective":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("objective"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Objective = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		case "rank":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rank"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Rank = data
+		case "dependsOnEpicIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dependsOnEpicIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DependsOnEpicIDs = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateTaskboardInput(ctx context.Context, obj any) (models.CreateTaskboardInput, error) {
+	var it models.CreateTaskboardInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateTaskboardTaskInput(ctx context.Context, obj any) (models.CreateTaskboardTaskInput, error) {
+	var it models.CreateTaskboardTaskInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "epicID", "title", "description", "taskType", "state", "rank", "dependsOnTaskIDs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "epicID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epicID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EpicID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "taskType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskType = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		case "rank":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rank"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Rank = data
+		case "dependsOnTaskIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dependsOnTaskIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DependsOnTaskIDs = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputDeleteProjectDocumentInput(ctx context.Context, obj any) (models.DeleteProjectDocumentInput, error) {
 	var it models.DeleteProjectDocumentInput
 	asMap := map[string]any{}
@@ -9969,6 +12146,119 @@ func (ec *executionContext) unmarshalInputDeleteProjectSetupInput(ctx context.Co
 				return it, err
 			}
 			it.ProjectID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputDeleteTaskboardEpicInput(ctx context.Context, obj any) (models.DeleteTaskboardEpicInput, error) {
+	var it models.DeleteTaskboardEpicInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "epicID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "epicID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epicID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EpicID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputDeleteTaskboardInput(ctx context.Context, obj any) (models.DeleteTaskboardInput, error) {
+	var it models.DeleteTaskboardInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputDeleteTaskboardTaskInput(ctx context.Context, obj any) (models.DeleteTaskboardTaskInput, error) {
+	var it models.DeleteTaskboardTaskInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "taskID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
 		}
 	}
 	return it, nil
@@ -10310,6 +12600,217 @@ func (ec *executionContext) unmarshalInputSupervisorCorrelationInput(ctx context
 				return it, err
 			}
 			it.ProjectID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTaskboardEpicInput(ctx context.Context, obj any) (models.UpdateTaskboardEpicInput, error) {
+	var it models.UpdateTaskboardEpicInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "epicID", "title", "objective", "state", "rank", "dependsOnEpicIDs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "epicID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epicID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EpicID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "objective":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("objective"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Objective = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		case "rank":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rank"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Rank = data
+		case "dependsOnEpicIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dependsOnEpicIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DependsOnEpicIDs = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTaskboardInput(ctx context.Context, obj any) (models.UpdateTaskboardInput, error) {
+	var it models.UpdateTaskboardInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "name", "state"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateTaskboardTaskInput(ctx context.Context, obj any) (models.UpdateTaskboardTaskInput, error) {
+	var it models.UpdateTaskboardTaskInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "boardID", "taskID", "epicID", "title", "description", "taskType", "state", "rank", "dependsOnTaskIDs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
+		case "epicID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epicID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EpicID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "taskType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskType = data
+		case "state":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.State = data
+		case "rank":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rank"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Rank = data
+		case "dependsOnTaskIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dependsOnTaskIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DependsOnTaskIDs = data
 		}
 	}
 	return it, nil
@@ -10892,6 +13393,114 @@ func (ec *executionContext) _SupervisorDecisionHistoryResult(ctx context.Context
 	}
 }
 
+func (ec *executionContext) _TaskboardDeleteResult(ctx context.Context, sel ast.SelectionSet, obj models.TaskboardDeleteResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.TaskboardDeleteSuccess:
+		return ec._TaskboardDeleteSuccess(ctx, sel, &obj)
+	case *models.TaskboardDeleteSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._TaskboardDeleteSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of TaskboardDeleteResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _TaskboardMutationResult(ctx context.Context, sel ast.SelectionSet, obj models.TaskboardMutationResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.TaskboardMutationSuccess:
+		return ec._TaskboardMutationSuccess(ctx, sel, &obj)
+	case *models.TaskboardMutationSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._TaskboardMutationSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of TaskboardMutationResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _TaskboardResult(ctx context.Context, sel ast.SelectionSet, obj models.TaskboardResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.TaskboardSuccess:
+		return ec._TaskboardSuccess(ctx, sel, &obj)
+	case *models.TaskboardSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._TaskboardSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of TaskboardResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _TaskboardsResult(ctx context.Context, sel ast.SelectionSet, obj models.TaskboardsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.TaskboardsSuccess:
+		return ec._TaskboardsSuccess(ctx, sel, &obj)
+	case *models.TaskboardsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._TaskboardsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of TaskboardsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
 func (ec *executionContext) _UpsertProjectSetupResult(ctx context.Context, sel ast.SelectionSet, obj models.UpsertProjectSetupResult) graphql.Marshaler {
 	switch obj := (obj).(type) {
 	case nil:
@@ -11345,7 +13954,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "TaskboardsResult", "TaskboardResult", "TaskboardMutationResult", "TaskboardDeleteResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -11448,6 +14057,69 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "runIngestionAgent":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_runIngestionAgent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createTaskboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createTaskboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTaskboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTaskboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTaskboard":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTaskboard(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createTaskboardEpic":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createTaskboardEpic(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTaskboardEpic":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTaskboardEpic(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTaskboardEpic":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTaskboardEpic(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createTaskboardTask":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createTaskboardTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateTaskboardTask":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateTaskboardTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTaskboardTask":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTaskboardTask(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -12264,6 +14936,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_projectRepositoryBranches(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "taskboards":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_taskboards(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "taskboard":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_taskboard(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -13098,6 +15814,378 @@ func (ec *executionContext) _SupervisorDecisionMetadataEntry(ctx context.Context
 	return out
 }
 
+var taskboardImplementors = []string{"Taskboard"}
+
+func (ec *executionContext) _Taskboard(ctx context.Context, sel ast.SelectionSet, obj *models.Taskboard) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Taskboard")
+		case "boardID":
+			out.Values[i] = ec._Taskboard_boardID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectID":
+			out.Values[i] = ec._Taskboard_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Taskboard_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._Taskboard_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "epics":
+			out.Values[i] = ec._Taskboard_epics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Taskboard_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Taskboard_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardDeleteSuccessImplementors = []string{"TaskboardDeleteSuccess", "TaskboardDeleteResult"}
+
+func (ec *executionContext) _TaskboardDeleteSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardDeleteSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardDeleteSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardDeleteSuccess")
+		case "ok":
+			out.Values[i] = ec._TaskboardDeleteSuccess_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardEpicImplementors = []string{"TaskboardEpic"}
+
+func (ec *executionContext) _TaskboardEpic(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardEpic) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardEpicImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardEpic")
+		case "id":
+			out.Values[i] = ec._TaskboardEpic_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "boardID":
+			out.Values[i] = ec._TaskboardEpic_boardID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._TaskboardEpic_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "objective":
+			out.Values[i] = ec._TaskboardEpic_objective(ctx, field, obj)
+		case "state":
+			out.Values[i] = ec._TaskboardEpic_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rank":
+			out.Values[i] = ec._TaskboardEpic_rank(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dependsOnEpicIDs":
+			out.Values[i] = ec._TaskboardEpic_dependsOnEpicIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tasks":
+			out.Values[i] = ec._TaskboardEpic_tasks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardMutationSuccessImplementors = []string{"TaskboardMutationSuccess", "TaskboardMutationResult"}
+
+func (ec *executionContext) _TaskboardMutationSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardMutationSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardMutationSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardMutationSuccess")
+		case "board":
+			out.Values[i] = ec._TaskboardMutationSuccess_board(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardSuccessImplementors = []string{"TaskboardSuccess", "TaskboardResult"}
+
+func (ec *executionContext) _TaskboardSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardSuccess")
+		case "board":
+			out.Values[i] = ec._TaskboardSuccess_board(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardTaskImplementors = []string{"TaskboardTask"}
+
+func (ec *executionContext) _TaskboardTask(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardTask) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardTaskImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardTask")
+		case "id":
+			out.Values[i] = ec._TaskboardTask_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "boardID":
+			out.Values[i] = ec._TaskboardTask_boardID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "epicID":
+			out.Values[i] = ec._TaskboardTask_epicID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._TaskboardTask_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._TaskboardTask_description(ctx, field, obj)
+		case "taskType":
+			out.Values[i] = ec._TaskboardTask_taskType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._TaskboardTask_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rank":
+			out.Values[i] = ec._TaskboardTask_rank(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dependsOnTaskIDs":
+			out.Values[i] = ec._TaskboardTask_dependsOnTaskIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardsSuccessImplementors = []string{"TaskboardsSuccess", "TaskboardsResult"}
+
+func (ec *executionContext) _TaskboardsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardsSuccess")
+		case "boards":
+			out.Values[i] = ec._TaskboardsSuccess_boards(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var upsertProjectSetupSuccessImplementors = []string{"UpsertProjectSetupSuccess", "UpsertProjectSetupResult"}
 
 func (ec *executionContext) _UpsertProjectSetupSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.UpsertProjectSetupSuccess) graphql.Marshaler {
@@ -13827,6 +16915,21 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNCreateTaskboardEpicInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCreateTaskboardEpicInput(ctx context.Context, v any) (models.CreateTaskboardEpicInput, error) {
+	res, err := ec.unmarshalInputCreateTaskboardEpicInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCreateTaskboardInput(ctx context.Context, v any) (models.CreateTaskboardInput, error) {
+	res, err := ec.unmarshalInputCreateTaskboardInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateTaskboardTaskInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCreateTaskboardTaskInput(ctx context.Context, v any) (models.CreateTaskboardTaskInput, error) {
+	res, err := ec.unmarshalInputCreateTaskboardTaskInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNDeadLetterHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeadLetterHistoryRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.DeadLetterHistoryRecord) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -13891,6 +16994,21 @@ func (ec *executionContext) marshalNDeleteProjectSetupResult2agenticᚑorchestra
 		return graphql.Null
 	}
 	return ec._DeleteProjectSetupResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDeleteTaskboardEpicInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardEpicInput(ctx context.Context, v any) (models.DeleteTaskboardEpicInput, error) {
+	res, err := ec.unmarshalInputDeleteTaskboardEpicInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNDeleteTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardInput(ctx context.Context, v any) (models.DeleteTaskboardInput, error) {
+	res, err := ec.unmarshalInputDeleteTaskboardInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNDeleteTaskboardTaskInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardTaskInput(ctx context.Context, v any) (models.DeleteTaskboardTaskInput, error) {
+	res, err := ec.unmarshalInputDeleteTaskboardTaskInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNExecutionHistoryRecord2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐExecutionHistoryRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ExecutionHistoryRecord) graphql.Marshaler {
@@ -14607,6 +17725,124 @@ func (ec *executionContext) marshalNSupervisorState2agenticᚑorchestratorᚋint
 	return v
 }
 
+func (ec *executionContext) marshalNTaskboard2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Taskboard) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTaskboard2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboard(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTaskboard2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboard(ctx context.Context, sel ast.SelectionSet, v *models.Taskboard) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Taskboard(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskboardDeleteResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardDeleteResult(ctx context.Context, sel ast.SelectionSet, v models.TaskboardDeleteResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskboardDeleteResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskboardEpic2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardEpicᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.TaskboardEpic) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTaskboardEpic2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardEpic(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTaskboardEpic2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardEpic(ctx context.Context, sel ast.SelectionSet, v *models.TaskboardEpic) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskboardEpic(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskboardMutationResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardMutationResult(ctx context.Context, sel ast.SelectionSet, v models.TaskboardMutationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskboardMutationResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskboardResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardResult(ctx context.Context, sel ast.SelectionSet, v models.TaskboardResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskboardResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskboardTask2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardTaskᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.TaskboardTask) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTaskboardTask2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardTask(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTaskboardTask2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardTask(ctx context.Context, sel ast.SelectionSet, v *models.TaskboardTask) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskboardTask(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskboardsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardsResult(ctx context.Context, sel ast.SelectionSet, v models.TaskboardsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskboardsResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
 	res, err := graphql.UnmarshalTime(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -14631,6 +17867,21 @@ func (ec *executionContext) unmarshalNTrackerSourceKind2agenticᚑorchestrator�
 
 func (ec *executionContext) marshalNTrackerSourceKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTrackerSourceKind(ctx context.Context, sel ast.SelectionSet, v models.TrackerSourceKind) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNUpdateTaskboardEpicInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateTaskboardEpicInput(ctx context.Context, v any) (models.UpdateTaskboardEpicInput, error) {
+	res, err := ec.unmarshalInputUpdateTaskboardEpicInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateTaskboardInput(ctx context.Context, v any) (models.UpdateTaskboardInput, error) {
+	res, err := ec.unmarshalInputUpdateTaskboardInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateTaskboardTaskInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateTaskboardTaskInput(ctx context.Context, v any) (models.UpdateTaskboardTaskInput, error) {
+	res, err := ec.unmarshalInputUpdateTaskboardTaskInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNUpdateWorkerSettingsInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐUpdateWorkerSettingsInput(ctx context.Context, v any) (models.UpdateWorkerSettingsInput, error) {

@@ -6,6 +6,7 @@ import (
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
+	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
@@ -20,6 +21,7 @@ import (
 	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
+	infratrackerpostgres "agentic-orchestrator/internal/infrastructure/tracker"
 	"agentic-orchestrator/internal/interface/graphql/graph"
 	"agentic-orchestrator/internal/interface/graphql/resolvers"
 	"context"
@@ -177,6 +179,14 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init worker service: %w", err)
 	}
+	trackerStore, err := infratrackerpostgres.NewPostgresBoardStore(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init tracker board store: %w", err)
+	}
+	trackerService, err := applicationtracker.NewTaskMutationService(trackerStore)
+	if err != nil {
+		return nil, fmt.Errorf("init tracker service: %w", err)
+	}
 	realtimeTransport, err := infrastructure_realtime.NewPGNotifyTransport(databaseClient.DB(), config.App.DatabaseDSN)
 	if err != nil {
 		return nil, fmt.Errorf("init realtime transport: %w", err)
@@ -198,7 +208,7 @@ func New() (*APIApp, error) {
 		streamService.SetHealthEvaluator(acpClient)
 	}
 
-	resolver := resolvers.NewResolver(taskScheduler, supervisorService, controlPlaneService, streamService, workerService)
+	resolver := resolvers.NewResolver(taskScheduler, supervisorService, controlPlaneService, streamService, workerService, trackerService)
 	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})

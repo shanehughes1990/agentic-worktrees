@@ -975,6 +975,757 @@ class ControlPlaneApi {
     return ApiResult<List<ProjectRepositoryBranchOption>>.success(items);
   }
 
+  Future<ApiResult<List<TaskboardModel>>> taskboards({
+    required String projectID,
+  }) async {
+    final result = await _client.query(
+      QueryOptions(
+        fetchPolicy: FetchPolicy.networkOnly,
+        document: gql('''
+          query Taskboards(
+            \$projectID: String!
+          ) {
+            taskboards(projectID: \$projectID) {
+              __typename
+              ... on TaskboardsSuccess {
+                boards {
+                  boardID
+                  projectID
+                  name
+                  state
+                  createdAt
+                  updatedAt
+                  epics {
+                    id
+                    boardID
+                    title
+                    objective
+                    state
+                    rank
+                    dependsOnEpicIDs
+                    tasks {
+                      id
+                      boardID
+                      epicID
+                      title
+                      description
+                      taskType
+                      state
+                      rank
+                      dependsOnTaskIDs
+                    }
+                  }
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{'projectID': projectID},
+      ),
+    );
+    final error = _extractOperationError(result, field: 'taskboards');
+    if (error != null) {
+      return ApiResult<List<TaskboardModel>>.failure(error);
+    }
+    final payload = result.data?['taskboards'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<TaskboardModel>>.failure(
+        'taskboards returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<TaskboardModel>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final boards = payload['boards'] as List<dynamic>? ?? const <dynamic>[];
+    return ApiResult<List<TaskboardModel>>.success(
+      boards
+          .whereType<Map<String, dynamic>>()
+          .map(_parseTaskboard)
+          .toList(growable: false),
+    );
+  }
+
+  Future<ApiResult<TaskboardModel>> taskboard({
+    required String projectID,
+    required String boardID,
+  }) async {
+    final result = await _client.query(
+      QueryOptions(
+        fetchPolicy: FetchPolicy.networkOnly,
+        document: gql('''
+          query Taskboard(
+            \$projectID: String!
+            \$boardID: String!
+          ) {
+            taskboard(projectID: \$projectID, boardID: \$boardID) {
+              __typename
+              ... on TaskboardSuccess {
+                board {
+                  boardID
+                  projectID
+                  name
+                  state
+                  createdAt
+                  updatedAt
+                  epics {
+                    id
+                    boardID
+                    title
+                    objective
+                    state
+                    rank
+                    dependsOnEpicIDs
+                    tasks {
+                      id
+                      boardID
+                      epicID
+                      title
+                      description
+                      taskType
+                      state
+                      rank
+                      dependsOnTaskIDs
+                    }
+                  }
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'projectID': projectID,
+          'boardID': boardID,
+        },
+      ),
+    );
+    final error = _extractOperationError(result, field: 'taskboard');
+    if (error != null) {
+      return ApiResult<TaskboardModel>.failure(error);
+    }
+    final payload = result.data?['taskboard'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<TaskboardModel>.failure(
+        'taskboard returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<TaskboardModel>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final board = payload['board'] as Map<String, dynamic>?;
+    if (board == null) {
+      return const ApiResult<TaskboardModel>.failure(
+        'taskboard payload missing board',
+      );
+    }
+    return ApiResult<TaskboardModel>.success(_parseTaskboard(board));
+  }
+
+  Future<ApiResult<TaskboardModel>> createTaskboard({
+    required String projectID,
+    required String name,
+  }) => _runTaskboardMutation(
+    operationName: 'createTaskboard',
+    document: '''
+      mutation CreateTaskboard(
+        \$input: CreateTaskboardInput!
+      ) {
+        createTaskboard(input: \$input) {
+          __typename
+          ... on TaskboardMutationSuccess {
+            board {
+              boardID
+              projectID
+              name
+              state
+              createdAt
+              updatedAt
+              epics {
+                id
+                boardID
+                title
+                objective
+                state
+                rank
+                dependsOnEpicIDs
+                tasks {
+                  id
+                  boardID
+                  epicID
+                  title
+                  description
+                  taskType
+                  state
+                  rank
+                  dependsOnTaskIDs
+                }
+              }
+            }
+          }
+          ... on GraphError {
+            code
+            message
+            field
+          }
+        }
+      }
+    ''',
+    input: <String, dynamic>{'projectID': projectID, 'name': name},
+  );
+
+  Future<ApiResult<TaskboardModel>> updateTaskboard({
+    required String projectID,
+    required String boardID,
+    required String name,
+    required String state,
+  }) => _runTaskboardMutation(
+    operationName: 'updateTaskboard',
+    document: '''
+      mutation UpdateTaskboard(
+        \$input: UpdateTaskboardInput!
+      ) {
+        updateTaskboard(input: \$input) {
+          __typename
+          ... on TaskboardMutationSuccess {
+            board {
+              boardID
+              projectID
+              name
+              state
+              createdAt
+              updatedAt
+              epics {
+                id
+                boardID
+                title
+                objective
+                state
+                rank
+                dependsOnEpicIDs
+                tasks {
+                  id
+                  boardID
+                  epicID
+                  title
+                  description
+                  taskType
+                  state
+                  rank
+                  dependsOnTaskIDs
+                }
+              }
+            }
+          }
+          ... on GraphError {
+            code
+            message
+            field
+          }
+        }
+      }
+    ''',
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'name': name,
+      'state': state,
+    },
+  );
+
+  Future<ApiResult<void>> deleteTaskboard({
+    required String projectID,
+    required String boardID,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+          mutation DeleteTaskboard(
+            \$input: DeleteTaskboardInput!
+          ) {
+            deleteTaskboard(input: \$input) {
+              __typename
+              ... on TaskboardDeleteSuccess {
+                ok
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'projectID': projectID,
+            'boardID': boardID,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(result, field: 'deleteTaskboard');
+    if (error != null) {
+      return ApiResult<void>.failure(error);
+    }
+    final payload = result.data?['deleteTaskboard'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<void>.failure('deleteTaskboard returned no data');
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<void>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    return const ApiResult<void>.success(null);
+  }
+
+  Future<ApiResult<TaskboardModel>> createTaskboardEpic({
+    required String projectID,
+    required String boardID,
+    required String title,
+    String? objective,
+    required String state,
+    int rank = 0,
+  }) => _runTaskboardMutation(
+    operationName: 'createTaskboardEpic',
+    document: _epicMutationDocument(
+      'CreateTaskboardEpic',
+      'createTaskboardEpic',
+      'CreateTaskboardEpicInput',
+    ),
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'title': title,
+      'objective': objective,
+      'state': state,
+      'rank': rank,
+      'dependsOnEpicIDs': <String>[],
+    },
+  );
+
+  Future<ApiResult<TaskboardModel>> updateTaskboardEpic({
+    required String projectID,
+    required String boardID,
+    required String epicID,
+    required String title,
+    String? objective,
+    required String state,
+    int rank = 0,
+    List<String> dependsOnEpicIDs = const <String>[],
+  }) => _runTaskboardMutation(
+    operationName: 'updateTaskboardEpic',
+    document: _epicMutationDocument(
+      'UpdateTaskboardEpic',
+      'updateTaskboardEpic',
+      'UpdateTaskboardEpicInput',
+    ),
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'epicID': epicID,
+      'title': title,
+      'objective': objective,
+      'state': state,
+      'rank': rank,
+      'dependsOnEpicIDs': dependsOnEpicIDs,
+    },
+  );
+
+  Future<ApiResult<TaskboardModel>> deleteTaskboardEpic({
+    required String projectID,
+    required String boardID,
+    required String epicID,
+  }) => _runTaskboardMutation(
+    operationName: 'deleteTaskboardEpic',
+    document: _epicDeleteMutationDocument(),
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'epicID': epicID,
+    },
+  );
+
+  Future<ApiResult<TaskboardModel>> createTaskboardTask({
+    required String projectID,
+    required String boardID,
+    required String epicID,
+    required String title,
+    String? description,
+    required String taskType,
+    required String state,
+    int rank = 0,
+  }) => _runTaskboardMutation(
+    operationName: 'createTaskboardTask',
+    document: _taskMutationDocument(
+      'CreateTaskboardTask',
+      'createTaskboardTask',
+      'CreateTaskboardTaskInput',
+    ),
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'epicID': epicID,
+      'title': title,
+      'description': description,
+      'taskType': taskType,
+      'state': state,
+      'rank': rank,
+      'dependsOnTaskIDs': <String>[],
+    },
+  );
+
+  Future<ApiResult<TaskboardModel>> updateTaskboardTask({
+    required String projectID,
+    required String boardID,
+    required String epicID,
+    required String taskID,
+    required String title,
+    String? description,
+    required String taskType,
+    required String state,
+    int rank = 0,
+    List<String> dependsOnTaskIDs = const <String>[],
+  }) => _runTaskboardMutation(
+    operationName: 'updateTaskboardTask',
+    document: _taskMutationDocument(
+      'UpdateTaskboardTask',
+      'updateTaskboardTask',
+      'UpdateTaskboardTaskInput',
+    ),
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'epicID': epicID,
+      'taskID': taskID,
+      'title': title,
+      'description': description,
+      'taskType': taskType,
+      'state': state,
+      'rank': rank,
+      'dependsOnTaskIDs': dependsOnTaskIDs,
+    },
+  );
+
+  Future<ApiResult<TaskboardModel>> deleteTaskboardTask({
+    required String projectID,
+    required String boardID,
+    required String taskID,
+  }) => _runTaskboardMutation(
+    operationName: 'deleteTaskboardTask',
+    document: _taskDeleteMutationDocument(),
+    input: <String, dynamic>{
+      'projectID': projectID,
+      'boardID': boardID,
+      'taskID': taskID,
+    },
+  );
+
+  Future<ApiResult<TaskboardModel>> _runTaskboardMutation({
+    required String operationName,
+    required String document,
+    required Map<String, dynamic> input,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql(document),
+        variables: <String, dynamic>{'input': input},
+      ),
+    );
+    final error = _extractOperationError(result, field: operationName);
+    if (error != null) {
+      return ApiResult<TaskboardModel>.failure(error);
+    }
+    final payload = result.data?[operationName] as Map<String, dynamic>?;
+    if (payload == null) {
+      return ApiResult<TaskboardModel>.failure(
+        '$operationName returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<TaskboardModel>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final board = payload['board'] as Map<String, dynamic>?;
+    if (board == null) {
+      return ApiResult<TaskboardModel>.failure(
+        '$operationName payload missing board',
+      );
+    }
+    return ApiResult<TaskboardModel>.success(_parseTaskboard(board));
+  }
+
+  TaskboardModel _parseTaskboard(Map<String, dynamic> board) {
+    final epics = (board['epics'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> epic) {
+          final tasks = (epic['tasks'] as List<dynamic>? ?? const <dynamic>[])
+              .whereType<Map<String, dynamic>>()
+              .map(
+                (Map<String, dynamic> task) => TaskboardTaskModel(
+                  id: task['id'] as String,
+                  boardID: task['boardID'] as String,
+                  epicID: task['epicID'] as String,
+                  title: task['title'] as String,
+                  description: task['description'] as String?,
+                  taskType: task['taskType'] as String,
+                  state: task['state'] as String,
+                  rank: (task['rank'] as num?)?.toInt() ?? 0,
+                  dependsOnTaskIDs:
+                      (task['dependsOnTaskIDs'] as List<dynamic>? ??
+                              const <dynamic>[])
+                          .whereType<String>()
+                          .toList(growable: false),
+                ),
+              )
+              .toList(growable: false);
+          return TaskboardEpicModel(
+            id: epic['id'] as String,
+            boardID: epic['boardID'] as String,
+            title: epic['title'] as String,
+            objective: epic['objective'] as String?,
+            state: epic['state'] as String,
+            rank: (epic['rank'] as num?)?.toInt() ?? 0,
+            dependsOnEpicIDs:
+                (epic['dependsOnEpicIDs'] as List<dynamic>? ??
+                        const <dynamic>[])
+                    .whereType<String>()
+                    .toList(growable: false),
+            tasks: tasks,
+          );
+        })
+        .toList(growable: false);
+    return TaskboardModel(
+      boardID: board['boardID'] as String,
+      projectID: board['projectID'] as String,
+      name: board['name'] as String,
+      state: board['state'] as String,
+      createdAt: DateTime.parse(board['createdAt'] as String).toLocal(),
+      updatedAt: DateTime.parse(board['updatedAt'] as String).toLocal(),
+      epics: epics,
+    );
+  }
+
+  static String _epicMutationDocument(
+    String operationTitle,
+    String operationField,
+    String inputType,
+  ) =>
+      '''
+      mutation $operationTitle(
+        \$input: $inputType!
+      ) {
+        $operationField(input: \$input) {
+          __typename
+          ... on TaskboardMutationSuccess {
+            board {
+              boardID
+              projectID
+              name
+              state
+              createdAt
+              updatedAt
+              epics {
+                id
+                boardID
+                title
+                objective
+                state
+                rank
+                dependsOnEpicIDs
+                tasks {
+                  id
+                  boardID
+                  epicID
+                  title
+                  description
+                  taskType
+                  state
+                  rank
+                  dependsOnTaskIDs
+                }
+              }
+            }
+          }
+          ... on GraphError {
+            code
+            message
+            field
+          }
+        }
+      }
+    ''';
+
+  static String _epicDeleteMutationDocument() => '''
+      mutation DeleteTaskboardEpic(
+        \$input: DeleteTaskboardEpicInput!
+      ) {
+        deleteTaskboardEpic(input: \$input) {
+          __typename
+          ... on TaskboardMutationSuccess {
+            board {
+              boardID
+              projectID
+              name
+              state
+              createdAt
+              updatedAt
+              epics {
+                id
+                boardID
+                title
+                objective
+                state
+                rank
+                dependsOnEpicIDs
+                tasks {
+                  id
+                  boardID
+                  epicID
+                  title
+                  description
+                  taskType
+                  state
+                  rank
+                  dependsOnTaskIDs
+                }
+              }
+            }
+          }
+          ... on GraphError {
+            code
+            message
+            field
+          }
+        }
+      }
+    ''';
+
+  static String _taskMutationDocument(
+    String operationTitle,
+    String operationField,
+    String inputType,
+  ) =>
+      '''
+      mutation $operationTitle(
+        \$input: $inputType!
+      ) {
+        $operationField(input: \$input) {
+          __typename
+          ... on TaskboardMutationSuccess {
+            board {
+              boardID
+              projectID
+              name
+              state
+              createdAt
+              updatedAt
+              epics {
+                id
+                boardID
+                title
+                objective
+                state
+                rank
+                dependsOnEpicIDs
+                tasks {
+                  id
+                  boardID
+                  epicID
+                  title
+                  description
+                  taskType
+                  state
+                  rank
+                  dependsOnTaskIDs
+                }
+              }
+            }
+          }
+          ... on GraphError {
+            code
+            message
+            field
+          }
+        }
+      }
+    ''';
+
+  static String _taskDeleteMutationDocument() => '''
+      mutation DeleteTaskboardTask(
+        \$input: DeleteTaskboardTaskInput!
+      ) {
+        deleteTaskboardTask(input: \$input) {
+          __typename
+          ... on TaskboardMutationSuccess {
+            board {
+              boardID
+              projectID
+              name
+              state
+              createdAt
+              updatedAt
+              epics {
+                id
+                boardID
+                title
+                objective
+                state
+                rank
+                dependsOnEpicIDs
+                tasks {
+                  id
+                  boardID
+                  epicID
+                  title
+                  description
+                  taskType
+                  state
+                  rank
+                  dependsOnTaskIDs
+                }
+              }
+            }
+          }
+          ... on GraphError {
+            code
+            message
+            field
+          }
+        }
+      }
+    ''';
+
   Stream<ApiResult<StreamEvent>> sessionActivityStream({
     required String runID,
     int fromOffset = 0,
