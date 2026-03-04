@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"agentic-orchestrator/internal/application/prompts"
 	"agentic-orchestrator/internal/application/taskengine"
 	"context"
 	"crypto/sha256"
@@ -26,17 +27,6 @@ func (input RunIngestionAgentInput) Validate() error {
 	}
 	return nil
 }
-
-const workerToolingBaselinePrompt = `Execution environment baseline (Docker worker):
-- OS/runtime: Debian-based container with shell access.
-- Core CLI: bash, sh, git, gh, copilot, curl, wget, tar, unzip, zip, make.
-- Data/query tooling: jq, yq, sqlite3.
-- Search/inspection: ripgrep (rg), fd, tree, less, findutils, coreutils, moreutils, file, xxd.
-- Sync/automation: rsync, fzf, entr.
-- Process/network diagnostics: procps, lsof, netcat, dnsutils, iputils-ping, tcpdump, traceroute, mtr, strace, ltrace (amd64 builds).
-- Document/shell tooling: pandoc, shellcheck, shfmt.
-
-Use only tools available in this environment. Prefer deterministic, non-interactive commands, and keep file writes scoped to explicit project paths provided by the task.`
 
 const taskboardIngestionSystemPrompt = "You are a taskboard synthesis agent. Build a canonical execution taskboard from the provided project documents. Extract epics and actionable tasks, preserve dependencies, avoid inventing unsupported facts, and output a deterministic plan suitable for execution orchestration."
 
@@ -104,7 +94,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	runID := fmt.Sprintf("ingest-%d", time.Now().UTC().UnixNano())
 	taskID := "ingestion"
 	jobID := fmt.Sprintf("ingestion-agent-%d", time.Now().UTC().UnixNano())
-	systemPrompt := strings.TrimSpace(workerToolingBaselinePrompt + "\n\n" + taskboardIngestionSystemPrompt)
+	systemPrompt := strings.TrimSpace(prompts.WorkerToolingBaseline + "\n\n" + taskboardIngestionSystemPrompt)
 	userPrompt := strings.TrimSpace(input.UserPrompt)
 	idempotencyKey := ingestionIdempotencyKey(strings.TrimSpace(input.ProjectID), normalizedDocumentLocations, strings.TrimSpace(systemPrompt), userPrompt)
 	payload := IngestionAgentPayload{
