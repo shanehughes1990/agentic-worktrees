@@ -133,6 +133,17 @@ type ComplexityRoot struct {
 		ScmID         func(childComplexity int) int
 	}
 
+	ProjectRepositoryBranchOptions struct {
+		Branches      func(childComplexity int) int
+		DefaultBranch func(childComplexity int) int
+		RepositoryID  func(childComplexity int) int
+		RepositoryURL func(childComplexity int) int
+	}
+
+	ProjectRepositoryBranchesSuccess struct {
+		Repositories func(childComplexity int) int
+	}
+
 	ProjectSCM struct {
 		ScmID       func(childComplexity int) int
 		ScmProvider func(childComplexity int) int
@@ -161,6 +172,7 @@ type ComplexityRoot struct {
 		ExecutionHistory          func(childComplexity int, correlation models.SupervisorCorrelationInput, limit *int32) int
 		ProjectDocumentPreview    func(childComplexity int, projectID string, documentID string) int
 		ProjectDocuments          func(childComplexity int, projectID string, limit *int32) int
+		ProjectRepositoryBranches func(childComplexity int, projectID string) int
 		ProjectSetup              func(childComplexity int, projectID string) int
 		ProjectSetups             func(childComplexity int, limit *int32) int
 		ScmSupportedOperations    func(childComplexity int) int
@@ -339,6 +351,7 @@ type QueryResolver interface {
 	ProjectSetup(ctx context.Context, projectID string) (models.ProjectSetupResult, error)
 	ProjectDocuments(ctx context.Context, projectID string, limit *int32) (models.ProjectDocumentsResult, error)
 	ProjectDocumentPreview(ctx context.Context, projectID string, documentID string) (models.ProjectDocumentPreviewResult, error)
+	ProjectRepositoryBranches(ctx context.Context, projectID string) (models.ProjectRepositoryBranchesResult, error)
 	WorkerSessions(ctx context.Context, limit *int32) (models.WorkerSessionsResult, error)
 	WorkerSettings(ctx context.Context) (models.WorkerSettingsResult, error)
 	ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error)
@@ -744,6 +757,38 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProjectRepository.ScmID(childComplexity), true
 
+	case "ProjectRepositoryBranchOptions.branches":
+		if e.ComplexityRoot.ProjectRepositoryBranchOptions.Branches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepositoryBranchOptions.Branches(childComplexity), true
+	case "ProjectRepositoryBranchOptions.defaultBranch":
+		if e.ComplexityRoot.ProjectRepositoryBranchOptions.DefaultBranch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepositoryBranchOptions.DefaultBranch(childComplexity), true
+	case "ProjectRepositoryBranchOptions.repositoryID":
+		if e.ComplexityRoot.ProjectRepositoryBranchOptions.RepositoryID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepositoryBranchOptions.RepositoryID(childComplexity), true
+	case "ProjectRepositoryBranchOptions.repositoryURL":
+		if e.ComplexityRoot.ProjectRepositoryBranchOptions.RepositoryURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepositoryBranchOptions.RepositoryURL(childComplexity), true
+
+	case "ProjectRepositoryBranchesSuccess.repositories":
+		if e.ComplexityRoot.ProjectRepositoryBranchesSuccess.Repositories == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectRepositoryBranchesSuccess.Repositories(childComplexity), true
+
 	case "ProjectSCM.scmID":
 		if e.ComplexityRoot.ProjectSCM.ScmID == nil {
 			break
@@ -859,6 +904,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ProjectDocuments(childComplexity, args["projectID"].(string), args["limit"].(*int32)), true
+	case "Query.projectRepositoryBranches":
+		if e.ComplexityRoot.Query.ProjectRepositoryBranches == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectRepositoryBranches_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectRepositoryBranches(childComplexity, args["projectID"].(string)), true
 	case "Query.projectSetup":
 		if e.ComplexityRoot.Query.ProjectSetup == nil {
 			break
@@ -1524,6 +1580,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputProjectSCMInput,
+		ec.unmarshalInputRepositorySourceBranchInput,
 		ec.unmarshalInputRequestProjectDocumentUploadInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
 		ec.unmarshalInputRunIngestionAgentInput,
@@ -1873,6 +1930,12 @@ input RunIngestionAgentInput {
   boardID: String
   selectedDocumentIDs: [String!]
   userPrompt: String
+  repositorySourceBranches: [RepositorySourceBranchInput!]
+}
+
+input RepositorySourceBranchInput {
+  repositoryID: String!
+  branch: String!
 }
 
 type RunIngestionAgentSuccess {
@@ -1884,6 +1947,19 @@ type RunIngestionAgentSuccess {
 }
 
 union RunIngestionAgentResult = RunIngestionAgentSuccess | GraphError
+
+type ProjectRepositoryBranchOptions {
+  repositoryID: String!
+  repositoryURL: String!
+  defaultBranch: String
+  branches: [String!]!
+}
+
+type ProjectRepositoryBranchesSuccess {
+  repositories: [ProjectRepositoryBranchOptions!]!
+}
+
+union ProjectRepositoryBranchesResult = ProjectRepositoryBranchesSuccess | GraphError
 
 input DeleteProjectDocumentInput {
   projectID: String!
@@ -1965,6 +2041,7 @@ extend type Query {
   projectSetup(projectID: String!): ProjectSetupResult!
   projectDocuments(projectID: String!, limit: Int = 100): ProjectDocumentsResult!
   projectDocumentPreview(projectID: String!, documentID: String!): ProjectDocumentPreviewResult!
+  projectRepositoryBranches(projectID: String!): ProjectRepositoryBranchesResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
 }
@@ -2344,6 +2421,17 @@ func (ec *executionContext) field_Query_projectDocuments_args(ctx context.Contex
 		return nil, err
 	}
 	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectRepositoryBranches_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
 	return args, nil
 }
 
@@ -4344,6 +4432,161 @@ func (ec *executionContext) fieldContext_ProjectRepository_isPrimary(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectRepositoryBranchOptions_repositoryID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepositoryBranchOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepositoryBranchOptions_repositoryID,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepositoryBranchOptions_repositoryID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepositoryBranchOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepositoryBranchOptions_repositoryURL(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepositoryBranchOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepositoryBranchOptions_repositoryURL,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepositoryBranchOptions_repositoryURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepositoryBranchOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepositoryBranchOptions_defaultBranch(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepositoryBranchOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepositoryBranchOptions_defaultBranch,
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultBranch, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepositoryBranchOptions_defaultBranch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepositoryBranchOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepositoryBranchOptions_branches(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepositoryBranchOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepositoryBranchOptions_branches,
+		func(ctx context.Context) (any, error) {
+			return obj.Branches, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepositoryBranchOptions_branches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepositoryBranchOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectRepositoryBranchesSuccess_repositories(ctx context.Context, field graphql.CollectedField, obj *models.ProjectRepositoryBranchesSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProjectRepositoryBranchesSuccess_repositories,
+		func(ctx context.Context) (any, error) {
+			return obj.Repositories, nil
+		},
+		nil,
+		ec.marshalNProjectRepositoryBranchOptions2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryBranchOptionsᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProjectRepositoryBranchesSuccess_repositories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectRepositoryBranchesSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "repositoryID":
+				return ec.fieldContext_ProjectRepositoryBranchOptions_repositoryID(ctx, field)
+			case "repositoryURL":
+				return ec.fieldContext_ProjectRepositoryBranchOptions_repositoryURL(ctx, field)
+			case "defaultBranch":
+				return ec.fieldContext_ProjectRepositoryBranchOptions_defaultBranch(ctx, field)
+			case "branches":
+				return ec.fieldContext_ProjectRepositoryBranchOptions_branches(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProjectRepositoryBranchOptions", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProjectSCM_scmID(ctx context.Context, field graphql.CollectedField, obj *models.ProjectScm) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5086,6 +5329,47 @@ func (ec *executionContext) fieldContext_Query_projectDocumentPreview(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_projectDocumentPreview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projectRepositoryBranches(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_projectRepositoryBranches,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectRepositoryBranches(ctx, fc.Args["projectID"].(string))
+		},
+		nil,
+		ec.marshalNProjectRepositoryBranchesResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryBranchesResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_projectRepositoryBranches(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ProjectRepositoryBranchesResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectRepositoryBranches_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -9753,6 +10037,39 @@ func (ec *executionContext) unmarshalInputProjectSCMInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRepositorySourceBranchInput(ctx context.Context, obj any) (models.RepositorySourceBranchInput, error) {
+	var it models.RepositorySourceBranchInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"repositoryID", "branch"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "repositoryID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryID = data
+		case "branch":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("branch"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Branch = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRequestProjectDocumentUploadInput(ctx context.Context, obj any) (models.RequestProjectDocumentUploadInput, error) {
 	var it models.RequestProjectDocumentUploadInput
 	asMap := map[string]any{}
@@ -9833,7 +10150,7 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "boardID", "selectedDocumentIDs", "userPrompt"}
+	fieldsInOrder := [...]string{"projectID", "boardID", "selectedDocumentIDs", "userPrompt", "repositorySourceBranches"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -9868,6 +10185,13 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 				return it, err
 			}
 			it.UserPrompt = data
+		case "repositorySourceBranches":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositorySourceBranches"))
+			data, err := ec.unmarshalORepositorySourceBranchInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRepositorySourceBranchInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositorySourceBranches = data
 		}
 	}
 	return it, nil
@@ -10196,6 +10520,33 @@ func (ec *executionContext) _ProjectDocumentsResult(ctx context.Context, sel ast
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectDocumentsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _ProjectRepositoryBranchesResult(ctx context.Context, sel ast.SelectionSet, obj models.ProjectRepositoryBranchesResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.ProjectRepositoryBranchesSuccess:
+		return ec._ProjectRepositoryBranchesSuccess(ctx, sel, &obj)
+	case *models.ProjectRepositoryBranchesSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ProjectRepositoryBranchesSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectRepositoryBranchesResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -10923,7 +11274,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -11308,6 +11659,96 @@ func (ec *executionContext) _ProjectRepository(ctx context.Context, sel ast.Sele
 			}
 		case "isPrimary":
 			out.Values[i] = ec._ProjectRepository_isPrimary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectRepositoryBranchOptionsImplementors = []string{"ProjectRepositoryBranchOptions"}
+
+func (ec *executionContext) _ProjectRepositoryBranchOptions(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectRepositoryBranchOptions) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectRepositoryBranchOptionsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectRepositoryBranchOptions")
+		case "repositoryID":
+			out.Values[i] = ec._ProjectRepositoryBranchOptions_repositoryID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "repositoryURL":
+			out.Values[i] = ec._ProjectRepositoryBranchOptions_repositoryURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "defaultBranch":
+			out.Values[i] = ec._ProjectRepositoryBranchOptions_defaultBranch(ctx, field, obj)
+		case "branches":
+			out.Values[i] = ec._ProjectRepositoryBranchOptions_branches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var projectRepositoryBranchesSuccessImplementors = []string{"ProjectRepositoryBranchesSuccess", "ProjectRepositoryBranchesResult"}
+
+func (ec *executionContext) _ProjectRepositoryBranchesSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ProjectRepositoryBranchesSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectRepositoryBranchesSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectRepositoryBranchesSuccess")
+		case "repositories":
+			out.Values[i] = ec._ProjectRepositoryBranchesSuccess_repositories(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -11730,6 +12171,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_projectDocumentPreview(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectRepositoryBranches":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectRepositoryBranches(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -13573,6 +14036,42 @@ func (ec *executionContext) marshalNProjectRepository2ᚖagenticᚑorchestrator�
 	return ec._ProjectRepository(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNProjectRepositoryBranchOptions2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryBranchOptionsᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectRepositoryBranchOptions) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProjectRepositoryBranchOptions2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryBranchOptions(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProjectRepositoryBranchOptions2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryBranchOptions(ctx context.Context, sel ast.SelectionSet, v *models.ProjectRepositoryBranchOptions) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectRepositoryBranchOptions(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectRepositoryBranchesResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryBranchesResult(ctx context.Context, sel ast.SelectionSet, v models.ProjectRepositoryBranchesResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProjectRepositoryBranchesResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNProjectRepositoryInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectRepositoryInputᚄ(ctx context.Context, v any) ([]*models.ProjectRepositoryInput, error) {
 	var vSlice []any
 	vSlice = graphql.CoerceList(v)
@@ -13683,6 +14182,11 @@ func (ec *executionContext) marshalNProjectSetupsResult2agenticᚑorchestrator�
 		return graphql.Null
 	}
 	return ec._ProjectSetupsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRepositorySourceBranchInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRepositorySourceBranchInput(ctx context.Context, v any) (*models.RepositorySourceBranchInput, error) {
+	res, err := ec.unmarshalInputRepositorySourceBranchInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNRequestProjectDocumentUploadInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequestProjectDocumentUploadInput(ctx context.Context, v any) (models.RequestProjectDocumentUploadInput, error) {
@@ -14355,6 +14859,24 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalORepositorySourceBranchInput2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRepositorySourceBranchInputᚄ(ctx context.Context, v any) ([]*models.RepositorySourceBranchInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*models.RepositorySourceBranchInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNRepositorySourceBranchInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRepositorySourceBranchInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

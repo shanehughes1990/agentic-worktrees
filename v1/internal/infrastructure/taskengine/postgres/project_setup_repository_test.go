@@ -228,3 +228,31 @@ func TestProjectSetupRepositoryPreservesStoredSCMTokenWhenBlankOnUpdate(t *testi
 		t.Fatalf("expected preserved scm token, got %q", loadedSetup.SCMs[0].SCMToken)
 	}
 }
+
+func TestProjectSetupRepositoryDeleteRemovesAssociations(t *testing.T) {
+	db := newProjectSetupTestDB(t)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	if _, err := repo.UpsertProjectSetup(context.Background(), sampleProjectSetup()); err != nil {
+		t.Fatalf("upsert setup: %v", err)
+	}
+	if err := repo.DeleteProjectSetup(context.Background(), "project-1"); err != nil {
+		t.Fatalf("delete setup: %v", err)
+	}
+
+	loaded, err := repo.GetProjectSetup(context.Background(), "project-1")
+	if err != nil {
+		t.Fatalf("get setup after delete: %v", err)
+	}
+	if loaded != nil {
+		t.Fatalf("expected setup to be deleted, got %+v", loaded)
+	}
+
+	if err := repo.DeleteProjectSetup(context.Background(), "project-1"); err == nil {
+		t.Fatal("expected deleting missing setup to return an error")
+	}
+}

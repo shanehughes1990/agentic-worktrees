@@ -122,3 +122,35 @@ func TestIngestionAgentHandlerHandle(t *testing.T) {
 		t.Fatalf("handle ingestion job: %v", err)
 	}
 }
+
+func TestIngestionAgentHandlerHandlePromptOnlyWithoutSelectedDocuments(t *testing.T) {
+	service, err := applicationingestion.NewService(&fakeTypedIngestionBoardStore{}, &fakeIngestionArtifactFetcher{}, &fakeIngestionAgentRunner{}, &fakeIngestionRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new ingestion service: %v", err)
+	}
+	handler, err := NewIngestionAgentHandler(service)
+	if err != nil {
+		t.Fatalf("new ingestion handler: %v", err)
+	}
+	payloadBytes, err := json.Marshal(applicationcontrolplane.IngestionAgentPayload{
+		RunID:                     "run-2",
+		TaskID:                    "ingestion",
+		JobID:                     "job-2",
+		BoardID:                   "board-1",
+		StreamID:                  "stream-2",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: nil,
+		SourceRepositories:        []applicationcontrolplane.IngestionSourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
+		SourceBranch:              "develop",
+		Model:                     "gpt-5.3-codex",
+		SystemPrompt:              "System prompt",
+		UserPrompt:                "Create a taskboard from repository context only.",
+		IdempotencyKey:            "ingestion-agent:key:prompt-only",
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payloadBytes}); err != nil {
+		t.Fatalf("handle ingestion job: %v", err)
+	}
+}

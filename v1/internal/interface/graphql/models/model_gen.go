@@ -38,6 +38,10 @@ type ProjectDocumentsResult interface {
 	IsProjectDocumentsResult()
 }
 
+type ProjectRepositoryBranchesResult interface {
+	IsProjectRepositoryBranchesResult()
+}
+
 type ProjectSetupResult interface {
 	IsProjectSetupResult()
 }
@@ -203,6 +207,8 @@ func (GraphError) IsRequestProjectDocumentUploadResult() {}
 
 func (GraphError) IsRunIngestionAgentResult() {}
 
+func (GraphError) IsProjectRepositoryBranchesResult() {}
+
 func (GraphError) IsDeleteProjectDocumentResult() {}
 
 func (GraphError) IsStreamEventResult() {}
@@ -264,6 +270,19 @@ type ProjectRepository struct {
 	IsPrimary     bool   `json:"isPrimary"`
 }
 
+type ProjectRepositoryBranchOptions struct {
+	RepositoryID  string   `json:"repositoryID"`
+	RepositoryURL string   `json:"repositoryURL"`
+	DefaultBranch *string  `json:"defaultBranch,omitempty"`
+	Branches      []string `json:"branches"`
+}
+
+type ProjectRepositoryBranchesSuccess struct {
+	Repositories []*ProjectRepositoryBranchOptions `json:"repositories"`
+}
+
+func (ProjectRepositoryBranchesSuccess) IsProjectRepositoryBranchesResult() {}
+
 type ProjectRepositoryInput struct {
 	RepositoryID  string `json:"repositoryID"`
 	ScmID         string `json:"scmID"`
@@ -307,6 +326,11 @@ func (ProjectSetupsSuccess) IsProjectSetupsResult() {}
 type Query struct {
 }
 
+type RepositorySourceBranchInput struct {
+	RepositoryID string `json:"repositoryID"`
+	Branch       string `json:"branch"`
+}
+
 type RequestProjectDocumentUploadInput struct {
 	ProjectID   string `json:"projectID"`
 	FileName    string `json:"fileName"`
@@ -340,10 +364,11 @@ type RequeueDeadLetterSuccess struct {
 func (RequeueDeadLetterSuccess) IsRequeueDeadLetterResult() {}
 
 type RunIngestionAgentInput struct {
-	ProjectID           string   `json:"projectID"`
-	BoardID             *string  `json:"boardID,omitempty"`
-	SelectedDocumentIDs []string `json:"selectedDocumentIDs,omitempty"`
-	UserPrompt          *string  `json:"userPrompt,omitempty"`
+	ProjectID                string                         `json:"projectID"`
+	BoardID                  *string                        `json:"boardID,omitempty"`
+	SelectedDocumentIDs      []string                       `json:"selectedDocumentIDs,omitempty"`
+	UserPrompt               *string                        `json:"userPrompt,omitempty"`
+	RepositorySourceBranches []*RepositorySourceBranchInput `json:"repositorySourceBranches,omitempty"`
 }
 
 type RunIngestionAgentSuccess struct {

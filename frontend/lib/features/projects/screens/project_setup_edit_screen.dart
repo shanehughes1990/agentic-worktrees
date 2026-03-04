@@ -24,8 +24,8 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
   late final TextEditingController _projectIDController;
   late final TextEditingController _projectNameController;
   late final TextEditingController _scmTokenController;
-  final List<TextEditingController> _repositoryControllers =
-      <TextEditingController>[];
+  final Map<String, List<TextEditingController>>
+  _repositoryControllersByProvider = <String, List<TextEditingController>>{};
 
   bool _isSaving = false;
   bool _isRegeneratingToken = false;
@@ -48,10 +48,26 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
     _projectIDController.dispose();
     _projectNameController.dispose();
     _scmTokenController.dispose();
-    for (final TextEditingController controller in _repositoryControllers) {
-      controller.dispose();
+    for (final controllers in _repositoryControllersByProvider.values) {
+      for (final TextEditingController controller in controllers) {
+        controller.dispose();
+      }
     }
     super.dispose();
+  }
+
+  List<TextEditingController> _repositoryControllersFor(String provider) {
+    final cleanProvider = provider.trim();
+    if (cleanProvider.isEmpty) {
+      return <TextEditingController>[];
+    }
+    final existing = _repositoryControllersByProvider[cleanProvider];
+    if (existing != null) {
+      return existing;
+    }
+    final created = <TextEditingController>[TextEditingController()];
+    _repositoryControllersByProvider[cleanProvider] = created;
+    return created;
   }
 
   void _applySetup(ProjectSetupConfig setup) {
@@ -59,24 +75,32 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
     _projectNameController.text = setup.projectName;
     _scmTokenController.clear();
 
-    for (final TextEditingController controller in _repositoryControllers) {
-      controller.dispose();
+    for (final controllers in _repositoryControllersByProvider.values) {
+      for (final TextEditingController controller in controllers) {
+        controller.dispose();
+      }
     }
-    _repositoryControllers.clear();
-    if (setup.repositories.isEmpty) {
-      _repositoryControllers.add(TextEditingController());
-    } else {
-      _repositoryControllers.addAll(
-        setup.repositories.map(
-          (ProjectRepositoryConfig repository) =>
-              TextEditingController(text: repository.repositoryURL),
-        ),
-      );
+    _repositoryControllersByProvider.clear();
+
+    final scmProviderByID = <String, String>{
+      for (final scm in setup.scms)
+        if (scm.scmID.trim().isNotEmpty && scm.scmProvider.trim().isNotEmpty)
+          scm.scmID.trim(): scm.scmProvider.trim(),
+    };
+
+    for (final repository in setup.repositories) {
+      final provider =
+          scmProviderByID[repository.scmID.trim()] ??
+          ProjectSetupLogic.defaultScmProvider;
+      _repositoryControllersByProvider
+          .putIfAbsent(provider, () => <TextEditingController>[])
+          .add(TextEditingController(text: repository.repositoryURL));
     }
 
     _scmProvider = setup.scms.isNotEmpty
         ? setup.scms.first.scmProvider
         : ProjectSetupLogic.defaultScmProvider;
+    _repositoryControllersFor(_scmProvider);
     _savedScmProvider = _scmProvider;
     _isRegeneratingToken = false;
   }
@@ -136,17 +160,19 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
   }
 
   void _addRepositoryBlock() {
+    final controllers = _repositoryControllersFor(_scmProvider);
     setState(() {
-      _repositoryControllers.add(TextEditingController());
+      controllers.add(TextEditingController());
     });
   }
 
   void _removeRepositoryBlock(int index) {
-    if (_repositoryControllers.length <= 1) {
+    final controllers = _repositoryControllersFor(_scmProvider);
+    if (controllers.length <= 1) {
       return;
     }
     setState(() {
-      final removed = _repositoryControllers.removeAt(index);
+      final removed = controllers.removeAt(index);
       removed.dispose();
     });
   }
@@ -154,7 +180,7 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
   Future<void> _saveProjectSetup() async {
     final projectID = _projectIDController.text.trim();
     final projectName = _projectNameController.text.trim();
-    final repositoryURLs = _repositoryControllers
+    final repositoryURLs = _repositoryControllersFor(_scmProvider)
         .map((TextEditingController controller) => controller.text.trim())
         .where((String value) => value.isNotEmpty)
         .toList(growable: false);
@@ -213,6 +239,7 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
   @override
   Widget build(BuildContext context) {
     final hasProvider = _scmProvider.trim().isNotEmpty;
+    final repositoryControllers = _repositoryControllersFor(_scmProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -322,7 +349,8 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
                               ),
                             const SizedBox(height: 12),
                             _RepositorySetupSection(
-                              controllers: _repositoryControllers,
+                              provider: _scmProvider,
+                              controllers: repositoryControllers,
                               onAdd: _addRepositoryBlock,
                               onRemove: _removeRepositoryBlock,
                             ),
@@ -394,11 +422,13 @@ class _ProjectSetupEditScreenState extends State<ProjectSetupEditScreen> {
 
 class _RepositorySetupSection extends StatelessWidget {
   const _RepositorySetupSection({
+    required this.provider,
     required this.controllers,
     required this.onAdd,
     required this.onRemove,
   });
 
+  final String provider;
   final List<TextEditingController> controllers;
   final VoidCallback onAdd;
   final ValueChanged<int> onRemove;
@@ -411,6 +441,11 @@ class _RepositorySetupSection extends StatelessWidget {
         const Text(
           'Repository Setup',
           style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Attached SCM Provider: $provider',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
         Row(

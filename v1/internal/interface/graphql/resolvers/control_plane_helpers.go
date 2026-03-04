@@ -250,6 +250,22 @@ func toGraphStreamEventSource(source domainstream.Source) models.StreamEventSour
 	}
 }
 
+func mapRepositorySourceBranches(values []*models.RepositorySourceBranchInput) []applicationcontrolplane.RepositorySourceBranch {
+	mapped := make([]applicationcontrolplane.RepositorySourceBranch, 0, len(values))
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		repositoryID := strings.TrimSpace(value.RepositoryID)
+		branch := strings.TrimSpace(value.Branch)
+		if repositoryID == "" || branch == "" {
+			continue
+		}
+		mapped = append(mapped, applicationcontrolplane.RepositorySourceBranch{RepositoryID: repositoryID, Branch: branch})
+	}
+	return mapped
+}
+
 func derefString(value *string) string {
 	if value == nil {
 		return ""

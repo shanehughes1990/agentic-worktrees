@@ -38,6 +38,20 @@ class ProjectRepositoryConfig {
   final bool isPrimary;
 }
 
+class ProjectRepositoryBranchOption {
+  const ProjectRepositoryBranchOption({
+    required this.repositoryID,
+    required this.repositoryURL,
+    required this.defaultBranch,
+    required this.branches,
+  });
+
+  final String repositoryID;
+  final String repositoryURL;
+  final String? defaultBranch;
+  final List<String> branches;
+}
+
 class ProjectScmConfig {
   const ProjectScmConfig({required this.scmID, required this.scmProvider});
 

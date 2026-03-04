@@ -249,6 +249,12 @@ input RunIngestionAgentInput {
   boardID: String
   selectedDocumentIDs: [String!]
   userPrompt: String
+  repositorySourceBranches: [RepositorySourceBranchInput!]
+}
+
+input RepositorySourceBranchInput {
+  repositoryID: String!
+  branch: String!
 }
 
 type RunIngestionAgentSuccess {
@@ -260,6 +266,19 @@ type RunIngestionAgentSuccess {
 }
 
 union RunIngestionAgentResult = RunIngestionAgentSuccess | GraphError
+
+type ProjectRepositoryBranchOptions {
+  repositoryID: String!
+  repositoryURL: String!
+  defaultBranch: String
+  branches: [String!]!
+}
+
+type ProjectRepositoryBranchesSuccess {
+  repositories: [ProjectRepositoryBranchOptions!]!
+}
+
+union ProjectRepositoryBranchesResult = ProjectRepositoryBranchesSuccess | GraphError
 
 input DeleteProjectDocumentInput {
   projectID: String!
@@ -341,6 +360,7 @@ extend type Query {
   projectSetup(projectID: String!): ProjectSetupResult!
   projectDocuments(projectID: String!, limit: Int = 100): ProjectDocumentsResult!
   projectDocumentPreview(projectID: String!, documentID: String!): ProjectDocumentPreviewResult!
+  projectRepositoryBranches(projectID: String!): ProjectRepositoryBranchesResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
 }

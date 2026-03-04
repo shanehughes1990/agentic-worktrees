@@ -58,7 +58,7 @@ type projectBoardRecord struct {
 }
 
 func (projectBoardRecord) TableName() string {
-	return "project_boards"
+	return "project_setup_boards"
 }
 
 type trackerBoardSnapshotRecord struct {
@@ -71,7 +71,7 @@ type trackerBoardSnapshotRecord struct {
 }
 
 func (trackerBoardSnapshotRecord) TableName() string {
-	return "tracker_board_snapshots"
+	return "project_board_snapshots"
 }
 
 type ProjectSetupRepository struct {
@@ -86,10 +86,34 @@ func NewProjectSetupRepository(db *gorm.DB, scmTokenCrypto *SCMTokenCrypto) (*Pr
 	if scmTokenCrypto == nil {
 		return nil, fmt.Errorf("project setup repository scm token crypto is required")
 	}
+	if err := normalizeLegacyProjectSetupSchema(db); err != nil {
+		return nil, fmt.Errorf("project setup repository normalize legacy schema: %w", err)
+	}
 	if err := db.AutoMigrate(&projectSetupRecord{}, &projectSCMRecord{}, &projectRepositoryRecord{}, &projectBoardRecord{}, &trackerBoardSnapshotRecord{}); err != nil {
 		return nil, fmt.Errorf("project setup repository migrate: %w", err)
 	}
 	return &ProjectSetupRepository{db: db, scmTokenCrypto: scmTokenCrypto}, nil
+}
+
+func normalizeLegacyProjectSetupSchema(db *gorm.DB) error {
+	if db == nil || db.Migrator() == nil {
+		return nil
+	}
+	migrator := db.Migrator()
+	if migrator.HasTable("project_boards") && !migrator.HasTable("project_setup_boards") {
+		hasBoardIDColumn := migrator.HasColumn("project_boards", "board_id")
+		if hasBoardIDColumn {
+			if err := migrator.RenameTable("project_boards", "project_setup_boards"); err != nil {
+				return err
+			}
+		}
+	}
+	if migrator.HasTable("tracker_board_snapshots") && !migrator.HasTable("project_board_snapshots") {
+		if err := migrator.RenameTable("tracker_board_snapshots", "project_board_snapshots"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (repository *ProjectSetupRepository) RotateSCMTokenEncryptionKeys(ctx context.Context) error {

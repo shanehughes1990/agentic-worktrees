@@ -684,6 +684,7 @@ class ControlPlaneApi {
     String? boardID,
     List<String>? selectedDocumentIDs,
     String? userPrompt,
+    Map<String, String>? repositorySourceBranches,
   }) async {
     final input = <String, dynamic>{'projectID': projectID, 'boardID': boardID};
     if (selectedDocumentIDs != null) {
@@ -691,6 +692,24 @@ class ControlPlaneApi {
     }
     if (userPrompt != null && userPrompt.trim().isNotEmpty) {
       input['userPrompt'] = userPrompt.trim();
+    }
+    if (repositorySourceBranches != null &&
+        repositorySourceBranches.isNotEmpty) {
+      final selections = <Map<String, dynamic>>[];
+      repositorySourceBranches.forEach((String repositoryID, String branch) {
+        final cleanRepositoryID = repositoryID.trim();
+        final cleanBranch = branch.trim();
+        if (cleanRepositoryID.isEmpty || cleanBranch.isEmpty) {
+          return;
+        }
+        selections.add(<String, dynamic>{
+          'repositoryID': cleanRepositoryID,
+          'branch': cleanBranch,
+        });
+      });
+      if (selections.isNotEmpty) {
+        input['repositorySourceBranches'] = selections;
+      }
     }
     final result = await _client.mutate(
       MutationOptions(
@@ -746,6 +765,78 @@ class ControlPlaneApi {
         duplicate: payload['duplicate'] as bool,
       ),
     );
+  }
+
+  Future<ApiResult<List<ProjectRepositoryBranchOption>>>
+  projectRepositoryBranches({required String projectID}) async {
+    final result = await _client.query(
+      QueryOptions(
+        fetchPolicy: FetchPolicy.networkOnly,
+        document: gql('''
+          query ProjectRepositoryBranches(
+            \$projectID: String!
+          ) {
+            projectRepositoryBranches(projectID: \$projectID) {
+              __typename
+              ... on ProjectRepositoryBranchesSuccess {
+                repositories {
+                  repositoryID
+                  repositoryURL
+                  defaultBranch
+                  branches
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{'projectID': projectID},
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'projectRepositoryBranches',
+    );
+    if (error != null) {
+      return ApiResult<List<ProjectRepositoryBranchOption>>.failure(error);
+    }
+    final payload =
+        result.data?['projectRepositoryBranches'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<ProjectRepositoryBranchOption>>.failure(
+        'projectRepositoryBranches returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<ProjectRepositoryBranchOption>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final repositories =
+        payload['repositories'] as List<dynamic>? ?? const <dynamic>[];
+    final items = repositories
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (Map<String, dynamic> repository) => ProjectRepositoryBranchOption(
+            repositoryID: repository['repositoryID'] as String,
+            repositoryURL: repository['repositoryURL'] as String,
+            defaultBranch: repository['defaultBranch'] as String?,
+            branches:
+                (repository['branches'] as List<dynamic>? ?? const <dynamic>[])
+                    .whereType<String>()
+                    .toList(growable: false),
+          ),
+        )
+        .toList(growable: false);
+    return ApiResult<List<ProjectRepositoryBranchOption>>.success(items);
   }
 
   Stream<ApiResult<StreamEvent>> sessionActivityStream({

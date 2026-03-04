@@ -55,13 +55,17 @@ func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, project
 	for _, repository := range sourceRepositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		repositoryBranch := strings.TrimSpace(repository.SourceBranch)
+		if repositoryBranch == "" {
+			repositoryBranch = cleanBranch
+		}
 		if repositoryID == "" || repositoryURL == "" {
 			continue
 		}
 		repositoryDirName := repositoryDirectoryName(repositoryID, repositoryURL)
-		localRepositoryPath := filepath.Join(synchronizer.projectsRootDir, cleanProjectID, "repositories", repositoryDirName)
-		if _, err := os.Stat(localRepositoryPath); err != nil {
-			return failures.WrapTransient(fmt.Errorf("local source repository cache not found for repository %q at %s: %w", repositoryID, localRepositoryPath, err))
+		localRepositoryPath, resolveErr := synchronizer.resolveLocalRepositoryPath(cleanProjectID, repositoryDirName)
+		if resolveErr != nil {
+			return failures.WrapTransient(fmt.Errorf("local source repository cache not found for repository %q: %w", repositoryID, resolveErr))
 		}
 		targetDirectory := filepath.Join(repositoriesDir, repositoryDirName)
 		if err := os.RemoveAll(targetDirectory); err != nil {
@@ -76,18 +80,33 @@ func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, project
 		if err := synchronizer.runGit(ctx, targetDirectory, "fetch", "--all", "--prune"); err != nil {
 			return failures.WrapTransient(fmt.Errorf("sync all branches with origin for repository %q: %w", repositoryID, err))
 		}
-		if err := synchronizer.runGit(ctx, targetDirectory, "rev-parse", "--verify", "origin/"+cleanBranch); err != nil {
-			return failures.WrapTransient(fmt.Errorf("origin branch %q not found for repository %q: %w", cleanBranch, repositoryID, err))
+		if err := synchronizer.runGit(ctx, targetDirectory, "rev-parse", "--verify", "origin/"+repositoryBranch); err != nil {
+			return failures.WrapTransient(fmt.Errorf("origin branch %q not found for repository %q: %w", repositoryBranch, repositoryID, err))
 		}
-		if err := synchronizer.runGit(ctx, targetDirectory, "checkout", "-B", cleanBranch, "origin/"+cleanBranch); err != nil {
-			return failures.WrapTransient(fmt.Errorf("checkout branch %q for repository %q: %w", cleanBranch, repositoryID, err))
+		if err := synchronizer.runGit(ctx, targetDirectory, "checkout", "-B", repositoryBranch, "origin/"+repositoryBranch); err != nil {
+			return failures.WrapTransient(fmt.Errorf("checkout branch %q for repository %q: %w", repositoryBranch, repositoryID, err))
 		}
-		if err := synchronizer.runGit(ctx, targetDirectory, "reset", "--hard", "origin/"+cleanBranch); err != nil {
-			return failures.WrapTransient(fmt.Errorf("reset repository %q to origin/%s: %w", repositoryID, cleanBranch, err))
+		if err := synchronizer.runGit(ctx, targetDirectory, "reset", "--hard", "origin/"+repositoryBranch); err != nil {
+			return failures.WrapTransient(fmt.Errorf("reset repository %q to origin/%s: %w", repositoryID, repositoryBranch, err))
 		}
 	}
 
 	return nil
+}
+
+func (synchronizer *GitRepositorySynchronizer) resolveLocalRepositoryPath(projectID string, repositoryDirName string) (string, error) {
+	if synchronizer == nil {
+		return "", fmt.Errorf("git repository synchronizer is not initialized")
+	}
+	projectPath := filepath.Join(synchronizer.projectsRootDir, strings.TrimSpace(projectID), "repositories", strings.TrimSpace(repositoryDirName))
+	if _, err := os.Stat(projectPath); err == nil {
+		return projectPath, nil
+	}
+	unscopedPath := filepath.Join(synchronizer.projectsRootDir, "unscoped", "repositories", strings.TrimSpace(repositoryDirName))
+	if _, err := os.Stat(unscopedPath); err == nil {
+		return unscopedPath, nil
+	}
+	return "", fmt.Errorf("checked %s and %s", projectPath, unscopedPath)
 }
 
 func repositoryDirectoryName(repositoryID string, repositoryURL string) string {

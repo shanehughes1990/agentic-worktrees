@@ -16,9 +16,15 @@ type RunIngestionAgentInput struct {
 	ProjectID           string
 	BoardID             string
 	SelectedDocumentIDs []string
+	RepositorySourceBranches []RepositorySourceBranch
 	UserPrompt          string
 	Model               string
 	SourceBranch        string
+}
+
+type RepositorySourceBranch struct {
+	RepositoryID string
+	Branch       string
 }
 
 func (input RunIngestionAgentInput) Validate() error {
@@ -29,6 +35,14 @@ func (input RunIngestionAgentInput) Validate() error {
 	hasSelectedDocuments := hasNonEmptyValues(input.SelectedDocumentIDs)
 	if !hasPrompt && !hasSelectedDocuments {
 		return fmt.Errorf("user_prompt or selected_document_ids is required")
+	}
+	for index, repositorySourceBranch := range input.RepositorySourceBranches {
+		if strings.TrimSpace(repositorySourceBranch.RepositoryID) == "" {
+			return fmt.Errorf("repository_source_branches[%d].repository_id is required", index)
+		}
+		if strings.TrimSpace(repositorySourceBranch.Branch) == "" {
+			return fmt.Errorf("repository_source_branches[%d].branch is required", index)
+		}
 	}
 	return nil
 }
@@ -56,6 +70,7 @@ type IngestionAgentPayload struct {
 type IngestionSourceRepository struct {
 	RepositoryID  string `json:"repository_id"`
 	RepositoryURL string `json:"repository_url"`
+	SourceBranch  string `json:"source_branch,omitempty"`
 }
 
 type RunIngestionAgentResult struct {
@@ -74,6 +89,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		return nil, err
 	}
 	sourceRepositories := make([]IngestionSourceRepository, 0)
+	selectedRepositoryBranches := mapRepositorySourceBranches(input.RepositorySourceBranches)
 	boardID := strings.TrimSpace(input.BoardID)
 	if service.projectRepository != nil {
 		setup, err := service.projectRepository.GetProjectSetup(ctx, strings.TrimSpace(input.ProjectID))
@@ -83,16 +99,30 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		if setup == nil {
 			return nil, fmt.Errorf("project setup not found")
 		}
+		knownRepositoryIDs := make(map[string]struct{}, len(setup.Repositories))
 		for _, repository := range setup.Repositories {
 			repositoryID := strings.TrimSpace(repository.RepositoryID)
 			repositoryURL := strings.TrimSpace(repository.RepositoryURL)
 			if repositoryID == "" || repositoryURL == "" {
 				continue
 			}
-			sourceRepositories = append(sourceRepositories, IngestionSourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL})
+			knownRepositoryIDs[repositoryID] = struct{}{}
+			resolvedSourceBranch := strings.TrimSpace(selectedRepositoryBranches[repositoryID])
+			if resolvedSourceBranch == "" {
+				resolvedSourceBranch = strings.TrimSpace(input.SourceBranch)
+			}
+			if resolvedSourceBranch == "" {
+				resolvedSourceBranch = defaultIngestionSourceBranch
+			}
+			sourceRepositories = append(sourceRepositories, IngestionSourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL, SourceBranch: resolvedSourceBranch})
 		}
 		if boardID == "" && len(setup.Boards) > 0 {
 			boardID = strings.TrimSpace(setup.Boards[0].BoardID)
+		}
+		for selectedRepositoryID := range selectedRepositoryBranches {
+			if _, exists := knownRepositoryIDs[selectedRepositoryID]; !exists {
+				return nil, fmt.Errorf("repository_source_branches contains unknown repository_id %q", selectedRepositoryID)
+			}
 		}
 	}
 	if boardID == "" {
@@ -195,12 +225,26 @@ func sourceRepositoryFingerprints(repositories []IngestionSourceRepository) []st
 	for _, repository := range repositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		sourceBranch := strings.TrimSpace(repository.SourceBranch)
 		if repositoryID == "" && repositoryURL == "" {
 			continue
 		}
-		fingerprints = append(fingerprints, repositoryID+":"+repositoryURL)
+		fingerprints = append(fingerprints, repositoryID+":"+repositoryURL+":"+sourceBranch)
 	}
 	return fingerprints
+}
+
+func mapRepositorySourceBranches(values []RepositorySourceBranch) map[string]string {
+	result := make(map[string]string, len(values))
+	for _, value := range values {
+		repositoryID := strings.TrimSpace(value.RepositoryID)
+		branch := strings.TrimSpace(value.Branch)
+		if repositoryID == "" || branch == "" {
+			continue
+		}
+		result[repositoryID] = branch
+	}
+	return result
 }
 
 func hasNonEmptyValues(values []string) bool {

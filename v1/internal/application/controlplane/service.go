@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -87,6 +88,17 @@ type ProjectSetup struct {
 	Boards       []ProjectBoard
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type ProjectRepositoryBranches struct {
+	RepositoryID  string
+	RepositoryURL string
+	DefaultBranch string
+	Branches      []string
+}
+
+type ProjectRepositoryBranchCatalog interface {
+	ListOriginBranches(ctx context.Context, projectID string, scm ProjectSCM, repository ProjectRepository) ([]string, string, error)
 }
 
 type UpsertProjectSetupRequest struct {
@@ -229,6 +241,7 @@ type Service struct {
 	supervisorService *applicationsupervisor.Service
 	queryRepository   QueryRepository
 	projectRepository ProjectSetupRepository
+	repositoryBranchCatalog ProjectRepositoryBranchCatalog
 	projectDocumentRepository ProjectDocumentRepository
 	projectFileStore          ProjectFileStore
 	projectCDNSigner          ProjectCDNSigner
@@ -264,6 +277,13 @@ func (service *Service) SetProjectCleanupManager(cleanupManager ProjectCleanupMa
 		return
 	}
 	service.cleanupManager = cleanupManager
+}
+
+func (service *Service) SetProjectRepositoryBranchCatalog(catalog ProjectRepositoryBranchCatalog) {
+	if service == nil {
+		return
+	}
+	service.repositoryBranchCatalog = catalog
 }
 
 func (service *Service) Sessions(ctx context.Context, limit int) ([]SessionSummary, error) {
@@ -316,6 +336,87 @@ func (service *Service) ProjectSetup(ctx context.Context, projectID string) (*Pr
 		return nil, fmt.Errorf("project_id is required")
 	}
 	return service.projectRepository.GetProjectSetup(ctx, projectID)
+}
+
+func (service *Service) ProjectRepositoryBranches(ctx context.Context, projectID string) ([]ProjectRepositoryBranches, error) {
+	if service == nil || service.projectRepository == nil {
+		return nil, fmt.Errorf("project repository is not configured")
+	}
+	if service.repositoryBranchCatalog == nil {
+		return nil, fmt.Errorf("project repository branch catalog is not configured")
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	if cleanProjectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	setup, err := service.projectRepository.GetProjectSetup(ctx, cleanProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("load project setup: %w", err)
+	}
+	if setup == nil {
+		return nil, fmt.Errorf("project setup not found")
+	}
+	scmByID := make(map[string]ProjectSCM, len(setup.SCMs))
+	for _, scm := range setup.SCMs {
+		scmID := strings.TrimSpace(scm.SCMID)
+		if scmID == "" {
+			continue
+		}
+		scmByID[scmID] = scm
+	}
+	result := make([]ProjectRepositoryBranches, 0, len(setup.Repositories))
+	for _, repository := range setup.Repositories {
+		scm, ok := scmByID[strings.TrimSpace(repository.SCMID)]
+		if !ok {
+			return nil, fmt.Errorf("repository %q references unknown scm_id %q", strings.TrimSpace(repository.RepositoryID), strings.TrimSpace(repository.SCMID))
+		}
+		branches, defaultBranch, listErr := service.repositoryBranchCatalog.ListOriginBranches(ctx, cleanProjectID, scm, repository)
+		if listErr != nil {
+			return nil, fmt.Errorf("list origin branches for repository %q: %w", strings.TrimSpace(repository.RepositoryID), listErr)
+		}
+		normalizedBranches := normalizeBranchList(branches)
+		resolvedDefault := strings.TrimSpace(defaultBranch)
+		if resolvedDefault == "" && len(normalizedBranches) > 0 {
+			resolvedDefault = normalizedBranches[0]
+		}
+		result = append(result, ProjectRepositoryBranches{
+			RepositoryID:  strings.TrimSpace(repository.RepositoryID),
+			RepositoryURL: strings.TrimSpace(repository.RepositoryURL),
+			DefaultBranch: resolvedDefault,
+			Branches:      normalizedBranches,
+		})
+	}
+	return result, nil
+}
+
+func normalizeBranchList(branches []string) []string {
+	seen := make(map[string]struct{}, len(branches))
+	normalized := make([]string, 0, len(branches))
+	for _, branch := range branches {
+		cleanBranch := strings.TrimSpace(branch)
+		if cleanBranch == "" {
+			continue
+		}
+		if _, exists := seen[cleanBranch]; exists {
+			continue
+		}
+		seen[cleanBranch] = struct{}{}
+		normalized = append(normalized, cleanBranch)
+	}
+	sort.Strings(normalized)
+	for _, preferred := range []string{"main", "master"} {
+		for index, branch := range normalized {
+			if branch != preferred {
+				continue
+			}
+			if index == 0 {
+				return normalized
+			}
+			normalized = append([]string{branch}, append(normalized[:index], normalized[index+1:]...)...)
+			return normalized
+		}
+	}
+	return normalized
 }
 
 func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertProjectSetupRequest) (*ProjectSetup, error) {

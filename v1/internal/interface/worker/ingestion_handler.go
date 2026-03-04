@@ -58,6 +58,7 @@ func mapSourceRepositories(payloadRepositories []applicationcontrolplane.Ingesti
 			continue
 		}
 		mapped = append(mapped, applicationingestion.SourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL})
+		mapped[len(mapped)-1].SourceBranch = strings.TrimSpace(repository.SourceBranch)
 	}
 	return mapped
 }

@@ -10,11 +10,13 @@ import (
 	"agentic-orchestrator/internal/core/shared/healthcheck"
 	"agentic-orchestrator/internal/core/shared/observability"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
+	domainscm "agentic-orchestrator/internal/domain/scm"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
+	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
@@ -24,8 +26,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -55,6 +59,41 @@ type APIApp struct {
 	realtimeTransport     domainrealtime.WorkerLifecycleTransport
 	pendingHeartbeats     map[string]domainrealtime.HeartbeatRequest
 	pendingHeartbeatsMu   sync.Mutex
+}
+
+type apiProjectRepositoryBranchCatalog struct {
+	repositoryRootPath string
+}
+
+func (catalog *apiProjectRepositoryBranchCatalog) ListOriginBranches(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) ([]string, string, error) {
+	if strings.TrimSpace(scm.SCMProvider) != domainscm.ProviderGitHub {
+		return nil, "", fmt.Errorf("unsupported scm provider %q", scm.SCMProvider)
+	}
+	if strings.TrimSpace(scm.SCMToken) == "" {
+		return nil, "", fmt.Errorf("scm token is required")
+	}
+	owner, repositoryName, err := ownerRepositoryFromRepositoryURL(repository.RepositoryURL)
+	if err != nil {
+		return nil, "", err
+	}
+	rootPath := filepath.Join(strings.TrimSpace(catalog.repositoryRootPath), strings.TrimSpace(projectID), "repository-branch-catalog")
+	if err := os.MkdirAll(rootPath, 0o755); err != nil {
+		return nil, "", fmt.Errorf("create repository branch catalog path: %w", err)
+	}
+	repoPath := filepath.Join(rootPath, repositoryName)
+	adapter, err := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
+		RepoPath:           repoPath,
+		RepositoryRootPath: rootPath,
+		RepositoryURL:      strings.TrimSpace(repository.RepositoryURL),
+	}, nil, infrascm.NewStaticTokenProvider(scm.SCMToken), infrascm.NewExecGitRunner())
+	if err != nil {
+		return nil, "", fmt.Errorf("init github adapter: %w", err)
+	}
+	branches, defaultBranch, err := adapter.ListOriginBranches(ctx, domainscm.Repository{Provider: domainscm.ProviderGitHub, Owner: owner, Name: repositoryName})
+	if err != nil {
+		return nil, "", err
+	}
+	return branches, defaultBranch, nil
 }
 
 func New() (*APIApp, error) {
@@ -125,6 +164,7 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
+	controlPlaneService.SetProjectRepositoryBranchCatalog(&apiProjectRepositoryBranchCatalog{repositoryRootPath: filepath.Join(os.TempDir(), "agentic-orchestrator")})
 	controlPlaneService.SetProjectDocumentRepository(projectDocumentRepository)
 	if err := bootstrapRemoteStorage(config, controlPlaneService); err != nil {
 		return nil, fmt.Errorf("bootstrap remote storage: %w", err)
@@ -190,6 +230,27 @@ func New() (*APIApp, error) {
 		realtimeTransport:     realtimeTransport,
 		pendingHeartbeats:     map[string]domainrealtime.HeartbeatRequest{},
 	}, nil
+}
+
+func ownerRepositoryFromRepositoryURL(repositoryURL string) (string, string, error) {
+	trimmedURL := strings.TrimSpace(repositoryURL)
+	if trimmedURL == "" {
+		return "", "", fmt.Errorf("repository_url is required")
+	}
+	parsedURL, err := url.Parse(trimmedURL)
+	if err != nil {
+		return "", "", fmt.Errorf("parse repository_url: %w", err)
+	}
+	pathParts := strings.Split(strings.Trim(strings.TrimSpace(parsedURL.Path), "/"), "/")
+	if len(pathParts) < 2 {
+		return "", "", fmt.Errorf("repository_url %q is missing owner/repository segments", trimmedURL)
+	}
+	owner := strings.TrimSpace(pathParts[len(pathParts)-2])
+	repositoryName := strings.TrimSpace(strings.TrimSuffix(pathParts[len(pathParts)-1], ".git"))
+	if owner == "" || repositoryName == "" {
+		return "", "", fmt.Errorf("repository_url %q has invalid owner/repository", trimmedURL)
+	}
+	return owner, repositoryName, nil
 }
 
 func (app *APIApp) Run() error {

@@ -199,6 +199,7 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
                           ),
                           const SizedBox(height: 12),
                           _RepositorySetupSection(
+                            provider: widget.setupScmProvider,
                             controllers: _repositoryControllers,
                             onAdd: _addRepositoryBlock,
                             onRemove: _removeRepositoryBlock,
@@ -276,11 +277,13 @@ class _ProjectSetupScreenState extends State<ProjectSetupScreen> {
 
 class _RepositorySetupSection extends StatelessWidget {
   const _RepositorySetupSection({
+    required this.provider,
     required this.controllers,
     required this.onAdd,
     required this.onRemove,
   });
 
+  final String provider;
   final List<TextEditingController> controllers;
   final VoidCallback onAdd;
   final ValueChanged<int> onRemove;
@@ -293,6 +296,11 @@ class _RepositorySetupSection extends StatelessWidget {
         const Text(
           'Repository Setup',
           style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Attached SCM Provider: $provider',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
         Row(

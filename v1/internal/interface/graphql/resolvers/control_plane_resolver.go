@@ -142,10 +142,11 @@ func (r *mutationResolver) RunIngestionAgent(ctx context.Context, input models.R
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
 	}
 	result, err := r.Resolver.ControlPlaneService.RunIngestionAgent(ctx, applicationcontrolplane.RunIngestionAgentInput{
-		ProjectID:           input.ProjectID,
-		BoardID:             derefString(input.BoardID),
-		SelectedDocumentIDs: input.SelectedDocumentIDs,
-		UserPrompt:          derefString(input.UserPrompt),
+		ProjectID:                input.ProjectID,
+		BoardID:                  derefString(input.BoardID),
+		SelectedDocumentIDs:      input.SelectedDocumentIDs,
+		UserPrompt:               derefString(input.UserPrompt),
+		RepositorySourceBranches: mapRepositorySourceBranches(input.RepositorySourceBranches),
 	})
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("run ingestion agent: %w", err)), nil
@@ -388,6 +389,27 @@ func (r *queryResolver) ProjectDocumentPreview(ctx context.Context, projectID st
 		CreatedAt:   preview.CreatedAt.UTC(),
 		UpdatedAt:   preview.UpdatedAt.UTC(),
 	}}, nil
+}
+
+// ProjectRepositoryBranches is the resolver for the projectRepositoryBranches field.
+func (r *queryResolver) ProjectRepositoryBranches(ctx context.Context, projectID string) (models.ProjectRepositoryBranchesResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	repositories, err := r.Resolver.ControlPlaneService.ProjectRepositoryBranches(ctx, projectID)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load project repository branches: %w", err)), nil
+	}
+	items := make([]*models.ProjectRepositoryBranchOptions, 0, len(repositories))
+	for _, repository := range repositories {
+		items = append(items, &models.ProjectRepositoryBranchOptions{
+			RepositoryID:  repository.RepositoryID,
+			RepositoryURL: repository.RepositoryURL,
+			DefaultBranch: nilIfEmpty(repository.DefaultBranch),
+			Branches:      repository.Branches,
+		})
+	}
+	return models.ProjectRepositoryBranchesSuccess{Repositories: items}, nil
 }
 
 // WorkerSessions is the resolver for the workerSessions field.

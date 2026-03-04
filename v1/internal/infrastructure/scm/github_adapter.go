@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -104,6 +105,57 @@ func (adapter *GitHubAdapter) SourceState(ctx context.Context, repository domain
 	return state, nil
 }
 
+func (adapter *GitHubAdapter) ListOriginBranches(ctx context.Context, repository domainscm.Repository) ([]string, string, error) {
+	if err := repository.Validate(); err != nil {
+		return nil, "", err
+	}
+	sourceState, err := adapter.SourceState(ctx, repository)
+	if err != nil {
+		return nil, "", err
+	}
+	query := url.Values{}
+	query.Set("per_page", "100")
+	query.Set("protected", "false")
+	endpoint := adapter.repoPathURL(repository, "branches") + "?" + query.Encode()
+	var response []struct {
+		Name string `json:"name"`
+	}
+	if err := adapter.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return nil, "", err
+	}
+	branches := make([]string, 0, len(response))
+	seen := make(map[string]struct{}, len(response))
+	for _, item := range response {
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		branches = append(branches, name)
+	}
+	sort.Strings(branches)
+	defaultBranch := strings.TrimSpace(sourceState.DefaultBranch)
+	if defaultBranch != "" {
+		if _, exists := seen[defaultBranch]; !exists {
+			branches = append([]string{defaultBranch}, branches...)
+		} else {
+			for index, branch := range branches {
+				if branch != defaultBranch {
+					continue
+				}
+				if index > 0 {
+					branches = append([]string{branch}, append(branches[:index], branches[index+1:]...)...)
+				}
+				break
+			}
+		}
+	}
+	return branches, defaultBranch, nil
+}
+
 func (adapter *GitHubAdapter) EnsureRepository(ctx context.Context, repository domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error) {
 	if err := repository.Validate(); err != nil {
 		return domainscm.RepositoryState{}, err
@@ -121,7 +173,7 @@ func (adapter *GitHubAdapter) EnsureRepository(ctx context.Context, repository d
 	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "fetch", "origin", spec.BaseBranch); err != nil {
 		return domainscm.RepositoryState{}, failures.WrapTransient(err)
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "repository", "add", "-B", spec.TargetBranch, repositoryPath, "origin/"+spec.BaseBranch); err != nil {
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "add", "-B", spec.TargetBranch, repositoryPath, "origin/"+spec.BaseBranch); err != nil {
 		return domainscm.RepositoryState{}, failures.WrapTerminal(err)
 	}
 	headSHA, err := adapter.repositoryHeadSHA(ctx, repositoryPath)
@@ -194,7 +246,7 @@ func (adapter *GitHubAdapter) CleanupRepository(ctx context.Context, repository 
 	if err != nil {
 		return err
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "repository", "remove", "--force", resolvedRepositoryPath); err != nil {
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "remove", "--force", resolvedRepositoryPath); err != nil {
 		return failures.WrapTransient(err)
 	}
 	return nil

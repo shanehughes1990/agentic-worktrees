@@ -70,7 +70,7 @@ func TestSourceStateReadsDefaultBranchAndHead(t *testing.T) {
 	}
 }
 
-func TestEnsureRepositoryFetchesOriginBeforeRepositoryAdd(t *testing.T) {
+func TestEnsureRepositoryFetchesOriginBeforeWorktreeAdd(t *testing.T) {
 	runner := &recordingGitRunner{}
 	adapter, err := NewGitHubAdapter(
 		GitHubAdapterConfig{APIBaseURL: "https://api.github.com", RepoPath: "/tmp/repo", RepositoryRootPath: "/tmp/repository"},
@@ -97,9 +97,9 @@ func TestEnsureRepositoryFetchesOriginBeforeRepositoryAdd(t *testing.T) {
 	if runner.calls[1] != expectedFetch {
 		t.Fatalf("expected second call %q, got %q", expectedFetch, runner.calls[1])
 	}
-	expectedRepositoryAdd := "/tmp/repo::[repository add -B feature/one /tmp/repository/feature-one origin/main]"
-	if runner.calls[2] != expectedRepositoryAdd {
-		t.Fatalf("expected third call %q, got %q", expectedRepositoryAdd, runner.calls[2])
+	expectedWorktreeAdd := "/tmp/repo::[worktree add -B feature/one /tmp/repository/feature-one origin/main]"
+	if runner.calls[2] != expectedWorktreeAdd {
+		t.Fatalf("expected third call %q, got %q", expectedWorktreeAdd, runner.calls[2])
 	}
 }
 

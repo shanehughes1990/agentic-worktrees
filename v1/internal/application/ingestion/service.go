@@ -50,6 +50,7 @@ type RepositorySynchronizer interface {
 type SourceRepository struct {
 	RepositoryID  string
 	RepositoryURL string
+	SourceBranch  string
 }
 
 type ArtifactFetcherFunc func(ctx context.Context, objectPath string, destinationPath string) error
@@ -150,6 +151,11 @@ func (service *Service) Execute(ctx context.Context, request Request) (domaintra
 	if sourceBranch == "" {
 		sourceBranch = defaultSourceBranch
 	}
+	for index := range normalizedSourceRepositories {
+		if strings.TrimSpace(normalizedSourceRepositories[index].SourceBranch) == "" {
+			normalizedSourceRepositories[index].SourceBranch = sourceBranch
+		}
+	}
 	if len(normalizedSourceRepositories) > 0 {
 		if service.repositorySynchronizer == nil {
 			return domaintracker.Board{}, failures.WrapTerminal(errors.New("repository synchronizer is required when source_repositories are provided"))
@@ -182,7 +188,7 @@ func (service *Service) Execute(ctx context.Context, request Request) (domaintra
 	}
 
 	outputPath := filepath.Join(sandboxDir, "taskboard.json")
-	composedPrompt := composeIngestionPrompt(request, boardID, outputPath, documentDigest, normalizedSourceRepositories, sourceBranch)
+	composedPrompt := composeIngestionPrompt(request, boardID, outputPath, documentDigest, normalizedSourceRepositories)
 	model := strings.TrimSpace(request.Model)
 	if model == "" {
 		model = defaultModel
@@ -298,7 +304,7 @@ type fetchedDocument struct {
 	LocalPath      string
 }
 
-func composeIngestionPrompt(request Request, boardID string, outputPath string, decodedDocuments string, sourceRepositories []SourceRepository, sourceBranch string) string {
+func composeIngestionPrompt(request Request, boardID string, outputPath string, decodedDocuments string, sourceRepositories []SourceRepository) string {
 	segments := []string{
 		strings.TrimSpace(request.SystemPrompt),
 		"Taskboard synthesis contract:",
@@ -324,7 +330,7 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		"- Ensure task titles are specific and disambiguated by concrete scope (artifact/package + action) so duplicate intent is obvious and prevented.",
 		"- Do not invent unsupported requirements or implementation facts.",
 		"- Synchronized source repositories (if present) are available under: " + filepath.Join(".", "repos") + "/<repository-name>",
-		"- Use source branch \"" + strings.TrimSpace(sourceBranch) + "\" for source repository context.",
+		"- Use the selected source branch for each repository when resolving source context.",
 		"- Repository layout contract: local source cache is projects/{projectId}/repositories/{repository-name}, then copied into sandbox ./repos/{repository-name}.",
 		"- For multi-repository projects, decompose work by repository and ensure every task is clearly mapped to exactly one target repository.",
 		"- Include board metadata with repository scope and source branch: metadata.repositories[] and metadata.source_branch.",
@@ -360,8 +366,9 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		for _, repository := range sourceRepositories {
 			repositoryID := strings.TrimSpace(repository.RepositoryID)
 			repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+			repositoryBranch := strings.TrimSpace(repository.SourceBranch)
 			repositoryFolder := deriveRepositoryFolderName(repositoryID, repositoryURL)
-			repositoryLines = append(repositoryLines, "- repository_id="+repositoryID+" repository_url="+repositoryURL+" local_dir="+filepath.Join(".", "repos", repositoryFolder))
+			repositoryLines = append(repositoryLines, "- repository_id="+repositoryID+" repository_url="+repositoryURL+" source_branch="+repositoryBranch+" local_dir="+filepath.Join(".", "repos", repositoryFolder))
 		}
 		segments = append(segments, "Synchronized source repositories:", strings.Join(repositoryLines, "\n"))
 	}
@@ -394,10 +401,11 @@ func normalizeSourceRepositories(repositories []SourceRepository) []SourceReposi
 	for _, repository := range repositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		sourceBranch := strings.TrimSpace(repository.SourceBranch)
 		if repositoryID == "" || repositoryURL == "" {
 			continue
 		}
-		normalized = append(normalized, SourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL})
+		normalized = append(normalized, SourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL, SourceBranch: sourceBranch})
 	}
 	return normalized
 }
@@ -528,11 +536,12 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 	}
 }
 
-func buildRepositoryScopeMetadata(repositories []SourceRepository, sourceBranch string) []map[string]any {
+func buildRepositoryScopeMetadata(repositories []SourceRepository) []map[string]any {
 	result := make([]map[string]any, 0, len(repositories))
 	for _, repository := range repositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		repositoryBranch := strings.TrimSpace(repository.SourceBranch)
 		if repositoryID == "" || repositoryURL == "" {
 			continue
 		}
@@ -540,7 +549,7 @@ func buildRepositoryScopeMetadata(repositories []SourceRepository, sourceBranch 
 		result = append(result, map[string]any{
 			"repository_id":  repositoryID,
 			"repository_url": repositoryURL,
-			"source_branch":  strings.TrimSpace(sourceBranch),
+			"source_branch":  repositoryBranch,
 			"local_dir":      filepath.Join(".", "repos", repositoryFolder),
 		})
 	}

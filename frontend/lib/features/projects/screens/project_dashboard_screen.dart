@@ -246,16 +246,34 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   }
 
   Future<void> _createNewTaskboard() async {
-    if (_projectDocuments.isEmpty) {
+    final branchOptionsResult = await _api.projectRepositoryBranches(
+      projectID: _projectSetup.projectID,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!branchOptionsResult.isSuccess || branchOptionsResult.data == null) {
       setState(() {
         _statusMessage =
-            'Upload at least one project document before creating a taskboard.';
+            'Failed loading repository branches: ${branchOptionsResult.errorMessage ?? 'unknown error'}';
       });
       return;
     }
+
     final selectedDocumentIDs = _projectDocuments
         .map((ProjectDocument document) => document.documentID)
         .toSet();
+    final branchOptionsByRepository = <String, ProjectRepositoryBranchOption>{
+      for (final option in branchOptionsResult.data!)
+        option.repositoryID: option,
+    };
+    final selectedBranches = <String, String>{
+      for (final option in branchOptionsResult.data!)
+        if (option.branches.isNotEmpty)
+          option.repositoryID: option.branches.contains(option.defaultBranch)
+              ? option.defaultBranch!
+              : option.branches.first,
+    };
     final promptController = TextEditingController();
     final draft = await showDialog<_NewTaskboardDraft>(
       context: context,
@@ -326,6 +344,52 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                           border: OutlineInputBorder(),
                         ),
                       ),
+                      if (_projectSetup.repositories.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Repository branches',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        ..._projectSetup.repositories.map((repository) {
+                          final option =
+                              branchOptionsByRepository[repository
+                                  .repositoryID];
+                          final branches = option?.branches ?? const <String>[];
+                          final selectedBranch =
+                              selectedBranches[repository.repositoryID];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: DropdownButtonFormField<String>(
+                              value: selectedBranch,
+                              onChanged: branches.isEmpty
+                                  ? null
+                                  : (String? value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+                                      setDialogState(() {
+                                        selectedBranches[repository
+                                                .repositoryID] =
+                                            value;
+                                      });
+                                    },
+                              decoration: InputDecoration(
+                                labelText: repository.repositoryURL,
+                                border: const OutlineInputBorder(),
+                              ),
+                              items: branches
+                                  .map(
+                                    (String branch) => DropdownMenuItem<String>(
+                                      value: branch,
+                                      child: Text(branch),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                            ),
+                          );
+                        }),
+                      ],
                     ],
                   ),
                 ),
@@ -348,6 +412,9 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                       _NewTaskboardDraft(
                         selectedDocumentIDs: selected.isEmpty ? null : selected,
                         userPrompt: prompt.isEmpty ? null : prompt,
+                        repositorySourceBranches: selectedBranches.isEmpty
+                            ? null
+                            : Map<String, String>.from(selectedBranches),
                       ),
                     );
                   },
@@ -377,6 +444,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
           : null,
       selectedDocumentIDs: draft.selectedDocumentIDs,
       userPrompt: draft.userPrompt,
+      repositorySourceBranches: draft.repositorySourceBranches,
     );
 
     if (!mounted) {
@@ -601,8 +669,10 @@ class _NewTaskboardDraft {
   const _NewTaskboardDraft({
     required this.selectedDocumentIDs,
     required this.userPrompt,
+    required this.repositorySourceBranches,
   });
 
   final List<String>? selectedDocumentIDs;
   final String? userPrompt;
+  final Map<String, String>? repositorySourceBranches;
 }
