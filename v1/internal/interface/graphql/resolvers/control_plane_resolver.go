@@ -95,6 +95,17 @@ func (r *mutationResolver) UpsertProjectSetup(ctx context.Context, input models.
 	if mapErr != nil {
 		return graphErrorFromError(mapErr), nil
 	}
+	publishTaskboardStreamEvent(
+		ctx,
+		r.Resolver.StreamService,
+		domainstream.EventTaskboardUpdated,
+		setup.ProjectID,
+		map[string]any{
+			"project_id":  setup.ProjectID,
+			"action":      "upsert",
+			"board_count": len(setup.Boards),
+		},
+	)
 	return models.UpsertProjectSetupSuccess{Project: mapped}, nil
 }
 
@@ -106,6 +117,16 @@ func (r *mutationResolver) DeleteProjectSetup(ctx context.Context, input models.
 	if err := r.Resolver.ControlPlaneService.DeleteProjectSetup(ctx, input.ProjectID); err != nil {
 		return graphErrorFromError(fmt.Errorf("delete project setup: %w", err)), nil
 	}
+	publishTaskboardStreamEvent(
+		ctx,
+		r.Resolver.StreamService,
+		domainstream.EventTaskboardDeleted,
+		input.ProjectID,
+		map[string]any{
+			"project_id": input.ProjectID,
+			"action":     "delete",
+		},
+	)
 	return models.DeleteProjectSetupSuccess{Ok: true}, nil
 }
 
@@ -143,7 +164,7 @@ func (r *mutationResolver) RunIngestionAgent(ctx context.Context, input models.R
 	}
 	result, err := r.Resolver.ControlPlaneService.RunIngestionAgent(ctx, applicationcontrolplane.RunIngestionAgentInput{
 		ProjectID:                input.ProjectID,
-		BoardID:                  derefString(input.BoardID),
+		TaskboardName:            input.TaskboardName,
 		SelectedDocumentIDs:      input.SelectedDocumentIDs,
 		UserPrompt:               derefString(input.UserPrompt),
 		RepositorySourceBranches: mapRepositorySourceBranches(input.RepositorySourceBranches),
@@ -481,6 +502,18 @@ func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlatio
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventAgentChunk, domainstream.EventAgentTurnCompleted:
+			return true
+		default:
+			return false
+		}
+	})
+}
+
+// TaskboardStream is the resolver for the taskboardStream field.
+func (r *subscriptionResolver) TaskboardStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
+		switch eventType {
+		case domainstream.EventTaskboardUpdated, domainstream.EventTaskboardDeleted:
 			return true
 		default:
 			return false

@@ -4,6 +4,7 @@ import (
 	"agentic-orchestrator/internal/application/taskengine"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -109,7 +110,7 @@ func TestRunIngestionAgentIncludesExplicitBoardAndStreamInPayload(t *testing.T) 
 
 	_, err := service.RunIngestionAgent(context.Background(), RunIngestionAgentInput{
 		ProjectID:           "project-1",
-		BoardID:             "board-explicit",
+		TaskboardName:       "Board Explicit",
 		SelectedDocumentIDs: []string{"doc-1"},
 		UserPrompt:          "prompt",
 	})
@@ -121,8 +122,11 @@ func TestRunIngestionAgentIncludesExplicitBoardAndStreamInPayload(t *testing.T) 
 	if err := json.Unmarshal(engine.last.Payload, &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
-	if payload.BoardID != "board-explicit" {
-		t.Fatalf("expected payload board_id board-explicit, got %q", payload.BoardID)
+	if payload.BoardID == "" {
+		t.Fatalf("expected payload board_id to be generated")
+	}
+	if payload.BoardID == "board-from-setup" {
+		t.Fatalf("expected payload board_id to not reuse setup board id")
 	}
 	if payload.StreamID == "" {
 		t.Fatalf("expected non-empty stream_id")
@@ -144,8 +148,9 @@ func TestRunIngestionAgentUsesProjectBoardWhenInputBoardMissing(t *testing.T) {
 	service := newControlPlaneIngestionService(t, setup, engine)
 
 	_, err := service.RunIngestionAgent(context.Background(), RunIngestionAgentInput{
-		ProjectID:  "project-1",
-		UserPrompt: "prompt-only ingestion",
+		ProjectID:     "project-1",
+		TaskboardName: "Board From Prompt",
+		UserPrompt:    "prompt-only ingestion",
 	})
 	if err != nil {
 		t.Fatalf("RunIngestionAgent() error = %v", err)
@@ -155,8 +160,11 @@ func TestRunIngestionAgentUsesProjectBoardWhenInputBoardMissing(t *testing.T) {
 	if err := json.Unmarshal(engine.last.Payload, &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
-	if payload.BoardID != "board-from-setup" {
-		t.Fatalf("expected payload board_id board-from-setup, got %q", payload.BoardID)
+	if payload.BoardID == "" {
+		t.Fatalf("expected payload board_id to be generated")
+	}
+	if payload.BoardID == "board-from-setup" {
+		t.Fatalf("expected payload board_id to not reuse setup board id")
 	}
 	if payload.PreferSelectedDocuments {
 		t.Fatalf("expected prefer_selected_documents=false when selected documents are absent")
@@ -173,6 +181,7 @@ func TestRunIngestionAgentAllowsDocsOnlyWithoutPrompt(t *testing.T) {
 
 	_, err := service.RunIngestionAgent(context.Background(), RunIngestionAgentInput{
 		ProjectID:           "project-1",
+		TaskboardName:       "Docs Only Board",
 		SelectedDocumentIDs: []string{"doc-1"},
 	})
 	if err != nil {
@@ -185,5 +194,19 @@ func TestRunIngestionAgentAllowsDocsOnlyWithoutPrompt(t *testing.T) {
 	}
 	if len(payload.SelectedDocumentLocations) != 1 {
 		t.Fatalf("expected one selected document location, got %d", len(payload.SelectedDocumentLocations))
+	}
+}
+
+func TestRunIngestionAgentRequiresTaskboardName(t *testing.T) {
+	setup := &ProjectSetup{ProjectID: "project-1"}
+	engine := &captureEngine{}
+	service := newControlPlaneIngestionService(t, setup, engine)
+
+	_, err := service.RunIngestionAgent(context.Background(), RunIngestionAgentInput{
+		ProjectID:  "project-1",
+		UserPrompt: "prompt-only ingestion",
+	})
+	if err == nil || !strings.Contains(err.Error(), "taskboard_name is required") {
+		t.Fatalf("expected taskboard_name validation error, got %v", err)
 	}
 }

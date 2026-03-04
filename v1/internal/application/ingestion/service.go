@@ -64,6 +64,7 @@ type Request struct {
 	JobID                     string
 	ProjectID                 string
 	BoardID                   string
+	TaskboardName             string
 	StreamID                  string
 	SelectedDocumentLocations []string
 	PreferSelectedDocuments   bool
@@ -465,7 +466,11 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 	}
 	board.BoardID = strings.TrimSpace(boardID)
 	board.RunID = strings.TrimSpace(request.RunID)
-	if strings.TrimSpace(board.Name) == "" {
+	board.ProjectID = strings.TrimSpace(request.ProjectID)
+	requestedName := strings.TrimSpace(request.TaskboardName)
+	if requestedName != "" {
+		board.Name = requestedName
+	} else if strings.TrimSpace(board.Name) == "" {
 		board.Name = board.BoardID
 	}
 	if board.State == "" {

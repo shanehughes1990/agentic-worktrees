@@ -91,12 +91,30 @@ func (synchronizer *fakeIngestionRepositorySynchronizer) Sync(ctx context.Contex
 	return nil
 }
 
+type fakeTaskboardEventPublisher struct {
+	projectID string
+	boardID   string
+	runID     string
+	called    bool
+	err       error
+}
+
+func (publisher *fakeTaskboardEventPublisher) PublishTaskboardUpdated(ctx context.Context, projectID string, boardID string, runID string) error {
+	_ = ctx
+	publisher.called = true
+	publisher.projectID = projectID
+	publisher.boardID = boardID
+	publisher.runID = runID
+	return publisher.err
+}
+
 func TestIngestionAgentHandlerHandle(t *testing.T) {
 	service, err := applicationingestion.NewService(&fakeTypedIngestionBoardStore{}, &fakeIngestionArtifactFetcher{}, &fakeIngestionAgentRunner{}, &fakeIngestionRepositorySynchronizer{})
 	if err != nil {
 		t.Fatalf("new ingestion service: %v", err)
 	}
-	handler, err := NewIngestionAgentHandler(service)
+	publisher := &fakeTaskboardEventPublisher{}
+	handler, err := NewIngestionAgentHandler(service, publisher)
 	if err != nil {
 		t.Fatalf("new ingestion handler: %v", err)
 	}
@@ -105,6 +123,7 @@ func TestIngestionAgentHandlerHandle(t *testing.T) {
 		TaskID:                    "ingestion",
 		JobID:                     "job-1",
 		BoardID:                   "board-1",
+		TaskboardName:             "Board One",
 		StreamID:                  "stream-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/doc.md"},
@@ -121,6 +140,15 @@ func TestIngestionAgentHandlerHandle(t *testing.T) {
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payloadBytes}); err != nil {
 		t.Fatalf("handle ingestion job: %v", err)
 	}
+	if !publisher.called {
+		t.Fatalf("expected taskboard event publisher to be called")
+	}
+	if publisher.projectID != "project-1" {
+		t.Fatalf("expected published project id project-1, got %q", publisher.projectID)
+	}
+	if publisher.boardID != "board-1" {
+		t.Fatalf("expected published board id board-1, got %q", publisher.boardID)
+	}
 }
 
 func TestIngestionAgentHandlerHandlePromptOnlyWithoutSelectedDocuments(t *testing.T) {
@@ -128,7 +156,7 @@ func TestIngestionAgentHandlerHandlePromptOnlyWithoutSelectedDocuments(t *testin
 	if err != nil {
 		t.Fatalf("new ingestion service: %v", err)
 	}
-	handler, err := NewIngestionAgentHandler(service)
+	handler, err := NewIngestionAgentHandler(service, nil)
 	if err != nil {
 		t.Fatalf("new ingestion handler: %v", err)
 	}
@@ -137,6 +165,7 @@ func TestIngestionAgentHandlerHandlePromptOnlyWithoutSelectedDocuments(t *testin
 		TaskID:                    "ingestion",
 		JobID:                     "job-2",
 		BoardID:                   "board-1",
+		TaskboardName:             "Board One",
 		StreamID:                  "stream-2",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: nil,

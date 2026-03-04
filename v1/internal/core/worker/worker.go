@@ -5,6 +5,7 @@ import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	applicationingestion "agentic-orchestrator/internal/application/ingestion"
 	applicationscm "agentic-orchestrator/internal/application/scm"
+	applicationstream "agentic-orchestrator/internal/application/stream"
 	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
@@ -21,6 +22,7 @@ import (
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
+	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
 	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
@@ -242,6 +244,14 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("init tracker board store: %w", err)
 	}
+	streamEventStore, err := infrastreampostgres.NewEventStore(app.databaseClient.DB())
+	if err != nil {
+		return fmt.Errorf("init postgres stream event store: %w", err)
+	}
+	streamService, err := applicationstream.NewService(streamEventStore)
+	if err != nil {
+		return fmt.Errorf("init stream service: %w", err)
+	}
 	ingestionArtifactFetcher := applicationingestion.ArtifactFetcherFunc(func(ctx context.Context, objectPath string, destinationPath string) error {
 		if err := documentStore.DownloadObjectToFile(ctx, strings.TrimSpace(objectPath), strings.TrimSpace(destinationPath)); err != nil {
 			if failures.ClassOf(err) == failures.ClassUnknown {
@@ -263,7 +273,7 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("init ingestion service: %w", err)
 	}
-	ingestionHandler, err := workerinterface.NewIngestionAgentHandler(ingestionService)
+	ingestionHandler, err := workerinterface.NewIngestionAgentHandler(ingestionService, newTaskboardStreamPublisher(streamService))
 	if err != nil {
 		return fmt.Errorf("create ingestion agent handler: %w", err)
 	}

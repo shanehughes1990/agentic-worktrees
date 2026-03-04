@@ -251,6 +251,7 @@ type ComplexityRoot struct {
 		AgentOutputStream               func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		SessionActivityStream           func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		SupervisorDecisionHistoryStream func(childComplexity int, correlation models.SupervisorCorrelationInput, intervalMs *int32) int
+		TaskboardStream                 func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		WorkerSessionStream             func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 		WorkflowExecutionStream         func(childComplexity int, correlation models.SupervisorCorrelationInput, fromOffset *int32) int
 	}
@@ -362,6 +363,7 @@ type SubscriptionResolver interface {
 	SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	WorkflowExecutionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	AgentOutputStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
+	TaskboardStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	SupervisorDecisionHistoryStream(ctx context.Context, correlation models.SupervisorCorrelationInput, intervalMs *int32) (<-chan models.SupervisorDecisionHistoryResult, error)
 }
 
@@ -1263,6 +1265,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.SupervisorDecisionHistoryStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["intervalMS"].(*int32)), true
+	case "Subscription.taskboardStream":
+		if e.ComplexityRoot.Subscription.TaskboardStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_taskboardStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.TaskboardStream(childComplexity, args["correlation"].(models.SupervisorCorrelationInput), args["fromOffset"].(*int32)), true
 	case "Subscription.workerSessionStream":
 		if e.ComplexityRoot.Subscription.WorkerSessionStream == nil {
 			break
@@ -1927,7 +1940,7 @@ union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess |
 
 input RunIngestionAgentInput {
   projectID: String!
-  boardID: String
+  taskboardName: String!
   selectedDocumentIDs: [String!]
   userPrompt: String
   repositorySourceBranches: [RepositorySourceBranchInput!]
@@ -2062,6 +2075,7 @@ extend type Subscription {
   sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
   agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  taskboardStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `scalar Time
@@ -2567,6 +2581,22 @@ func (ec *executionContext) field_Subscription_supervisorDecisionHistoryStream_a
 		return nil, err
 	}
 	args["intervalMS"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_taskboardStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNSupervisorCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSupervisorCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
 	return args, nil
 }
 
@@ -6878,6 +6908,47 @@ func (ec *executionContext) fieldContext_Subscription_agentOutputStream(ctx cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_taskboardStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_taskboardStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().TaskboardStream(ctx, fc.Args["correlation"].(models.SupervisorCorrelationInput), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_taskboardStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_taskboardStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Subscription_supervisorDecisionHistoryStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	return graphql.ResolveFieldStream(
 		ctx,
@@ -10150,7 +10221,7 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "boardID", "selectedDocumentIDs", "userPrompt", "repositorySourceBranches"}
+	fieldsInOrder := [...]string{"projectID", "taskboardName", "selectedDocumentIDs", "userPrompt", "repositorySourceBranches"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -10164,13 +10235,13 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 				return it, err
 			}
 			it.ProjectID = data
-		case "boardID":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+		case "taskboardName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskboardName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.BoardID = data
+			it.TaskboardName = data
 		case "selectedDocumentIDs":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectedDocumentIDs"))
 			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
@@ -12816,6 +12887,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_workflowExecutionStream(ctx, fields[0])
 	case "agentOutputStream":
 		return ec._Subscription_agentOutputStream(ctx, fields[0])
+	case "taskboardStream":
+		return ec._Subscription_taskboardStream(ctx, fields[0])
 	case "supervisorDecisionHistoryStream":
 		return ec._Subscription_supervisorDecisionHistoryStream(ctx, fields[0])
 	default:

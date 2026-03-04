@@ -4,6 +4,8 @@ import (
 	"agentic-orchestrator/internal/domain/failures"
 	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +15,8 @@ import (
 
 func newSupervisorEventStoreTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

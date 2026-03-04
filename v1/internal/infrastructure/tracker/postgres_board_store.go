@@ -101,11 +101,6 @@ func normalizeLegacyTrackerSchema(db *gorm.DB) error {
 	}
 	migrator := db.Migrator()
 	if migrator != nil {
-		if migrator.HasTable("project_boards") && migrator.HasColumn("project_boards", "board_id") && !migrator.HasTable("project_setup_boards") {
-			if err := migrator.RenameTable("project_boards", "project_setup_boards"); err != nil {
-				return err
-			}
-		}
 		if migrator.HasTable("tracker_project_boards") && !migrator.HasTable("project_boards") {
 			if err := migrator.RenameTable("tracker_project_boards", "project_boards"); err != nil {
 				return err
@@ -146,7 +141,11 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 	}
 	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()
-		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: strings.TrimSpace(board.RunID), Name: strings.TrimSpace(board.Name), State: string(board.State), CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
+		projectID := strings.TrimSpace(board.ProjectID)
+		if projectID == "" {
+			projectID = strings.TrimSpace(board.RunID)
+		}
+		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
 		if boardRecord.Name == "" {
 			boardRecord.Name = boardRecord.ID
 		}

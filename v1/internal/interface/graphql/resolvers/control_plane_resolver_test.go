@@ -295,3 +295,56 @@ func TestControlPlaneAgentOutputSubscriptionPublishesTypedUnionEvent(t *testing.
 	}
 }
 
+func TestControlPlaneTaskboardSubscriptionPublishesOnProjectSetupUpsert(t *testing.T) {
+	resolver := newControlPlaneResolverFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	projectID := "project-1"
+	stream, err := (&subscriptionResolver{resolver}).TaskboardStream(ctx, models.SupervisorCorrelationInput{RunID: "", TaskID: "", JobID: "", ProjectID: &projectID}, nil)
+	if err != nil {
+		t.Fatalf("TaskboardStream() error = %v", err)
+	}
+
+	_, mutationErr := (&mutationResolver{resolver}).UpsertProjectSetup(context.Background(), models.UpsertProjectSetupInput{
+		ProjectID:   "project-1",
+		ProjectName: "Project One",
+		Scms: []*models.ProjectSCMInput{{
+			ScmID:       "scm-1",
+			ScmProvider: models.SCMProviderGithub,
+			ScmToken:    "token",
+		}},
+		Repositories: []*models.ProjectRepositoryInput{{
+			RepositoryID:  "repo-1",
+			ScmID:         "scm-1",
+			RepositoryURL: "https://github.com/acme/repo",
+			IsPrimary:     true,
+		}},
+		Boards: []*models.ProjectBoardInput{{
+			TrackerProvider:          models.TrackerSourceKindInternal,
+			TaskboardName:            strPtr("Acme Repo Board"),
+			AppliesToAllRepositories: true,
+			RepositoryIDs:            []string{},
+		}},
+	})
+	if mutationErr != nil {
+		t.Fatalf("UpsertProjectSetup() error = %v", mutationErr)
+	}
+
+	select {
+	case message, ok := <-stream:
+		if !ok {
+			t.Fatalf("expected open stream channel")
+		}
+		success, ok := message.(models.StreamEventSuccess)
+		if !ok {
+			t.Fatalf("expected StreamEventSuccess, got %T", message)
+		}
+		if success.Event == nil || success.Event.EventType != string(domainstream.EventTaskboardUpdated) {
+			t.Fatalf("unexpected stream event: %+v", success.Event)
+		}
+	case <-ctx.Done():
+		t.Fatalf("timeout waiting for taskboard stream event")
+	}
+}
+

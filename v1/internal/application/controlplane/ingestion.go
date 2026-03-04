@@ -14,7 +14,7 @@ import (
 
 type RunIngestionAgentInput struct {
 	ProjectID           string
-	BoardID             string
+	TaskboardName       string
 	SelectedDocumentIDs []string
 	RepositorySourceBranches []RepositorySourceBranch
 	UserPrompt          string
@@ -30,6 +30,9 @@ type RepositorySourceBranch struct {
 func (input RunIngestionAgentInput) Validate() error {
 	if strings.TrimSpace(input.ProjectID) == "" {
 		return fmt.Errorf("project_id is required")
+	}
+	if strings.TrimSpace(input.TaskboardName) == "" {
+		return fmt.Errorf("taskboard_name is required")
 	}
 	hasPrompt := strings.TrimSpace(input.UserPrompt) != ""
 	hasSelectedDocuments := hasNonEmptyValues(input.SelectedDocumentIDs)
@@ -55,6 +58,7 @@ type IngestionAgentPayload struct {
 	TaskID                    string   `json:"task_id"`
 	JobID                     string   `json:"job_id"`
 	BoardID                   string   `json:"board_id"`
+	TaskboardName             string   `json:"taskboard_name"`
 	StreamID                  string   `json:"stream_id"`
 	ProjectID                 string   `json:"project_id"`
 	SelectedDocumentLocations []string `json:"selected_document_locations"`
@@ -90,7 +94,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	}
 	sourceRepositories := make([]IngestionSourceRepository, 0)
 	selectedRepositoryBranches := mapRepositorySourceBranches(input.RepositorySourceBranches)
-	boardID := strings.TrimSpace(input.BoardID)
+	taskboardName := strings.TrimSpace(input.TaskboardName)
 	if service.projectRepository != nil {
 		setup, err := service.projectRepository.GetProjectSetup(ctx, strings.TrimSpace(input.ProjectID))
 		if err != nil {
@@ -116,18 +120,14 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 			}
 			sourceRepositories = append(sourceRepositories, IngestionSourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL, SourceBranch: resolvedSourceBranch})
 		}
-		if boardID == "" && len(setup.Boards) > 0 {
-			boardID = strings.TrimSpace(setup.Boards[0].BoardID)
-		}
 		for selectedRepositoryID := range selectedRepositoryBranches {
 			if _, exists := knownRepositoryIDs[selectedRepositoryID]; !exists {
 				return nil, fmt.Errorf("repository_source_branches contains unknown repository_id %q", selectedRepositoryID)
 			}
 		}
 	}
-	if boardID == "" {
-		boardID = boardIDFromName("default")
-	}
+	runID := fmt.Sprintf("ingest-%d", time.Now().UTC().UnixNano())
+	boardID := ingestionBoardID(taskboardName, runID)
 	normalizedDocumentLocations := make([]string, 0, len(input.SelectedDocumentIDs))
 	for _, rawDocumentID := range input.SelectedDocumentIDs {
 		documentID := strings.TrimSpace(rawDocumentID)
@@ -152,7 +152,6 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		normalizedDocumentLocations = append(normalizedDocumentLocations, documentID)
 	}
 	preferSelectedDocuments := len(normalizedDocumentLocations) > 0
-	runID := fmt.Sprintf("ingest-%d", time.Now().UTC().UnixNano())
 	taskID := "ingestion"
 	jobID := fmt.Sprintf("ingestion-agent-%d", time.Now().UTC().UnixNano())
 	systemPrompt := strings.TrimSpace(prompts.WorkerToolingBaseline)
@@ -171,6 +170,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		TaskID:                    taskID,
 		JobID:                     jobID,
 		BoardID:                   boardID,
+		TaskboardName:             taskboardName,
 		StreamID:                  jobID,
 		ProjectID:                 strings.TrimSpace(input.ProjectID),
 		SelectedDocumentLocations: normalizedDocumentLocations,
@@ -201,6 +201,18 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		return nil, fmt.Errorf("enqueue ingestion agent job: %w", err)
 	}
 	return &RunIngestionAgentResult{RunID: runID, TaskID: taskID, JobID: jobID, QueueTaskID: enqueueResult.QueueTaskID, Duplicate: enqueueResult.Duplicate}, nil
+}
+
+func ingestionBoardID(taskboardName string, runID string) string {
+	base := boardIDFromName(taskboardName)
+	if strings.TrimSpace(base) == "" {
+		base = "taskboard"
+	}
+	runToken := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(runID), "ingest-"))
+	if runToken == "" {
+		runToken = fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	}
+	return base + "_" + runToken
 }
 
 func ingestionIdempotencyKey(projectID string, boardID string, documentIDs []string, sourceRepositories []string, sourceBranch string, model string, systemPrompt string, userPrompt string) string {

@@ -256,3 +256,111 @@ func TestProjectSetupRepositoryDeleteRemovesAssociations(t *testing.T) {
 		t.Fatal("expected deleting missing setup to return an error")
 	}
 }
+
+func TestProjectSetupRepositoryLoadsBoardsWithoutDeletedAtColumn(t *testing.T) {
+	db := newProjectSetupTestDB(t)
+	if err := db.Exec(`
+		CREATE TABLE project_boards (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			state TEXT NOT NULL,
+			created_at DATETIME,
+			updated_at DATETIME
+		);
+	`).Error; err != nil {
+		t.Fatalf("create project_boards without deleted_at: %v", err)
+	}
+
+	if err := db.Exec(`
+		CREATE TABLE project_board_tasks (
+			id TEXT PRIMARY KEY,
+			created_at DATETIME,
+			board_id TEXT NOT NULL,
+			epic_id TEXT NOT NULL,
+			title TEXT,
+			description TEXT,
+			task_type TEXT,
+			state TEXT,
+			rank INTEGER,
+			depends_on_task_ids TEXT,
+			model_provider TEXT,
+			model_name TEXT,
+			outcome_status TEXT,
+			outcome_summary TEXT,
+			updated_at DATETIME
+		);
+	`).Error; err != nil {
+		t.Fatalf("create project_board_tasks without deleted_at: %v", err)
+	}
+
+	if err := db.Exec(`
+		CREATE TABLE project_board_epics (
+			id TEXT PRIMARY KEY,
+			board_id TEXT NOT NULL,
+			title TEXT,
+			objective TEXT,
+			state TEXT,
+			rank INTEGER,
+			depends_on_epic_ids TEXT,
+			created_at DATETIME,
+			updated_at DATETIME
+		);
+	`).Error; err != nil {
+		t.Fatalf("create project_board_epics without deleted_at: %v", err)
+	}
+
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	if _, err := repo.UpsertProjectSetup(context.Background(), sampleProjectSetup()); err != nil {
+		t.Fatalf("upsert setup: %v", err)
+	}
+
+	loaded, err := repo.GetProjectSetup(context.Background(), "project-1")
+	if err != nil {
+		t.Fatalf("get project setup: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected project setup")
+	}
+	if len(loaded.Boards) != 1 {
+		t.Fatalf("expected 1 board, got %d", len(loaded.Boards))
+	}
+}
+
+func TestProjectSetupRepositoryLoadsBoardsFromProjectBoards(t *testing.T) {
+	db := newProjectSetupTestDB(t)
+	crypto := newProjectSetupTestCrypto(t, db)
+	repo, err := NewProjectSetupRepository(db, crypto)
+	if err != nil {
+		t.Fatalf("new repository: %v", err)
+	}
+
+	if _, err := repo.UpsertProjectSetup(context.Background(), sampleProjectSetup()); err != nil {
+		t.Fatalf("upsert setup: %v", err)
+	}
+
+	loaded, err := repo.GetProjectSetup(context.Background(), "project-1")
+	if err != nil {
+		t.Fatalf("get project setup: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected project setup")
+	}
+	if len(loaded.Boards) != 1 {
+		t.Fatalf("expected 1 board, got %d", len(loaded.Boards))
+	}
+	if loaded.Boards[0].BoardID != "project_1_board" {
+		t.Fatalf("expected board id project_1_board, got %q", loaded.Boards[0].BoardID)
+	}
+	if loaded.Boards[0].TaskboardName != "Project 1 Board" {
+		t.Fatalf("expected board name Project 1 Board, got %q", loaded.Boards[0].TaskboardName)
+	}
+	if loaded.Boards[0].TrackerProvider != "internal" {
+		t.Fatalf("expected tracker provider internal, got %q", loaded.Boards[0].TrackerProvider)
+	}
+}

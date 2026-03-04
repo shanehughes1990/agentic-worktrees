@@ -209,43 +209,6 @@ func TestPostgresBoardStoreApplyTaskResult(t *testing.T) {
 	}
 }
 
-func TestPostgresBoardStoreUpsertWithProjectSetupBoardsTablePresent(t *testing.T) {
-	db := newTrackerDB(t)
-	if err := db.Exec(`
-		CREATE TABLE project_setup_boards (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			project_id TEXT NOT NULL,
-			board_id TEXT NOT NULL,
-			tracker_provider TEXT NOT NULL,
-			taskboard_name TEXT,
-			applies_to_all_repositories BOOLEAN NOT NULL DEFAULT 1,
-			repository_ids TEXT,
-			created_at DATETIME,
-			updated_at DATETIME
-		);
-	`).Error; err != nil {
-		t.Fatalf("create project_setup_boards table: %v", err)
-	}
-
-	store, err := NewPostgresBoardStore(db)
-	if err != nil {
-		t.Fatalf("new store: %v", err)
-	}
-
-	board := sampleCanonicalBoard()
-	if err := store.UpsertBoard(context.Background(), board); err != nil {
-		t.Fatalf("upsert board with project_setup_boards table present: %v", err)
-	}
-
-	loaded, err := store.LoadBoard(context.Background(), board.RunID, board.BoardID)
-	if err != nil {
-		t.Fatalf("load board: %v", err)
-	}
-	if loaded.BoardID != board.BoardID {
-		t.Fatalf("expected board %q, got %q", board.BoardID, loaded.BoardID)
-	}
-}
-
 func TestPostgresBoardStorePersistsBoardEpicTaskSetTogether(t *testing.T) {
 	db := newTrackerDB(t)
 	store, err := NewPostgresBoardStore(db)

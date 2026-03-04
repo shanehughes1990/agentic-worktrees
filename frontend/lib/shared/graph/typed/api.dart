@@ -305,6 +305,133 @@ class ControlPlaneApi {
     return ApiResult<List<ProjectSetupConfig>>.success(projects);
   }
 
+  Future<ApiResult<ProjectSetupConfig>> projectSetup({
+    required String projectID,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return const ApiResult<ProjectSetupConfig>.failure(
+        'project_id is required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query ProjectSetup(
+            \$projectID: String!
+          ) {
+            projectSetup(projectID: \$projectID) {
+              __typename
+              ... on ProjectSetupSuccess {
+                project {
+                  projectID
+                  projectName
+                  scms {
+                    scmID
+                    scmProvider
+                  }
+                  repositories {
+                    repositoryID
+                    scmID
+                    repositoryURL
+                    isPrimary
+                  }
+                  boards {
+                    boardID
+                    trackerProvider
+                    taskboardName
+                    appliesToAllRepositories
+                    repositoryIDs
+                  }
+                  createdAt
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{'projectID': cleanProjectID},
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'projectSetup');
+    if (error != null) {
+      return ApiResult<ProjectSetupConfig>.failure(error);
+    }
+    final payload = result.data?['projectSetup'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<ProjectSetupConfig>.failure(
+        'projectSetup returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<ProjectSetupConfig>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final project = payload['project'] as Map<String, dynamic>?;
+    if (project == null) {
+      return const ApiResult<ProjectSetupConfig>.failure(
+        'projectSetup project payload missing',
+      );
+    }
+    return ApiResult<ProjectSetupConfig>.success(
+      ProjectSetupConfig(
+        projectID: project['projectID'] as String,
+        projectName: project['projectName'] as String,
+        scms: (project['scms'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (Map<String, dynamic> scm) => ProjectScmConfig(
+                scmID: scm['scmID'] as String,
+                scmProvider: scm['scmProvider'] as String,
+              ),
+            )
+            .toList(growable: false),
+        repositories:
+            (project['repositories'] as List<dynamic>? ?? const <dynamic>[])
+                .whereType<Map<String, dynamic>>()
+                .map(
+                  (Map<String, dynamic> repository) => ProjectRepositoryConfig(
+                    repositoryID: repository['repositoryID'] as String,
+                    scmID: repository['scmID'] as String,
+                    repositoryURL: repository['repositoryURL'] as String,
+                    isPrimary: repository['isPrimary'] as bool,
+                  ),
+                )
+                .toList(growable: false),
+        boards: (project['boards'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (Map<String, dynamic> board) => ProjectBoardConfig(
+                boardID: board['boardID'] as String,
+                trackerProvider: board['trackerProvider'] as String,
+                taskboardName: (board['taskboardName'] as String?) ?? '',
+                appliesToAllRepositories:
+                    board['appliesToAllRepositories'] as bool,
+                repositoryIDs:
+                    (board['repositoryIDs'] as List<dynamic>? ??
+                            const <dynamic>[])
+                        .whereType<String>()
+                        .toList(growable: false),
+              ),
+            )
+            .toList(growable: false),
+        createdAt: DateTime.parse(project['createdAt'] as String).toLocal(),
+        updatedAt: DateTime.parse(project['updatedAt'] as String).toLocal(),
+      ),
+    );
+  }
+
   Future<ApiResult<ProjectSetupConfig>> upsertProjectSetup({
     required String projectID,
     required String projectName,
@@ -681,12 +808,21 @@ class ControlPlaneApi {
 
   Future<ApiResult<IngestionRunTicket>> runIngestionAgent({
     required String projectID,
-    String? boardID,
+    required String taskboardName,
     List<String>? selectedDocumentIDs,
     String? userPrompt,
     Map<String, String>? repositorySourceBranches,
   }) async {
-    final input = <String, dynamic>{'projectID': projectID, 'boardID': boardID};
+    final cleanTaskboardName = taskboardName.trim();
+    if (cleanTaskboardName.isEmpty) {
+      return const ApiResult<IngestionRunTicket>.failure(
+        'taskboard_name is required',
+      );
+    }
+    final input = <String, dynamic>{
+      'projectID': projectID,
+      'taskboardName': cleanTaskboardName,
+    };
     if (selectedDocumentIDs != null) {
       input['selectedDocumentIDs'] = selectedDocumentIDs;
     }
@@ -893,6 +1029,108 @@ class ControlPlaneApi {
             occurredAt: eventData.occurredAt.toLocal(),
           );
           return ApiResult<StreamEvent>.success(event);
+        })
+        .asBroadcastStream();
+  }
+
+  Stream<ApiResult<StreamEvent>> taskboardStream({
+    required String projectID,
+    int fromOffset = 0,
+  }) {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return Stream<ApiResult<StreamEvent>>.value(
+        const ApiResult<StreamEvent>.failure('project_id is required'),
+      );
+    }
+    return _client
+        .subscribe(
+          SubscriptionOptions(
+            document: gql('''
+              subscription TaskboardStream(
+                \$runID: String!
+                \$taskID: String!
+                \$jobID: String!
+                \$projectID: String
+                \$fromOffset: Int!
+              ) {
+                taskboardStream(
+                  correlation: {
+                    runID: \$runID
+                    taskID: \$taskID
+                    jobID: \$jobID
+                    projectID: \$projectID
+                  }
+                  fromOffset: \$fromOffset
+                ) {
+                  __typename
+                  ... on StreamEventSuccess {
+                    event {
+                      eventID
+                      eventType
+                      source
+                      payload
+                      occurredAt
+                    }
+                  }
+                  ... on GraphError {
+                    code
+                    message
+                    field
+                  }
+                }
+              }
+            '''),
+            variables: <String, dynamic>{
+              'runID': '',
+              'taskID': '',
+              'jobID': '',
+              'projectID': cleanProjectID,
+              'fromOffset': fromOffset,
+            },
+          ),
+        )
+        .map((QueryResult result) {
+          final error = _extractOperationError(
+            result,
+            field: 'taskboardStream',
+          );
+          if (error != null) {
+            return ApiResult<StreamEvent>.failure(error);
+          }
+          final payload =
+              result.data?['taskboardStream'] as Map<String, dynamic>?;
+          if (payload == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'taskboardStream returned no data',
+            );
+          }
+          if (payload['__typename'] == 'GraphError') {
+            return ApiResult<StreamEvent>.failure(
+              _graphErrorMessageTyped(
+                code: payload['code'] as String? ?? 'INTERNAL',
+                message: payload['message'] as String? ?? 'unknown error',
+                field: payload['field'] as String?,
+              ),
+            );
+          }
+          final eventData = payload['event'] as Map<String, dynamic>?;
+          if (eventData == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'taskboardStream event payload missing',
+            );
+          }
+          return ApiResult<StreamEvent>.success(
+            StreamEvent(
+              eventID: eventData['eventID'] as String,
+              eventType: eventData['eventType'] as String,
+              source: eventData['source'] as String,
+              payload: eventData['payload'] as String,
+              occurredAt: DateTime.parse(
+                eventData['occurredAt'] as String,
+              ).toLocal(),
+            ),
+          );
         })
         .asBroadcastStream();
   }

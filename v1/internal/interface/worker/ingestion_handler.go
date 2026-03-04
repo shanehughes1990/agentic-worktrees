@@ -11,14 +11,19 @@ import (
 )
 
 type IngestionAgentHandler struct {
-	service *applicationingestion.Service
+	service   *applicationingestion.Service
+	publisher TaskboardEventPublisher
 }
 
-func NewIngestionAgentHandler(service *applicationingestion.Service) (*IngestionAgentHandler, error) {
+type TaskboardEventPublisher interface {
+	PublishTaskboardUpdated(ctx context.Context, projectID string, boardID string, runID string) error
+}
+
+func NewIngestionAgentHandler(service *applicationingestion.Service, publisher TaskboardEventPublisher) (*IngestionAgentHandler, error) {
 	if service == nil {
 		return nil, fmt.Errorf("ingestion service is required")
 	}
-	return &IngestionAgentHandler{service: service}, nil
+	return &IngestionAgentHandler{service: service, publisher: publisher}, nil
 }
 
 func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -34,6 +39,7 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		JobID:                     strings.TrimSpace(payload.JobID),
 		ProjectID:                 strings.TrimSpace(payload.ProjectID),
 		BoardID:                   strings.TrimSpace(payload.BoardID),
+		TaskboardName:             strings.TrimSpace(payload.TaskboardName),
 		StreamID:                  strings.TrimSpace(payload.StreamID),
 		SelectedDocumentLocations: payload.SelectedDocumentLocations,
 		PreferSelectedDocuments:   payload.PreferSelectedDocuments,
@@ -43,8 +49,14 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		SystemPrompt:              strings.TrimSpace(payload.SystemPrompt),
 		UserPrompt:                strings.TrimSpace(payload.UserPrompt),
 	}
-	if _, err := handler.service.Execute(ctx, request); err != nil {
+	board, err := handler.service.Execute(ctx, request)
+	if err != nil {
 		return err
+	}
+	if handler.publisher != nil {
+		if publishErr := handler.publisher.PublishTaskboardUpdated(ctx, strings.TrimSpace(payload.ProjectID), strings.TrimSpace(board.BoardID), strings.TrimSpace(payload.RunID)); publishErr != nil {
+			return fmt.Errorf("publish taskboard updated event: %w", publishErr)
+		}
 	}
 	return nil
 }

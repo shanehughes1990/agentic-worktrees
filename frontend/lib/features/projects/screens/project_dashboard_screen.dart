@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -29,9 +30,11 @@ class ProjectDashboardScreen extends StatefulWidget {
 class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   late final ControlPlaneApi _api;
   late ProjectSetupConfig _projectSetup;
+  StreamSubscription<ApiResult<StreamEvent>>? _taskboardSubscription;
   List<ProjectDocument> _projectDocuments = const <ProjectDocument>[];
   bool _isUploadingFiles = false;
   bool _isCreatingTaskboard = false;
+  bool _isRefreshingProjectSetup = false;
   String? _statusMessage;
 
   @override
@@ -39,7 +42,58 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     super.initState();
     _api = ControlPlaneApi(buildGraphqlClient(widget.endpoint));
     _projectSetup = widget.projectSetup;
-    _loadProjectDocuments();
+    _startTaskboardSubscription();
+    unawaited(_refreshProjectSetup(silent: true));
+    unawaited(_loadProjectDocuments());
+  }
+
+  @override
+  void dispose() {
+    _taskboardSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _startTaskboardSubscription() {
+    _taskboardSubscription?.cancel();
+    _taskboardSubscription = _api
+        .taskboardStream(projectID: _projectSetup.projectID)
+        .listen((ApiResult<StreamEvent> eventResult) {
+          if (!mounted) {
+            return;
+          }
+          if (!eventResult.isSuccess || eventResult.data == null) {
+            setState(() {
+              _statusMessage =
+                  'Taskboard stream error: ${eventResult.errorMessage ?? 'unknown error'}';
+            });
+            return;
+          }
+          if (_isRefreshingProjectSetup) {
+            return;
+          }
+          unawaited(_refreshProjectSetup(silent: true));
+        });
+  }
+
+  Future<void> _refreshProjectSetup({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _isRefreshingProjectSetup = true;
+      });
+    }
+    final result = await _api.projectSetup(projectID: _projectSetup.projectID);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isRefreshingProjectSetup = false;
+      if (!result.isSuccess || result.data == null) {
+        _statusMessage =
+            'Failed loading project setup: ${result.errorMessage ?? 'unknown error'}';
+        return;
+      }
+      _projectSetup = result.data!;
+    });
   }
 
   Future<void> _openEditProjectSetup() async {
@@ -60,6 +114,8 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
       _projectSetup = updated;
       _statusMessage = 'Project setup updated.';
     });
+    _startTaskboardSubscription();
+    await _refreshProjectSetup();
     await _loadProjectDocuments();
   }
 
@@ -274,6 +330,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
               ? option.defaultBranch!
               : option.branches.first,
     };
+    final taskboardNameController = TextEditingController();
     final promptController = TextEditingController();
     final draft = await showDialog<_NewTaskboardDraft>(
       context: context,
@@ -291,6 +348,15 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      TextField(
+                        controller: taskboardNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Taskboard name',
+                          hintText: 'Required',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       CheckboxListTile(
                         value: isAllSelected,
                         onChanged: (bool? value) {
@@ -401,15 +467,20 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                 ),
                 FilledButton(
                   onPressed: () {
+                    final taskboardName = taskboardNameController.text.trim();
                     final selected = selectedDocumentIDs.toList(
                       growable: false,
                     );
                     final prompt = promptController.text.trim();
+                    if (taskboardName.isEmpty) {
+                      return;
+                    }
                     if (selected.isEmpty && prompt.isEmpty) {
                       return;
                     }
                     Navigator.of(context).pop(
                       _NewTaskboardDraft(
+                        taskboardName: taskboardName,
                         selectedDocumentIDs: selected.isEmpty ? null : selected,
                         userPrompt: prompt.isEmpty ? null : prompt,
                         repositorySourceBranches: selectedBranches.isEmpty
@@ -426,6 +497,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
         );
       },
     );
+    taskboardNameController.dispose();
     promptController.dispose();
 
     if (!mounted || draft == null) {
@@ -439,9 +511,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
     final result = await _api.runIngestionAgent(
       projectID: _projectSetup.projectID,
-      boardID: _projectSetup.boards.isNotEmpty
-          ? _projectSetup.boards.first.boardID
-          : null,
+      taskboardName: draft.taskboardName,
       selectedDocumentIDs: draft.selectedDocumentIDs,
       userPrompt: draft.userPrompt,
       repositorySourceBranches: draft.repositorySourceBranches,
@@ -461,6 +531,38 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
       _statusMessage =
           'Taskboard run enqueued (run=${result.data!.runID}, task=${result.data!.taskID}).';
     });
+    await _refreshProjectSetup(silent: true);
+  }
+
+  Widget _buildTaskboardCard(BuildContext context, ProjectBoardConfig board) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              board.taskboardName.trim().isEmpty
+                  ? board.boardID
+                  : board.taskboardName,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text('Board ID: ${board.boardID}'),
+            const SizedBox(height: 2),
+            Text('Provider: ${board.trackerProvider}'),
+            const SizedBox(height: 2),
+            Text(
+              board.appliesToAllRepositories
+                  ? 'Scope: all repositories'
+                  : 'Scope: ${board.repositoryIDs.length} repositories',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -654,6 +756,93 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Taskboards',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_isRefreshingProjectSetup)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: LinearProgressIndicator(),
+                      ),
+                    if (_projectSetup.boards.isEmpty)
+                      const Text('No taskboards configured for this project.')
+                    else
+                      LayoutBuilder(
+                        builder:
+                            (BuildContext context, BoxConstraints constraints) {
+                              final boards = _projectSetup.boards;
+                              final spacing = 8.0;
+                              final preferredWidth = 320.0;
+                              final visibleColumns =
+                                  (constraints.maxWidth / preferredWidth)
+                                      .floor()
+                                      .clamp(1, boards.length);
+
+                              if (boards.length <= visibleColumns) {
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    for (
+                                      var index = 0;
+                                      index < boards.length;
+                                      index++
+                                    ) ...<Widget>[
+                                      Expanded(
+                                        child: _buildTaskboardCard(
+                                          context,
+                                          boards[index],
+                                        ),
+                                      ),
+                                      if (index < boards.length - 1)
+                                        const SizedBox(width: 8),
+                                    ],
+                                  ],
+                                );
+                              }
+
+                              final itemWidth =
+                                  (constraints.maxWidth -
+                                      ((visibleColumns - 1) * spacing)) /
+                                  visibleColumns;
+
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    for (
+                                      var index = 0;
+                                      index < boards.length;
+                                      index++
+                                    ) ...<Widget>[
+                                      SizedBox(
+                                        width: itemWidth,
+                                        child: _buildTaskboardCard(
+                                          context,
+                                          boards[index],
+                                        ),
+                                      ),
+                                      if (index < boards.length - 1)
+                                        const SizedBox(width: 8),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            },
+                      ),
+                  ],
+                ),
+              ),
+            ),
             if (_statusMessage != null) ...<Widget>[
               const SizedBox(height: 12),
               Text(_statusMessage!),
@@ -667,11 +856,13 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
 class _NewTaskboardDraft {
   const _NewTaskboardDraft({
+    required this.taskboardName,
     required this.selectedDocumentIDs,
     required this.userPrompt,
     required this.repositorySourceBranches,
   });
 
+  final String taskboardName;
   final List<String>? selectedDocumentIDs;
   final String? userPrompt;
   final Map<String, String>? repositorySourceBranches;

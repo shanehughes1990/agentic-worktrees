@@ -365,7 +365,7 @@ func (RequeueDeadLetterSuccess) IsRequeueDeadLetterResult() {}
 
 type RunIngestionAgentInput struct {
 	ProjectID                string                         `json:"projectID"`
-	BoardID                  *string                        `json:"boardID,omitempty"`
+	TaskboardName            string                         `json:"taskboardName"`
 	SelectedDocumentIDs      []string                       `json:"selectedDocumentIDs,omitempty"`
 	UserPrompt               *string                        `json:"userPrompt,omitempty"`
 	RepositorySourceBranches []*RepositorySourceBranchInput `json:"repositorySourceBranches,omitempty"`
