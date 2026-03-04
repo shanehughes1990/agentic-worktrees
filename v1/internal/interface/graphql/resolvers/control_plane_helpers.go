@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 )
 
 func streamSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.SupervisorCorrelationInput, fromOffset *int32, eventFilter func(domainstream.EventType) bool) (<-chan models.StreamEventResult, error) {
@@ -30,16 +31,29 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 	go func() {
 		defer cancel()
 		defer close(output)
+		pollTicker := time.NewTicker(500 * time.Millisecond)
+		defer pollTicker.Stop()
 
-		for _, event := range replay {
-			if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
-				continue
+		lastOffset := uint64(offset)
+		emitBatch := func(events []domainstream.Event) bool {
+			for _, event := range events {
+				if event.StreamOffset > lastOffset {
+					lastOffset = event.StreamOffset
+				}
+				if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
+					continue
+				}
+				select {
+				case output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}:
+				case <-ctx.Done():
+					return false
+				}
 			}
-			select {
-			case output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}:
-			case <-ctx.Done():
-				return
-			}
+			return true
+		}
+
+		if !emitBatch(replay) {
+			return
 		}
 
 		for {
@@ -50,12 +64,19 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 				if !open {
 					return
 				}
-				if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
+				if !emitBatch([]domainstream.Event{event}) {
+					return
+				}
+			case <-pollTicker.C:
+				events, replayErr := streamService.ReplayFromOffset(ctx, lastOffset, 500)
+				if replayErr != nil {
+					select {
+					case output <- graphErrorFromError(fmt.Errorf("replay stream events: %w", replayErr)):
+					case <-ctx.Done():
+					}
 					continue
 				}
-				select {
-				case output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}:
-				case <-ctx.Done():
+				if !emitBatch(events) {
 					return
 				}
 			}

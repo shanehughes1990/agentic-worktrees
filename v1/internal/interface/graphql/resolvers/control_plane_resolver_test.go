@@ -348,3 +348,68 @@ func TestControlPlaneTaskboardSubscriptionPublishesOnProjectSetupUpsert(t *testi
 	}
 }
 
+func TestControlPlaneTaskboardSubscriptionReceivesCrossProcessEvents(t *testing.T) {
+	store := &controlPlaneMemoryStreamStore{}
+	subscriberStreamService, err := applicationstream.NewService(store)
+	if err != nil {
+		t.Fatalf("new subscriber stream service: %v", err)
+	}
+	publisherStreamService, err := applicationstream.NewService(store)
+	if err != nil {
+		t.Fatalf("new publisher stream service: %v", err)
+	}
+
+	scheduler, err := taskengine.NewScheduler(&controlPlaneFakeEngine{}, taskengine.DefaultPolicies())
+	if err != nil {
+		t.Fatalf("new scheduler: %v", err)
+	}
+	supervisorService, err := applicationsupervisor.NewService(&supervisorMemoryEventStoreForControlPlane{}, nil)
+	if err != nil {
+		t.Fatalf("new supervisor service: %v", err)
+	}
+	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, supervisorService, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeProjectRepository{}, &controlPlaneFakeDeadLetterManager{})
+	if err != nil {
+		t.Fatalf("new control-plane service: %v", err)
+	}
+	resolver := NewResolver(scheduler, supervisorService, controlPlaneService, subscriberStreamService, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	projectID := "project-1"
+	stream, err := (&subscriptionResolver{resolver}).TaskboardStream(ctx, models.SupervisorCorrelationInput{RunID: "", TaskID: "", JobID: "", ProjectID: &projectID}, nil)
+	if err != nil {
+		t.Fatalf("TaskboardStream() error = %v", err)
+	}
+
+	_, appendErr := publisherStreamService.AppendAndPublish(context.Background(), domainstream.Event{
+		EventID:    "cross-process-taskboard-event",
+		OccurredAt: time.Now().UTC(),
+		Source:     domainstream.SourceWorker,
+		EventType:  domainstream.EventTaskboardUpdated,
+		CorrelationIDs: domainstream.CorrelationIDs{
+			ProjectID:     projectID,
+			CorrelationID: "project:project-1",
+		},
+		Payload: map[string]any{"project_id": projectID, "board_id": "board-1"},
+	})
+	if appendErr != nil {
+		t.Fatalf("append stream event: %v", appendErr)
+	}
+
+	select {
+	case message, ok := <-stream:
+		if !ok {
+			t.Fatalf("expected open stream channel")
+		}
+		success, ok := message.(models.StreamEventSuccess)
+		if !ok {
+			t.Fatalf("expected StreamEventSuccess, got %T", message)
+		}
+		if success.Event == nil || success.Event.EventID != "cross-process-taskboard-event" {
+			t.Fatalf("unexpected stream event: %+v", success.Event)
+		}
+	case <-ctx.Done():
+		t.Fatalf("timeout waiting for taskboard stream event")
+	}
+}
+
