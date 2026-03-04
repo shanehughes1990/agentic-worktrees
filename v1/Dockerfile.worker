@@ -1,0 +1,67 @@
+FROM golang:1.25.3 AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /src
+
+RUN set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends git ca-certificates; \
+	update-ca-certificates; \
+	rm -rf /var/lib/apt/lists/*
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -o /out/worker ./cmd/worker
+
+ARG GH_CLI_APK_VERSION
+
+FROM debian:bookworm-slim AS runtime-base
+
+ARG TARGETARCH
+
+RUN set -eux; \
+	apt-get update; \
+	TRACE_EXTRAS=""; \
+	if [ "${TARGETARCH:-amd64}" = "amd64" ]; then TRACE_EXTRAS="ltrace"; fi; \
+	if [ -n "${GH_CLI_APK_VERSION:-}" ]; then \
+	apt-get install -y --no-install-recommends ca-certificates git curl wget tar gh="${GH_CLI_APK_VERSION}" libstdc++6 libgcc-s1 jq yq bash less procps lsof netcat-openbsd dnsutils iputils-ping unzip zip ripgrep fd-find tree make findutils coreutils moreutils file vim-common rsync fzf entr strace tcpdump traceroute mtr-tiny sqlite3 pandoc shellcheck shfmt tini ${TRACE_EXTRAS}; \
+	else \
+	apt-get install -y --no-install-recommends ca-certificates git curl wget tar gh libstdc++6 libgcc-s1 jq yq bash less procps lsof netcat-openbsd dnsutils iputils-ping unzip zip ripgrep fd-find tree make findutils coreutils moreutils file vim-common rsync fzf entr strace tcpdump traceroute mtr-tiny sqlite3 pandoc shellcheck shfmt tini ${TRACE_EXTRAS}; \
+	fi; \
+	ln -sf /usr/bin/fdfind /usr/local/bin/fd; \
+	update-ca-certificates; \
+	rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+FROM runtime-base AS worker
+
+ARG COPILOT_CLI_VERSION=0.0.421
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN set -eux; \
+	if [ "${TARGETOS:-linux}" != "linux" ]; then \
+	echo "unsupported TARGETOS for worker-copilot: ${TARGETOS}"; \
+	exit 1; \
+	fi; \
+	case "${TARGETARCH:-amd64}" in \
+	amd64) COPILOT_ASSET_ARCH=x64 ;; \
+	arm64) COPILOT_ASSET_ARCH=arm64 ;; \
+	*) echo "unsupported TARGETARCH for worker-copilot: ${TARGETARCH}"; exit 1 ;; \
+	esac; \
+	COPILOT_URL="https://github.com/github/copilot-cli/releases/download/v${COPILOT_CLI_VERSION}/copilot-linux-${COPILOT_ASSET_ARCH}.tar.gz"; \
+	curl -fsSL "${COPILOT_URL}" -o /tmp/copilot.tar.gz; \
+	tar -xzf /tmp/copilot.tar.gz -C /tmp; \
+	install -m 0755 /tmp/copilot /usr/local/bin/copilot; \
+	rm -rf /tmp/copilot /tmp/copilot.tar.gz
+
+COPY --from=builder /out/worker /app/worker
+
+EXPOSE 8081
+ENTRYPOINT ["/app/worker"]

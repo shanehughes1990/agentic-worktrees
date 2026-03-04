@@ -105,6 +105,12 @@ func TestServiceExecuteCleansTemporaryArtifacts(t *testing.T) {
 		if recovered == nil {
 			t.Fatalf("expected panic placeholder")
 		}
+		if len(artifactFetcher.destinationPath) != 1 {
+			t.Fatalf("expected one destination path, got %d", len(artifactFetcher.destinationPath))
+		}
+		if _, statErr := os.Stat(artifactFetcher.destinationPath[0]); !os.IsNotExist(statErr) {
+			t.Fatalf("expected temporary artifact to be removed, stat err=%v", statErr)
+		}
 	}()
 
 	_, _ = service.Execute(context.Background(), Request{
@@ -114,10 +120,4 @@ func TestServiceExecuteCleansTemporaryArtifacts(t *testing.T) {
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
-	if len(artifactFetcher.destinationPath) != 1 {
-		t.Fatalf("expected one destination path, got %d", len(artifactFetcher.destinationPath))
-	}
-	if _, statErr := os.Stat(artifactFetcher.destinationPath[0]); !os.IsNotExist(statErr) {
-		t.Fatalf("expected temporary artifact to be removed, stat err=%v", statErr)
-	}
 }

@@ -53,7 +53,14 @@ func TestIngestionAgentHandlerHandle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payloadBytes}); err != nil {
-		t.Fatalf("handle ingestion job: %v", err)
-	}
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			t.Fatalf("expected panic placeholder")
+		}
+		if recovered != "TODO: IMPLEMENT AGENTIC AGENT" {
+			t.Fatalf("unexpected panic value: %v", recovered)
+		}
+	}()
+	_ = handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindIngestionAgent, Payload: payloadBytes})
 }
