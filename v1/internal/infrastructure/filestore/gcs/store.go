@@ -19,6 +19,7 @@ import (
 )
 
 type Config struct {
+	ProjectID          string
 	Bucket             string
 	ServiceAccountJSON string
 	RootPrefix         string
@@ -26,6 +27,7 @@ type Config struct {
 
 type Store struct {
 	bucket        string
+	projectID     string
 	rootPrefix    string
 	accessID      string
 	privateKey    []byte
@@ -39,6 +41,10 @@ type serviceAccountCredential struct {
 }
 
 func NewStore(ctx context.Context, config Config) (*Store, error) {
+	projectID := strings.TrimSpace(config.ProjectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("gcs project id is required")
+	}
 	bucket := strings.TrimSpace(config.Bucket)
 	if bucket == "" {
 		return nil, fmt.Errorf("gcs bucket is required")
@@ -57,7 +63,10 @@ func NewStore(ctx context.Context, config Config) (*Store, error) {
 	if strings.TrimSpace(credential.PrivateKey) == "" {
 		return nil, fmt.Errorf("gcs service account private_key is required")
 	}
-	client, err := storage.NewClient(ctx, option.WithCredentialsJSON([]byte(credentialJSON)))
+	client, err := storage.NewClient(
+		ctx,
+		option.WithCredentialsJSON([]byte(credentialJSON)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create gcs storage client: %w", err)
 	}
@@ -67,6 +76,7 @@ func NewStore(ctx context.Context, config Config) (*Store, error) {
 	}
 	return &Store{
 		bucket:      bucket,
+		projectID:   projectID,
 		rootPrefix:  rootPrefix,
 		accessID:    strings.TrimSpace(credential.ClientEmail),
 		privateKey:  []byte(credential.PrivateKey),
@@ -115,7 +125,7 @@ func (store *Store) DeleteObject(ctx context.Context, objectPath string) error {
 	if err != nil {
 		return err
 	}
-	if err := store.storageClient.Bucket(store.bucket).Object(cleanObjectPath).Delete(ctx); err != nil {
+	if err := store.bucketHandle().Object(cleanObjectPath).Delete(ctx); err != nil {
 		if err == storage.ErrObjectNotExist {
 			return nil
 		}
@@ -141,7 +151,7 @@ func (store *Store) DownloadObjectToFile(ctx context.Context, objectPath string,
 	if err := os.MkdirAll(filepath.Dir(trimmedDestinationPath), 0o755); err != nil {
 		return fmt.Errorf("create destination directory: %w", err)
 	}
-	reader, err := store.storageClient.Bucket(store.bucket).Object(cleanObjectPath).NewReader(ctx)
+	reader, err := store.bucketHandle().Object(cleanObjectPath).NewReader(ctx)
 	if err != nil {
 		return fmt.Errorf("open gcs object reader: %w", err)
 	}
@@ -166,6 +176,14 @@ func (store *Store) lockedObjectPath(objectPath string) (string, error) {
 		return "", fmt.Errorf("object_path %q is outside configured filestore root %q", cleanObjectPath, store.rootPrefix)
 	}
 	return cleanObjectPath, nil
+}
+
+func (store *Store) bucketHandle() *storage.BucketHandle {
+	handle := store.storageClient.Bucket(store.bucket)
+	if strings.TrimSpace(store.projectID) == "" {
+		return handle
+	}
+	return handle.UserProject(store.projectID)
 }
 
 var _ applicationcontrolplane.ProjectFileStore = (*Store)(nil)

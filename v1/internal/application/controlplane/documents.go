@@ -235,7 +235,12 @@ func (service *Service) RequestProjectDocumentUpload(ctx context.Context, input 
 		UniqueFor:      2 * time.Minute,
 		Timeout:        2 * time.Minute,
 		MaxRetry:       2,
-		CorrelationIDs: taskengine.CorrelationIDs{ProjectID: input.ProjectID},
+		CorrelationIDs: taskengine.CorrelationIDs{
+			RunID:     fmt.Sprintf("project-documents-%s", sanitizeProjectPathSegment(input.ProjectID)),
+			TaskID:    "project-document-upload-prepare",
+			JobID:     fmt.Sprintf("project-document-upload-prepare-%s", strings.TrimSpace(uploadRequest.RequestID)),
+			ProjectID: input.ProjectID,
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("enqueue project document upload task: %w", err)
@@ -354,7 +359,12 @@ func (service *Service) DeleteProjectDocument(ctx context.Context, projectID str
 		UniqueFor:      2 * time.Minute,
 		Timeout:        2 * time.Minute,
 		MaxRetry:       2,
-		CorrelationIDs: taskengine.CorrelationIDs{ProjectID: projectID},
+		CorrelationIDs: taskengine.CorrelationIDs{
+			RunID:     fmt.Sprintf("project-documents-%s", sanitizeProjectPathSegment(projectID)),
+			TaskID:    "project-document-delete",
+			JobID:     fmt.Sprintf("project-document-delete-%s", sanitizeProjectPathSegment(documentID)),
+			ProjectID: projectID,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("enqueue project document delete task: %w", err)

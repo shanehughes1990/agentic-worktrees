@@ -81,6 +81,72 @@ class ProjectSetupConfig {
   final DateTime updatedAt;
 }
 
+class ProjectDocument {
+  const ProjectDocument({
+    required this.projectID,
+    required this.documentID,
+    required this.fileName,
+    required this.contentType,
+    required this.objectPath,
+    required this.cdnURL,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String projectID;
+  final String documentID;
+  final String fileName;
+  final String contentType;
+  final String objectPath;
+  final String cdnURL;
+  final String status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+}
+
+class ProjectDocumentUploadTicket {
+  const ProjectDocumentUploadTicket({
+    required this.requestID,
+    required this.projectID,
+    required this.documentID,
+    required this.fileName,
+    required this.contentType,
+    required this.objectPath,
+    required this.uploadURL,
+    required this.cdnURL,
+    required this.expiresAt,
+    required this.status,
+  });
+
+  final String requestID;
+  final String projectID;
+  final String documentID;
+  final String fileName;
+  final String contentType;
+  final String objectPath;
+  final String uploadURL;
+  final String cdnURL;
+  final DateTime expiresAt;
+  final String status;
+}
+
+class IngestionRunTicket {
+  const IngestionRunTicket({
+    required this.runID,
+    required this.taskID,
+    required this.jobID,
+    required this.queueTaskID,
+    required this.duplicate,
+  });
+
+  final String runID;
+  final String taskID;
+  final String jobID;
+  final String queueTaskID;
+  final bool duplicate;
+}
+
 class WorkflowJob {
   const WorkflowJob({
     required this.runID,

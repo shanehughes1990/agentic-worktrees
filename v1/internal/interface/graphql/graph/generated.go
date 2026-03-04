@@ -93,6 +93,7 @@ type ComplexityRoot struct {
 		DeleteProjectSetup           func(childComplexity int, input models.DeleteProjectSetupInput) int
 		RequestProjectDocumentUpload func(childComplexity int, input models.RequestProjectDocumentUploadInput) int
 		RequeueDeadLetter            func(childComplexity int, input models.RequeueDeadLetterInput) int
+		RunIngestionAgent            func(childComplexity int, input models.RunIngestionAgentInput) int
 		UpdateWorkerSettings         func(childComplexity int, input models.UpdateWorkerSettingsInput) int
 		UpsertProjectSetup           func(childComplexity int, input models.UpsertProjectSetupInput) int
 	}
@@ -186,6 +187,14 @@ type ComplexityRoot struct {
 
 	RequeueDeadLetterSuccess struct {
 		Ok func(childComplexity int) int
+	}
+
+	RunIngestionAgentSuccess struct {
+		Duplicate   func(childComplexity int) int
+		JobID       func(childComplexity int) int
+		QueueTaskID func(childComplexity int) int
+		RunID       func(childComplexity int) int
+		TaskID      func(childComplexity int) int
 	}
 
 	ScmSupportedOperationsSuccess struct {
@@ -316,6 +325,7 @@ type MutationResolver interface {
 	UpsertProjectSetup(ctx context.Context, input models.UpsertProjectSetupInput) (models.UpsertProjectSetupResult, error)
 	DeleteProjectSetup(ctx context.Context, input models.DeleteProjectSetupInput) (models.DeleteProjectSetupResult, error)
 	RequestProjectDocumentUpload(ctx context.Context, input models.RequestProjectDocumentUploadInput) (models.RequestProjectDocumentUploadResult, error)
+	RunIngestionAgent(ctx context.Context, input models.RunIngestionAgentInput) (models.RunIngestionAgentResult, error)
 	DeleteProjectDocument(ctx context.Context, input models.DeleteProjectDocumentInput) (models.DeleteProjectDocumentResult, error)
 	UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error)
 }
@@ -575,6 +585,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequeueDeadLetter(childComplexity, args["input"].(models.RequeueDeadLetterInput)), true
+	case "Mutation.runIngestionAgent":
+		if e.ComplexityRoot.Mutation.RunIngestionAgent == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_runIngestionAgent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RunIngestionAgent(childComplexity, args["input"].(models.RunIngestionAgentInput)), true
 	case "Mutation.updateWorkerSettings":
 		if e.ComplexityRoot.Mutation.UpdateWorkerSettings == nil {
 			break
@@ -995,6 +1016,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RequeueDeadLetterSuccess.Ok(childComplexity), true
+
+	case "RunIngestionAgentSuccess.duplicate":
+		if e.ComplexityRoot.RunIngestionAgentSuccess.Duplicate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunIngestionAgentSuccess.Duplicate(childComplexity), true
+	case "RunIngestionAgentSuccess.jobID":
+		if e.ComplexityRoot.RunIngestionAgentSuccess.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunIngestionAgentSuccess.JobID(childComplexity), true
+	case "RunIngestionAgentSuccess.queueTaskID":
+		if e.ComplexityRoot.RunIngestionAgentSuccess.QueueTaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunIngestionAgentSuccess.QueueTaskID(childComplexity), true
+	case "RunIngestionAgentSuccess.runID":
+		if e.ComplexityRoot.RunIngestionAgentSuccess.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunIngestionAgentSuccess.RunID(childComplexity), true
+	case "RunIngestionAgentSuccess.taskID":
+		if e.ComplexityRoot.RunIngestionAgentSuccess.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RunIngestionAgentSuccess.TaskID(childComplexity), true
 
 	case "ScmSupportedOperationsSuccess.operations":
 		if e.ComplexityRoot.ScmSupportedOperationsSuccess.Operations == nil {
@@ -1474,6 +1526,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputProjectSCMInput,
 		ec.unmarshalInputRequestProjectDocumentUploadInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
+		ec.unmarshalInputRunIngestionAgentInput,
 		ec.unmarshalInputSupervisorCorrelationInput,
 		ec.unmarshalInputUpdateWorkerSettingsInput,
 		ec.unmarshalInputUpsertProjectSetupInput,
@@ -1815,6 +1868,22 @@ type RequestProjectDocumentUploadSuccess {
 
 union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess | GraphError
 
+input RunIngestionAgentInput {
+  projectID: String!
+  selectedDocumentIDs: [String!]!
+  userPrompt: String!
+}
+
+type RunIngestionAgentSuccess {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  queueTaskID: String!
+  duplicate: Boolean!
+}
+
+union RunIngestionAgentResult = RunIngestionAgentSuccess | GraphError
+
 input DeleteProjectDocumentInput {
   projectID: String!
   documentID: String!
@@ -1905,6 +1974,7 @@ extend type Mutation {
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
+  runIngestionAgent(input: RunIngestionAgentInput!): RunIngestionAgentResult!
   deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }
@@ -1942,9 +2012,9 @@ type Subscription
 `, BuiltIn: false},
 	{Name: "../schema/scm.graphqls", Input: `enum SCMOperation {
   SOURCE_STATE
-	ENSURE_REPOSITORY
-	SYNC_REPOSITORY
-	CLEANUP_REPOSITORY
+  ENSURE_REPOSITORY
+  SYNC_REPOSITORY
+  CLEANUP_REPOSITORY
   ENSURE_BRANCH
   SYNC_BRANCH
   UPSERT_PULL_REQUEST
@@ -2161,6 +2231,17 @@ func (ec *executionContext) field_Mutation_requeueDeadLetter_args(ctx context.Co
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRequeueDeadLetterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRequeueDeadLetterInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_runIngestionAgent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRunIngestionAgentInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRunIngestionAgentInput)
 	if err != nil {
 		return nil, err
 	}
@@ -3513,6 +3594,47 @@ func (ec *executionContext) fieldContext_Mutation_requestProjectDocumentUpload(c
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_requestProjectDocumentUpload_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_runIngestionAgent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_runIngestionAgent,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RunIngestionAgent(ctx, fc.Args["input"].(models.RunIngestionAgentInput))
+		},
+		nil,
+		ec.marshalNRunIngestionAgentResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRunIngestionAgentResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_runIngestionAgent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type RunIngestionAgentResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_runIngestionAgent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5526,6 +5648,151 @@ func (ec *executionContext) _RequeueDeadLetterSuccess_ok(ctx context.Context, fi
 func (ec *executionContext) fieldContext_RequeueDeadLetterSuccess_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "RequeueDeadLetterSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunIngestionAgentSuccess_runID(ctx context.Context, field graphql.CollectedField, obj *models.RunIngestionAgentSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunIngestionAgentSuccess_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunIngestionAgentSuccess_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunIngestionAgentSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunIngestionAgentSuccess_taskID(ctx context.Context, field graphql.CollectedField, obj *models.RunIngestionAgentSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunIngestionAgentSuccess_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunIngestionAgentSuccess_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunIngestionAgentSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunIngestionAgentSuccess_jobID(ctx context.Context, field graphql.CollectedField, obj *models.RunIngestionAgentSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunIngestionAgentSuccess_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunIngestionAgentSuccess_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunIngestionAgentSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunIngestionAgentSuccess_queueTaskID(ctx context.Context, field graphql.CollectedField, obj *models.RunIngestionAgentSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunIngestionAgentSuccess_queueTaskID,
+		func(ctx context.Context) (any, error) {
+			return obj.QueueTaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunIngestionAgentSuccess_queueTaskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunIngestionAgentSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RunIngestionAgentSuccess_duplicate(ctx context.Context, field graphql.CollectedField, obj *models.RunIngestionAgentSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RunIngestionAgentSuccess_duplicate,
+		func(ctx context.Context) (any, error) {
+			return obj.Duplicate, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RunIngestionAgentSuccess_duplicate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RunIngestionAgentSuccess",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -9558,6 +9825,46 @@ func (ec *executionContext) unmarshalInputRequeueDeadLetterInput(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Context, obj any) (models.RunIngestionAgentInput, error) {
+	var it models.RunIngestionAgentInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "selectedDocumentIDs", "userPrompt"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "selectedDocumentIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectedDocumentIDs"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SelectedDocumentIDs = data
+		case "userPrompt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userPrompt"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserPrompt = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSupervisorCorrelationInput(ctx context.Context, obj any) (models.SupervisorCorrelationInput, error) {
 	var it models.SupervisorCorrelationInput
 	asMap := map[string]any{}
@@ -9989,6 +10296,33 @@ func (ec *executionContext) _RequeueDeadLetterResult(ctx context.Context, sel as
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of RequeueDeadLetterResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _RunIngestionAgentResult(ctx context.Context, sel ast.SelectionSet, obj models.RunIngestionAgentResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.RunIngestionAgentSuccess:
+		return ec._RunIngestionAgentSuccess(ctx, sel, &obj)
+	case *models.RunIngestionAgentSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RunIngestionAgentSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of RunIngestionAgentResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -10581,7 +10915,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "ApproveIssueIntakeResult", "RequeueDeadLetterResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult", "SupervisorDecisionHistoryResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -10677,6 +11011,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "requestProjectDocumentUpload":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_requestProjectDocumentUpload(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runIngestionAgent":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_runIngestionAgent(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -11609,6 +11950,65 @@ func (ec *executionContext) _RequeueDeadLetterSuccess(ctx context.Context, sel a
 			out.Values[i] = graphql.MarshalString("RequeueDeadLetterSuccess")
 		case "ok":
 			out.Values[i] = ec._RequeueDeadLetterSuccess_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var runIngestionAgentSuccessImplementors = []string{"RunIngestionAgentSuccess", "RunIngestionAgentResult"}
+
+func (ec *executionContext) _RunIngestionAgentSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.RunIngestionAgentSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, runIngestionAgentSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RunIngestionAgentSuccess")
+		case "runID":
+			out.Values[i] = ec._RunIngestionAgentSuccess_runID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskID":
+			out.Values[i] = ec._RunIngestionAgentSuccess_taskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jobID":
+			out.Values[i] = ec._RunIngestionAgentSuccess_jobID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queueTaskID":
+			out.Values[i] = ec._RunIngestionAgentSuccess_queueTaskID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duplicate":
+			out.Values[i] = ec._RunIngestionAgentSuccess_duplicate(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -13305,6 +13705,21 @@ func (ec *executionContext) marshalNRequeueDeadLetterResult2agenticᚑorchestrat
 		return graphql.Null
 	}
 	return ec._RequeueDeadLetterResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRunIngestionAgentInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRunIngestionAgentInput(ctx context.Context, v any) (models.RunIngestionAgentInput, error) {
+	res, err := ec.unmarshalInputRunIngestionAgentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRunIngestionAgentResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRunIngestionAgentResult(ctx context.Context, sel ast.SelectionSet, v models.RunIngestionAgentResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RunIngestionAgentResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSCMOperation2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐSCMOperation(ctx context.Context, v any) (models.SCMOperation, error) {

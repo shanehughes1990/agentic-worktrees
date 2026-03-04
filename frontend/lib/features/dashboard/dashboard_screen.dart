@@ -72,6 +72,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _workerSessionSubscriptionEndpoint = '';
   String _apiEndpoint = '';
   ControlPlaneApi? _api;
+  bool _didAutoOpenProjectDashboard = false;
 
   @override
   void initState() {
@@ -272,6 +273,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       });
       return;
     }
+    ProjectSetupConfig? setupToOpen;
     setState(() {
       _projectSetups = response.data!;
       final selectedProjectID = _projectController.text.trim();
@@ -281,10 +283,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           })
           .toList(growable: false);
       if (selected.isNotEmpty) {
+        setupToOpen = selected.first;
         _applyProjectSetup(selected.first);
       } else if (_projectSetups.isNotEmpty) {
+        setupToOpen = _projectSetups.first;
         _applyProjectSetup(_projectSetups.first);
       }
+    });
+
+    if (_didAutoOpenProjectDashboard || setupToOpen == null) {
+      return;
+    }
+    _didAutoOpenProjectDashboard = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _openProjectDashboard(setupToOpen!, endpoint);
     });
   }
 

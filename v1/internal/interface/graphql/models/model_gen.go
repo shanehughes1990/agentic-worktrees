@@ -54,6 +54,10 @@ type RequeueDeadLetterResult interface {
 	IsRequeueDeadLetterResult()
 }
 
+type RunIngestionAgentResult interface {
+	IsRunIngestionAgentResult()
+}
+
 type ScmSupportedOperationsResult interface {
 	IsScmSupportedOperationsResult()
 }
@@ -197,6 +201,8 @@ func (GraphError) IsProjectDocumentPreviewResult() {}
 
 func (GraphError) IsRequestProjectDocumentUploadResult() {}
 
+func (GraphError) IsRunIngestionAgentResult() {}
+
 func (GraphError) IsDeleteProjectDocumentResult() {}
 
 func (GraphError) IsStreamEventResult() {}
@@ -332,6 +338,22 @@ type RequeueDeadLetterSuccess struct {
 }
 
 func (RequeueDeadLetterSuccess) IsRequeueDeadLetterResult() {}
+
+type RunIngestionAgentInput struct {
+	ProjectID           string   `json:"projectID"`
+	SelectedDocumentIDs []string `json:"selectedDocumentIDs"`
+	UserPrompt          string   `json:"userPrompt"`
+}
+
+type RunIngestionAgentSuccess struct {
+	RunID       string `json:"runID"`
+	TaskID      string `json:"taskID"`
+	JobID       string `json:"jobID"`
+	QueueTaskID string `json:"queueTaskID"`
+	Duplicate   bool   `json:"duplicate"`
+}
+
+func (RunIngestionAgentSuccess) IsRunIngestionAgentResult() {}
 
 type ScmSupportedOperationsSuccess struct {
 	Operations []SCMOperation `json:"operations"`
@@ -731,9 +753,9 @@ type SCMOperation string
 
 const (
 	SCMOperationSourceState         SCMOperation = "SOURCE_STATE"
-	SCMOperationEnsureRepository      SCMOperation = "ENSURE_REPOSITORY"
-	SCMOperationSyncRepository        SCMOperation = "SYNC_REPOSITORY"
-	SCMOperationCleanupRepository     SCMOperation = "CLEANUP_REPOSITORY"
+	SCMOperationEnsureRepository    SCMOperation = "ENSURE_REPOSITORY"
+	SCMOperationSyncRepository      SCMOperation = "SYNC_REPOSITORY"
+	SCMOperationCleanupRepository   SCMOperation = "CLEANUP_REPOSITORY"
 	SCMOperationEnsureBranch        SCMOperation = "ENSURE_BRANCH"
 	SCMOperationSyncBranch          SCMOperation = "SYNC_BRANCH"
 	SCMOperationUpsertPullRequest   SCMOperation = "UPSERT_PULL_REQUEST"

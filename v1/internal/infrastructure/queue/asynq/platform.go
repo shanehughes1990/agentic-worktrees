@@ -59,7 +59,7 @@ func NewWorkerPlatform(config WorkerConfig, entry domainobservability.Entry) (*W
 		redisURL:    normalizedConfig.RedisURL,
 		concurrency: normalizedConfig.Concurrency,
 		client:      asynq.NewClient(redisConnOpt),
-		server:      asynq.NewServer(redisConnOpt, asynq.Config{Concurrency: normalizedConfig.Concurrency}),
+		server:      asynq.NewServer(redisConnOpt, asynq.Config{Concurrency: normalizedConfig.Concurrency, Queues: normalizedConfig.Queues}),
 		mux:         asynq.NewServeMux(),
 	}, nil
 }

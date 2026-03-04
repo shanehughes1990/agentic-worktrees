@@ -229,6 +229,7 @@ func (app *WorkerApp) Run() error {
 		return fmt.Errorf("read google application credentials: %w", err)
 	}
 	documentStore, err := infrastructurefilestoregcs.NewStore(context.Background(), infrastructurefilestoregcs.Config{
+		ProjectID:          app.config.RemoteStorage.GoogleCloudStorage.ProjectID,
 		Bucket:             app.config.RemoteStorage.GoogleCloudStorage.Bucket,
 		ServiceAccountJSON: string(credentialBytes),
 		RootPrefix:         app.config.RemoteStorage.BucketPrefix,

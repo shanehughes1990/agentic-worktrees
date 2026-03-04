@@ -244,6 +244,22 @@ type RequestProjectDocumentUploadSuccess {
 
 union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess | GraphError
 
+input RunIngestionAgentInput {
+  projectID: String!
+  selectedDocumentIDs: [String!]!
+  userPrompt: String!
+}
+
+type RunIngestionAgentSuccess {
+  runID: String!
+  taskID: String!
+  jobID: String!
+  queueTaskID: String!
+  duplicate: Boolean!
+}
+
+union RunIngestionAgentResult = RunIngestionAgentSuccess | GraphError
+
 input DeleteProjectDocumentInput {
   projectID: String!
   documentID: String!
@@ -334,6 +350,7 @@ extend type Mutation {
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
+  runIngestionAgent(input: RunIngestionAgentInput!): RunIngestionAgentResult!
   deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
 }

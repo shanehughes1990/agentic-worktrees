@@ -136,6 +136,28 @@ func (r *mutationResolver) RequestProjectDocumentUpload(ctx context.Context, inp
 	}, nil
 }
 
+// RunIngestionAgent is the resolver for the runIngestionAgent field.
+func (r *mutationResolver) RunIngestionAgent(ctx context.Context, input models.RunIngestionAgentInput) (models.RunIngestionAgentResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	result, err := r.Resolver.ControlPlaneService.RunIngestionAgent(ctx, applicationcontrolplane.RunIngestionAgentInput{
+		ProjectID:           input.ProjectID,
+		SelectedDocumentIDs: input.SelectedDocumentIDs,
+		UserPrompt:          input.UserPrompt,
+	})
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("run ingestion agent: %w", err)), nil
+	}
+	return models.RunIngestionAgentSuccess{
+		RunID:       result.RunID,
+		TaskID:      result.TaskID,
+		JobID:       result.JobID,
+		QueueTaskID: result.QueueTaskID,
+		Duplicate:   result.Duplicate,
+	}, nil
+}
+
 // DeleteProjectDocument is the resolver for the deleteProjectDocument field.
 func (r *mutationResolver) DeleteProjectDocument(ctx context.Context, input models.DeleteProjectDocumentInput) (models.DeleteProjectDocumentResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {

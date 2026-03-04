@@ -19,6 +19,15 @@ type APIConfig struct {
 type WorkerConfig struct {
 	RedisURL    string
 	Concurrency int
+	Queues      map[string]int
+}
+
+var defaultWorkerQueues = map[string]int{
+	"default":   1,
+	"ingestion": 1,
+	"agent":     1,
+	"scm":       1,
+	"files":     1,
 }
 
 func (config Config) normalized() Config {
@@ -47,6 +56,12 @@ func (config WorkerConfig) normalized() WorkerConfig {
 	}
 	if normalizedConfig.Concurrency <= 0 {
 		normalizedConfig.Concurrency = 10
+	}
+	if len(normalizedConfig.Queues) == 0 {
+		normalizedConfig.Queues = map[string]int{}
+		for queueName, weight := range defaultWorkerQueues {
+			normalizedConfig.Queues[queueName] = weight
+		}
 	}
 	return normalizedConfig
 }

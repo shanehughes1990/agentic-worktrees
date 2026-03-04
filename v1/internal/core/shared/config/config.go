@@ -27,6 +27,7 @@ type RemoteStorageConfig struct {
 }
 
 type GoogleCloudStorageConfig struct {
+	ProjectID                      string `envconfig:"GOOGLE_CLOUD_PROJECT_ID"`
 	Bucket                         string `envconfig:"GOOGLE_CLOUD_STORAGE_BUCKET"`
 	ApplicationCredentialsFilePath string `envconfig:"GOOGLE_APPLICATION_CREDENTIALS" validate:"omitempty,google_application_credentials_path"`
 	CDNBaseURL                     string `envconfig:"GOOGLE_CDN_BASE_URL"`
@@ -156,10 +157,20 @@ func validateRemoteStorageConfig(level validator.StructLevel) {
 		return
 	}
 	bucket := strings.TrimSpace(config.GoogleCloudStorage.Bucket)
+	projectID := strings.TrimSpace(config.GoogleCloudStorage.ProjectID)
 	credentialsPath := strings.TrimSpace(config.GoogleCloudStorage.ApplicationCredentialsFilePath)
 	cdnBaseURL := strings.TrimSpace(config.GoogleCloudStorage.CDNBaseURL)
 	cdnKeyName := strings.TrimSpace(config.GoogleCloudStorage.CDNKeyName)
 	cdnKeyValue := strings.TrimSpace(config.GoogleCloudStorage.CDNKeyValue)
+	if projectID == "" {
+		level.ReportError(
+			config.GoogleCloudStorage.ProjectID,
+			"ProjectID",
+			"projectID",
+			"required_if_remote_storage_type",
+			"gcs",
+		)
+	}
 	if bucket == "" {
 		level.ReportError(
 			config.GoogleCloudStorage.Bucket,

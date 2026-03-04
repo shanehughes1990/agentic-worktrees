@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:agentic_repositories/shared/graph/generated/operations/control_plane.graphql.dart'
     as gql_ops;
@@ -9,6 +10,7 @@ import 'package:agentic_repositories/shared/graph/generated/schema/scm.graphql.d
 import 'package:agentic_repositories/shared/graph/typed/models.dart';
 import 'package:agentic_repositories/shared/logging/app_logger.dart';
 import 'package:graphql/client.dart';
+import 'package:http/http.dart' as http;
 
 class ControlPlaneApi {
   ControlPlaneApi(this._client);
@@ -418,6 +420,328 @@ class ControlPlaneApi {
             .toList(growable: false),
         createdAt: project.createdAt.toLocal(),
         updatedAt: project.updatedAt.toLocal(),
+      ),
+    );
+  }
+
+  Future<ApiResult<List<ProjectDocument>>> projectDocuments({
+    required String projectID,
+    int limit = 100,
+  }) async {
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query ProjectDocuments(
+            \$projectID: String!
+            \$limit: Int!
+          ) {
+            projectDocuments(projectID: \$projectID, limit: \$limit) {
+              __typename
+              ... on ProjectDocumentsSuccess {
+                documents {
+                  projectID
+                  documentID
+                  fileName
+                  contentType
+                  objectPath
+                  cdnURL
+                  status
+                  createdAt
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{'projectID': projectID, 'limit': limit},
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'projectDocuments');
+    if (error != null) {
+      return ApiResult<List<ProjectDocument>>.failure(error);
+    }
+    final payload = result.data?['projectDocuments'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<ProjectDocument>>.failure(
+        'projectDocuments returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<ProjectDocument>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final documents =
+        (payload['documents'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (Map<String, dynamic> item) => ProjectDocument(
+                projectID: item['projectID'] as String,
+                documentID: item['documentID'] as String,
+                fileName: item['fileName'] as String,
+                contentType: item['contentType'] as String,
+                objectPath: item['objectPath'] as String,
+                cdnURL: item['cdnURL'] as String,
+                status: item['status'] as String,
+                createdAt: DateTime.parse(
+                  item['createdAt'] as String,
+                ).toLocal(),
+                updatedAt: DateTime.parse(
+                  item['updatedAt'] as String,
+                ).toLocal(),
+              ),
+            )
+            .toList(growable: false);
+    return ApiResult<List<ProjectDocument>>.success(documents);
+  }
+
+  Future<ApiResult<ProjectDocumentUploadTicket>> requestProjectDocumentUpload({
+    required String projectID,
+    required String fileName,
+    required String contentType,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+          mutation RequestProjectDocumentUpload(
+            \$input: RequestProjectDocumentUploadInput!
+          ) {
+            requestProjectDocumentUpload(input: \$input) {
+              __typename
+              ... on RequestProjectDocumentUploadSuccess {
+                requestID
+                projectID
+                documentID
+                fileName
+                contentType
+                objectPath
+                uploadURL
+                cdnURL
+                expiresAt
+                status
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'projectID': projectID,
+            'fileName': fileName,
+            'contentType': contentType,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'requestProjectDocumentUpload',
+    );
+    if (error != null) {
+      return ApiResult<ProjectDocumentUploadTicket>.failure(error);
+    }
+    final payload =
+        result.data?['requestProjectDocumentUpload'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<ProjectDocumentUploadTicket>.failure(
+        'requestProjectDocumentUpload returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<ProjectDocumentUploadTicket>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    return ApiResult<ProjectDocumentUploadTicket>.success(
+      ProjectDocumentUploadTicket(
+        requestID: payload['requestID'] as String,
+        projectID: payload['projectID'] as String,
+        documentID: payload['documentID'] as String,
+        fileName: payload['fileName'] as String,
+        contentType: payload['contentType'] as String,
+        objectPath: payload['objectPath'] as String,
+        uploadURL: payload['uploadURL'] as String,
+        cdnURL: payload['cdnURL'] as String,
+        expiresAt: DateTime.parse(payload['expiresAt'] as String).toLocal(),
+        status: payload['status'] as String,
+      ),
+    );
+  }
+
+  Future<ApiResult<void>> uploadProjectDocumentBytes({
+    required String uploadURL,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    try {
+      final uploadUri = Uri.parse(uploadURL);
+      final response = await http.put(
+        uploadUri,
+        headers: <String, String>{'Content-Type': contentType},
+        body: bytes,
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final responseBody = response.body.trim();
+        final bodySnippet = responseBody.isEmpty
+            ? ''
+            : ' body=${responseBody.length > 300 ? '${responseBody.substring(0, 300)}...' : responseBody}';
+        AppLogger.instance.logger.e(
+          'Project document upload failed',
+          error: {
+            'status': response.statusCode,
+            'url_host': uploadUri.host,
+            'url_path': uploadUri.path,
+            'content_type': contentType,
+          },
+        );
+        return ApiResult<void>.failure(
+          'upload failed with status ${response.statusCode} (host=${uploadUri.host})$bodySnippet',
+        );
+      }
+      return const ApiResult<void>.success(null);
+    } catch (error) {
+      return ApiResult<void>.failure('upload failed: $error');
+    }
+  }
+
+  Future<ApiResult<void>> deleteProjectDocument({
+    required String projectID,
+    required String documentID,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+          mutation DeleteProjectDocument(
+            \$input: DeleteProjectDocumentInput!
+          ) {
+            deleteProjectDocument(input: \$input) {
+              __typename
+              ... on DeleteProjectDocumentSuccess {
+                ok
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'projectID': projectID,
+            'documentID': documentID,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'deleteProjectDocument',
+    );
+    if (error != null) {
+      return ApiResult<void>.failure(error);
+    }
+    final payload =
+        result.data?['deleteProjectDocument'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<void>.failure(
+        'deleteProjectDocument returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<void>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    return const ApiResult<void>.success(null);
+  }
+
+  Future<ApiResult<IngestionRunTicket>> runIngestionAgent({
+    required String projectID,
+    required List<String> selectedDocumentIDs,
+    required String userPrompt,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+          mutation RunIngestionAgent(
+            \$input: RunIngestionAgentInput!
+          ) {
+            runIngestionAgent(input: \$input) {
+              __typename
+              ... on RunIngestionAgentSuccess {
+                runID
+                taskID
+                jobID
+                queueTaskID
+                duplicate
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'projectID': projectID,
+            'selectedDocumentIDs': selectedDocumentIDs,
+            'userPrompt': userPrompt,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(result, field: 'runIngestionAgent');
+    if (error != null) {
+      return ApiResult<IngestionRunTicket>.failure(error);
+    }
+    final payload = result.data?['runIngestionAgent'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<IngestionRunTicket>.failure(
+        'runIngestionAgent returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<IngestionRunTicket>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    return ApiResult<IngestionRunTicket>.success(
+      IngestionRunTicket(
+        runID: payload['runID'] as String,
+        taskID: payload['taskID'] as String,
+        jobID: payload['jobID'] as String,
+        queueTaskID: payload['queueTaskID'] as String,
+        duplicate: payload['duplicate'] as bool,
       ),
     );
   }

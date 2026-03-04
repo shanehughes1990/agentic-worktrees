@@ -111,6 +111,15 @@ func (suite *ConfigSuite) TestLoadConfigFromEnv_RemoteStorageGCSRequiresBucketAn
 	require.Contains(suite.T(), err.Error(), "required_if_remote_storage_type")
 }
 
+func (suite *ConfigSuite) TestLoadConfigFromEnv_RemoteStorageGCSRequiresProjectID() {
+	suite.setMinimalValidEnv()
+	suite.T().Setenv("GOOGLE_CLOUD_PROJECT_ID", "")
+
+	_, err := LoadConfigFromEnv[BaseConfig]()
+	require.Error(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "ProjectID")
+}
+
 func (suite *ConfigSuite) TestIsValidGoogleApplicationCredentialsPath_ValidFile() {
 	credentialsPath := filepath.Join(suite.T().TempDir(), "gcp-sa.json")
 	require.NoError(suite.T(), os.WriteFile(credentialsPath, []byte("{}"), 0o600))
@@ -127,6 +136,7 @@ func (suite *ConfigSuite) setMinimalValidEnv() {
 	suite.T().Setenv("OTEL_SERVICE_NAME", "service-a")
 	suite.T().Setenv("REMOTE_STORAGE_TYPE", "gcs")
 	suite.T().Setenv("REMOTE_STORAGE_BUCKET_PREFIX", "projects")
+	suite.T().Setenv("GOOGLE_CLOUD_PROJECT_ID", "project-1")
 	suite.T().Setenv("GOOGLE_CLOUD_STORAGE_BUCKET", "bucket-1")
 	suite.T().Setenv("GOOGLE_CDN_BASE_URL", "https://cdn.example.com")
 	suite.T().Setenv("GOOGLE_CDN_KEY_NAME", "k1")
