@@ -34,24 +34,24 @@ func (fake *fakeLeaseManager) Release(ctx context.Context, lease domainscm.RepoL
 	return fake.releaseErr
 }
 
-func TestEnsureWorktreeCoordinatorAcquiresAndReleasesLease(t *testing.T) {
-	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{Path: "/tmp/worktree", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
+func TestEnsureRepositoryCoordinatorAcquiresAndReleasesLease(t *testing.T) {
+	orchestrator := &fakeOrchestrator{repositoryStateResult: domainscm.RepositoryState{Path: "/tmp/repository", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
 	leaseManager := &fakeLeaseManager{}
-	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, leaseManager)
+	coordinator, err := NewEnsureRepositoryCoordinator(orchestrator, leaseManager)
 	if err != nil {
 		t.Fatalf("new coordinator: %v", err)
 	}
 
-	state, ensureErr := coordinator.Ensure(context.Background(), EnsureWorktreeRequest{
+	state, ensureErr := coordinator.Ensure(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"},
+		Spec:       domainscm.RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repository"},
 		Metadata: Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, IdempotencyKey: "id-1"},
 	})
 	if ensureErr != nil {
 		t.Fatalf("ensure: %v", ensureErr)
 	}
 	if state.Path == "" {
-		t.Fatalf("expected worktree state")
+		t.Fatalf("expected repository state")
 	}
 	if leaseManager.acquireCalls != 1 {
 		t.Fatalf("expected one acquire call, got %d", leaseManager.acquireCalls)
@@ -64,17 +64,17 @@ func TestEnsureWorktreeCoordinatorAcquiresAndReleasesLease(t *testing.T) {
 	}
 }
 
-func TestEnsureWorktreeCoordinatorReleasesLeaseWhenEnsureFails(t *testing.T) {
-	orchestrator := &fakeOrchestrator{ensureWorktreeErr: errors.New("git fetch failed")}
+func TestEnsureRepositoryCoordinatorReleasesLeaseWhenEnsureFails(t *testing.T) {
+	orchestrator := &fakeOrchestrator{ensureRepositoryErr: errors.New("git fetch failed")}
 	leaseManager := &fakeLeaseManager{}
-	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, leaseManager)
+	coordinator, err := NewEnsureRepositoryCoordinator(orchestrator, leaseManager)
 	if err != nil {
 		t.Fatalf("new coordinator: %v", err)
 	}
 
-	_, ensureErr := coordinator.Ensure(context.Background(), EnsureWorktreeRequest{
+	_, ensureErr := coordinator.Ensure(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"},
+		Spec:       domainscm.RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repository"},
 		Metadata: Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, IdempotencyKey: "id-1"},
 	})
 	if ensureErr == nil {
@@ -85,17 +85,17 @@ func TestEnsureWorktreeCoordinatorReleasesLeaseWhenEnsureFails(t *testing.T) {
 	}
 }
 
-func TestEnsureWorktreeCoordinatorPropagatesAcquireError(t *testing.T) {
-	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{Path: "/tmp/worktree", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
+func TestEnsureRepositoryCoordinatorPropagatesAcquireError(t *testing.T) {
+	orchestrator := &fakeOrchestrator{repositoryStateResult: domainscm.RepositoryState{Path: "/tmp/repository", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
 	leaseManager := &fakeLeaseManager{acquireErr: errors.New("lease busy")}
-	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, leaseManager)
+	coordinator, err := NewEnsureRepositoryCoordinator(orchestrator, leaseManager)
 	if err != nil {
 		t.Fatalf("new coordinator: %v", err)
 	}
 
-	_, ensureErr := coordinator.Ensure(context.Background(), EnsureWorktreeRequest{
+	_, ensureErr := coordinator.Ensure(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"},
+		Spec:       domainscm.RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repository"},
 		Metadata: Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, IdempotencyKey: "id-1"},
 	})
 	if ensureErr == nil {
@@ -103,9 +103,9 @@ func TestEnsureWorktreeCoordinatorPropagatesAcquireError(t *testing.T) {
 	}
 }
 
-func TestEnsureWorktreeCoordinatorPanicsOnRebaseStrategy(t *testing.T) {
-	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{Path: "/tmp/worktree", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
-	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, nil)
+func TestEnsureRepositoryCoordinatorPanicsOnRebaseStrategy(t *testing.T) {
+	orchestrator := &fakeOrchestrator{repositoryStateResult: domainscm.RepositoryState{Path: "/tmp/repository", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
+	coordinator, err := NewEnsureRepositoryCoordinator(orchestrator, nil)
 	if err != nil {
 		t.Fatalf("new coordinator: %v", err)
 	}
@@ -114,12 +114,12 @@ func TestEnsureWorktreeCoordinatorPanicsOnRebaseStrategy(t *testing.T) {
 			t.Fatalf("expected panic")
 		}
 	}()
-	_, _ = coordinator.Ensure(context.Background(), EnsureWorktreeRequest{
+	_, _ = coordinator.Ensure(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec: domainscm.WorktreeSpec{
+		Spec: domainscm.RepositorySpec{
 			BaseBranch:   "main",
 			TargetBranch: "feature/one",
-			Path:         "/tmp/worktree",
+			Path:         "/tmp/repository",
 			SyncStrategy: domainscm.SyncStrategyRebase,
 		},
 		Metadata: Metadata{CorrelationIDs: taskengine.CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, IdempotencyKey: "id-1"},

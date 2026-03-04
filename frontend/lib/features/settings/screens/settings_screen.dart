@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/features/settings/widgets/connection_settings_view.dart';
+import 'package:agentic_repositories/features/settings/widgets/connection_settings_view.dart';
 import 'package:flutter/material.dart';
 
 class SettingsScreen extends StatelessWidget {

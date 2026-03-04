@@ -9,7 +9,7 @@ import (
 
 type SCMBootstrapPort interface {
 	SourceState(ctx context.Context, repository domainscm.Repository) (domainscm.SourceState, error)
-	EnsureWorktree(ctx context.Context, repository domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error)
+	EnsureRepository(ctx context.Context, repository domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error)
 }
 
 type RemoteBootstrapRequest struct {
@@ -19,7 +19,7 @@ type RemoteBootstrapRequest struct {
 	Repository     domainscm.Repository
 	BaseBranch     string
 	TargetBranch   string
-	WorktreePath   string
+	RepositoryPath   string
 }
 
 func (request RemoteBootstrapRequest) Validate() error {
@@ -50,8 +50,8 @@ func (request RemoteBootstrapRequest) Validate() error {
 	if strings.TrimSpace(request.TargetBranch) == "" {
 		return fmt.Errorf("%w: target_branch is required", ErrInvalidRemoteExecutionRequest)
 	}
-	if strings.TrimSpace(request.WorktreePath) == "" {
-		return fmt.Errorf("%w: worktree_path is required", ErrInvalidRemoteExecutionRequest)
+	if strings.TrimSpace(request.RepositoryPath) == "" {
+		return fmt.Errorf("%w: repository_path is required", ErrInvalidRemoteExecutionRequest)
 	}
 	return nil
 }
@@ -89,10 +89,10 @@ func (service *RemoteBootstrapService) BuildRemoteExecutionRequest(ctx context.C
 			return RemoteExecutionRequest{}, fmt.Errorf("%w: source_state default_branch is required", ErrInvalidRemoteExecutionRequest)
 		}
 	}
-	_, err := service.scm.EnsureWorktree(ctx, request.Repository, domainscm.WorktreeSpec{
+	_, err := service.scm.EnsureRepository(ctx, request.Repository, domainscm.RepositorySpec{
 		BaseBranch:   baseBranch,
 		TargetBranch: request.TargetBranch,
-		Path:         request.WorktreePath,
+		Path:         request.RepositoryPath,
 	})
 	if err != nil {
 		return RemoteExecutionRequest{}, err
@@ -102,7 +102,7 @@ func (service *RemoteBootstrapService) BuildRemoteExecutionRequest(ctx context.C
 		CorrelationIDs: request.CorrelationIDs,
 		IdempotencyKey: request.IdempotencyKey,
 		ResumeCheckpoint: &RemoteCheckpoint{
-			Step:  "ensure_worktree",
+			Step:  "ensure_repository",
 			Token: request.IdempotencyKey,
 		},
 	}
@@ -125,7 +125,7 @@ func (service *RemoteBootstrapService) Execute(ctx context.Context, request Remo
 		return RemoteExecutionResult{}, err
 	}
 	if result.CompletedCheckpoint == nil {
-		result.CompletedCheckpoint = &RemoteCheckpoint{Step: "ensure_worktree", Token: request.IdempotencyKey}
+		result.CompletedCheckpoint = &RemoteCheckpoint{Step: "ensure_repository", Token: request.IdempotencyKey}
 	}
 	if err := result.Validate(); err != nil {
 		return RemoteExecutionResult{}, err

@@ -16,6 +16,8 @@ type RunIngestionAgentInput struct {
 	ProjectID           string
 	SelectedDocumentIDs []string
 	UserPrompt          string
+	Model               string
+	SourceBranch        string
 }
 
 func (input RunIngestionAgentInput) Validate() error {
@@ -30,15 +32,26 @@ func (input RunIngestionAgentInput) Validate() error {
 
 const taskboardIngestionSystemPrompt = "You are a taskboard synthesis agent. Build a canonical execution taskboard from the provided project documents. Extract epics and actionable tasks, preserve dependencies, avoid inventing unsupported facts, and output a deterministic plan suitable for execution orchestration."
 
+const defaultIngestionModel = "gpt-5.3-codex"
+const defaultIngestionSourceBranch = "main"
+
 type IngestionAgentPayload struct {
 	RunID                     string   `json:"run_id"`
 	TaskID                    string   `json:"task_id"`
 	JobID                     string   `json:"job_id"`
 	ProjectID                 string   `json:"project_id"`
 	SelectedDocumentLocations []string `json:"selected_document_locations"`
+	SourceRepositories        []IngestionSourceRepository `json:"source_repositories,omitempty"`
+	SourceBranch              string   `json:"source_branch"`
+	Model                     string   `json:"model"`
 	SystemPrompt              string   `json:"system_prompt"`
 	UserPrompt                string   `json:"user_prompt,omitempty"`
 	IdempotencyKey            string   `json:"idempotency_key"`
+}
+
+type IngestionSourceRepository struct {
+	RepositoryID  string `json:"repository_id"`
+	RepositoryURL string `json:"repository_url"`
 }
 
 type RunIngestionAgentResult struct {
@@ -56,6 +69,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	if err := input.Validate(); err != nil {
 		return nil, err
 	}
+	sourceRepositories := make([]IngestionSourceRepository, 0)
 	if service.projectRepository != nil {
 		setup, err := service.projectRepository.GetProjectSetup(ctx, strings.TrimSpace(input.ProjectID))
 		if err != nil {
@@ -63,6 +77,14 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		}
 		if setup == nil {
 			return nil, fmt.Errorf("project setup not found")
+		}
+		for _, repository := range setup.Repositories {
+			repositoryID := strings.TrimSpace(repository.RepositoryID)
+			repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+			if repositoryID == "" || repositoryURL == "" {
+				continue
+			}
+			sourceRepositories = append(sourceRepositories, IngestionSourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL})
 		}
 	}
 	normalizedDocumentLocations := make([]string, 0, len(input.SelectedDocumentIDs))
@@ -96,13 +118,24 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	jobID := fmt.Sprintf("ingestion-agent-%d", time.Now().UTC().UnixNano())
 	systemPrompt := strings.TrimSpace(prompts.WorkerToolingBaseline + "\n\n" + taskboardIngestionSystemPrompt)
 	userPrompt := strings.TrimSpace(input.UserPrompt)
-	idempotencyKey := ingestionIdempotencyKey(strings.TrimSpace(input.ProjectID), normalizedDocumentLocations, strings.TrimSpace(systemPrompt), userPrompt)
+	model := strings.TrimSpace(input.Model)
+	if model == "" {
+		model = defaultIngestionModel
+	}
+	sourceBranch := strings.TrimSpace(input.SourceBranch)
+	if sourceBranch == "" {
+		sourceBranch = defaultIngestionSourceBranch
+	}
+	idempotencyKey := ingestionIdempotencyKey(strings.TrimSpace(input.ProjectID), normalizedDocumentLocations, sourceRepositoryFingerprints(sourceRepositories), sourceBranch, model, strings.TrimSpace(systemPrompt), userPrompt)
 	payload := IngestionAgentPayload{
 		RunID:                     runID,
 		TaskID:                    taskID,
 		JobID:                     jobID,
 		ProjectID:                 strings.TrimSpace(input.ProjectID),
 		SelectedDocumentLocations: normalizedDocumentLocations,
+		SourceRepositories:        sourceRepositories,
+		SourceBranch:              sourceBranch,
+		Model:                     model,
 		SystemPrompt:              strings.TrimSpace(systemPrompt),
 		UserPrompt:                userPrompt,
 		IdempotencyKey:            idempotencyKey,
@@ -128,13 +161,31 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	return &RunIngestionAgentResult{RunID: runID, TaskID: taskID, JobID: jobID, QueueTaskID: enqueueResult.QueueTaskID, Duplicate: enqueueResult.Duplicate}, nil
 }
 
-func ingestionIdempotencyKey(projectID string, documentIDs []string, systemPrompt string, userPrompt string) string {
+func ingestionIdempotencyKey(projectID string, documentIDs []string, sourceRepositories []string, sourceBranch string, model string, systemPrompt string, userPrompt string) string {
 	hasher := sha256.New()
 	_, _ = hasher.Write([]byte(strings.TrimSpace(projectID)))
 	for _, documentID := range documentIDs {
 		_, _ = hasher.Write([]byte("|" + strings.TrimSpace(documentID)))
 	}
+	for _, repository := range sourceRepositories {
+		_, _ = hasher.Write([]byte("|" + strings.TrimSpace(repository)))
+	}
+	_, _ = hasher.Write([]byte("|" + strings.TrimSpace(sourceBranch)))
+	_, _ = hasher.Write([]byte("|" + strings.TrimSpace(model)))
 	_, _ = hasher.Write([]byte("|" + strings.TrimSpace(systemPrompt)))
 	_, _ = hasher.Write([]byte("|" + strings.TrimSpace(userPrompt)))
 	return "ingestion-agent:" + hex.EncodeToString(hasher.Sum(nil))
+}
+
+func sourceRepositoryFingerprints(repositories []IngestionSourceRepository) []string {
+	fingerprints := make([]string, 0, len(repositories))
+	for _, repository := range repositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		if repositoryID == "" && repositoryURL == "" {
+			continue
+		}
+		fingerprints = append(fingerprints, repositoryID+":"+repositoryURL)
+	}
+	return fingerprints
 }

@@ -1,5 +1,5 @@
-import 'package:agentic_worktrees/features/projects/widgets/project_setups_list.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/features/projects/widgets/project_setups_list.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

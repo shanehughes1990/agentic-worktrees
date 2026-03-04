@@ -60,8 +60,8 @@ func (config Config) RepositorySourcePath() string {
 	return filepath.Join(config.RepositoriesPath(), "source")
 }
 
-func (config Config) WorktreesPath() string {
-	return filepath.Join(config.ProjectPath("unscoped"), "worktrees")
+func (config Config) RepositorysPath() string {
+	return filepath.Join(config.ProjectPath("unscoped"), "repositories")
 }
 
 func (config Config) LogsPath() string {

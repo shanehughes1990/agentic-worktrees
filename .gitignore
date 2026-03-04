@@ -14,7 +14,7 @@ tmp/
 **/*.db
 
 # Runtime application artifacts
-.worktree/
+.agentic-orchestrator/
 *.log
 
 # Local docs and working scopes

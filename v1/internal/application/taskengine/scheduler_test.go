@@ -91,7 +91,7 @@ func TestSchedulerEnqueueRejectsMissingIdempotencyForSCM(t *testing.T) {
 
 	_, enqueueErr := scheduler.Enqueue(context.Background(), EnqueueRequest{
 		Kind:    JobKindSCMWorkflow,
-		Payload: []byte(`{"run_id":"run-1","operation":"ensure_worktree"}`),
+		Payload: []byte(`{"run_id":"run-1","operation":"ensure_repository"}`),
 	})
 	if enqueueErr == nil {
 		t.Fatalf("expected enqueue error")
@@ -112,7 +112,7 @@ func TestSchedulerEnqueuePersistsAdmissionRecord(t *testing.T) {
 
 	_, enqueueErr := scheduler.Enqueue(context.Background(), EnqueueRequest{
 		Kind:           JobKindSCMWorkflow,
-		Payload:        []byte(`{"run_id":"run-1","operation":"ensure_worktree"}`),
+		Payload:        []byte(`{"run_id":"run-1","operation":"ensure_repository"}`),
 		IdempotencyKey: "id-1",
 		CorrelationIDs: CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"},
 	})
@@ -141,7 +141,7 @@ func TestSchedulerEnqueueReturnsErrorWhenAdmissionPersistenceFails(t *testing.T)
 
 	_, enqueueErr := scheduler.Enqueue(context.Background(), EnqueueRequest{
 		Kind:           JobKindSCMWorkflow,
-		Payload:        []byte(`{"run_id":"run-1","operation":"ensure_worktree"}`),
+		Payload:        []byte(`{"run_id":"run-1","operation":"ensure_repository"}`),
 		IdempotencyKey: "id-1",
 		CorrelationIDs: CorrelationIDs{RunID: "run-1", TaskID: "task-1", JobID: "job-1"},
 	})

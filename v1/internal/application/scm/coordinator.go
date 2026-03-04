@@ -33,24 +33,24 @@ type RepoLeaseManager interface {
 	Release(ctx context.Context, lease domainscm.RepoLease) error
 }
 
-type EnsureWorktreeCoordinator struct {
+type EnsureRepositoryCoordinator struct {
 	orchestrator domainscm.Orchestrator
 	leaseManager RepoLeaseManager
 }
 
-func NewEnsureWorktreeCoordinator(orchestrator domainscm.Orchestrator, leaseManager RepoLeaseManager) (*EnsureWorktreeCoordinator, error) {
+func NewEnsureRepositoryCoordinator(orchestrator domainscm.Orchestrator, leaseManager RepoLeaseManager) (*EnsureRepositoryCoordinator, error) {
 	if orchestrator == nil {
 		return nil, failures.WrapTerminal(errors.New("scm orchestrator is required"))
 	}
-	return &EnsureWorktreeCoordinator{orchestrator: orchestrator, leaseManager: leaseManager}, nil
+	return &EnsureRepositoryCoordinator{orchestrator: orchestrator, leaseManager: leaseManager}, nil
 }
 
-func (coordinator *EnsureWorktreeCoordinator) Ensure(ctx context.Context, request EnsureWorktreeRequest) (domainscm.WorktreeState, error) {
+func (coordinator *EnsureRepositoryCoordinator) Ensure(ctx context.Context, request EnsureRepositoryRequest) (domainscm.RepositoryState, error) {
 	if coordinator == nil || coordinator.orchestrator == nil {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(errors.New("ensure worktree coordinator is not initialized"))
+		return domainscm.RepositoryState{}, failures.WrapTerminal(errors.New("ensure repository coordinator is not initialized"))
 	}
 	if err := request.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	strategy := request.Spec.EffectiveSyncStrategy()
 	if strategy == domainscm.SyncStrategyRebase {
@@ -60,7 +60,7 @@ func (coordinator *EnsureWorktreeCoordinator) Ensure(ctx context.Context, reques
 
 	lease, acquired, err := coordinator.acquireLease(ctx, request)
 	if err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	if acquired {
 		defer func() {
@@ -68,17 +68,17 @@ func (coordinator *EnsureWorktreeCoordinator) Ensure(ctx context.Context, reques
 		}()
 	}
 
-	state, ensureErr := coordinator.orchestrator.EnsureWorktree(ctx, request.Repository, request.Spec)
+	state, ensureErr := coordinator.orchestrator.EnsureRepository(ctx, request.Repository, request.Spec)
 	if ensureErr != nil {
-		return domainscm.WorktreeState{}, ensureErr
+		return domainscm.RepositoryState{}, ensureErr
 	}
 	if err := state.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	return state, nil
 }
 
-func (coordinator *EnsureWorktreeCoordinator) acquireLease(ctx context.Context, request EnsureWorktreeRequest) (domainscm.RepoLease, bool, error) {
+func (coordinator *EnsureRepositoryCoordinator) acquireLease(ctx context.Context, request EnsureRepositoryRequest) (domainscm.RepoLease, bool, error) {
 	if coordinator.leaseManager == nil {
 		return domainscm.RepoLease{}, false, nil
 	}

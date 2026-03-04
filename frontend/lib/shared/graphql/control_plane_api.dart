@@ -1,1 +1,1 @@
-export 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+export 'package:agentic_repositories/shared/graph/typed/control_plane.dart';

@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/shared/config/app_config.dart';
+import 'package:agentic_repositories/shared/config/app_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

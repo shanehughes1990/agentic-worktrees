@@ -1,0 +1,150 @@
+package ingestion
+
+import (
+	applicationingestion "agentic-orchestrator/internal/application/ingestion"
+	"agentic-orchestrator/internal/domain/failures"
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+type GitRepositorySynchronizer struct {
+	gitBinaryPath   string
+	projectsRootDir string
+}
+
+func NewGitRepositorySynchronizer(gitBinaryPath string, projectsRootDir string) (*GitRepositorySynchronizer, error) {
+	path := strings.TrimSpace(gitBinaryPath)
+	if path == "" {
+		path = "git"
+	}
+	rootDir := strings.TrimSpace(projectsRootDir)
+	if rootDir == "" {
+		return nil, failures.WrapTerminal(fmt.Errorf("projects_root_dir is required"))
+	}
+	return &GitRepositorySynchronizer{gitBinaryPath: path, projectsRootDir: rootDir}, nil
+}
+
+func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, projectID string, sandboxDir string, sourceBranch string, sourceRepositories []applicationingestion.SourceRepository) error {
+	if synchronizer == nil {
+		return failures.WrapTerminal(fmt.Errorf("git repository synchronizer is not initialized"))
+	}
+	cleanProjectID := strings.TrimSpace(projectID)
+	if cleanProjectID == "" {
+		return failures.WrapTerminal(fmt.Errorf("project_id is required"))
+	}
+	cleanSandboxDir := strings.TrimSpace(sandboxDir)
+	if cleanSandboxDir == "" {
+		return failures.WrapTerminal(fmt.Errorf("sandbox_dir is required"))
+	}
+	cleanBranch := strings.TrimSpace(sourceBranch)
+	if cleanBranch == "" {
+		cleanBranch = "main"
+	}
+	repositoriesDir := filepath.Join(cleanSandboxDir, "repos")
+	if err := os.MkdirAll(repositoriesDir, 0o755); err != nil {
+		return failures.WrapTransient(fmt.Errorf("create repositories directory: %w", err))
+	}
+
+	for index, repository := range sourceRepositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		if repositoryID == "" || repositoryURL == "" {
+			continue
+		}
+		localRepositoryPath := filepath.Join(synchronizer.projectsRootDir, cleanProjectID, "repositories", "source", repositoryID)
+		if _, err := os.Stat(localRepositoryPath); err != nil {
+			return failures.WrapTransient(fmt.Errorf("local source repository cache not found for repository %q at %s: %w", repositoryID, localRepositoryPath, err))
+		}
+		targetDirectory := filepath.Join(repositoriesDir, fmt.Sprintf("repo%d", index+1))
+		if err := os.RemoveAll(targetDirectory); err != nil {
+			return failures.WrapTransient(fmt.Errorf("reset sandbox repository directory %s: %w", targetDirectory, err))
+		}
+		if err := copyDirectory(localRepositoryPath, targetDirectory); err != nil {
+			return failures.WrapTransient(fmt.Errorf("copy repository %q from local source cache: %w", repositoryID, err))
+		}
+		if err := synchronizer.runGit(ctx, targetDirectory, "remote", "set-url", "origin", repositoryURL); err != nil {
+			return failures.WrapTransient(fmt.Errorf("configure origin for repository %q: %w", repositoryID, err))
+		}
+		if err := synchronizer.runGit(ctx, targetDirectory, "fetch", "--all", "--prune"); err != nil {
+			return failures.WrapTransient(fmt.Errorf("sync all branches with origin for repository %q: %w", repositoryID, err))
+		}
+		if err := synchronizer.runGit(ctx, targetDirectory, "rev-parse", "--verify", "origin/"+cleanBranch); err != nil {
+			return failures.WrapTransient(fmt.Errorf("origin branch %q not found for repository %q: %w", cleanBranch, repositoryID, err))
+		}
+		if err := synchronizer.runGit(ctx, targetDirectory, "checkout", "-B", cleanBranch, "origin/"+cleanBranch); err != nil {
+			return failures.WrapTransient(fmt.Errorf("checkout branch %q for repository %q: %w", cleanBranch, repositoryID, err))
+		}
+		if err := synchronizer.runGit(ctx, targetDirectory, "reset", "--hard", "origin/"+cleanBranch); err != nil {
+			return failures.WrapTransient(fmt.Errorf("reset repository %q to origin/%s: %w", repositoryID, cleanBranch, err))
+		}
+	}
+
+	return nil
+}
+
+func (synchronizer *GitRepositorySynchronizer) runGit(ctx context.Context, workingDirectory string, args ...string) error {
+	command := exec.CommandContext(ctx, synchronizer.gitBinaryPath, args...)
+	command.Dir = workingDirectory
+	var stdoutBuffer bytes.Buffer
+	var stderrBuffer bytes.Buffer
+	command.Stdout = &stdoutBuffer
+	command.Stderr = &stderrBuffer
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("git %s: %w (stdout=%s stderr=%s)", strings.Join(args, " "), err, strings.TrimSpace(stdoutBuffer.String()), strings.TrimSpace(stderrBuffer.String()))
+	}
+	return nil
+}
+
+func copyDirectory(sourcePath string, destinationPath string) error {
+	if err := os.MkdirAll(destinationPath, 0o755); err != nil {
+		return err
+	}
+	return filepath.WalkDir(sourcePath, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relativePath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return err
+		}
+		if relativePath == "." {
+			return nil
+		}
+		targetPath := filepath.Join(destinationPath, relativePath)
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkDestination, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(linkDestination, targetPath)
+		}
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+			return err
+		}
+		sourceFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer sourceFile.Close()
+		targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer targetFile.Close()
+		_, err = io.Copy(targetFile, sourceFile)
+		return err
+	})
+}

@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
 
 DateTime get fixedTime => DateTime.parse('2026-03-01T12:00:00Z');
 

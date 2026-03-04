@@ -1,5 +1,5 @@
-name: agentic_worktrees
-description: "Agentic Worktrees desktop control plane client."
+name: agentic_repositories
+description: "Agentic Repositories desktop control plane client."
 publish_to: 'none'
 version: 1.0.0+1
 

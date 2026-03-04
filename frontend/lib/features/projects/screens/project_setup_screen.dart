@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
+import 'package:agentic_repositories/features/projects/logic/project_setup_logic.dart';
 import 'package:flutter/material.dart';
 
 class ProjectSetupScreen extends StatefulWidget {

@@ -9,14 +9,14 @@ import (
 
 type fakeSCMBootstrapPort struct {
 	sourceStateRequest   domainscm.Repository
-	ensureWorktreeRepo   domainscm.Repository
-	ensureWorktreeSpec   domainscm.WorktreeSpec
+	ensureRepositoryRepo   domainscm.Repository
+	ensureRepositorySpec   domainscm.RepositorySpec
 	sourceStateResponse  domainscm.SourceState
-	ensureWorktreeResult domainscm.WorktreeState
+	ensureRepositoryResult domainscm.RepositoryState
 	sourceStateErr       error
-	ensureWorktreeErr    error
+	ensureRepositoryErr    error
 	sourceStateCalls     int
-	ensureWorktreeCalls  int
+	ensureRepositoryCalls  int
 }
 
 func (fake *fakeSCMBootstrapPort) SourceState(ctx context.Context, repository domainscm.Repository) (domainscm.SourceState, error) {
@@ -32,18 +32,18 @@ func (fake *fakeSCMBootstrapPort) SourceState(ctx context.Context, repository do
 	return fake.sourceStateResponse, nil
 }
 
-func (fake *fakeSCMBootstrapPort) EnsureWorktree(ctx context.Context, repository domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
+func (fake *fakeSCMBootstrapPort) EnsureRepository(ctx context.Context, repository domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error) {
 	_ = ctx
-	fake.ensureWorktreeCalls++
-	fake.ensureWorktreeRepo = repository
-	fake.ensureWorktreeSpec = spec
-	if fake.ensureWorktreeErr != nil {
-		return domainscm.WorktreeState{}, fake.ensureWorktreeErr
+	fake.ensureRepositoryCalls++
+	fake.ensureRepositoryRepo = repository
+	fake.ensureRepositorySpec = spec
+	if fake.ensureRepositoryErr != nil {
+		return domainscm.RepositoryState{}, fake.ensureRepositoryErr
 	}
-	if fake.ensureWorktreeResult.Path == "" {
-		return domainscm.WorktreeState{Path: spec.Path, Branch: spec.TargetBranch, Base: spec.BaseBranch, HeadSHA: "sha-worktree", IsInSync: true}, nil
+	if fake.ensureRepositoryResult.Path == "" {
+		return domainscm.RepositoryState{Path: spec.Path, Branch: spec.TargetBranch, Base: spec.BaseBranch, HeadSHA: "sha-repository", IsInSync: true}, nil
 	}
-	return fake.ensureWorktreeResult, nil
+	return fake.ensureRepositoryResult, nil
 }
 
 type fakeRemoteWorkerAdapter struct {
@@ -77,7 +77,7 @@ func validRemoteBootstrapRequest() RemoteBootstrapRequest {
 		IdempotencyKey: "id-1",
 		Repository:     domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
 		TargetBranch:   "feature/remote",
-		WorktreePath:   "/tmp/worktrees/feature-remote",
+		RepositoryPath:   "/tmp/repositories/feature-remote",
 	}
 }
 
@@ -96,14 +96,14 @@ func TestRemoteBootstrapBuildUsesSourceStateDefaultBranch(t *testing.T) {
 	if scm.sourceStateCalls != 1 {
 		t.Fatalf("expected one source_state call, got %d", scm.sourceStateCalls)
 	}
-	if scm.ensureWorktreeCalls != 1 {
-		t.Fatalf("expected one ensure_worktree call, got %d", scm.ensureWorktreeCalls)
+	if scm.ensureRepositoryCalls != 1 {
+		t.Fatalf("expected one ensure_repository call, got %d", scm.ensureRepositoryCalls)
 	}
-	if scm.ensureWorktreeSpec.BaseBranch != "main" {
-		t.Fatalf("expected base branch main, got %q", scm.ensureWorktreeSpec.BaseBranch)
+	if scm.ensureRepositorySpec.BaseBranch != "main" {
+		t.Fatalf("expected base branch main, got %q", scm.ensureRepositorySpec.BaseBranch)
 	}
-	if remoteRequest.ResumeCheckpoint == nil || remoteRequest.ResumeCheckpoint.Step != "ensure_worktree" {
-		t.Fatalf("expected ensure_worktree checkpoint, got %+v", remoteRequest.ResumeCheckpoint)
+	if remoteRequest.ResumeCheckpoint == nil || remoteRequest.ResumeCheckpoint.Step != "ensure_repository" {
+		t.Fatalf("expected ensure_repository checkpoint, got %+v", remoteRequest.ResumeCheckpoint)
 	}
 }
 
@@ -123,8 +123,8 @@ func TestRemoteBootstrapBuildUsesExplicitBaseBranch(t *testing.T) {
 	if scm.sourceStateCalls != 0 {
 		t.Fatalf("expected source_state to be skipped when base branch provided, got %d calls", scm.sourceStateCalls)
 	}
-	if scm.ensureWorktreeSpec.BaseBranch != "release/1.0" {
-		t.Fatalf("expected explicit base branch, got %q", scm.ensureWorktreeSpec.BaseBranch)
+	if scm.ensureRepositorySpec.BaseBranch != "release/1.0" {
+		t.Fatalf("expected explicit base branch, got %q", scm.ensureRepositorySpec.BaseBranch)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestRemoteBootstrapExecuteDispatchesToRemoteAdapter(t *testing.T) {
 }
 
 func TestRemoteBootstrapExecuteReturnsBootstrapError(t *testing.T) {
-	scm := &fakeSCMBootstrapPort{ensureWorktreeErr: errors.New("cannot create worktree")}
+	scm := &fakeSCMBootstrapPort{ensureRepositoryErr: errors.New("cannot create repository")}
 	service, err := NewRemoteBootstrapService(scm, &fakeRemoteWorkerAdapter{})
 	if err != nil {
 		t.Fatalf("new remote bootstrap service: %v", err)
@@ -165,9 +165,9 @@ func TestRemoteBootstrapExecuteReturnsBootstrapError(t *testing.T) {
 	}
 }
 
-func TestRemoteBootstrapRequestValidateRequiresWorktreePath(t *testing.T) {
+func TestRemoteBootstrapRequestValidateRequiresRepositoryPath(t *testing.T) {
 	request := validRemoteBootstrapRequest()
-	request.WorktreePath = ""
+	request.RepositoryPath = ""
 	if err := request.Validate(); !errors.Is(err, ErrInvalidRemoteExecutionRequest) {
 		t.Fatalf("expected ErrInvalidRemoteExecutionRequest, got %v", err)
 	}

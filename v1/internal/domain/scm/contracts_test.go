@@ -33,22 +33,22 @@ func TestRepoLeaseValidateRequiresFields(t *testing.T) {
 	}
 }
 
-func TestWorktreeSpecValidateRequiresFields(t *testing.T) {
-	err := (WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one"}).Validate()
+func TestRepositorySpecValidateRequiresFields(t *testing.T) {
+	err := (RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one"}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
 	}
 }
 
-func TestWorktreeSpecValidateRejectsUnsupportedSyncStrategy(t *testing.T) {
-	err := (WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree", SyncStrategy: SyncStrategy("cherry-pick")}).Validate()
+func TestRepositorySpecValidateRejectsUnsupportedSyncStrategy(t *testing.T) {
+	err := (RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repository", SyncStrategy: SyncStrategy("cherry-pick")}).Validate()
 	if !failures.IsClass(err, failures.ClassTerminal) {
 		t.Fatalf("expected terminal validation error, got %q (%v)", failures.ClassOf(err), err)
 	}
 }
 
-func TestWorktreeSpecEffectiveSyncStrategyDefaultsToMerge(t *testing.T) {
-	spec := WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"}
+func TestRepositorySpecEffectiveSyncStrategyDefaultsToMerge(t *testing.T) {
+	spec := RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repository"}
 	if spec.EffectiveSyncStrategy() != SyncStrategyMerge {
 		t.Fatalf("expected merge default strategy, got %q", spec.EffectiveSyncStrategy())
 	}

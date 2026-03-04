@@ -1,8 +1,8 @@
-import 'package:agentic_worktrees/features/projects/screens/project_setup_edit_screen.dart';
-import 'package:agentic_worktrees/features/workers/screens/worker_sessions_screen.dart';
-import 'package:agentic_worktrees/features/workers/screens/worker_settings_screen.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
-import 'package:agentic_worktrees/shared/graph/typed/client.dart';
+import 'package:agentic_repositories/features/projects/screens/project_setup_edit_screen.dart';
+import 'package:agentic_repositories/features/workers/screens/worker_sessions_screen.dart';
+import 'package:agentic_repositories/features/workers/screens/worker_settings_screen.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/shared/graph/typed/client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 

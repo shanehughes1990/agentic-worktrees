@@ -33,6 +33,9 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		RunID:                     strings.TrimSpace(payload.RunID),
 		ProjectID:                 strings.TrimSpace(payload.ProjectID),
 		SelectedDocumentLocations: payload.SelectedDocumentLocations,
+		SourceRepositories:        mapSourceRepositories(payload.SourceRepositories),
+		SourceBranch:              strings.TrimSpace(payload.SourceBranch),
+		Model:                     strings.TrimSpace(payload.Model),
 		SystemPrompt:              strings.TrimSpace(payload.SystemPrompt),
 		UserPrompt:                strings.TrimSpace(payload.UserPrompt),
 	}
@@ -40,4 +43,17 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 		return err
 	}
 	return nil
+}
+
+func mapSourceRepositories(payloadRepositories []applicationcontrolplane.IngestionSourceRepository) []applicationingestion.SourceRepository {
+	mapped := make([]applicationingestion.SourceRepository, 0, len(payloadRepositories))
+	for _, repository := range payloadRepositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		if repositoryID == "" || repositoryURL == "" {
+			continue
+		}
+		mapped = append(mapped, applicationingestion.SourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL})
+	}
+	return mapped
 }

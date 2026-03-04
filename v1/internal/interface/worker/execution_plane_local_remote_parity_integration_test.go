@@ -39,7 +39,7 @@ func (engine *parityQueueEngine) dispatchNext(ctx context.Context, handler appli
 }
 
 type parityGitRunner struct {
-	worktreeAddCalls int
+	repositoryAddCalls int
 	revParseCalls    int
 	fetchCalls       int
 }
@@ -53,8 +53,8 @@ func (runner *parityGitRunner) Run(ctx context.Context, directory string, argume
 		runner.fetchCalls++
 		return "", nil
 	}
-	if arguments[0] == "worktree" && len(arguments) >= 6 && arguments[1] == "add" {
-		runner.worktreeAddCalls++
+	if arguments[0] == "repository" && len(arguments) >= 6 && arguments[1] == "add" {
+		runner.repositoryAddCalls++
 		return "", nil
 	}
 	if arguments[0] == "rev-parse" {
@@ -74,8 +74,8 @@ func (adapter *scmBootstrapAdapter) SourceState(ctx context.Context, repository 
 	return adapter.service.SourceState(ctx, applicationscm.SourceStateRequest{Repository: repository, Metadata: adapter.metadata})
 }
 
-func (adapter *scmBootstrapAdapter) EnsureWorktree(ctx context.Context, repository domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
-	return adapter.service.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{Repository: repository, Spec: spec, Metadata: adapter.metadata})
+func (adapter *scmBootstrapAdapter) EnsureRepository(ctx context.Context, repository domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error) {
+	return adapter.service.EnsureRepository(ctx, applicationscm.EnsureRepositoryRequest{Repository: repository, Spec: spec, Metadata: adapter.metadata})
 }
 
 func TestExecutionPlaneLocalAndRemotePathsShareSCMJobContract(t *testing.T) {
@@ -98,7 +98,7 @@ func TestExecutionPlaneLocalAndRemotePathsShareSCMJobContract(t *testing.T) {
 
 	gitRunner := &parityGitRunner{}
 	githubAdapter, err := infrascm.NewGitHubAdapter(
-		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktree"},
+		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", RepositoryRootPath: "/tmp/repository"},
 		server.Client(),
 		infrascm.NewStaticTokenProvider("token"),
 		gitRunner,
@@ -170,7 +170,7 @@ func TestExecutionPlaneLocalAndRemotePathsShareSCMJobContract(t *testing.T) {
 		IdempotencyKey: "id-1",
 		Repository:     domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
 		TargetBranch:   "feature/remote-task-1",
-		WorktreePath:   "/tmp/worktree/remote-task-1",
+		RepositoryPath:   "/tmp/repository/remote-task-1",
 	})
 	if err != nil {
 		t.Fatalf("execute remote bootstrap workflow: %v", err)
@@ -178,11 +178,11 @@ func TestExecutionPlaneLocalAndRemotePathsShareSCMJobContract(t *testing.T) {
 	if remoteResult.WorkerID != "remote-worker-1" {
 		t.Fatalf("expected remote-worker-1, got %q", remoteResult.WorkerID)
 	}
-	if remoteResult.CompletedCheckpoint == nil || remoteResult.CompletedCheckpoint.Step != "ensure_worktree" {
-		t.Fatalf("expected ensure_worktree completed checkpoint, got %+v", remoteResult.CompletedCheckpoint)
+	if remoteResult.CompletedCheckpoint == nil || remoteResult.CompletedCheckpoint.Step != "ensure_repository" {
+		t.Fatalf("expected ensure_repository completed checkpoint, got %+v", remoteResult.CompletedCheckpoint)
 	}
-	if gitRunner.worktreeAddCalls == 0 || gitRunner.revParseCalls == 0 || gitRunner.fetchCalls == 0 {
-		t.Fatalf("expected remote bootstrap to perform SCM-backed worktree bootstrap, got fetch=%d add=%d rev-parse=%d", gitRunner.fetchCalls, gitRunner.worktreeAddCalls, gitRunner.revParseCalls)
+	if gitRunner.repositoryAddCalls == 0 || gitRunner.revParseCalls == 0 || gitRunner.fetchCalls == 0 {
+		t.Fatalf("expected remote bootstrap to perform SCM-backed repository bootstrap, got fetch=%d add=%d rev-parse=%d", gitRunner.fetchCalls, gitRunner.repositoryAddCalls, gitRunner.revParseCalls)
 	}
 	if repositoryEndpointCalls < 2 || commitEndpointCalls < 2 {
 		t.Fatalf("expected source-state SCM endpoints to be called by both local and remote paths, got repos=%d commits=%d", repositoryEndpointCalls, commitEndpointCalls)

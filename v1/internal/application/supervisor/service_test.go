@@ -189,7 +189,7 @@ func TestServiceExecutionFailureEscalatesOnMaxRetries(t *testing.T) {
 		JobID:          "job-1",
 		JobKind:        taskengine.JobKindSCMWorkflow,
 		IdempotencyKey: "idem-1",
-		Step:           "ensure_worktree",
+		Step:           "ensure_repository",
 		Status:         taskengine.ExecutionStatusRunning,
 		UpdatedAt:      now,
 	}, 1, 3)
@@ -202,7 +202,7 @@ func TestServiceExecutionFailureEscalatesOnMaxRetries(t *testing.T) {
 		JobID:          "job-1",
 		JobKind:        taskengine.JobKindSCMWorkflow,
 		IdempotencyKey: "idem-1",
-		Step:           "ensure_worktree",
+		Step:           "ensure_repository",
 		Status:         taskengine.ExecutionStatusFailed,
 		ErrorMessage:   "temporary network issue",
 		UpdatedAt:      now.Add(time.Second),

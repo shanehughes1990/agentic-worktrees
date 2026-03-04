@@ -1,8 +1,8 @@
 enum Enum$SCMOperation {
   SOURCE_STATE,
-  ENSURE_WORKTREE,
-  SYNC_WORKTREE,
-  CLEANUP_WORKTREE,
+  ENSURE_REPOSITORY,
+  SYNC_REPOSITORY,
+  CLEANUP_REPOSITORY,
   ENSURE_BRANCH,
   SYNC_BRANCH,
   UPSERT_PULL_REQUEST,
@@ -22,12 +22,12 @@ String toJson$Enum$SCMOperation(Enum$SCMOperation e) {
   switch (e) {
     case Enum$SCMOperation.SOURCE_STATE:
       return r'SOURCE_STATE';
-    case Enum$SCMOperation.ENSURE_WORKTREE:
-      return r'ENSURE_WORKTREE';
-    case Enum$SCMOperation.SYNC_WORKTREE:
-      return r'SYNC_WORKTREE';
-    case Enum$SCMOperation.CLEANUP_WORKTREE:
-      return r'CLEANUP_WORKTREE';
+    case Enum$SCMOperation.ENSURE_REPOSITORY:
+      return r'ENSURE_REPOSITORY';
+    case Enum$SCMOperation.SYNC_REPOSITORY:
+      return r'SYNC_REPOSITORY';
+    case Enum$SCMOperation.CLEANUP_REPOSITORY:
+      return r'CLEANUP_REPOSITORY';
     case Enum$SCMOperation.ENSURE_BRANCH:
       return r'ENSURE_BRANCH';
     case Enum$SCMOperation.SYNC_BRANCH:
@@ -51,12 +51,12 @@ Enum$SCMOperation fromJson$Enum$SCMOperation(String value) {
   switch (value) {
     case r'SOURCE_STATE':
       return Enum$SCMOperation.SOURCE_STATE;
-    case r'ENSURE_WORKTREE':
-      return Enum$SCMOperation.ENSURE_WORKTREE;
-    case r'SYNC_WORKTREE':
-      return Enum$SCMOperation.SYNC_WORKTREE;
-    case r'CLEANUP_WORKTREE':
-      return Enum$SCMOperation.CLEANUP_WORKTREE;
+    case r'ENSURE_REPOSITORY':
+      return Enum$SCMOperation.ENSURE_REPOSITORY;
+    case r'SYNC_REPOSITORY':
+      return Enum$SCMOperation.SYNC_REPOSITORY;
+    case r'CLEANUP_REPOSITORY':
+      return Enum$SCMOperation.CLEANUP_REPOSITORY;
     case r'ENSURE_BRANCH':
       return Enum$SCMOperation.ENSURE_BRANCH;
     case r'SYNC_BRANCH':

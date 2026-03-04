@@ -127,7 +127,7 @@ type TaskOutcome struct {
 	Status          string    `json:"status"`
 	Reason          string    `json:"reason,omitempty"`
 	TaskBranch      string    `json:"task_branch,omitempty"`
-	Worktree        string    `json:"worktree,omitempty"`
+	Repository        string    `json:"repository,omitempty"`
 	ResumeSessionID string    `json:"resume_session_id,omitempty"`
 	UpdatedAt       time.Time `json:"updated_at,omitempty"`
 }

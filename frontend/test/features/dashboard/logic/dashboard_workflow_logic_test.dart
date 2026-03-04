@@ -1,5 +1,5 @@
-import 'package:agentic_worktrees/features/dashboard/logic/dashboard_workflow_logic.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/features/dashboard/logic/dashboard_workflow_logic.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

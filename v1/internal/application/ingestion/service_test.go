@@ -5,8 +5,10 @@ import (
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -39,43 +41,133 @@ func (fetcher *fakeArtifactFetcher) FetchToPath(ctx context.Context, objectPath 
 	return os.WriteFile(destinationPath, []byte("doc content for taskboard"), 0o644)
 }
 
-func TestServiceExecutePanicsWithAgenticTodo(t *testing.T) {
+type fakeAgentRunner struct {
+	err          error
+	prompt       string
+	sandboxDir   string
+	outputPath   string
+	model        string
+	writtenBoard string
+}
+
+func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string) error {
+	_ = ctx
+	if runner.err != nil {
+		return runner.err
+	}
+	runner.prompt = prompt
+	runner.sandboxDir = sandboxDir
+	runner.outputPath = outputPath
+	runner.model = model
+	runner.writtenBoard = `{
+		"board_id": "temporary-board",
+		"run_id": "temporary-run",
+		"status": "todo",
+		"epics": [{
+			"id": "epic-1",
+			"board_id": "temporary-board",
+			"title": "Epic one",
+			"status": "todo",
+			"priority": "high",
+			"tasks": [{
+				"id": "task-1",
+				"board_id": "temporary-board",
+				"title": "Task one",
+				"status": "todo",
+				"priority": "medium"
+			}]
+		}],
+		"created_at": "2026-03-03T10:00:00Z",
+		"updated_at": "2026-03-03T10:00:00Z"
+	}`
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(outputPath, []byte(runner.writtenBoard), 0o644)
+}
+
+type fakeRepositorySynchronizer struct {
+	err                error
+	projectID          string
+	sandboxDir         string
+	sourceBranch       string
+	sourceRepositories []SourceRepository
+}
+
+func (synchronizer *fakeRepositorySynchronizer) Sync(ctx context.Context, projectID string, sandboxDir string, sourceBranch string, sourceRepositories []SourceRepository) error {
+	_ = ctx
+	if synchronizer.err != nil {
+		return synchronizer.err
+	}
+	synchronizer.projectID = projectID
+	synchronizer.sandboxDir = sandboxDir
+	synchronizer.sourceBranch = sourceBranch
+	synchronizer.sourceRepositories = append([]SourceRepository(nil), sourceRepositories...)
+	return nil
+}
+
+func TestServiceExecuteGeneratesAndPersistsBoard(t *testing.T) {
 	boardStore := &fakeBoardStore{}
 	artifactFetcher := &fakeArtifactFetcher{}
-	service, err := NewService(boardStore, artifactFetcher)
+	agentRunner := &fakeAgentRunner{}
+	repositorySynchronizer := &fakeRepositorySynchronizer{}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, repositorySynchronizer)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
 
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatalf("expected panic placeholder")
-		}
-		if recovered != "TODO: IMPLEMENT AGENTIC AGENT" {
-			t.Fatalf("unexpected panic value: %v", recovered)
-		}
-		if len(artifactFetcher.fetchedObject) != 1 {
-			t.Fatalf("expected one fetched object, got %d", len(artifactFetcher.fetchedObject))
-		}
-		if !boardStore.board.CreatedAt.IsZero() {
-			t.Fatalf("expected board store to remain unused")
-		}
-	}()
-
-	_, _ = service.Execute(context.Background(), Request{
+	board, executeErr := service.Execute(context.Background(), Request{
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
+		SourceBranch:              "develop",
+		Model:                     "gpt-5.3-codex",
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if len(artifactFetcher.fetchedObject) != 1 {
+		t.Fatalf("expected one fetched object, got %d", len(artifactFetcher.fetchedObject))
+	}
+	if !strings.Contains(agentRunner.prompt, "You are an ingestion planner.") {
+		t.Fatalf("expected system prompt in composed prompt, got %q", agentRunner.prompt)
+	}
+	if !strings.Contains(agentRunner.prompt, "Create a delivery taskboard.") {
+		t.Fatalf("expected user prompt in composed prompt, got %q", agentRunner.prompt)
+	}
+	if agentRunner.model != "gpt-5.3-codex" {
+		t.Fatalf("expected model gpt-5.3-codex, got %q", agentRunner.model)
+	}
+	if repositorySynchronizer.sourceBranch != "develop" {
+		t.Fatalf("expected source branch develop, got %q", repositorySynchronizer.sourceBranch)
+	}
+	if repositorySynchronizer.projectID != "project-1" {
+		t.Fatalf("expected project id project-1, got %q", repositorySynchronizer.projectID)
+	}
+	if len(repositorySynchronizer.sourceRepositories) != 1 || repositorySynchronizer.sourceRepositories[0].RepositoryURL != "https://github.com/acme/source-repo.git" {
+		t.Fatalf("unexpected synchronized repositories: %#v", repositorySynchronizer.sourceRepositories)
+	}
+	if strings.TrimSpace(board.BoardID) != "project_1_ingestion" {
+		t.Fatalf("expected normalized board id, got %q", board.BoardID)
+	}
+	if board.RunID != "run-1" {
+		t.Fatalf("expected board run_id to match request, got %q", board.RunID)
+	}
+	if board.Source.Kind != domaintracker.SourceKindInternal {
+		t.Fatalf("expected internal source kind, got %q", board.Source.Kind)
+	}
+	if boardStore.board.BoardID != board.BoardID {
+		t.Fatalf("expected persisted board id %q, got %q", board.BoardID, boardStore.board.BoardID)
+	}
 }
 
 func TestServiceExecuteClassifiesFetchFailuresAsTransient(t *testing.T) {
 	boardStore := &fakeBoardStore{}
 	artifactFetcher := &fakeArtifactFetcher{err: errors.New("gcs timeout")}
-	service, err := NewService(boardStore, artifactFetcher)
+	service, err := NewService(boardStore, artifactFetcher, &fakeAgentRunner{}, &fakeRepositorySynchronizer{})
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -95,29 +187,74 @@ func TestServiceExecuteClassifiesFetchFailuresAsTransient(t *testing.T) {
 func TestServiceExecuteCleansTemporaryArtifacts(t *testing.T) {
 	boardStore := &fakeBoardStore{}
 	artifactFetcher := &fakeArtifactFetcher{}
-	service, err := NewService(boardStore, artifactFetcher)
+	service, err := NewService(boardStore, artifactFetcher, &fakeAgentRunner{}, &fakeRepositorySynchronizer{})
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
-
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatalf("expected panic placeholder")
-		}
-		if len(artifactFetcher.destinationPath) != 1 {
-			t.Fatalf("expected one destination path, got %d", len(artifactFetcher.destinationPath))
-		}
-		if _, statErr := os.Stat(artifactFetcher.destinationPath[0]); !os.IsNotExist(statErr) {
-			t.Fatalf("expected temporary artifact to be removed, stat err=%v", statErr)
-		}
-	}()
-
-	_, _ = service.Execute(context.Background(), Request{
+	_, executeErr := service.Execute(context.Background(), Request{
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if len(artifactFetcher.destinationPath) != 1 {
+		t.Fatalf("expected one destination path, got %d", len(artifactFetcher.destinationPath))
+	}
+	if _, statErr := os.Stat(artifactFetcher.destinationPath[0]); !os.IsNotExist(statErr) {
+		t.Fatalf("expected temporary artifact to be removed, stat err=%v", statErr)
+	}
+}
+
+func TestServiceExecuteClassifiesRunnerFailuresAsTransient(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	runnerFailure := fmt.Errorf("copilot cli timeout")
+	agentRunner := &fakeAgentRunner{err: runnerFailure}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SystemPrompt:              "You are an ingestion planner.",
+		UserPrompt:                "Create a delivery taskboard.",
+	})
+	if !failures.IsClass(executeErr, failures.ClassTransient) {
+		t.Fatalf("expected transient failure class, got %q (%v)", failures.ClassOf(executeErr), executeErr)
+	}
+}
+
+func TestServiceExecuteDefaultsModelAndSourceBranch(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{}
+	repositorySynchronizer := &fakeRepositorySynchronizer{}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, repositorySynchronizer)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
+		SystemPrompt:              "You are an ingestion planner.",
+	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if agentRunner.model != "gpt-5.3-codex" {
+		t.Fatalf("expected default model gpt-5.3-codex, got %q", agentRunner.model)
+	}
+	if repositorySynchronizer.sourceBranch != "main" {
+		t.Fatalf("expected default source branch main, got %q", repositorySynchronizer.sourceBranch)
+	}
 }

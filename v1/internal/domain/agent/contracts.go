@@ -106,7 +106,7 @@ type SessionState struct {
 	SessionID      string
 	Repository     domainscm.Repository
 	SourceState    domainscm.SourceState
-	WorktreeState  *domainscm.WorktreeState
+	RepositoryState  *domainscm.RepositoryState
 	BranchState    *domainscm.BranchState
 	PullRequest    *domainscm.PullRequestState
 	LastCheckpoint *Checkpoint
@@ -122,8 +122,8 @@ func (state SessionState) Validate() error {
 	if err := state.SourceState.Validate(); err != nil {
 		return err
 	}
-	if state.WorktreeState != nil {
-		if err := state.WorktreeState.Validate(); err != nil {
+	if state.RepositoryState != nil {
+		if err := state.RepositoryState.Validate(); err != nil {
 			return err
 		}
 	}
@@ -147,9 +147,9 @@ func (state SessionState) Validate() error {
 
 type SCMPort interface {
 	SourceState(ctx context.Context, repository domainscm.Repository) (domainscm.SourceState, error)
-	EnsureWorktree(ctx context.Context, repository domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error)
-	SyncWorktree(ctx context.Context, repository domainscm.Repository, path string) (domainscm.WorktreeState, error)
-	CleanupWorktree(ctx context.Context, repository domainscm.Repository, path string) error
+	EnsureRepository(ctx context.Context, repository domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error)
+	SyncRepository(ctx context.Context, repository domainscm.Repository, path string) (domainscm.RepositoryState, error)
+	CleanupRepository(ctx context.Context, repository domainscm.Repository, path string) error
 	EnsureBranch(ctx context.Context, repository domainscm.Repository, spec domainscm.BranchSpec) (domainscm.BranchState, error)
 	SyncBranch(ctx context.Context, repository domainscm.Repository, branchName string) (domainscm.BranchState, error)
 	CreateOrUpdatePullRequest(ctx context.Context, spec domainscm.PullRequestSpec) (domainscm.PullRequestState, error)

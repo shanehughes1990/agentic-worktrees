@@ -1,4 +1,4 @@
-# agentic_worktrees
+# agentic_repositories
 
 A new Flutter project.
 

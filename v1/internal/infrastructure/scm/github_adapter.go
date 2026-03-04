@@ -20,14 +20,14 @@ import (
 type GitHubAdapterConfig struct {
 	APIBaseURL       string
 	RepoPath         string
-	WorktreeRootPath string
+	RepositoryRootPath string
 	RepositoryURL    string
 }
 
 type GitHubAdapter struct {
 	baseURL          string
 	repoPath         string
-	worktreeRootPath string
+	repositoryRootPath string
 	repositoryURL    string
 	httpClient       *http.Client
 	tokenProvider    TokenProvider
@@ -50,13 +50,13 @@ func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, token
 	if err != nil {
 		return nil, failures.WrapTerminal(fmt.Errorf("resolve repo path: %w", err))
 	}
-	worktreeRootPath := strings.TrimSpace(config.WorktreeRootPath)
-	if worktreeRootPath == "" {
-		return nil, failures.WrapTerminal(fmt.Errorf("worktree root path is required"))
+	repositoryRootPath := strings.TrimSpace(config.RepositoryRootPath)
+	if repositoryRootPath == "" {
+		return nil, failures.WrapTerminal(fmt.Errorf("repository root path is required"))
 	}
-	absWorktreeRootPath, err := filepath.Abs(worktreeRootPath)
+	absRepositoryRootPath, err := filepath.Abs(repositoryRootPath)
 	if err != nil {
-		return nil, failures.WrapTerminal(fmt.Errorf("resolve worktree root path: %w", err))
+		return nil, failures.WrapTerminal(fmt.Errorf("resolve repository root path: %w", err))
 	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -70,7 +70,7 @@ func NewGitHubAdapter(config GitHubAdapterConfig, httpClient *http.Client, token
 	return &GitHubAdapter{
 		baseURL:          strings.TrimRight(baseURL, "/"),
 		repoPath:         filepath.Clean(absRepoPath),
-		worktreeRootPath: filepath.Clean(absWorktreeRootPath),
+		repositoryRootPath: filepath.Clean(absRepositoryRootPath),
 		repositoryURL:    strings.TrimSpace(config.RepositoryURL),
 		httpClient:       httpClient,
 		tokenProvider:    tokenProvider,
@@ -104,33 +104,33 @@ func (adapter *GitHubAdapter) SourceState(ctx context.Context, repository domain
 	return state, nil
 }
 
-func (adapter *GitHubAdapter) EnsureWorktree(ctx context.Context, repository domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
+func (adapter *GitHubAdapter) EnsureRepository(ctx context.Context, repository domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error) {
 	if err := repository.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	if err := spec.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	if err := adapter.ensureLocalRepository(ctx, repository); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
-	worktreePath, err := adapter.resolveWorktreePath(spec.Path)
+	repositoryPath, err := adapter.resolveRepositoryPath(spec.Path)
 	if err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "fetch", "origin", spec.BaseBranch); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+		return domainscm.RepositoryState{}, failures.WrapTransient(err)
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "add", "-B", spec.TargetBranch, worktreePath, "origin/"+spec.BaseBranch); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "repository", "add", "-B", spec.TargetBranch, repositoryPath, "origin/"+spec.BaseBranch); err != nil {
+		return domainscm.RepositoryState{}, failures.WrapTerminal(err)
 	}
-	headSHA, err := adapter.worktreeHeadSHA(ctx, worktreePath)
+	headSHA, err := adapter.repositoryHeadSHA(ctx, repositoryPath)
 	if err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
-	state := domainscm.WorktreeState{Path: worktreePath, Branch: spec.TargetBranch, Base: spec.BaseBranch, HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
+	state := domainscm.RepositoryState{Path: repositoryPath, Branch: spec.TargetBranch, Base: spec.BaseBranch, HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
 	if err := state.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	return state, nil
 }
@@ -157,44 +157,44 @@ func (adapter *GitHubAdapter) ensureLocalRepository(ctx context.Context, reposit
 	}
 	return nil
 }
-func (adapter *GitHubAdapter) SyncWorktree(ctx context.Context, repository domainscm.Repository, worktreePath string) (domainscm.WorktreeState, error) {
+func (adapter *GitHubAdapter) SyncRepository(ctx context.Context, repository domainscm.Repository, repositoryPath string) (domainscm.RepositoryState, error) {
 	if err := repository.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
-	resolvedWorktreePath, err := adapter.resolveWorktreePath(worktreePath)
+	resolvedRepositoryPath, err := adapter.resolveRepositoryPath(repositoryPath)
 	if err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
-	branchName, err := adapter.gitRunner.Run(ctx, resolvedWorktreePath, "rev-parse", "--abbrev-ref", "HEAD")
+	branchName, err := adapter.gitRunner.Run(ctx, resolvedRepositoryPath, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(err)
+		return domainscm.RepositoryState{}, failures.WrapTerminal(err)
 	}
-	if _, err := adapter.gitRunner.Run(ctx, resolvedWorktreePath, "fetch", "origin", strings.TrimSpace(branchName)); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+	if _, err := adapter.gitRunner.Run(ctx, resolvedRepositoryPath, "fetch", "origin", strings.TrimSpace(branchName)); err != nil {
+		return domainscm.RepositoryState{}, failures.WrapTransient(err)
 	}
-	if _, err := adapter.gitRunner.Run(ctx, resolvedWorktreePath, "reset", "--hard", "origin/"+strings.TrimSpace(branchName)); err != nil {
-		return domainscm.WorktreeState{}, failures.WrapTransient(err)
+	if _, err := adapter.gitRunner.Run(ctx, resolvedRepositoryPath, "reset", "--hard", "origin/"+strings.TrimSpace(branchName)); err != nil {
+		return domainscm.RepositoryState{}, failures.WrapTransient(err)
 	}
-	headSHA, err := adapter.worktreeHeadSHA(ctx, resolvedWorktreePath)
+	headSHA, err := adapter.repositoryHeadSHA(ctx, resolvedRepositoryPath)
 	if err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
-	state := domainscm.WorktreeState{Path: resolvedWorktreePath, Branch: strings.TrimSpace(branchName), Base: strings.TrimSpace(branchName), HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
+	state := domainscm.RepositoryState{Path: resolvedRepositoryPath, Branch: strings.TrimSpace(branchName), Base: strings.TrimSpace(branchName), HeadSHA: headSHA, IsInSync: true, IsCleaned: false}
 	if err := state.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	return state, nil
 }
 
-func (adapter *GitHubAdapter) CleanupWorktree(ctx context.Context, repository domainscm.Repository, worktreePath string) error {
+func (adapter *GitHubAdapter) CleanupRepository(ctx context.Context, repository domainscm.Repository, repositoryPath string) error {
 	if err := repository.Validate(); err != nil {
 		return err
 	}
-	resolvedWorktreePath, err := adapter.resolveWorktreePath(worktreePath)
+	resolvedRepositoryPath, err := adapter.resolveRepositoryPath(repositoryPath)
 	if err != nil {
 		return err
 	}
-	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "worktree", "remove", "--force", resolvedWorktreePath); err != nil {
+	if _, err := adapter.gitRunner.Run(ctx, adapter.repoPath, "repository", "remove", "--force", resolvedRepositoryPath); err != nil {
 		return failures.WrapTransient(err)
 	}
 	return nil
@@ -386,34 +386,34 @@ func (adapter *GitHubAdapter) resolveBranchSHA(ctx context.Context, repository d
 	return strings.TrimSpace(response.Commit.SHA), nil
 }
 
-func (adapter *GitHubAdapter) worktreeHeadSHA(ctx context.Context, worktreePath string) (string, error) {
-	sha, err := adapter.gitRunner.Run(ctx, worktreePath, "rev-parse", "HEAD")
+func (adapter *GitHubAdapter) repositoryHeadSHA(ctx context.Context, repositoryPath string) (string, error) {
+	sha, err := adapter.gitRunner.Run(ctx, repositoryPath, "rev-parse", "HEAD")
 	if err != nil {
 		return "", failures.WrapTransient(err)
 	}
 	if strings.TrimSpace(sha) == "" {
-		return "", failures.WrapTerminal(fmt.Errorf("empty worktree head sha for %q", worktreePath))
+		return "", failures.WrapTerminal(fmt.Errorf("empty repository head sha for %q", repositoryPath))
 	}
 	return strings.TrimSpace(sha), nil
 }
 
-func (adapter *GitHubAdapter) resolveWorktreePath(requestedPath string) (string, error) {
+func (adapter *GitHubAdapter) resolveRepositoryPath(requestedPath string) (string, error) {
 	cleanPath := strings.TrimSpace(requestedPath)
 	if cleanPath == "" {
-		return "", failures.WrapTerminal(fmt.Errorf("worktree path is required"))
+		return "", failures.WrapTerminal(fmt.Errorf("repository path is required"))
 	}
 	var candidate string
 	if filepath.IsAbs(cleanPath) {
 		candidate = filepath.Clean(cleanPath)
 	} else {
-		candidate = filepath.Clean(filepath.Join(adapter.worktreeRootPath, cleanPath))
+		candidate = filepath.Clean(filepath.Join(adapter.repositoryRootPath, cleanPath))
 	}
-	relativePath, err := filepath.Rel(adapter.worktreeRootPath, candidate)
+	relativePath, err := filepath.Rel(adapter.repositoryRootPath, candidate)
 	if err != nil {
-		return "", failures.WrapTerminal(fmt.Errorf("resolve worktree path: %w", err))
+		return "", failures.WrapTerminal(fmt.Errorf("resolve repository path: %w", err))
 	}
 	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
-		return "", failures.WrapTerminal(fmt.Errorf("worktree path %q escapes configured worktree root", requestedPath))
+		return "", failures.WrapTerminal(fmt.Errorf("repository path %q escapes configured repository root", requestedPath))
 	}
 	return candidate, nil
 }

@@ -12,4 +12,4 @@ targets:
               type: DateTime
               fromJsonFunctionName: dateTimeFromJson
               toJsonFunctionName: dateTimeToJson
-              import: package:agentic_worktrees/shared/graph/scalars/date_time_scalar.dart
+              import: package:agentic_repositories/shared/graph/scalars/date_time_scalar.dart

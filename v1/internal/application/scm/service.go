@@ -42,13 +42,13 @@ func (request SourceStateRequest) Validate() error {
 	return request.Metadata.Validate()
 }
 
-type EnsureWorktreeRequest struct {
+type EnsureRepositoryRequest struct {
 	Repository domainscm.Repository
-	Spec       domainscm.WorktreeSpec
+	Spec       domainscm.RepositorySpec
 	Metadata   Metadata
 }
 
-func (request EnsureWorktreeRequest) Validate() error {
+func (request EnsureRepositoryRequest) Validate() error {
 	if err := request.Repository.Validate(); err != nil {
 		return err
 	}
@@ -58,13 +58,13 @@ func (request EnsureWorktreeRequest) Validate() error {
 	return request.Metadata.Validate()
 }
 
-type SyncWorktreeRequest struct {
+type SyncRepositoryRequest struct {
 	Repository domainscm.Repository
 	Path       string
 	Metadata   Metadata
 }
 
-func (request SyncWorktreeRequest) Validate() error {
+func (request SyncRepositoryRequest) Validate() error {
 	if err := request.Repository.Validate(); err != nil {
 		return err
 	}
@@ -74,13 +74,13 @@ func (request SyncWorktreeRequest) Validate() error {
 	return request.Metadata.Validate()
 }
 
-type CleanupWorktreeRequest struct {
+type CleanupRepositoryRequest struct {
 	Repository domainscm.Repository
 	Path       string
 	Metadata   Metadata
 }
 
-func (request CleanupWorktreeRequest) Validate() error {
+func (request CleanupRepositoryRequest) Validate() error {
 	if err := request.Repository.Validate(); err != nil {
 		return err
 	}
@@ -190,13 +190,13 @@ func (request MergePullRequestRequest) Validate() error {
 	return request.Metadata.Validate()
 }
 
-type ensureWorktreeExecutor interface {
-	Ensure(ctx context.Context, request EnsureWorktreeRequest) (domainscm.WorktreeState, error)
+type ensureRepositoryExecutor interface {
+	Ensure(ctx context.Context, request EnsureRepositoryRequest) (domainscm.RepositoryState, error)
 }
 
 type Service struct {
 	orchestrator      domainscm.Orchestrator
-	ensureCoordinator ensureWorktreeExecutor
+	ensureCoordinator ensureRepositoryExecutor
 }
 
 func NewService(orchestrator domainscm.Orchestrator) (*Service, error) {
@@ -207,7 +207,7 @@ func NewServiceWithLeaseManager(orchestrator domainscm.Orchestrator, leaseManage
 	if orchestrator == nil {
 		return nil, failures.WrapTerminal(errors.New("scm orchestrator is required"))
 	}
-	coordinator, err := NewEnsureWorktreeCoordinator(orchestrator, leaseManager)
+	coordinator, err := NewEnsureRepositoryCoordinator(orchestrator, leaseManager)
 	if err != nil {
 		return nil, err
 	}
@@ -228,42 +228,42 @@ func (service *Service) SourceState(ctx context.Context, request SourceStateRequ
 	return state, nil
 }
 
-func (service *Service) EnsureWorktree(ctx context.Context, request EnsureWorktreeRequest) (domainscm.WorktreeState, error) {
+func (service *Service) EnsureRepository(ctx context.Context, request EnsureRepositoryRequest) (domainscm.RepositoryState, error) {
 	if err := request.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	if service.ensureCoordinator == nil {
-		return domainscm.WorktreeState{}, failures.WrapTerminal(errors.New("ensure worktree coordinator is required"))
+		return domainscm.RepositoryState{}, failures.WrapTerminal(errors.New("ensure repository coordinator is required"))
 	}
 	state, err := service.ensureCoordinator.Ensure(ctx, request)
 	if err != nil {
-		return domainscm.WorktreeState{}, ensureClassified(err)
+		return domainscm.RepositoryState{}, ensureClassified(err)
 	}
 	if err := state.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	return state, nil
 }
 
-func (service *Service) SyncWorktree(ctx context.Context, request SyncWorktreeRequest) (domainscm.WorktreeState, error) {
+func (service *Service) SyncRepository(ctx context.Context, request SyncRepositoryRequest) (domainscm.RepositoryState, error) {
 	if err := request.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
-	state, err := service.orchestrator.SyncWorktree(ctx, request.Repository, request.Path)
+	state, err := service.orchestrator.SyncRepository(ctx, request.Repository, request.Path)
 	if err != nil {
-		return domainscm.WorktreeState{}, ensureClassified(err)
+		return domainscm.RepositoryState{}, ensureClassified(err)
 	}
 	if err := state.Validate(); err != nil {
-		return domainscm.WorktreeState{}, err
+		return domainscm.RepositoryState{}, err
 	}
 	return state, nil
 }
 
-func (service *Service) CleanupWorktree(ctx context.Context, request CleanupWorktreeRequest) error {
+func (service *Service) CleanupRepository(ctx context.Context, request CleanupRepositoryRequest) error {
 	if err := request.Validate(); err != nil {
 		return err
 	}
-	if err := service.orchestrator.CleanupWorktree(ctx, request.Repository, request.Path); err != nil {
+	if err := service.orchestrator.CleanupRepository(ctx, request.Repository, request.Path); err != nil {
 		return ensureClassified(err)
 	}
 	return nil

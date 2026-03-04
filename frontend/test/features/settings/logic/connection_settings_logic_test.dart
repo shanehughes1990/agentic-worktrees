@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/features/settings/logic/connection_settings_logic.dart';
+import 'package:agentic_repositories/features/settings/logic/connection_settings_logic.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

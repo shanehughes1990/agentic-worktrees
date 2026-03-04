@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
 import 'package:flutter/material.dart';
 
 class ProjectSetupsList extends StatelessWidget {

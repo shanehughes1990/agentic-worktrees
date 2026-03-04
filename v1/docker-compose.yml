@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: agentic-worktrees-postgres
+    container_name: agentic-repositories-postgres
     environment:
       POSTGRES_DB: agentic_orchestrator
       POSTGRES_USER: postgres
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: agentic-worktrees-redis
+    container_name: agentic-repositories-redis
     ports:
       - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
@@ -38,7 +38,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: agentic-worktrees-api
+    container_name: agentic-repositories-api
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,7 +114,7 @@ services:
   asynqmon:
     image: hibiken/asynqmon:latest
     platform: linux/amd64
-    container_name: agentic-worktrees-asynqmon
+    container_name: agentic-repositories-asynqmon
     depends_on:
       redis:
         condition: service_healthy

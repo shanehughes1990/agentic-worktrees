@@ -1,6 +1,6 @@
-import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
-import 'package:agentic_worktrees/shared/graph/typed/client.dart';
+import 'package:agentic_repositories/features/projects/logic/project_setup_logic.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/shared/graph/typed/client.dart';
 import 'package:flutter/material.dart';
 
 class ProjectSetupEditScreen extends StatefulWidget {

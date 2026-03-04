@@ -14,7 +14,7 @@ type fakeSCMService struct {
 	called                 string
 	err                    error
 	lastMetadata           applicationscm.Metadata
-	lastEnsureWorktreeSpec domainscm.WorktreeSpec
+	lastEnsureRepositorySpec domainscm.RepositorySpec
 }
 
 func (fake *fakeSCMService) SourceState(ctx context.Context, request applicationscm.SourceStateRequest) (domainscm.SourceState, error) {
@@ -22,17 +22,17 @@ func (fake *fakeSCMService) SourceState(ctx context.Context, request application
 	fake.lastMetadata = request.Metadata
 	return domainscm.SourceState{DefaultBranch: "main", HeadSHA: "abc"}, fake.err
 }
-func (fake *fakeSCMService) EnsureWorktree(ctx context.Context, request applicationscm.EnsureWorktreeRequest) (domainscm.WorktreeState, error) {
-	fake.called = "ensure_worktree"
-	fake.lastEnsureWorktreeSpec = request.Spec
-	return domainscm.WorktreeState{Path: request.Spec.Path, Branch: request.Spec.TargetBranch, Base: request.Spec.BaseBranch, HeadSHA: "abc"}, fake.err
+func (fake *fakeSCMService) EnsureRepository(ctx context.Context, request applicationscm.EnsureRepositoryRequest) (domainscm.RepositoryState, error) {
+	fake.called = "ensure_repository"
+	fake.lastEnsureRepositorySpec = request.Spec
+	return domainscm.RepositoryState{Path: request.Spec.Path, Branch: request.Spec.TargetBranch, Base: request.Spec.BaseBranch, HeadSHA: "abc"}, fake.err
 }
-func (fake *fakeSCMService) SyncWorktree(ctx context.Context, request applicationscm.SyncWorktreeRequest) (domainscm.WorktreeState, error) {
-	fake.called = "sync_worktree"
-	return domainscm.WorktreeState{Path: request.Path, Branch: "feature", Base: "main", HeadSHA: "abc"}, fake.err
+func (fake *fakeSCMService) SyncRepository(ctx context.Context, request applicationscm.SyncRepositoryRequest) (domainscm.RepositoryState, error) {
+	fake.called = "sync_repository"
+	return domainscm.RepositoryState{Path: request.Path, Branch: "feature", Base: "main", HeadSHA: "abc"}, fake.err
 }
-func (fake *fakeSCMService) CleanupWorktree(ctx context.Context, request applicationscm.CleanupWorktreeRequest) error {
-	fake.called = "cleanup_worktree"
+func (fake *fakeSCMService) CleanupRepository(ctx context.Context, request applicationscm.CleanupRepositoryRequest) error {
+	fake.called = "cleanup_repository"
 	return fake.err
 }
 func (fake *fakeSCMService) EnsureBranch(ctx context.Context, request applicationscm.EnsureBranchRequest) (domainscm.BranchState, error) {
@@ -60,27 +60,27 @@ func (fake *fakeSCMService) CheckMergeReadiness(ctx context.Context, request app
 	return domainscm.MergeReadiness{CanMerge: true}, fake.err
 }
 
-func TestSCMWorkflowHandlerDispatchesEnsureWorktree(t *testing.T) {
+func TestSCMWorkflowHandlerDispatchesEnsureRepository(t *testing.T) {
 	service := &fakeSCMService{}
 	handler, err := NewSCMWorkflowHandler(service)
 	if err != nil {
 		t.Fatalf("new handler: %v", err)
 	}
 
-	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "ensure_worktree", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1", BaseBranch: "main", TargetBranch: "feature", WorktreePath: "/tmp/worktree", SyncStrategy: "merge"})
+	payload, _ := json.Marshal(SCMWorkflowPayload{Operation: "ensure_repository", Provider: "github", Owner: "acme", Repository: "repo", RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1", BaseBranch: "main", TargetBranch: "feature", RepositoryPath: "/tmp/repository", SyncStrategy: "merge"})
 	err = handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
-	if service.called != "ensure_worktree" {
-		t.Fatalf("expected ensure_worktree call, got %q", service.called)
+	if service.called != "ensure_repository" {
+		t.Fatalf("expected ensure_repository call, got %q", service.called)
 	}
-	if service.lastEnsureWorktreeSpec.SyncStrategy != domainscm.SyncStrategyMerge {
-		t.Fatalf("expected merge sync strategy, got %q", service.lastEnsureWorktreeSpec.SyncStrategy)
+	if service.lastEnsureRepositorySpec.SyncStrategy != domainscm.SyncStrategyMerge {
+		t.Fatalf("expected merge sync strategy, got %q", service.lastEnsureRepositorySpec.SyncStrategy)
 	}
 }
 
-func TestSCMWorkflowHandlerScopesRelativeWorktreePathByProject(t *testing.T) {
+func TestSCMWorkflowHandlerScopesRelativeRepositoryPathByProject(t *testing.T) {
 	service := &fakeSCMService{}
 	handler, err := NewSCMWorkflowHandler(service)
 	if err != nil {
@@ -88,7 +88,7 @@ func TestSCMWorkflowHandlerScopesRelativeWorktreePathByProject(t *testing.T) {
 	}
 
 	payload, _ := json.Marshal(SCMWorkflowPayload{
-		Operation:      "ensure_worktree",
+		Operation:      "ensure_repository",
 		Provider:       "github",
 		Owner:          "acme",
 		Repository:     "repo",
@@ -99,14 +99,14 @@ func TestSCMWorkflowHandlerScopesRelativeWorktreePathByProject(t *testing.T) {
 		IdempotencyKey: "id-1",
 		BaseBranch:     "main",
 		TargetBranch:   "feature",
-		WorktreePath:   "task-1",
+		RepositoryPath:   "task-1",
 		SyncStrategy:   "merge",
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
-	if service.lastEnsureWorktreeSpec.Path != "project-1/worktrees/task-1" {
-		t.Fatalf("expected project-scoped worktree path, got %q", service.lastEnsureWorktreeSpec.Path)
+	if service.lastEnsureRepositorySpec.Path != "project-1/repositories/task-1" {
+		t.Fatalf("expected project-scoped repository path, got %q", service.lastEnsureRepositorySpec.Path)
 	}
 }
 
@@ -172,7 +172,7 @@ func TestSCMWorkflowHandlerExecutesWhenCheckpointStepDiffers(t *testing.T) {
 	payload, _ := json.Marshal(SCMWorkflowPayload{
 		Operation: "source_state", Provider: "github", Owner: "acme", Repository: "repo",
 		RunID: "run-1", TaskID: "task-1", JobID: "job-1", IdempotencyKey: "id-1",
-		CompletedCheckpoint: &taskengine.Checkpoint{Step: "ensure_worktree", Token: "id-1"},
+		CompletedCheckpoint: &taskengine.Checkpoint{Step: "ensure_repository", Token: "id-1"},
 	})
 	if err := handler.Handle(context.Background(), taskengine.Job{Kind: taskengine.JobKindSCMWorkflow, Payload: payload}); err != nil {
 		t.Fatalf("handle: %v", err)

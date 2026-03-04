@@ -3,7 +3,7 @@ import '../schema/schema.graphql.dart';
 import '../schema/scm.graphql.dart';
 import '../schema/supervisor.graphql.dart';
 import 'dart:async';
-import 'package:agentic_worktrees/shared/graph/scalars/date_time_scalar.dart';
+import 'package:agentic_repositories/shared/graph/scalars/date_time_scalar.dart';
 import 'package:gql/ast.dart';
 import 'package:graphql/client.dart' as graphql;
 

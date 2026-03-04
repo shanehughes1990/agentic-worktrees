@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/shared/logging/app_logger.dart';
+import 'package:agentic_repositories/shared/logging/app_logger.dart';
 import 'package:graphql/client.dart';
 
 Uri canonicalGraphqlHttpUri(String endpoint) {

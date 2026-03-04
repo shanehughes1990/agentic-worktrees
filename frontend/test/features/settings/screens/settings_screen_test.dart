@@ -1,4 +1,4 @@
-import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
+import 'package:agentic_repositories/features/settings/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

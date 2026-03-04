@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:agentic_worktrees/app/app.dart';
-import 'package:agentic_worktrees/shared/logging/app_logger.dart';
+import 'package:agentic_repositories/app/app.dart';
+import 'package:agentic_repositories/shared/logging/app_logger.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,7 +22,7 @@ Future<void> main() async {
       };
 
       logger.i('Launching desktop app');
-      runApp(const ProviderScope(child: AgenticWorktreesApp()));
+      runApp(const ProviderScope(child: AgenticRepositoriesApp()));
     },
     (Object error, StackTrace stackTrace) {
       final logger = AppLogger.instance.logger;

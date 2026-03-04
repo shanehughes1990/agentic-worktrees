@@ -17,7 +17,7 @@ func TestCheckpointMatchesRejectsTokenMismatch(t *testing.T) {
 }
 
 func TestCheckpointMatchesRejectsStepMismatch(t *testing.T) {
-	checkpoint := &Checkpoint{Step: "ensure_worktree", Token: "id-1"}
+	checkpoint := &Checkpoint{Step: "ensure_repository", Token: "id-1"}
 	if CheckpointMatches(checkpoint, "source_state", "id-1") {
 		t.Fatalf("expected checkpoint step mismatch")
 	}
@@ -36,7 +36,7 @@ func TestCheckpointMatchesRejectsEmptyExpectedValues(t *testing.T) {
 func TestRetryCheckpointContractPrefersResumeCheckpoint(t *testing.T) {
 	contract := RetryCheckpointContract{
 		ResumeCheckpoint:    &Checkpoint{Step: "source_state", Token: "id-1"},
-		CompletedCheckpoint: &Checkpoint{Step: "ensure_worktree", Token: "id-1"},
+		CompletedCheckpoint: &Checkpoint{Step: "ensure_repository", Token: "id-1"},
 	}
 	if !contract.Matches("source_state", "id-1") {
 		t.Fatalf("expected resume checkpoint to take precedence")

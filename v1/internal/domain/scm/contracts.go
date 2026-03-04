@@ -106,18 +106,18 @@ func (strategy SyncStrategy) Canonical() SyncStrategy {
 	return SyncStrategy(normalized)
 }
 
-type WorktreeSpec struct {
+type RepositorySpec struct {
 	BaseBranch   string
 	TargetBranch string
 	Path         string
 	SyncStrategy SyncStrategy
 }
 
-func (spec WorktreeSpec) EffectiveSyncStrategy() SyncStrategy {
+func (spec RepositorySpec) EffectiveSyncStrategy() SyncStrategy {
 	return spec.SyncStrategy.Canonical()
 }
 
-func (spec WorktreeSpec) Validate() error {
+func (spec RepositorySpec) Validate() error {
 	if strings.TrimSpace(spec.BaseBranch) == "" {
 		return failures.WrapTerminal(errors.New("base_branch is required"))
 	}
@@ -135,7 +135,7 @@ func (spec WorktreeSpec) Validate() error {
 	return nil
 }
 
-type WorktreeState struct {
+type RepositoryState struct {
 	Path      string
 	Branch    string
 	Base      string
@@ -144,7 +144,7 @@ type WorktreeState struct {
 	IsCleaned bool
 }
 
-func (state WorktreeState) Validate() error {
+func (state RepositoryState) Validate() error {
 	if strings.TrimSpace(state.Path) == "" {
 		return failures.WrapTerminal(errors.New("path is required"))
 	}
@@ -332,9 +332,9 @@ func (spec MergePullRequestSpec) Validate() error {
 
 type Orchestrator interface {
 	SourceState(ctx context.Context, repository Repository) (SourceState, error)
-	EnsureWorktree(ctx context.Context, repository Repository, spec WorktreeSpec) (WorktreeState, error)
-	SyncWorktree(ctx context.Context, repository Repository, path string) (WorktreeState, error)
-	CleanupWorktree(ctx context.Context, repository Repository, path string) error
+	EnsureRepository(ctx context.Context, repository Repository, spec RepositorySpec) (RepositoryState, error)
+	SyncRepository(ctx context.Context, repository Repository, path string) (RepositoryState, error)
+	CleanupRepository(ctx context.Context, repository Repository, path string) error
 	EnsureBranch(ctx context.Context, repository Repository, spec BranchSpec) (BranchState, error)
 	SyncBranch(ctx context.Context, repository Repository, branchName string) (BranchState, error)
 	CreateOrUpdatePullRequest(ctx context.Context, spec PullRequestSpec) (PullRequestState, error)

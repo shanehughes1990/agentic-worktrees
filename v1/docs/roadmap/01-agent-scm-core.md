@@ -22,7 +22,7 @@ Deliver SCM and agent orchestration with strict DDD boundaries, then harden reli
 Implement a complete GitHub-first SCM vertical slice across API admission, taskengine dispatch, worker execution, and infrastructure adapters:
 
 - Source-state operations
-- Worktree lifecycle (`create`, `sync/update`, `cleanup`)
+- Repository checkout lifecycle (`create`, `sync/update`, `cleanup`)
 - Branch lifecycle
 - Pull request lifecycle
 - Review lifecycle
@@ -30,7 +30,7 @@ Implement a complete GitHub-first SCM vertical slice across API admission, taske
 
 ### Task Checklist
 
-- [x] Define `internal/domain/scm` contracts and invariants for source/worktree/branch/PR/review/merge-intent.
+- [x] Define `internal/domain/scm` contracts and invariants for source/repository/branch/PR/review/merge-intent.
 - [x] Implement `internal/application/scm` use-cases for full SCM management flows.
 - [x] Add SCM API admission contract (GraphQL/control-plane).
 - [x] Add SCM job kind/policy wiring in taskengine for queue, idempotency, timeout, and retry defaults.
@@ -82,7 +82,7 @@ The `.docs/agent-orchestrator` review reinforced the following patterns, which a
 
 ## Deliverables
 
-- GitHub-first SCM contracts and adapters for source/worktree/branch/PR/review/merge-intent.
+- GitHub-first SCM contracts and adapters for source/repository/branch/PR/review/merge-intent.
 - Agent orchestration contracts that compose SCM through ports.
 - Durable reliability foundation in Postgres for retries, execution status, admission, dead-letter auditing, and SCM lease coordination.
 - AO-aligned runtime execution patterns codified as Slice 01 baseline behavior.

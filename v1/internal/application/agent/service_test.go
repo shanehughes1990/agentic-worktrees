@@ -22,15 +22,15 @@ func (fake *fakeSCMPort) SourceState(_ context.Context, repository domainscm.Rep
 	return fake.sourceState, fake.sourceStateErr
 }
 
-func (fake *fakeSCMPort) EnsureWorktree(_ context.Context, _ domainscm.Repository, _ domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
-	return domainscm.WorktreeState{}, nil
+func (fake *fakeSCMPort) EnsureRepository(_ context.Context, _ domainscm.Repository, _ domainscm.RepositorySpec) (domainscm.RepositoryState, error) {
+	return domainscm.RepositoryState{}, nil
 }
 
-func (fake *fakeSCMPort) SyncWorktree(_ context.Context, _ domainscm.Repository, _ string) (domainscm.WorktreeState, error) {
-	return domainscm.WorktreeState{}, nil
+func (fake *fakeSCMPort) SyncRepository(_ context.Context, _ domainscm.Repository, _ string) (domainscm.RepositoryState, error) {
+	return domainscm.RepositoryState{}, nil
 }
 
-func (fake *fakeSCMPort) CleanupWorktree(_ context.Context, _ domainscm.Repository, _ string) error {
+func (fake *fakeSCMPort) CleanupRepository(_ context.Context, _ domainscm.Repository, _ string) error {
 	return nil
 }
 

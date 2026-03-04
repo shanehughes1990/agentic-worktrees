@@ -11,34 +11,34 @@ import (
 
 type fakeOrchestrator struct {
 	sourceStateResult      domainscm.SourceState
-	worktreeStateResult    domainscm.WorktreeState
+	repositoryStateResult    domainscm.RepositoryState
 	branchStateResult      domainscm.BranchState
 	pullRequestState       domainscm.PullRequestState
 	reviewDecision         domainscm.ReviewDecision
 	mergeReadiness         domainscm.MergeReadiness
 	sourceStateErr         error
-	ensureWorktreeErr      error
-	cleanupWorktreeErr     error
+	ensureRepositoryErr      error
+	cleanupRepositoryErr     error
 	createPullRequestErr   error
 	checkMergeReadinessErr error
-	capturedWorktreeSpec   domainscm.WorktreeSpec
+	capturedRepositorySpec   domainscm.RepositorySpec
 }
 
 func (fake *fakeOrchestrator) SourceState(_ context.Context, _ domainscm.Repository) (domainscm.SourceState, error) {
 	return fake.sourceStateResult, fake.sourceStateErr
 }
 
-func (fake *fakeOrchestrator) EnsureWorktree(_ context.Context, _ domainscm.Repository, spec domainscm.WorktreeSpec) (domainscm.WorktreeState, error) {
-	fake.capturedWorktreeSpec = spec
-	return fake.worktreeStateResult, fake.ensureWorktreeErr
+func (fake *fakeOrchestrator) EnsureRepository(_ context.Context, _ domainscm.Repository, spec domainscm.RepositorySpec) (domainscm.RepositoryState, error) {
+	fake.capturedRepositorySpec = spec
+	return fake.repositoryStateResult, fake.ensureRepositoryErr
 }
 
-func (fake *fakeOrchestrator) SyncWorktree(_ context.Context, _ domainscm.Repository, _ string) (domainscm.WorktreeState, error) {
-	return fake.worktreeStateResult, nil
+func (fake *fakeOrchestrator) SyncRepository(_ context.Context, _ domainscm.Repository, _ string) (domainscm.RepositoryState, error) {
+	return fake.repositoryStateResult, nil
 }
 
-func (fake *fakeOrchestrator) CleanupWorktree(_ context.Context, _ domainscm.Repository, _ string) error {
-	return fake.cleanupWorktreeErr
+func (fake *fakeOrchestrator) CleanupRepository(_ context.Context, _ domainscm.Repository, _ string) error {
+	return fake.cleanupRepositoryErr
 }
 
 func (fake *fakeOrchestrator) EnsureBranch(_ context.Context, _ domainscm.Repository, _ domainscm.BranchSpec) (domainscm.BranchState, error) {
@@ -102,11 +102,11 @@ func TestSourceStateRejectsInvalidMetadata(t *testing.T) {
 	}
 }
 
-func TestEnsureWorktreeClassifiesUnknownErrorsAsTransient(t *testing.T) {
+func TestEnsureRepositoryClassifiesUnknownErrorsAsTransient(t *testing.T) {
 	orchestrator := &fakeOrchestrator{
-		ensureWorktreeErr: errors.New("temporary transport failure"),
-		worktreeStateResult: domainscm.WorktreeState{
-			Path:    "/tmp/worktrees/run-1-task-1",
+		ensureRepositoryErr: errors.New("temporary transport failure"),
+		repositoryStateResult: domainscm.RepositoryState{
+			Path:    "/tmp/repositories/run-1-task-1",
 			Branch:  "feature/one",
 			Base:    "main",
 			HeadSHA: "abc123",
@@ -117,9 +117,9 @@ func TestEnsureWorktreeClassifiesUnknownErrorsAsTransient(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	_, ensureErr := service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+	_, ensureErr := service.EnsureRepository(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktrees/run-1-task-1"},
+		Spec:       domainscm.RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repositories/run-1-task-1"},
 		Metadata:   validMetadata(),
 	})
 	if !failures.IsClass(ensureErr, failures.ClassTransient) {
@@ -127,16 +127,16 @@ func TestEnsureWorktreeClassifiesUnknownErrorsAsTransient(t *testing.T) {
 	}
 }
 
-func TestEnsureWorktreeClassifiesLeaseAcquireUnknownErrorAsTransient(t *testing.T) {
-	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{Path: "/tmp/worktree", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
+func TestEnsureRepositoryClassifiesLeaseAcquireUnknownErrorAsTransient(t *testing.T) {
+	orchestrator := &fakeOrchestrator{repositoryStateResult: domainscm.RepositoryState{Path: "/tmp/repository", Branch: "feature/one", Base: "main", HeadSHA: "abc"}}
 	service, err := NewServiceWithLeaseManager(orchestrator, &fakeLeaseManagerForService{acquireErr: errors.New("lease backend unavailable")})
 	if err != nil {
 		t.Fatalf("new service with lease manager: %v", err)
 	}
 
-	_, ensureErr := service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+	_, ensureErr := service.EnsureRepository(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktree"},
+		Spec:       domainscm.RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repository"},
 		Metadata:   validMetadata(),
 	})
 	if !failures.IsClass(ensureErr, failures.ClassTransient) {
@@ -144,9 +144,9 @@ func TestEnsureWorktreeClassifiesLeaseAcquireUnknownErrorAsTransient(t *testing.
 	}
 }
 
-func TestEnsureWorktreeDefaultsSyncStrategyToMerge(t *testing.T) {
-	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{
-		Path:    "/tmp/worktrees/run-1-task-1",
+func TestEnsureRepositoryDefaultsSyncStrategyToMerge(t *testing.T) {
+	orchestrator := &fakeOrchestrator{repositoryStateResult: domainscm.RepositoryState{
+		Path:    "/tmp/repositories/run-1-task-1",
 		Branch:  "feature/one",
 		Base:    "main",
 		HeadSHA: "abc123",
@@ -156,22 +156,22 @@ func TestEnsureWorktreeDefaultsSyncStrategyToMerge(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	_, ensureErr := service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+	_, ensureErr := service.EnsureRepository(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec:       domainscm.WorktreeSpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/worktrees/run-1-task-1"},
+		Spec:       domainscm.RepositorySpec{BaseBranch: "main", TargetBranch: "feature/one", Path: "/tmp/repositories/run-1-task-1"},
 		Metadata:   validMetadata(),
 	})
 	if ensureErr != nil {
-		t.Fatalf("ensure worktree: %v", ensureErr)
+		t.Fatalf("ensure repository: %v", ensureErr)
 	}
-	if orchestrator.capturedWorktreeSpec.SyncStrategy != domainscm.SyncStrategyMerge {
-		t.Fatalf("expected sync strategy merge, got %q", orchestrator.capturedWorktreeSpec.SyncStrategy)
+	if orchestrator.capturedRepositorySpec.SyncStrategy != domainscm.SyncStrategyMerge {
+		t.Fatalf("expected sync strategy merge, got %q", orchestrator.capturedRepositorySpec.SyncStrategy)
 	}
 }
 
-func TestEnsureWorktreePanicsWhenRebaseStrategyIsSelected(t *testing.T) {
-	orchestrator := &fakeOrchestrator{worktreeStateResult: domainscm.WorktreeState{
-		Path:    "/tmp/worktrees/run-1-task-1",
+func TestEnsureRepositoryPanicsWhenRebaseStrategyIsSelected(t *testing.T) {
+	orchestrator := &fakeOrchestrator{repositoryStateResult: domainscm.RepositoryState{
+		Path:    "/tmp/repositories/run-1-task-1",
 		Branch:  "feature/one",
 		Base:    "main",
 		HeadSHA: "abc123",
@@ -185,12 +185,12 @@ func TestEnsureWorktreePanicsWhenRebaseStrategyIsSelected(t *testing.T) {
 			t.Fatalf("expected panic for rebase sync strategy")
 		}
 	}()
-	_, _ = service.EnsureWorktree(context.Background(), EnsureWorktreeRequest{
+	_, _ = service.EnsureRepository(context.Background(), EnsureRepositoryRequest{
 		Repository: domainscm.Repository{Provider: "github", Owner: "acme", Name: "repo"},
-		Spec: domainscm.WorktreeSpec{
+		Spec: domainscm.RepositorySpec{
 			BaseBranch:   "main",
 			TargetBranch: "feature/one",
-			Path:         "/tmp/worktrees/run-1-task-1",
+			Path:         "/tmp/repositories/run-1-task-1",
 			SyncStrategy: domainscm.SyncStrategyRebase,
 		},
 		Metadata: validMetadata(),

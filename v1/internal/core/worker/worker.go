@@ -17,6 +17,7 @@ import (
 	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
+	infrastructureingestion "agentic-orchestrator/internal/infrastructure/ingestion"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
@@ -202,13 +203,13 @@ func (app *WorkerApp) Run() error {
 		if err := os.MkdirAll(repoPath, 0o755); err != nil {
 			return nil, fmt.Errorf("create project repository path: %w", err)
 		}
-		worktreeRootPath := app.config.ProjectsPath()
-		if err := os.MkdirAll(worktreeRootPath, 0o755); err != nil {
-			return nil, fmt.Errorf("create project worktree root path: %w", err)
+		repositoryRootPath := app.config.ProjectsPath()
+		if err := os.MkdirAll(repositoryRootPath, 0o755); err != nil {
+			return nil, fmt.Errorf("create project repository root path: %w", err)
 		}
 		githubAdapter, adapterErr := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
 			RepoPath:         repoPath,
-			WorktreeRootPath: worktreeRootPath,
+			RepositoryRootPath: repositoryRootPath,
 			RepositoryURL:    strings.TrimSpace(repositoryURL),
 		}, nil, infrascm.NewStaticTokenProvider(scm.SCMToken), infrascm.NewExecGitRunner())
 		if adapterErr != nil {
@@ -242,7 +243,15 @@ func (app *WorkerApp) Run() error {
 		}
 		return nil
 	})
-	ingestionService, err := applicationingestion.NewService(trackerStore, ingestionArtifactFetcher)
+	ingestionAgentRunner, err := infrastructureingestion.NewCopilotCLIRunner("")
+	if err != nil {
+		return fmt.Errorf("init ingestion copilot cli runner: %w", err)
+	}
+	ingestionRepositorySynchronizer, err := infrastructureingestion.NewGitRepositorySynchronizer("", app.config.ProjectsPath())
+	if err != nil {
+		return fmt.Errorf("init ingestion repository synchronizer: %w", err)
+	}
+	ingestionService, err := applicationingestion.NewService(trackerStore, ingestionArtifactFetcher, ingestionAgentRunner, ingestionRepositorySynchronizer)
 	if err != nil {
 		return fmt.Errorf("init ingestion service: %w", err)
 	}
@@ -937,8 +946,8 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				}
 				continue
 			}
-			worktreePath := filepath.Join(projectID, "worktrees", "source", repositoryID)
-			if _, syncErr := scmService.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repo, Path: worktreePath, Metadata: metadata}); syncErr == nil {
+			repositoryPath := filepath.Join(projectID, "repositories", "source", repositoryID)
+			if _, syncErr := scmService.SyncRepository(ctx, applicationscm.SyncRepositoryRequest{Repository: repo, Path: repositoryPath, Metadata: metadata}); syncErr == nil {
 				syncedRepositories++
 				if entry != nil {
 					entry.WithFields(map[string]any{
@@ -948,17 +957,17 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 						"repository_id": repositoryID,
 						"owner":         owner,
 						"repository":    repositoryName,
-						"worktree_path": worktreePath,
+						"repository_path": repositoryPath,
 					}).Debug("repository reconcile sync completed")
 				}
 				continue
 			}
-			if _, ensureErr := scmService.EnsureWorktree(ctx, applicationscm.EnsureWorktreeRequest{
+			if _, ensureErr := scmService.EnsureRepository(ctx, applicationscm.EnsureRepositoryRequest{
 				Repository: repo,
-				Spec: domainscm.WorktreeSpec{
+				Spec: domainscm.RepositorySpec{
 					BaseBranch:   state.DefaultBranch,
 					TargetBranch: state.DefaultBranch,
-					Path:         worktreePath,
+					Path:         repositoryPath,
 					SyncStrategy: domainscm.SyncStrategyMerge,
 				},
 				Metadata: metadata,
@@ -972,12 +981,12 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 						"repository_id": repositoryID,
 						"owner":         owner,
 						"repository":    repositoryName,
-						"worktree_path": worktreePath,
-					}).Debug("failed to ensure worktree during repository reconcile")
+						"repository_path": repositoryPath,
+					}).Debug("failed to ensure repository during repository reconcile")
 				}
 				continue
 			}
-			if _, syncErr := scmService.SyncWorktree(ctx, applicationscm.SyncWorktreeRequest{Repository: repo, Path: worktreePath, Metadata: metadata}); syncErr != nil {
+			if _, syncErr := scmService.SyncRepository(ctx, applicationscm.SyncRepositoryRequest{Repository: repo, Path: repositoryPath, Metadata: metadata}); syncErr != nil {
 				skippedRepositories++
 				if entry != nil {
 					entry.WithError(syncErr).WithFields(map[string]any{
@@ -987,8 +996,8 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 						"repository_id": repositoryID,
 						"owner":         owner,
 						"repository":    repositoryName,
-						"worktree_path": worktreePath,
-					}).Debug("failed to sync worktree after ensure during repository reconcile")
+						"repository_path": repositoryPath,
+					}).Debug("failed to sync repository after ensure during repository reconcile")
 				}
 				continue
 			}
@@ -1001,7 +1010,7 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 					"repository_id": repositoryID,
 					"owner":         owner,
 					"repository":    repositoryName,
-					"worktree_path": worktreePath,
+					"repository_path": repositoryPath,
 				}).Debug("repository reconcile ensure+sync completed")
 			}
 		}

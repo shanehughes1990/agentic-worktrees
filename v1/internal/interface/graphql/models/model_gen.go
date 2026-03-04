@@ -731,9 +731,9 @@ type SCMOperation string
 
 const (
 	SCMOperationSourceState         SCMOperation = "SOURCE_STATE"
-	SCMOperationEnsureWorktree      SCMOperation = "ENSURE_WORKTREE"
-	SCMOperationSyncWorktree        SCMOperation = "SYNC_WORKTREE"
-	SCMOperationCleanupWorktree     SCMOperation = "CLEANUP_WORKTREE"
+	SCMOperationEnsureRepository      SCMOperation = "ENSURE_REPOSITORY"
+	SCMOperationSyncRepository        SCMOperation = "SYNC_REPOSITORY"
+	SCMOperationCleanupRepository     SCMOperation = "CLEANUP_REPOSITORY"
 	SCMOperationEnsureBranch        SCMOperation = "ENSURE_BRANCH"
 	SCMOperationSyncBranch          SCMOperation = "SYNC_BRANCH"
 	SCMOperationUpsertPullRequest   SCMOperation = "UPSERT_PULL_REQUEST"
@@ -745,9 +745,9 @@ const (
 
 var AllSCMOperation = []SCMOperation{
 	SCMOperationSourceState,
-	SCMOperationEnsureWorktree,
-	SCMOperationSyncWorktree,
-	SCMOperationCleanupWorktree,
+	SCMOperationEnsureRepository,
+	SCMOperationSyncRepository,
+	SCMOperationCleanupRepository,
 	SCMOperationEnsureBranch,
 	SCMOperationSyncBranch,
 	SCMOperationUpsertPullRequest,
@@ -759,7 +759,7 @@ var AllSCMOperation = []SCMOperation{
 
 func (e SCMOperation) IsValid() bool {
 	switch e {
-	case SCMOperationSourceState, SCMOperationEnsureWorktree, SCMOperationSyncWorktree, SCMOperationCleanupWorktree, SCMOperationEnsureBranch, SCMOperationSyncBranch, SCMOperationUpsertPullRequest, SCMOperationGetPullRequest, SCMOperationSubmitReview, SCMOperationCheckMergeReadiness, SCMOperationMergePullRequest:
+	case SCMOperationSourceState, SCMOperationEnsureRepository, SCMOperationSyncRepository, SCMOperationCleanupRepository, SCMOperationEnsureBranch, SCMOperationSyncBranch, SCMOperationUpsertPullRequest, SCMOperationGetPullRequest, SCMOperationSubmitReview, SCMOperationCheckMergeReadiness, SCMOperationMergePullRequest:
 		return true
 	}
 	return false

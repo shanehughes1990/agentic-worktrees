@@ -1,18 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:agentic_worktrees/features/dashboard/logic/dashboard_workflow_logic.dart';
-import 'package:agentic_worktrees/features/dashboard/widgets/dashboard_home_view.dart';
-import 'package:agentic_worktrees/features/projects/logic/project_setup_logic.dart';
-import 'package:agentic_worktrees/features/projects/screens/project_dashboard_screen.dart';
-import 'package:agentic_worktrees/features/projects/screens/project_setup_screen.dart';
-import 'package:agentic_worktrees/features/settings/logic/connection_settings_logic.dart';
-import 'package:agentic_worktrees/features/settings/screens/settings_screen.dart';
-import 'package:agentic_worktrees/features/workers/screens/worker_sessions_screen.dart';
-import 'package:agentic_worktrees/features/workers/screens/worker_settings_screen.dart';
-import 'package:agentic_worktrees/shared/config/app_config.dart';
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
-import 'package:agentic_worktrees/shared/logging/app_logger.dart';
+import 'package:agentic_repositories/features/dashboard/logic/dashboard_workflow_logic.dart';
+import 'package:agentic_repositories/features/dashboard/widgets/dashboard_home_view.dart';
+import 'package:agentic_repositories/features/projects/logic/project_setup_logic.dart';
+import 'package:agentic_repositories/features/projects/screens/project_dashboard_screen.dart';
+import 'package:agentic_repositories/features/projects/screens/project_setup_screen.dart';
+import 'package:agentic_repositories/features/settings/logic/connection_settings_logic.dart';
+import 'package:agentic_repositories/features/settings/screens/settings_screen.dart';
+import 'package:agentic_repositories/features/workers/screens/worker_sessions_screen.dart';
+import 'package:agentic_repositories/features/workers/screens/worker_settings_screen.dart';
+import 'package:agentic_repositories/shared/config/app_config.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/shared/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -449,7 +449,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: Align(
                   alignment: Alignment.bottomLeft,
                   child: Text(
-                    'Agentic Worktrees',
+                    'Agentic Repositories',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                 ),

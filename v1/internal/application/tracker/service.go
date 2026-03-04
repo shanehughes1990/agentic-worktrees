@@ -79,7 +79,7 @@ type ApplyTaskResultRequest struct {
 	OutcomeStatus   string
 	OutcomeReason   string
 	TaskBranch      string
-	Worktree        string
+	Repository        string
 	ResumeSessionID string
 }
 
@@ -213,7 +213,7 @@ func (service *Service) ApplyTaskResult(ctx context.Context, request ApplyTaskRe
 		Status:          strings.TrimSpace(request.OutcomeStatus),
 		Reason:          strings.TrimSpace(request.OutcomeReason),
 		TaskBranch:      strings.TrimSpace(request.TaskBranch),
-		Worktree:        strings.TrimSpace(request.Worktree),
+		Repository:        strings.TrimSpace(request.Repository),
 		ResumeSessionID: strings.TrimSpace(request.ResumeSessionID),
 		UpdatedAt:       time.Now().UTC(),
 	}

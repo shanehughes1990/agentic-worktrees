@@ -1,6 +1,6 @@
-# 🚀 Agentic Worktrees
+# 🚀 Agentic Repositories
 
-Welcome! 🎉 `agentic-worktrees` is a Go-powered orchestration system that turns scoped docs into execution-ready taskboards, then runs tasks through isolated Git worktrees with queue-backed workflows.
+Welcome! 🎉 `agentic-repositories` is a Go-powered orchestration system that turns scoped docs into execution-ready taskboards, then runs tasks through isolated Git repositories with queue-backed workflows.
 
 Think of it as: **ingest docs ➜ generate board ➜ execute safely in parallel ➜ track workflow status** ✨
 
@@ -21,7 +21,7 @@ Road to V1: see [`docs/VERSION_1_ROADMAP.md`](docs/VERSION_1_ROADMAP.md).
 - 📥 Ingests a **file or folder** as source input
 - 🧠 Builds/normalizes documentation for decomposition
 - 🗂️ Produces taskboards and stores board/workflow state on disk
-- 🌲 Executes task flows in isolated Git worktrees
+- 🌲 Executes task flows in isolated Git repositories
 - 🧵 Uses Redis + Asynq for resilient queue/workflow processing
 - 🖥️ Provides an interactive terminal dashboard for operations
 
@@ -35,7 +35,7 @@ You’ll need these installed/running:
 | ----------------------- | ----------------------------------------------- | ---------------------- |
 | Go 1.25.3+              | Build and run the app                           | Yes                    |
 | Redis 7+                | Queue backend for Asynq workflows               | Yes                    |
-| Git                     | Worktree and merge flow execution               | Yes                    |
+| Git                     | Repository checkout and merge flow execution    | Yes                    |
 | GitHub Copilot CLI/auth | Decomposition + conflict-resolution agent calls | Yes for agent features |
 | Docker (optional)       | Easy local Redis/Asynqmon via docker-compose    | No                     |
 | Task CLI (optional)     | Convenience runner for `task` command           | No                     |
@@ -79,7 +79,7 @@ go run ./v1/cmd/main.go
   - choose source type (`folder` or `file`)
   - if `folder`, configure walk depth + ignore paths/extensions
   - execute and auto-redirect to workflow status
-- **Worktrees**:
+- **Repositories**:
   - select board
   - choose source branch
   - run/monitor task execution pipeline
@@ -88,12 +88,12 @@ go run ./v1/cmd/main.go
 
 ## 🗃️ Runtime Filesystem Layout
 
-All runtime artifacts are rooted at `APP_ROOT_DIR` (default `.worktree`):
+All runtime artifacts are rooted at `APP_ROOT_DIR` (default `.agentic-orchestrator`):
 
 - `logs/` → application logs
 - `taskboards/` → board JSON files
 - `workflows/` → workflow/run/job JSON files
-- `worktrees/` → git worktree directories used during execution
+- `repositories/` → git repository directories used during execution
 
 ---
 
@@ -101,24 +101,24 @@ All runtime artifacts are rooted at `APP_ROOT_DIR` (default `.worktree`):
 
 The table below documents all currently supported public env vars.
 
-| Variable                      | Description                                                                                                    | Default               | Required |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------- | -------- |
-| `APP_ROOT_DIR`                | Runtime root directory for logs, taskboards, workflows, and worktrees. Must be repo-relative and not `.`/`..`. | `.worktree`           | No       |
-| `LOG_FORMAT`                  | Log output format (`text` or `json`).                                                                          | `text`                | No       |
-| `LOG_LEVEL`                   | Log level (`debug`, `info`, `warn`, `error`, `fatal`, `panic`).                                                | `info`                | No       |
-| `REDIS_URI`                   | Redis connection URI used by Asynq client/server.                                                              | _(none)_              | Yes      |
-| `COPILOT_MODEL`               | Preferred model for Copilot decomposition requests.                                                            | _(none)_              | No       |
-| `GITHUB_TOKEN`                | GitHub token passed to Copilot client when provided.                                                           | _(none)_              | No       |
-| `COPILOT_CLI_PATH`            | Override path to Copilot CLI executable.                                                                       | _(none)_              | No       |
-| `COPILOT_CLI_URL`             | Optional Copilot CLI endpoint override.                                                                        | _(none)_              | No       |
-| `COPILOT_AUTH_STATUS_COMMAND` | Command used to check Copilot auth status.                                                                     | `copilot auth status` | No       |
-| `COPILOT_AUTH_LOGIN_COMMAND`  | Command used to trigger Copilot login flow.                                                                    | `copilot auth login`  | No       |
-| `COPILOT_SKILL_DIRECTORIES`   | Comma-separated skill directories for Copilot context.                                                         | _(none)_              | No       |
+| Variable                      | Description                                                                                                       | Default                 | Required |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------- | -------- |
+| `APP_ROOT_DIR`                | Runtime root directory for logs, taskboards, workflows, and repositories. Must be repo-relative and not `.`/`..`. | `.agentic-orchestrator` | No       |
+| `LOG_FORMAT`                  | Log output format (`text` or `json`).                                                                             | `text`                  | No       |
+| `LOG_LEVEL`                   | Log level (`debug`, `info`, `warn`, `error`, `fatal`, `panic`).                                                   | `info`                  | No       |
+| `REDIS_URI`                   | Redis connection URI used by Asynq client/server.                                                                 | _(none)_                | Yes      |
+| `COPILOT_MODEL`               | Preferred model for Copilot decomposition requests.                                                               | _(none)_                | No       |
+| `GITHUB_TOKEN`                | GitHub token passed to Copilot client when provided.                                                              | _(none)_                | No       |
+| `COPILOT_CLI_PATH`            | Override path to Copilot CLI executable.                                                                          | _(none)_                | No       |
+| `COPILOT_CLI_URL`             | Optional Copilot CLI endpoint override.                                                                           | _(none)_                | No       |
+| `COPILOT_AUTH_STATUS_COMMAND` | Command used to check Copilot auth status.                                                                        | `copilot auth status`   | No       |
+| `COPILOT_AUTH_LOGIN_COMMAND`  | Command used to trigger Copilot login flow.                                                                       | `copilot auth login`    | No       |
+| `COPILOT_SKILL_DIRECTORIES`   | Comma-separated skill directories for Copilot context.                                                            | _(none)_                | No       |
 
 ### Example `.env` 🧪
 
 ```env
-APP_ROOT_DIR=.worktree
+APP_ROOT_DIR=.agentic-orchestrator
 LOG_FORMAT=text
 LOG_LEVEL=info
 REDIS_URI=redis://localhost:6379/0

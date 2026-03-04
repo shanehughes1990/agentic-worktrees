@@ -1,6 +1,6 @@
-import 'package:agentic_worktrees/shared/graph/generated/operations/control_plane.graphql.dart'
+import 'package:agentic_repositories/shared/graph/generated/operations/control_plane.graphql.dart'
     as gql_ops;
-import 'package:agentic_worktrees/shared/graph/typed/control_plane.dart';
+import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graphql/client.dart' as graphql;
 import 'package:mockito/mockito.dart';

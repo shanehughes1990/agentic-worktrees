@@ -31,7 +31,7 @@ func TestLocalStoreEnsuresArtifactSubfolders(t *testing.T) {
 	directories := []string{
 		filepath.Join(root, "projects", "project-1", "artifacts"),
 		filepath.Join(root, "projects", "project-1", "repositories", "source"),
-		filepath.Join(root, "projects", "project-1", "worktrees"),
+		filepath.Join(root, "projects", "project-1", "repositories"),
 	}
 	for _, directory := range directories {
 		if infoErr := ensureDirectory(directory); infoErr != nil {

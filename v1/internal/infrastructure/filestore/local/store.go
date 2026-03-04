@@ -84,13 +84,13 @@ func (store *Store) SourceReposRoot(projectID string) (string, error) {
 	return store.lockedResolveArtifactDir(projectID, "repositories", "source")
 }
 
-func (store *Store) WorktreesRoot(projectID string) (string, error) {
+func (store *Store) RepositorysRoot(projectID string) (string, error) {
 	if store == nil {
 		return "", fmt.Errorf("local filestore is not initialized")
 	}
 	store.operationLock.Lock()
 	defer store.operationLock.Unlock()
-	return store.lockedResolveArtifactDir(projectID, "worktrees")
+	return store.lockedResolveArtifactDir(projectID, "repositories")
 }
 
 func (store *Store) EnsureArtifactSubfolders(projectID string) error {
@@ -102,7 +102,7 @@ func (store *Store) EnsureArtifactSubfolders(projectID string) error {
 	directories := [][]string{
 		{"artifacts"},
 		{"repositories", "source"},
-		{"worktrees"},
+		{"repositories"},
 		{"tracker"},
 		{"logs"},
 	}

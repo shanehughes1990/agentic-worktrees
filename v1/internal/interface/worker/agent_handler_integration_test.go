@@ -62,7 +62,7 @@ func TestAgentWorkflowHandlerExecutesQueuedJobThroughSCMPortAdapterPath(t *testi
 	defer server.Close()
 
 	adapter, err := infrascm.NewGitHubAdapter(
-		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", WorktreeRootPath: "/tmp/worktrees"},
+		infrascm.GitHubAdapterConfig{APIBaseURL: server.URL, RepoPath: "/tmp/repo", RepositoryRootPath: "/tmp/repositories"},
 		server.Client(),
 		infrascm.NewStaticTokenProvider("token"),
 		&failIfCalledAgentGitRunner{},
