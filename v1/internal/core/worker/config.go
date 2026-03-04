@@ -57,7 +57,7 @@ func (config Config) RepositoriesPath() string {
 }
 
 func (config Config) RepositorySourcePath() string {
-	return filepath.Join(config.RepositoriesPath(), "source")
+	return config.RepositoriesPath()
 }
 
 func (config Config) RepositorysPath() string {

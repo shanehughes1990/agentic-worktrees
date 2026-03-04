@@ -59,7 +59,8 @@ func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir
 	runner.sandboxDir = sandboxDir
 	runner.outputPath = outputPath
 	runner.model = model
-	runner.writtenBoard = `{
+	if strings.TrimSpace(runner.writtenBoard) == "" {
+		runner.writtenBoard = `{
 		"board_id": "temporary-board",
 		"run_id": "temporary-run",
 		"status": "todo",
@@ -80,6 +81,7 @@ func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir
 		"created_at": "2026-03-03T10:00:00Z",
 		"updated_at": "2026-03-03T10:00:00Z"
 	}`
+	}
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
 	}
@@ -138,6 +140,18 @@ func TestServiceExecuteGeneratesAndPersistsBoard(t *testing.T) {
 	if !strings.Contains(agentRunner.prompt, "Create a delivery taskboard.") {
 		t.Fatalf("expected user prompt in composed prompt, got %q", agentRunner.prompt)
 	}
+	if !strings.Contains(agentRunner.prompt, "treat depends_on as a required modeling tool") {
+		t.Fatalf("expected strict depends_on guidance in composed prompt")
+	}
+	if !strings.Contains(agentRunner.prompt, "Do not create duplicate or near-duplicate tasks") {
+		t.Fatalf("expected anti-duplicate guidance in composed prompt")
+	}
+	if !strings.Contains(agentRunner.prompt, "one implementation-owner task per behavior change") {
+		t.Fatalf("expected single-owner behavior guidance in composed prompt")
+	}
+	if !strings.Contains(agentRunner.prompt, "verification tasks should validate one check per task") {
+		t.Fatalf("expected one-check-per-task verification guidance in composed prompt")
+	}
 	if agentRunner.model != "gpt-5.3-codex" {
 		t.Fatalf("expected model gpt-5.3-codex, got %q", agentRunner.model)
 	}
@@ -159,8 +173,53 @@ func TestServiceExecuteGeneratesAndPersistsBoard(t *testing.T) {
 	if board.Source.Kind != domaintracker.SourceKindInternal {
 		t.Fatalf("expected internal source kind, got %q", board.Source.Kind)
 	}
+	if board.Metadata == nil {
+		t.Fatalf("expected board metadata to be populated")
+	}
+	if strings.TrimSpace(fmt.Sprintf("%v", board.Metadata["source_branch"])) != "develop" {
+		t.Fatalf("expected board metadata source_branch=develop, got %v", board.Metadata["source_branch"])
+	}
+	if len(board.Source.Metadata) == 0 {
+		t.Fatalf("expected board source metadata to include repository scope")
+	}
+	repoID := strings.TrimSpace(fmt.Sprintf("%v", board.Epics[0].Metadata["repository_id"]))
+	if repoID != "repo-1" {
+		t.Fatalf("expected epic repository_id=repo-1, got %q", repoID)
+	}
+	taskRepoID := strings.TrimSpace(fmt.Sprintf("%v", board.Epics[0].Tasks[0].Metadata["repository_id"]))
+	if taskRepoID != "repo-1" {
+		t.Fatalf("expected task repository_id=repo-1, got %q", taskRepoID)
+	}
 	if boardStore.board.BoardID != board.BoardID {
 		t.Fatalf("expected persisted board id %q, got %q", board.BoardID, boardStore.board.BoardID)
+	}
+}
+
+func TestServiceExecuteRequiresEpicTaskRepositoryAssignmentForMultiRepo(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{}
+	repositorySynchronizer := &fakeRepositorySynchronizer{}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, repositorySynchronizer)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories: []SourceRepository{
+			{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"},
+			{RepositoryID: "repo-2", RepositoryURL: "https://github.com/acme/other-repo.git"},
+		},
+		SourceBranch: "develop",
+		Model:        "gpt-5.3-codex",
+		SystemPrompt: "You are an ingestion planner.",
+		UserPrompt:   "Create a delivery taskboard.",
+	})
+	if !failures.IsClass(executeErr, failures.ClassTerminal) {
+		t.Fatalf("expected terminal failure for missing repository_id assignments, got %q (%v)", failures.ClassOf(executeErr), executeErr)
 	}
 }
 

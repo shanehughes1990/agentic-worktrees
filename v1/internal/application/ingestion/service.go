@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -193,6 +194,9 @@ func (service *Service) Execute(ctx context.Context, request Request) (domaintra
 	}
 
 	normalizeBoard(&board, request, boardID, now)
+	if err := ensureRepositoryAssignments(board, normalizedSourceRepositories); err != nil {
+		return domaintracker.Board{}, err
+	}
 	if err := board.Validate(); err != nil {
 		return domaintracker.Board{}, err
 	}
@@ -211,12 +215,35 @@ type fetchedDocument struct {
 func composeIngestionPrompt(request Request, boardID string, outputPath string, decodedDocuments string, sourceRepositories []SourceRepository, sourceBranch string) string {
 	segments := []string{
 		strings.TrimSpace(request.SystemPrompt),
+		"Taskboard synthesis contract:",
+		"- You are a taskboard synthesis agent.",
+		"- Build a canonical execution taskboard from the provided project documents.",
+		"- Unless the user explicitly narrows scope, treat the taskboard as the complete project scope for this ingestion run.",
+		"- When multiple repositories exist, break work down clearly by repository and ensure every task is explicitly attributable to a single target repository.",
+		"- Extract epics and actionable tasks, preserve dependencies, avoid inventing unsupported facts, and output a deterministic plan suitable for execution orchestration.",
 		"Ingestion execution instructions:",
 		"- Generate a full-featured taskboard JSON from the decoded project documents.",
-		"- Use explicit dependencies where supported by the source materials.",
+		"- Unless the user explicitly asks for partial scope, treat the generated taskboard as the complete scope for this ingestion run.",
+		"- Decompose work into the smallest practical execution chunks where each epic and each task represents one concrete outcome.",
+		"- Use explicit dependencies where supported by the source materials; treat depends_on as a required modeling tool, not an optional hint.",
+		"- Whenever one task could block, invalidate, or conflict with another task, add an explicit depends_on relationship to serialize execution.",
+		"- Keep dependencies acyclic and reference only existing IDs.",
+		"- Put first-executable tasks early in each epic.tasks list; preserve topological ordering whenever possible.",
+		"- Keep independent work parallel by avoiding unnecessary dependencies.",
+		"- Do not create duplicate or near-duplicate tasks (including renamed variants with the same intent).",
+		"- Do not create parallel sibling tasks that could implement the same behavior in different files/packages.",
+		"- If two candidate tasks touch the same artifact, behavior, or acceptance outcome, merge them into one canonical task OR link them with explicit depends_on.",
+		"- Prefer one implementation-owner task per behavior change; model additional checks as dependency-aware verification tasks.",
+		"- Separate implementation from verification; verification tasks should validate one check per task and avoid bundled checks.",
+		"- Ensure task titles are specific and disambiguated by concrete scope (artifact/package + action) so duplicate intent is obvious and prevented.",
 		"- Do not invent unsupported requirements or implementation facts.",
-		"- Synchronized source repositories (if present) are available under: " + filepath.Join(".", "repos"),
+		"- Synchronized source repositories (if present) are available under: " + filepath.Join(".", "repos") + "/<repository-name>",
 		"- Use source branch \"" + strings.TrimSpace(sourceBranch) + "\" for source repository context.",
+		"- Repository layout contract: local source cache is projects/{projectId}/repositories/{repository-name}, then copied into sandbox ./repos/{repository-name}.",
+		"- For multi-repository projects, decompose work by repository and ensure every task is clearly mapped to exactly one target repository.",
+		"- Include board metadata with repository scope and source branch: metadata.repositories[] and metadata.source_branch.",
+		"- For every epic and task, include metadata.repository_id to identify target repository.",
+		"- For each task, make repository ownership explicit in task title and description (or equivalent structured metadata if available).",
 		"- Write valid JSON only to this exact output path: " + strings.TrimSpace(outputPath),
 		"- Ensure board_id is \"" + strings.TrimSpace(boardID) + "\" and run_id is \"" + strings.TrimSpace(request.RunID) + "\".",
 		"- Ensure all epic/task board_id values match board_id.",
@@ -229,7 +256,10 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 	if len(sourceRepositories) > 0 {
 		repositoryLines := make([]string, 0, len(sourceRepositories))
 		for _, repository := range sourceRepositories {
-			repositoryLines = append(repositoryLines, "- "+strings.TrimSpace(repository.RepositoryID)+": "+strings.TrimSpace(repository.RepositoryURL))
+			repositoryID := strings.TrimSpace(repository.RepositoryID)
+			repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+			repositoryFolder := deriveRepositoryFolderName(repositoryID, repositoryURL)
+			repositoryLines = append(repositoryLines, "- repository_id="+repositoryID+" repository_url="+repositoryURL+" local_dir="+filepath.Join(".", "repos", repositoryFolder))
 		}
 		segments = append(segments, "Synchronized source repositories:", strings.Join(repositoryLines, "\n"))
 	}
@@ -237,6 +267,24 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		segments = append(segments, "User requirements:", userPrompt)
 	}
 	return strings.TrimSpace(strings.Join(segments, "\n\n"))
+}
+
+func deriveRepositoryFolderName(repositoryID string, repositoryURL string) string {
+	trimmedID := strings.TrimSpace(repositoryID)
+	trimmedURL := strings.TrimSpace(repositoryURL)
+	if parsedURL, err := url.Parse(trimmedURL); err == nil {
+		parts := strings.Split(strings.Trim(strings.TrimSpace(parsedURL.Path), "/"), "/")
+		if len(parts) >= 2 {
+			repositoryName := strings.TrimSpace(strings.TrimSuffix(parts[len(parts)-1], ".git"))
+			if repositoryName != "" {
+				return repositoryName
+			}
+		}
+	}
+	if trimmedID != "" {
+		return trimmedID
+	}
+	return "repository"
 }
 
 func normalizeSourceRepositories(repositories []SourceRepository) []SourceRepository {
@@ -296,6 +344,11 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 	if board == nil {
 		return
 	}
+	repositoryScope := buildRepositoryScopeMetadata(request.SourceRepositories, request.SourceBranch)
+	singleRepositoryID := ""
+	if len(repositoryScope) == 1 {
+		singleRepositoryID = strings.TrimSpace(fmt.Sprintf("%v", repositoryScope[0]["repository_id"]))
+	}
 
 	board.BoardID = strings.TrimSpace(boardID)
 	board.RunID = strings.TrimSpace(request.RunID)
@@ -308,8 +361,17 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 		Kind:     domaintracker.SourceKindInternal,
 		BoardID:  strings.TrimSpace(boardID),
 		Location: compactSourceLocation(request.SelectedDocumentLocations),
-		Metadata: map[string]any{"selected_document_locations": request.SelectedDocumentLocations},
+		Metadata: map[string]any{
+			"selected_document_locations": request.SelectedDocumentLocations,
+			"source_branch":              strings.TrimSpace(request.SourceBranch),
+			"repositories":               repositoryScope,
+		},
 	}
+	if board.Metadata == nil {
+		board.Metadata = map[string]any{}
+	}
+	board.Metadata["source_branch"] = strings.TrimSpace(request.SourceBranch)
+	board.Metadata["repositories"] = repositoryScope
 	if board.CreatedAt.IsZero() {
 		board.CreatedAt = now
 	}
@@ -323,6 +385,14 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 			epic.ID = domaintracker.WorkItemID(fmt.Sprintf("epic-%d", epicIndex+1))
 		}
 		epic.BoardID = board.BoardID
+		if epic.Metadata == nil {
+			epic.Metadata = map[string]any{}
+		}
+		epicRepositoryID := extractRepositoryID(epic.Metadata)
+		if epicRepositoryID == "" && singleRepositoryID != "" {
+			epicRepositoryID = singleRepositoryID
+			epic.Metadata["repository_id"] = epicRepositoryID
+		}
 		epic.Status = normalizeStatus(epic.Status)
 		epic.Priority = normalizePriority(epic.Priority)
 		if epic.CreatedAt.IsZero() {
@@ -338,6 +408,19 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 				task.ID = domaintracker.WorkItemID(fmt.Sprintf("task-%d-%d", epicIndex+1, taskIndex+1))
 			}
 			task.BoardID = board.BoardID
+			if task.Metadata == nil {
+				task.Metadata = map[string]any{}
+			}
+			taskRepositoryID := extractRepositoryID(task.Metadata)
+			if taskRepositoryID == "" {
+				taskRepositoryID = epicRepositoryID
+			}
+			if taskRepositoryID == "" && singleRepositoryID != "" {
+				taskRepositoryID = singleRepositoryID
+			}
+			if taskRepositoryID != "" {
+				task.Metadata["repository_id"] = taskRepositoryID
+			}
 			task.Status = normalizeStatus(task.Status)
 			task.Priority = normalizePriority(task.Priority)
 			if task.CreatedAt.IsZero() {
@@ -351,12 +434,72 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 				if task.Outcome.Status == "" {
 					task.Outcome.Status = string(task.Status)
 				}
+				if strings.TrimSpace(task.Outcome.Repository) == "" && taskRepositoryID != "" {
+					task.Outcome.Repository = taskRepositoryID
+				}
 				if task.Outcome.UpdatedAt.IsZero() {
 					task.Outcome.UpdatedAt = now
 				}
 			}
 		}
 	}
+}
+
+func buildRepositoryScopeMetadata(repositories []SourceRepository, sourceBranch string) []map[string]any {
+	result := make([]map[string]any, 0, len(repositories))
+	for _, repository := range repositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
+		if repositoryID == "" || repositoryURL == "" {
+			continue
+		}
+		repositoryFolder := deriveRepositoryFolderName(repositoryID, repositoryURL)
+		result = append(result, map[string]any{
+			"repository_id":  repositoryID,
+			"repository_url": repositoryURL,
+			"source_branch":  strings.TrimSpace(sourceBranch),
+			"local_dir":      filepath.Join(".", "repos", repositoryFolder),
+		})
+	}
+	return result
+}
+
+func extractRepositoryID(metadata map[string]any) string {
+	if metadata == nil {
+		return ""
+	}
+	for _, key := range []string{"repository_id", "repository", "repo_id", "repo"} {
+		if value, ok := metadata[key]; ok {
+			trimmed := strings.TrimSpace(fmt.Sprintf("%v", value))
+			if trimmed != "" {
+				metadata["repository_id"] = trimmed
+				return trimmed
+			}
+		}
+	}
+	return ""
+}
+
+func ensureRepositoryAssignments(board domaintracker.Board, sourceRepositories []SourceRepository) error {
+	if len(sourceRepositories) == 0 {
+		return nil
+	}
+	if len(sourceRepositories) == 1 {
+		return nil
+	}
+	for _, epic := range board.Epics {
+		epicRepositoryID := extractRepositoryID(epic.Metadata)
+		if epicRepositoryID == "" {
+			return failures.WrapTerminal(fmt.Errorf("epic %s is missing metadata.repository_id for multi-repository scope", epic.ID))
+		}
+		for _, task := range epic.Tasks {
+			taskRepositoryID := extractRepositoryID(task.Metadata)
+			if taskRepositoryID == "" {
+				return failures.WrapTerminal(fmt.Errorf("task %s is missing metadata.repository_id for multi-repository scope", task.ID))
+			}
+		}
+	}
+	return nil
 }
 
 func compactSourceLocation(locations []string) string {

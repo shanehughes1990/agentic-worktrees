@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,17 +52,18 @@ func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, project
 		return failures.WrapTransient(fmt.Errorf("create repositories directory: %w", err))
 	}
 
-	for index, repository := range sourceRepositories {
+	for _, repository := range sourceRepositories {
 		repositoryID := strings.TrimSpace(repository.RepositoryID)
 		repositoryURL := strings.TrimSpace(repository.RepositoryURL)
 		if repositoryID == "" || repositoryURL == "" {
 			continue
 		}
-		localRepositoryPath := filepath.Join(synchronizer.projectsRootDir, cleanProjectID, "repositories", "source", repositoryID)
+		repositoryDirName := repositoryDirectoryName(repositoryID, repositoryURL)
+		localRepositoryPath := filepath.Join(synchronizer.projectsRootDir, cleanProjectID, "repositories", repositoryDirName)
 		if _, err := os.Stat(localRepositoryPath); err != nil {
 			return failures.WrapTransient(fmt.Errorf("local source repository cache not found for repository %q at %s: %w", repositoryID, localRepositoryPath, err))
 		}
-		targetDirectory := filepath.Join(repositoriesDir, fmt.Sprintf("repo%d", index+1))
+		targetDirectory := filepath.Join(repositoriesDir, repositoryDirName)
 		if err := os.RemoveAll(targetDirectory); err != nil {
 			return failures.WrapTransient(fmt.Errorf("reset sandbox repository directory %s: %w", targetDirectory, err))
 		}
@@ -86,6 +88,37 @@ func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, project
 	}
 
 	return nil
+}
+
+func repositoryDirectoryName(repositoryID string, repositoryURL string) string {
+	trimmedID := strings.TrimSpace(repositoryID)
+	trimmedURL := strings.TrimSpace(repositoryURL)
+	if parsedURL, err := url.Parse(trimmedURL); err == nil {
+		pathParts := strings.Split(strings.Trim(strings.TrimSpace(parsedURL.Path), "/"), "/")
+		if len(pathParts) >= 2 {
+			repoName := strings.TrimSpace(strings.TrimSuffix(pathParts[len(pathParts)-1], ".git"))
+			if repoName != "" {
+				return sanitizeDirectoryName(repoName)
+			}
+		}
+	}
+	if trimmedID != "" {
+		return sanitizeDirectoryName(trimmedID)
+	}
+	return "repository"
+}
+
+func sanitizeDirectoryName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "repository"
+	}
+	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-", ":", "-", "*", "-", "?", "-", "\"", "-", "<", "-", ">", "-", "|", "-")
+	sanitized := strings.Trim(replacer.Replace(trimmed), "-.")
+	if sanitized == "" {
+		return "repository"
+	}
+	return sanitized
 }
 
 func (synchronizer *GitRepositorySynchronizer) runGit(ctx context.Context, workingDirectory string, args ...string) error {

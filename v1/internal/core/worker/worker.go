@@ -192,14 +192,21 @@ func (app *WorkerApp) Run() error {
 		return fmt.Errorf("init postgres repo lease manager: %w", err)
 	}
 
-	buildGitHubAdapter := func(projectID string, scm applicationcontrolplane.ProjectSCM, repositoryURL string) (*infrascm.GitHubAdapter, error) {
+	buildGitHubAdapter := func(projectID string, scm applicationcontrolplane.ProjectSCM, repositoryID string, repositoryURL string) (*infrascm.GitHubAdapter, error) {
 		if strings.TrimSpace(scm.SCMProvider) != "github" {
 			return nil, fmt.Errorf("unsupported scm provider %q", scm.SCMProvider)
 		}
 		if strings.TrimSpace(scm.SCMToken) == "" {
 			return nil, fmt.Errorf("project scm_token is required")
 		}
-		repoPath := filepath.Join(app.config.ProjectPath(projectID), "repositories", "source")
+		_, repositoryName, parseErr := ownerRepositoryFromRepositoryURL(repositoryURL)
+		if parseErr != nil {
+			repositoryName = strings.TrimSpace(repositoryID)
+		}
+		if strings.TrimSpace(repositoryName) == "" {
+			repositoryName = "repository"
+		}
+		repoPath := filepath.Join(app.config.ProjectPath(projectID), "repositories", repositoryName)
 		if err := os.MkdirAll(repoPath, 0o755); err != nil {
 			return nil, fmt.Errorf("create project repository path: %w", err)
 		}
@@ -269,7 +276,7 @@ func (app *WorkerApp) Run() error {
 		taskMutationService,
 		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.AgentRuntimeService, error) {
 			_ = ctx
-			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm, repository.RepositoryURL)
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm, repository.RepositoryID, repository.RepositoryURL)
 			if adapterErr != nil {
 				return nil, adapterErr
 			}
@@ -290,7 +297,7 @@ func (app *WorkerApp) Run() error {
 		app.projectSetupRepository,
 		func(ctx context.Context, projectID string, scm applicationcontrolplane.ProjectSCM, repository applicationcontrolplane.ProjectRepository) (workerinterface.SCMRuntimeService, error) {
 			_ = ctx
-			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm, repository.RepositoryURL)
+			githubAdapter, adapterErr := buildGitHubAdapter(projectID, scm, repository.RepositoryID, repository.RepositoryURL)
 			if adapterErr != nil {
 				return nil, adapterErr
 			}
@@ -831,7 +838,7 @@ func parseAppLogFormat(raw string) observability.LogFormat {
 	return observability.LogFormatText
 }
 
-func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, workerID string, repoLeaseManager applicationscm.RepoLeaseManager, buildGitHubAdapter func(projectID string, scm applicationcontrolplane.ProjectSCM, repositoryURL string) (*infrascm.GitHubAdapter, error)) error {
+func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, workerID string, repoLeaseManager applicationscm.RepoLeaseManager, buildGitHubAdapter func(projectID string, scm applicationcontrolplane.ProjectSCM, repositoryID string, repositoryURL string) (*infrascm.GitHubAdapter, error)) error {
 	if app == nil || app.projectSetupRepository == nil {
 		return fmt.Errorf("project setup repository is not initialized")
 	}
@@ -886,7 +893,7 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				}
 				continue
 			}
-			adapter, adapterErr := buildGitHubAdapter(setup.ProjectID, scmConfig, repository.RepositoryURL)
+			adapter, adapterErr := buildGitHubAdapter(setup.ProjectID, scmConfig, repository.RepositoryID, repository.RepositoryURL)
 			if adapterErr != nil {
 				skippedRepositories++
 				if entry != nil {
@@ -946,7 +953,7 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				}
 				continue
 			}
-			repositoryPath := filepath.Join(projectID, "repositories", "source", repositoryID)
+			repositoryPath := filepath.Join(projectID, "repositories", repositoryName)
 			if _, syncErr := scmService.SyncRepository(ctx, applicationscm.SyncRepositoryRequest{Repository: repo, Path: repositoryPath, Metadata: metadata}); syncErr == nil {
 				syncedRepositories++
 				if entry != nil {

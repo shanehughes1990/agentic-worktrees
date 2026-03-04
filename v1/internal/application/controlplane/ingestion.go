@@ -30,8 +30,6 @@ func (input RunIngestionAgentInput) Validate() error {
 	return nil
 }
 
-const taskboardIngestionSystemPrompt = "You are a taskboard synthesis agent. Build a canonical execution taskboard from the provided project documents. Extract epics and actionable tasks, preserve dependencies, avoid inventing unsupported facts, and output a deterministic plan suitable for execution orchestration."
-
 const defaultIngestionModel = "gpt-5.3-codex"
 const defaultIngestionSourceBranch = "main"
 
@@ -116,7 +114,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	runID := fmt.Sprintf("ingest-%d", time.Now().UTC().UnixNano())
 	taskID := "ingestion"
 	jobID := fmt.Sprintf("ingestion-agent-%d", time.Now().UTC().UnixNano())
-	systemPrompt := strings.TrimSpace(prompts.WorkerToolingBaseline + "\n\n" + taskboardIngestionSystemPrompt)
+	systemPrompt := strings.TrimSpace(prompts.WorkerToolingBaseline)
 	userPrompt := strings.TrimSpace(input.UserPrompt)
 	model := strings.TrimSpace(input.Model)
 	if model == "" {
