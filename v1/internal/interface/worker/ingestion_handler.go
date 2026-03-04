@@ -31,8 +31,12 @@ func (handler *IngestionAgentHandler) Handle(ctx context.Context, job taskengine
 	}
 	request := applicationingestion.Request{
 		RunID:                     strings.TrimSpace(payload.RunID),
+		JobID:                     strings.TrimSpace(payload.JobID),
 		ProjectID:                 strings.TrimSpace(payload.ProjectID),
+		BoardID:                   strings.TrimSpace(payload.BoardID),
+		StreamID:                  strings.TrimSpace(payload.StreamID),
 		SelectedDocumentLocations: payload.SelectedDocumentLocations,
+		PreferSelectedDocuments:   payload.PreferSelectedDocuments,
 		SourceRepositories:        mapSourceRepositories(payload.SourceRepositories),
 		SourceBranch:              strings.TrimSpace(payload.SourceBranch),
 		Model:                     strings.TrimSpace(payload.Model),

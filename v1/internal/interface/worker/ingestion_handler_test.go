@@ -34,37 +34,50 @@ func (fetcher *fakeIngestionArtifactFetcher) FetchToPath(ctx context.Context, ob
 
 type fakeIngestionAgentRunner struct{}
 
-func (runner *fakeIngestionAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string) error {
+func (runner *fakeIngestionAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string, runContext applicationingestion.AgentRunContext) (applicationingestion.AgentRunContext, error) {
 	_ = ctx
 	_ = sandboxDir
 	_ = prompt
 	_ = model
+	if runContext.StreamID == "" {
+		return runContext, fmt.Errorf("expected stream id from ingestion payload")
+	}
 	content := `{
 		"board_id": "board-1",
 		"run_id": "run-1",
-		"status": "not-started",
+		"state": "pending",
 		"epics": [{
 			"id": "epic-1",
 			"board_id": "board-1",
 			"title": "Epic",
-			"status": "not-started",
+			"state": "planned",
+			"rank": 1,
 			"tasks": [{
 				"id": "task-1",
 				"board_id": "board-1",
+				"epic_id": "epic-1",
 				"title": "Task",
-				"status": "not-started"
+				"task_type": "implementation",
+				"state": "planned",
+				"rank": 1
 			}]
 		}],
 		"created_at": "2026-03-03T10:00:00Z",
 		"updated_at": "2026-03-03T10:00:00Z"
 	}`
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return err
+		return runContext, err
 	}
 	if err := os.WriteFile(outputPath, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("write generated board: %w", err)
+		return runContext, fmt.Errorf("write generated board: %w", err)
 	}
-	return nil
+	if runContext.StreamID == "" {
+		runContext.StreamID = "ingestion-stream:test"
+	}
+	if runContext.SessionID == "" {
+		runContext.SessionID = "ingestion-session:test"
+	}
+	return runContext, nil
 }
 
 type fakeIngestionRepositorySynchronizer struct{}
@@ -91,6 +104,8 @@ func TestIngestionAgentHandlerHandle(t *testing.T) {
 		RunID:                     "run-1",
 		TaskID:                    "ingestion",
 		JobID:                     "job-1",
+		BoardID:                   "board-1",
+		StreamID:                  "stream-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/doc.md"},
 		SourceRepositories:        []applicationcontrolplane.IngestionSourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},

@@ -1,6 +1,7 @@
 package ingestion
 
 import (
+	applicationingestion "agentic-orchestrator/internal/application/ingestion"
 	"agentic-orchestrator/internal/domain/failures"
 	"bytes"
 	"context"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type CopilotCLIRunner struct {
@@ -26,21 +28,28 @@ func NewCopilotCLIRunner(binaryPath string) (*CopilotCLIRunner, error) {
 	return &CopilotCLIRunner{binaryPath: path}, nil
 }
 
-func (runner *CopilotCLIRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string) error {
+func (runner *CopilotCLIRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string, runContext applicationingestion.AgentRunContext) (applicationingestion.AgentRunContext, error) {
 	if runner == nil {
-		return failures.WrapTerminal(fmt.Errorf("copilot cli runner is not initialized"))
+		return applicationingestion.AgentRunContext{}, failures.WrapTerminal(fmt.Errorf("copilot cli runner is not initialized"))
 	}
 	cleanSandboxDir := strings.TrimSpace(sandboxDir)
 	cleanPrompt := strings.TrimSpace(prompt)
 	cleanOutputPath := strings.TrimSpace(outputPath)
+	resolvedRunContext := runContext
+	if strings.TrimSpace(resolvedRunContext.StreamID) == "" {
+		resolvedRunContext.StreamID = fmt.Sprintf("ingestion-stream:%d", time.Now().UTC().UnixNano())
+	}
+	if strings.TrimSpace(resolvedRunContext.SessionID) == "" {
+		resolvedRunContext.SessionID = fmt.Sprintf("ingestion-session:%s", strings.TrimPrefix(strings.TrimSpace(resolvedRunContext.StreamID), "ingestion-stream:"))
+	}
 	if cleanSandboxDir == "" {
-		return failures.WrapTerminal(fmt.Errorf("sandbox_dir is required"))
+		return applicationingestion.AgentRunContext{}, failures.WrapTerminal(fmt.Errorf("sandbox_dir is required"))
 	}
 	if cleanPrompt == "" {
-		return failures.WrapTerminal(fmt.Errorf("prompt is required"))
+		return applicationingestion.AgentRunContext{}, failures.WrapTerminal(fmt.Errorf("prompt is required"))
 	}
 	if cleanOutputPath == "" {
-		return failures.WrapTerminal(fmt.Errorf("output_path is required"))
+		return applicationingestion.AgentRunContext{}, failures.WrapTerminal(fmt.Errorf("output_path is required"))
 	}
 	cleanModel := strings.TrimSpace(model)
 	if cleanModel == "" {
@@ -48,7 +57,7 @@ func (runner *CopilotCLIRunner) GenerateTaskboard(ctx context.Context, sandboxDi
 	}
 
 	if err := os.MkdirAll(filepath.Dir(cleanOutputPath), 0o755); err != nil {
-		return failures.WrapTransient(fmt.Errorf("ensure output directory: %w", err))
+		return applicationingestion.AgentRunContext{}, failures.WrapTransient(fmt.Errorf("ensure output directory: %w", err))
 	}
 
 	command := exec.CommandContext(ctx, runner.binaryPath,
@@ -65,22 +74,22 @@ func (runner *CopilotCLIRunner) GenerateTaskboard(ctx context.Context, sandboxDi
 	command.Stderr = &stderrBuffer
 
 	if err := command.Run(); err != nil {
-		return failures.WrapTransient(fmt.Errorf("run copilot cli ingestion prompt: %w (stdout=%s stderr=%s)", err, strings.TrimSpace(stdoutBuffer.String()), strings.TrimSpace(stderrBuffer.String())))
+		return applicationingestion.AgentRunContext{}, failures.WrapTransient(fmt.Errorf("run copilot cli ingestion prompt: %w (stdout=%s stderr=%s)", err, strings.TrimSpace(stdoutBuffer.String()), strings.TrimSpace(stderrBuffer.String())))
 	}
 	if _, err := os.Stat(cleanOutputPath); err != nil {
 		stdoutPayload := strings.TrimSpace(stdoutBuffer.String())
 		if stdoutPayload == "" {
-			return failures.WrapTransient(fmt.Errorf("copilot cli did not generate taskboard output at %s and returned empty stdout: %w", cleanOutputPath, err))
+			return applicationingestion.AgentRunContext{}, failures.WrapTransient(fmt.Errorf("copilot cli did not generate taskboard output at %s and returned empty stdout: %w", cleanOutputPath, err))
 		}
 		candidate := extractJSONPayload(stdoutPayload)
 		if !json.Valid([]byte(candidate)) {
-			return failures.WrapTransient(fmt.Errorf("copilot cli output is not valid JSON for taskboard ingestion (stdout=%s)", stdoutPayload))
+			return applicationingestion.AgentRunContext{}, failures.WrapTransient(fmt.Errorf("copilot cli output is not valid JSON for taskboard ingestion (stdout=%s)", stdoutPayload))
 		}
 		if writeErr := os.WriteFile(cleanOutputPath, []byte(candidate), 0o644); writeErr != nil {
-			return failures.WrapTransient(fmt.Errorf("persist taskboard json from copilot stdout: %w", writeErr))
+			return applicationingestion.AgentRunContext{}, failures.WrapTransient(fmt.Errorf("persist taskboard json from copilot stdout: %w", writeErr))
 		}
 	}
-	return nil
+	return resolvedRunContext, nil
 }
 
 func extractJSONPayload(raw string) string {

@@ -246,8 +246,9 @@ union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess |
 
 input RunIngestionAgentInput {
   projectID: String!
-  selectedDocumentIDs: [String!]!
-  userPrompt: String!
+  boardID: String
+  selectedDocumentIDs: [String!]
+  userPrompt: String
 }
 
 type RunIngestionAgentSuccess {

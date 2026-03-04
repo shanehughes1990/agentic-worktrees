@@ -35,7 +35,12 @@ type ArtifactFetcher interface {
 }
 
 type AgentRunner interface {
-	GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string) error
+	GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string, runContext AgentRunContext) (AgentRunContext, error)
+}
+
+type AgentRunContext struct {
+	SessionID string
+	StreamID  string
 }
 
 type RepositorySynchronizer interface {
@@ -55,9 +60,12 @@ func (function ArtifactFetcherFunc) FetchToPath(ctx context.Context, objectPath 
 
 type Request struct {
 	RunID                     string
+	JobID                     string
 	ProjectID                 string
 	BoardID                   string
+	StreamID                  string
 	SelectedDocumentLocations []string
+	PreferSelectedDocuments   bool
 	SourceRepositories        []SourceRepository
 	SourceBranch              string
 	Model                     string
@@ -72,11 +80,13 @@ func (request Request) Validate() error {
 	if strings.TrimSpace(request.ProjectID) == "" {
 		return failures.WrapTerminal(errors.New("project_id is required"))
 	}
-	if len(request.SelectedDocumentLocations) == 0 {
-		return failures.WrapTerminal(errors.New("selected_document_locations are required"))
-	}
 	if strings.TrimSpace(request.SystemPrompt) == "" {
 		return failures.WrapTerminal(errors.New("system_prompt is required"))
+	}
+	hasPrompt := strings.TrimSpace(request.UserPrompt) != ""
+	hasSelectedDocuments := hasNonEmptyValues(request.SelectedDocumentLocations)
+	if !hasPrompt && !hasSelectedDocuments {
+		return failures.WrapTerminal(errors.New("user_prompt or selected_document_locations is required"))
 	}
 	return nil
 }
@@ -90,6 +100,7 @@ type Service struct {
 
 const defaultModel = "gpt-5.3-codex"
 const defaultSourceBranch = "main"
+const maxTaskboardValidationAttempts = 3
 
 func NewService(boardStore BoardStore, artifactFetcher ArtifactFetcher, agentRunner AgentRunner, repositorySynchronizer RepositorySynchronizer) (*Service, error) {
 	if boardStore == nil {
@@ -148,14 +159,12 @@ func (service *Service) Execute(ctx context.Context, request Request) (domaintra
 		}
 	}
 
-	hasDocument := false
 	fetchedDocuments := make([]fetchedDocument, 0, len(request.SelectedDocumentLocations))
 	for index, rawDocumentLocation := range request.SelectedDocumentLocations {
 		documentLocation := strings.TrimSpace(rawDocumentLocation)
 		if documentLocation == "" {
 			continue
 		}
-		hasDocument = true
 		fileName := filepath.Base(documentLocation)
 		localFilePath := filepath.Join(documentsDir, fmt.Sprintf("%d_%s", index+1, sanitizeLocalFileName(fileName)))
 		if fetchErr := service.artifactFetcher.FetchToPath(ctx, documentLocation, localFilePath); fetchErr != nil {
@@ -163,13 +172,13 @@ func (service *Service) Execute(ctx context.Context, request Request) (domaintra
 		}
 		fetchedDocuments = append(fetchedDocuments, fetchedDocument{RemoteLocation: documentLocation, LocalPath: localFilePath})
 	}
-	if !hasDocument {
-		return domaintracker.Board{}, failures.WrapTerminal(errors.New("selected_document_locations must contain at least one non-empty value"))
-	}
-
-	documentDigest, decodeErr := decodeDocumentsForPrompt(fetchedDocuments)
-	if decodeErr != nil {
-		return domaintracker.Board{}, ensureClassified(fmt.Errorf("decode fetched documents for ingestion prompt: %w", decodeErr))
+	documentDigest := "No remote documents were selected for this ingestion run."
+	if len(fetchedDocuments) > 0 {
+		decodedDocuments, decodeErr := decodeDocumentsForPrompt(fetchedDocuments)
+		if decodeErr != nil {
+			return domaintracker.Board{}, ensureClassified(fmt.Errorf("decode fetched documents for ingestion prompt: %w", decodeErr))
+		}
+		documentDigest = decodedDocuments
 	}
 
 	outputPath := filepath.Join(sandboxDir, "taskboard.json")
@@ -178,32 +187,110 @@ func (service *Service) Execute(ctx context.Context, request Request) (domaintra
 	if model == "" {
 		model = defaultModel
 	}
-	if runErr := service.agentRunner.GenerateTaskboard(ctx, sandboxDir, composedPrompt, outputPath, model); runErr != nil {
-		return domaintracker.Board{}, ensureClassified(runErr)
+	board, validationErr := service.generateAndValidateBoard(ctx, request, composedPrompt, sandboxDir, outputPath, model, boardID, now, normalizedSourceRepositories)
+	if validationErr != nil {
+		return domaintracker.Board{}, validationErr
 	}
 
-	boardJSON, err := os.ReadFile(outputPath)
-	if err != nil {
-		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("read generated taskboard output: %w", err))
-	}
-
-	var board domaintracker.Board
-	if err := json.Unmarshal(boardJSON, &board); err != nil {
-		return domaintracker.Board{}, failures.WrapTerminal(fmt.Errorf("decode generated taskboard json: %w", err))
-	}
-
-	normalizeBoard(&board, request, boardID, now)
-	if err := ensureRepositoryAssignments(board, normalizedSourceRepositories); err != nil {
-		return domaintracker.Board{}, err
-	}
-	if err := board.Validate(); err != nil {
-		return domaintracker.Board{}, err
-	}
 	if err := service.boardStore.UpsertBoard(ctx, board); err != nil {
 		return domaintracker.Board{}, ensureClassified(fmt.Errorf("persist generated taskboard: %w", err))
 	}
 
 	return board, nil
+}
+
+func (service *Service) generateAndValidateBoard(
+	ctx context.Context,
+	request Request,
+	basePrompt string,
+	sandboxDir string,
+	outputPath string,
+	model string,
+	boardID string,
+	now time.Time,
+	normalizedSourceRepositories []SourceRepository,
+) (domaintracker.Board, error) {
+	var lastValidationErr error
+	feedback := ""
+	runContext := AgentRunContext{StreamID: ingestionStreamID(request)}
+
+	for attempt := 1; attempt <= maxTaskboardValidationAttempts; attempt++ {
+		attemptPrompt := basePrompt
+		attemptPrompt = strings.TrimSpace(attemptPrompt + "\n\nExecution continuity:\n- stream_id: " + strings.TrimSpace(runContext.StreamID) + "\n- session_id: " + strings.TrimSpace(runContext.SessionID) + "\n- Reuse this same stream/session for retries and continuation.")
+		if strings.TrimSpace(feedback) != "" {
+			attemptPrompt = strings.TrimSpace(basePrompt + "\n\nValidation failure feedback:\n" + feedback + "\n\nRegenerate the full JSON so it passes validation exactly.")
+			attemptPrompt = strings.TrimSpace(attemptPrompt + "\n\nExecution continuity:\n- stream_id: " + strings.TrimSpace(runContext.StreamID) + "\n- session_id: " + strings.TrimSpace(runContext.SessionID) + "\n- Reuse this same stream/session for retries and continuation.")
+		}
+
+		nextRunContext, runErr := service.agentRunner.GenerateTaskboard(ctx, sandboxDir, attemptPrompt, outputPath, model, runContext)
+		if runErr != nil {
+			return domaintracker.Board{}, ensureClassified(runErr)
+		}
+		runContext = mergeRunContext(runContext, nextRunContext)
+
+		boardJSON, readErr := os.ReadFile(outputPath)
+		if readErr != nil {
+			return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("read generated taskboard output: %w", readErr))
+		}
+
+		var board domaintracker.Board
+		if err := json.Unmarshal(boardJSON, &board); err != nil {
+			lastValidationErr = failures.WrapTerminal(fmt.Errorf("decode generated taskboard json: %w", err))
+			feedback = lastValidationErr.Error()
+			continue
+		}
+		if err := board.Validate(); err != nil {
+			lastValidationErr = err
+			feedback = err.Error()
+			continue
+		}
+
+		normalizeBoard(&board, request, boardID, now, runContext)
+		if err := ensureRepositoryAssignments(board, normalizedSourceRepositories); err != nil {
+			lastValidationErr = err
+			feedback = err.Error()
+			continue
+		}
+		if err := board.Validate(); err != nil {
+			lastValidationErr = err
+			feedback = err.Error()
+			continue
+		}
+
+		return board, nil
+	}
+
+	if lastValidationErr != nil {
+		return domaintracker.Board{}, failures.WrapTerminal(fmt.Errorf("taskboard generation failed validation after %d attempts: %w", maxTaskboardValidationAttempts, lastValidationErr))
+	}
+	return domaintracker.Board{}, failures.WrapTerminal(fmt.Errorf("taskboard generation failed validation after %d attempts", maxTaskboardValidationAttempts))
+}
+
+func mergeRunContext(current AgentRunContext, next AgentRunContext) AgentRunContext {
+	merged := current
+	if strings.TrimSpace(next.StreamID) != "" {
+		merged.StreamID = strings.TrimSpace(next.StreamID)
+	}
+	if strings.TrimSpace(next.SessionID) != "" {
+		merged.SessionID = strings.TrimSpace(next.SessionID)
+	}
+	if strings.TrimSpace(merged.StreamID) == "" {
+		merged.StreamID = strings.TrimSpace(current.StreamID)
+	}
+	return merged
+}
+
+func ingestionStreamID(request Request) string {
+	if clean := strings.TrimSpace(request.StreamID); clean != "" {
+		return clean
+	}
+	if clean := strings.TrimSpace(request.JobID); clean != "" {
+		return "ingestion-stream:" + clean
+	}
+	if clean := strings.TrimSpace(request.RunID); clean != "" {
+		return "ingestion-stream:" + clean
+	}
+	return fmt.Sprintf("ingestion-stream:%d", time.Now().UTC().UnixNano())
 }
 
 type fetchedDocument struct {
@@ -256,7 +343,17 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		"- Epic state values: planned, in_progress, completed, blocked, failed.",
 		"- Task state values: planned, in_progress, completed, failed, no_work_needed.",
 		"- For outcomes, include outcome.status and outcome.summary.",
+		"Remote document guidance:",
+		"- Selected remote documents are optional input.",
+		"- If no selected remote documents are provided, infer context from synchronized repositories and explicit user requirements.",
 		decodedDocuments,
+	}
+	if request.PreferSelectedDocuments {
+		segments = append(segments,
+			"Remote document preference:",
+			"- Prefer selected remote documents as the primary planning context when resolving ambiguity.",
+			"- Use repository context and user requirements to complement, not override, selected remote documents unless conflicts are explicit.",
+		)
 	}
 	if len(sourceRepositories) > 0 {
 		repositoryLines := make([]string, 0, len(sourceRepositories))
@@ -305,6 +402,15 @@ func normalizeSourceRepositories(repositories []SourceRepository) []SourceReposi
 	return normalized
 }
 
+func hasNonEmptyValues(values []string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func decodeDocumentsForPrompt(documents []fetchedDocument) (string, error) {
 	var builder strings.Builder
 	builder.WriteString("Decoded documents for ingestion:\n")
@@ -345,7 +451,7 @@ func decodeDocumentsForPrompt(documents []fetchedDocument) (string, error) {
 	return strings.TrimSpace(builder.String()), nil
 }
 
-func normalizeBoard(board *domaintracker.Board, request Request, boardID string, now time.Time) {
+func normalizeBoard(board *domaintracker.Board, request Request, boardID string, now time.Time, runContext AgentRunContext) {
 	if board == nil {
 		return
 	}
@@ -401,6 +507,15 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 				task.CreatedAt = now
 			}
 			task.UpdatedAt = now
+			if strings.TrimSpace(task.Audit.AgentSessionID) == "" {
+				task.Audit.AgentSessionID = strings.TrimSpace(runContext.SessionID)
+			}
+			if strings.TrimSpace(task.Audit.AgentStreamID) == "" {
+				task.Audit.AgentStreamID = strings.TrimSpace(runContext.StreamID)
+			}
+			if strings.TrimSpace(task.Audit.ModelRunID) == "" {
+				task.Audit.ModelRunID = strings.TrimSpace(runContext.StreamID)
+			}
 			if task.Outcome != nil {
 				if task.Outcome.Status == "" {
 					task.Outcome.Status = domaintracker.OutcomeStatusPartial

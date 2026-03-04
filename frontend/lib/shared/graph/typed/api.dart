@@ -681,9 +681,17 @@ class ControlPlaneApi {
 
   Future<ApiResult<IngestionRunTicket>> runIngestionAgent({
     required String projectID,
-    required List<String> selectedDocumentIDs,
-    required String userPrompt,
+    String? boardID,
+    List<String>? selectedDocumentIDs,
+    String? userPrompt,
   }) async {
+    final input = <String, dynamic>{'projectID': projectID, 'boardID': boardID};
+    if (selectedDocumentIDs != null) {
+      input['selectedDocumentIDs'] = selectedDocumentIDs;
+    }
+    if (userPrompt != null && userPrompt.trim().isNotEmpty) {
+      input['userPrompt'] = userPrompt.trim();
+    }
     final result = await _client.mutate(
       MutationOptions(
         document: gql('''
@@ -707,13 +715,7 @@ class ControlPlaneApi {
             }
           }
         '''),
-        variables: <String, dynamic>{
-          'input': <String, dynamic>{
-            'projectID': projectID,
-            'selectedDocumentIDs': selectedDocumentIDs,
-            'userPrompt': userPrompt,
-          },
-        },
+        variables: <String, dynamic>{'input': input},
       ),
     );
     final error = _extractOperationError(result, field: 'runIngestionAgent');

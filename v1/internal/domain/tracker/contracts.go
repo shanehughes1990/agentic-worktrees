@@ -95,6 +95,8 @@ type TaskModelAudit struct {
 	ModelName         string     `json:"model_name"`
 	ModelVersion      string     `json:"model_version,omitempty"`
 	ModelRunID        string     `json:"model_run_id,omitempty"`
+	AgentSessionID    string     `json:"agent_session_id,omitempty"`
+	AgentStreamID     string     `json:"agent_stream_id,omitempty"`
 	PromptFingerprint string     `json:"prompt_fingerprint,omitempty"`
 	InputTokens       *int       `json:"input_tokens,omitempty"`
 	OutputTokens      *int       `json:"output_tokens,omitempty"`

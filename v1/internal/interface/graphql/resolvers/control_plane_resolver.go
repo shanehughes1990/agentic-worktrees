@@ -143,8 +143,9 @@ func (r *mutationResolver) RunIngestionAgent(ctx context.Context, input models.R
 	}
 	result, err := r.Resolver.ControlPlaneService.RunIngestionAgent(ctx, applicationcontrolplane.RunIngestionAgentInput{
 		ProjectID:           input.ProjectID,
+		BoardID:             derefString(input.BoardID),
 		SelectedDocumentIDs: input.SelectedDocumentIDs,
-		UserPrompt:          input.UserPrompt,
+		UserPrompt:          derefString(input.UserPrompt),
 	})
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("run ingestion agent: %w", err)), nil

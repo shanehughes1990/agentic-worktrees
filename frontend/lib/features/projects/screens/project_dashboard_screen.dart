@@ -341,13 +341,13 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                       growable: false,
                     );
                     final prompt = promptController.text.trim();
-                    if (selected.isEmpty || prompt.isEmpty) {
+                    if (selected.isEmpty && prompt.isEmpty) {
                       return;
                     }
                     Navigator.of(context).pop(
                       _NewTaskboardDraft(
-                        selectedDocumentIDs: selected,
-                        userPrompt: prompt,
+                        selectedDocumentIDs: selected.isEmpty ? null : selected,
+                        userPrompt: prompt.isEmpty ? null : prompt,
                       ),
                     );
                   },
@@ -372,6 +372,9 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
     final result = await _api.runIngestionAgent(
       projectID: _projectSetup.projectID,
+      boardID: _projectSetup.boards.isNotEmpty
+          ? _projectSetup.boards.first.boardID
+          : null,
       selectedDocumentIDs: draft.selectedDocumentIDs,
       userPrompt: draft.userPrompt,
     );
@@ -600,6 +603,6 @@ class _NewTaskboardDraft {
     required this.userPrompt,
   });
 
-  final List<String> selectedDocumentIDs;
-  final String userPrompt;
+  final List<String>? selectedDocumentIDs;
+  final String? userPrompt;
 }

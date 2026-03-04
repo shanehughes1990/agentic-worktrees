@@ -48,17 +48,27 @@ type fakeAgentRunner struct {
 	outputPath   string
 	model        string
 	writtenBoard string
+	writtenBoards []string
+	callCount     int
 }
 
-func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string) error {
+func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir string, prompt string, outputPath string, model string, runContext AgentRunContext) (AgentRunContext, error) {
 	_ = ctx
 	if runner.err != nil {
-		return runner.err
+		return runContext, runner.err
 	}
 	runner.prompt = prompt
 	runner.sandboxDir = sandboxDir
 	runner.outputPath = outputPath
 	runner.model = model
+	runner.callCount++
+	if len(runner.writtenBoards) > 0 {
+		index := runner.callCount - 1
+		if index >= len(runner.writtenBoards) {
+			index = len(runner.writtenBoards) - 1
+		}
+		runner.writtenBoard = runner.writtenBoards[index]
+	}
 	if strings.TrimSpace(runner.writtenBoard) == "" {
 		runner.writtenBoard = `{
 		"board_id": "temporary-board",
@@ -85,9 +95,18 @@ func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir
 	}`
 	}
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return err
+		return runContext, err
 	}
-	return os.WriteFile(outputPath, []byte(runner.writtenBoard), 0o644)
+	if err := os.WriteFile(outputPath, []byte(runner.writtenBoard), 0o644); err != nil {
+		return runContext, err
+	}
+	if strings.TrimSpace(runContext.StreamID) == "" {
+		runContext.StreamID = "test-stream"
+	}
+	if strings.TrimSpace(runContext.SessionID) == "" {
+		runContext.SessionID = "test-session"
+	}
+	return runContext, nil
 }
 
 type fakeRepositorySynchronizer struct {
@@ -278,5 +297,106 @@ func TestServiceExecuteDefaultsModelAndSourceBranch(t *testing.T) {
 	}
 	if repositorySynchronizer.sourceBranch != "main" {
 		t.Fatalf("expected default source branch main, got %q", repositorySynchronizer.sourceBranch)
+	}
+}
+
+func TestServiceExecuteRetriesUntilValidationPasses(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{writtenBoards: []string{
+		`{"board_id":"temporary-board","run_id":"temporary-run","state":"pending","epics":[{"id":"epic-1","board_id":"temporary-board","title":"Epic one","state":"planned","rank":1,"tasks":[{"id":"task-1","board_id":"temporary-board","epic_id":"epic-1","title":"Task one","state":"planned","rank":1}]}],"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}`,
+		`{"board_id":"temporary-board","run_id":"temporary-run","state":"pending","epics":[{"id":"epic-1","board_id":"temporary-board","title":"Epic one","state":"planned","rank":1,"tasks":[{"id":"task-1","board_id":"temporary-board","epic_id":"epic-1","title":"Task one","task_type":"implementation","state":"planned","rank":1}]}],"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}`,
+	}}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SystemPrompt:              "You are an ingestion planner.",
+		UserPrompt:                "Create a delivery taskboard.",
+	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if agentRunner.callCount != 2 {
+		t.Fatalf("expected 2 generation attempts, got %d", agentRunner.callCount)
+	}
+}
+
+func TestServiceExecuteFailsAfterMaxValidationAttempts(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{writtenBoard: `{"board_id":"temporary-board","run_id":"temporary-run","state":"pending","epics":[{"id":"epic-1","board_id":"temporary-board","title":"Epic one","state":"planned","rank":1,"tasks":[{"id":"task-1","board_id":"temporary-board","epic_id":"epic-1","title":"Task one","state":"planned","rank":1}]}],"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}`}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SystemPrompt:              "You are an ingestion planner.",
+		UserPrompt:                "Create a delivery taskboard.",
+	})
+	if !failures.IsClass(executeErr, failures.ClassTerminal) {
+		t.Fatalf("expected terminal validation failure, got %q (%v)", failures.ClassOf(executeErr), executeErr)
+	}
+	if agentRunner.callCount != maxTaskboardValidationAttempts {
+		t.Fatalf("expected %d generation attempts, got %d", maxTaskboardValidationAttempts, agentRunner.callCount)
+	}
+}
+
+func TestServiceExecuteAllowsPromptOnlyWithoutSelectedDocuments(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:        "run-1",
+		ProjectID:    "project-1",
+		SystemPrompt: "You are an ingestion planner.",
+		UserPrompt:   "Build taskboard from repository context only.",
+	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if len(artifactFetcher.fetchedObject) != 0 {
+		t.Fatalf("expected no fetched documents for prompt-only ingestion, got %d", len(artifactFetcher.fetchedObject))
+	}
+}
+
+func TestServiceExecuteAllowsDocsOnlyWithoutUserPrompt(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		PreferSelectedDocuments:   true,
+		SystemPrompt:              "You are an ingestion planner.",
+	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if len(artifactFetcher.fetchedObject) != 1 {
+		t.Fatalf("expected one fetched document for docs-only ingestion, got %d", len(artifactFetcher.fetchedObject))
+	}
+	if !strings.Contains(agentRunner.prompt, "Prefer selected remote documents as the primary planning context") {
+		t.Fatalf("expected selected-document preference guidance in prompt")
 	}
 }

@@ -139,6 +139,8 @@ Model audit columns:
 - model_name text not null
 - model_version text
 - model_run_id uuid
+- agent_session_id text
+- agent_stream_id text
 - prompt_fingerprint text
 - input_tokens int
 - output_tokens int
@@ -238,6 +240,12 @@ This guarantees agent1 gets task1, agent2 gets task2, etc. without duplicate cla
 - Optional heartbeat may extend `claim_expires_at` for long-running tasks.
 - A completion/failure write must validate `claim_token` so only the current holder can finalize.
 
+### Ingestion retry continuity (same asynq task invocation)
+
+- Taskboard generation/validation retries occur inside one asynq task invocation (no handoff to a new worker task for each validation retry).
+- Retry attempts must reuse and carry forward available run continuity metadata (`agent_session_id`, `agent_stream_id`).
+- Persist the latest known continuity metadata on the task model audit so resume/follow-up calls can continue the same agent stream/session when supported.
+
 ## State Transition Guidance
 
 - board_state: pending -> active -> completed | failed
@@ -334,6 +342,8 @@ type TaskModelAudit struct {
  ModelName         string
  ModelVersion      *string
  ModelRunID        *uuid.UUID
+	AgentSessionID    *string
+	AgentStreamID     *string
  PromptFingerprint *string
  InputTokens       *int
  OutputTokens      *int
@@ -372,4 +382,5 @@ type ProjectBoardTask struct {
 - `TaskOutcome.Status` is always required.
 - `TaskOutcome.Summary` is the only outcome content field (no large payload/blob field).
 - `TaskModelAudit.ModelProvider` and `TaskModelAudit.ModelName` are required for model-produced results.
+- `TaskModelAudit.AgentSessionID` and `TaskModelAudit.AgentStreamID` are optional but should be set when the agent runtime provides resumable session/stream identifiers.
 - If `TaskOutcome.Status == OutcomeStatusFailed`, `TaskOutcome.ErrorCode` must be present.

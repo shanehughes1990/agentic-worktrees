@@ -1870,8 +1870,9 @@ union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess |
 
 input RunIngestionAgentInput {
   projectID: String!
-  selectedDocumentIDs: [String!]!
-  userPrompt: String!
+  boardID: String
+  selectedDocumentIDs: [String!]
+  userPrompt: String
 }
 
 type RunIngestionAgentSuccess {
@@ -9832,7 +9833,7 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "selectedDocumentIDs", "userPrompt"}
+	fieldsInOrder := [...]string{"projectID", "boardID", "selectedDocumentIDs", "userPrompt"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -9846,16 +9847,23 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 				return it, err
 			}
 			it.ProjectID = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
 		case "selectedDocumentIDs":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectedDocumentIDs"))
-			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.SelectedDocumentIDs = data
 		case "userPrompt":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userPrompt"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}

@@ -14,6 +14,7 @@ import (
 
 type RunIngestionAgentInput struct {
 	ProjectID           string
+	BoardID             string
 	SelectedDocumentIDs []string
 	UserPrompt          string
 	Model               string
@@ -24,8 +25,10 @@ func (input RunIngestionAgentInput) Validate() error {
 	if strings.TrimSpace(input.ProjectID) == "" {
 		return fmt.Errorf("project_id is required")
 	}
-	if len(input.SelectedDocumentIDs) == 0 {
-		return fmt.Errorf("selected_document_ids are required")
+	hasPrompt := strings.TrimSpace(input.UserPrompt) != ""
+	hasSelectedDocuments := hasNonEmptyValues(input.SelectedDocumentIDs)
+	if !hasPrompt && !hasSelectedDocuments {
+		return fmt.Errorf("user_prompt or selected_document_ids is required")
 	}
 	return nil
 }
@@ -37,8 +40,11 @@ type IngestionAgentPayload struct {
 	RunID                     string   `json:"run_id"`
 	TaskID                    string   `json:"task_id"`
 	JobID                     string   `json:"job_id"`
+	BoardID                   string   `json:"board_id"`
+	StreamID                  string   `json:"stream_id"`
 	ProjectID                 string   `json:"project_id"`
 	SelectedDocumentLocations []string `json:"selected_document_locations"`
+	PreferSelectedDocuments   bool     `json:"prefer_selected_documents"`
 	SourceRepositories        []IngestionSourceRepository `json:"source_repositories,omitempty"`
 	SourceBranch              string   `json:"source_branch"`
 	Model                     string   `json:"model"`
@@ -68,6 +74,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		return nil, err
 	}
 	sourceRepositories := make([]IngestionSourceRepository, 0)
+	boardID := strings.TrimSpace(input.BoardID)
 	if service.projectRepository != nil {
 		setup, err := service.projectRepository.GetProjectSetup(ctx, strings.TrimSpace(input.ProjectID))
 		if err != nil {
@@ -84,6 +91,12 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 			}
 			sourceRepositories = append(sourceRepositories, IngestionSourceRepository{RepositoryID: repositoryID, RepositoryURL: repositoryURL})
 		}
+		if boardID == "" && len(setup.Boards) > 0 {
+			boardID = strings.TrimSpace(setup.Boards[0].BoardID)
+		}
+	}
+	if boardID == "" {
+		boardID = boardIDFromName("default")
 	}
 	normalizedDocumentLocations := make([]string, 0, len(input.SelectedDocumentIDs))
 	for _, rawDocumentID := range input.SelectedDocumentIDs {
@@ -108,9 +121,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		}
 		normalizedDocumentLocations = append(normalizedDocumentLocations, documentID)
 	}
-	if len(normalizedDocumentLocations) == 0 {
-		return nil, fmt.Errorf("selected_document_ids must contain at least one non-empty value")
-	}
+	preferSelectedDocuments := len(normalizedDocumentLocations) > 0
 	runID := fmt.Sprintf("ingest-%d", time.Now().UTC().UnixNano())
 	taskID := "ingestion"
 	jobID := fmt.Sprintf("ingestion-agent-%d", time.Now().UTC().UnixNano())
@@ -124,13 +135,16 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	if sourceBranch == "" {
 		sourceBranch = defaultIngestionSourceBranch
 	}
-	idempotencyKey := ingestionIdempotencyKey(strings.TrimSpace(input.ProjectID), normalizedDocumentLocations, sourceRepositoryFingerprints(sourceRepositories), sourceBranch, model, strings.TrimSpace(systemPrompt), userPrompt)
+	idempotencyKey := ingestionIdempotencyKey(strings.TrimSpace(input.ProjectID), boardID, normalizedDocumentLocations, sourceRepositoryFingerprints(sourceRepositories), sourceBranch, model, strings.TrimSpace(systemPrompt), userPrompt)
 	payload := IngestionAgentPayload{
 		RunID:                     runID,
 		TaskID:                    taskID,
 		JobID:                     jobID,
+		BoardID:                   boardID,
+		StreamID:                  jobID,
 		ProjectID:                 strings.TrimSpace(input.ProjectID),
 		SelectedDocumentLocations: normalizedDocumentLocations,
+		PreferSelectedDocuments:   preferSelectedDocuments,
 		SourceRepositories:        sourceRepositories,
 		SourceBranch:              sourceBranch,
 		Model:                     model,
@@ -159,9 +173,10 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 	return &RunIngestionAgentResult{RunID: runID, TaskID: taskID, JobID: jobID, QueueTaskID: enqueueResult.QueueTaskID, Duplicate: enqueueResult.Duplicate}, nil
 }
 
-func ingestionIdempotencyKey(projectID string, documentIDs []string, sourceRepositories []string, sourceBranch string, model string, systemPrompt string, userPrompt string) string {
+func ingestionIdempotencyKey(projectID string, boardID string, documentIDs []string, sourceRepositories []string, sourceBranch string, model string, systemPrompt string, userPrompt string) string {
 	hasher := sha256.New()
 	_, _ = hasher.Write([]byte(strings.TrimSpace(projectID)))
+	_, _ = hasher.Write([]byte("|" + strings.TrimSpace(boardID)))
 	for _, documentID := range documentIDs {
 		_, _ = hasher.Write([]byte("|" + strings.TrimSpace(documentID)))
 	}
@@ -186,4 +201,13 @@ func sourceRepositoryFingerprints(repositories []IngestionSourceRepository) []st
 		fingerprints = append(fingerprints, repositoryID+":"+repositoryURL)
 	}
 	return fingerprints
+}
+
+func hasNonEmptyValues(values []string) bool {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
 }

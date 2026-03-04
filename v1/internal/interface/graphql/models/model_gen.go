@@ -341,8 +341,9 @@ func (RequeueDeadLetterSuccess) IsRequeueDeadLetterResult() {}
 
 type RunIngestionAgentInput struct {
 	ProjectID           string   `json:"projectID"`
-	SelectedDocumentIDs []string `json:"selectedDocumentIDs"`
-	UserPrompt          string   `json:"userPrompt"`
+	BoardID             *string  `json:"boardID,omitempty"`
+	SelectedDocumentIDs []string `json:"selectedDocumentIDs,omitempty"`
+	UserPrompt          *string  `json:"userPrompt,omitempty"`
 }
 
 type RunIngestionAgentSuccess struct {
