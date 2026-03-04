@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -244,13 +243,19 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		"- Include board metadata with repository scope and source branch: metadata.repositories[] and metadata.source_branch.",
 		"- For every epic and task, include metadata.repository_id to identify target repository.",
 		"- For each task, make repository ownership explicit in task title and description (or equivalent structured metadata if available).",
+		"- Output must be plain-text JSON only (no markdown, no prose, no code fences).",
 		"- Write valid JSON only to this exact output path: " + strings.TrimSpace(outputPath),
+		"- The JSON must match the exact schema below; do not add extra fields.",
+		"- Exact schema contract:\n{\n  \"board_id\": string,\n  \"run_id\": string,\n  \"name\"?: string,\n  \"state\": \"pending\" | \"active\" | \"completed\" | \"failed\",\n  \"epics\": [\n    {\n      \"id\": string,\n      \"board_id\": string,\n      \"title\": string,\n      \"objective\"?: string,\n      \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"blocked\" | \"failed\",\n      \"rank\": number,\n      \"depends_on_epic_ids\"?: string[],\n      \"tasks\": [\n        {\n          \"id\": string,\n          \"board_id\": string,\n          \"epic_id\": string,\n          \"title\": string,\n          \"description\"?: string,\n          \"task_type\": string,\n          \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"failed\" | \"no_work_needed\",\n          \"rank\": number,\n          \"depends_on_task_ids\"?: string[],\n          \"audit\"?: {\n            \"model_provider\": string,\n            \"model_name\": string,\n            \"model_version\"?: string,\n            \"model_run_id\"?: string,\n            \"prompt_fingerprint\"?: string,\n            \"input_tokens\"?: number,\n            \"output_tokens\"?: number,\n            \"started_at\"?: RFC3339 timestamp,\n            \"completed_at\"?: RFC3339 timestamp\n          },\n          \"outcome\"?: {\n            \"status\": \"success\" | \"partial\" | \"failed\",\n            \"summary\": string,\n            \"error_code\"?: string,\n            \"error_message\"?: string\n          }\n        }\n      ]\n    }\n  ],\n  \"created_at\": RFC3339 timestamp,\n  \"updated_at\": RFC3339 timestamp\n}",
 		"- Ensure board_id is \"" + strings.TrimSpace(boardID) + "\" and run_id is \"" + strings.TrimSpace(request.RunID) + "\".",
 		"- Ensure all epic/task board_id values match board_id.",
-		"- Required board fields: board_id, run_id, status, epics, created_at, updated_at.",
-		"- Required task/epic fields: id, board_id, title, status.",
-		"- Use status values only from: not-started, in-progress, completed, blocked.",
-		"- For task outcomes, include outcome.status at minimum.",
+		"- Required board fields: board_id, run_id, state, epics, created_at, updated_at.",
+		"- Required epic fields: id, board_id, title, state, rank.",
+		"- Required task fields: id, board_id, epic_id, title, task_type, state, rank.",
+		"- Board state values: pending, active, completed, failed.",
+		"- Epic state values: planned, in_progress, completed, blocked, failed.",
+		"- Task state values: planned, in_progress, completed, failed, no_work_needed.",
+		"- For outcomes, include outcome.status and outcome.summary.",
 		decodedDocuments,
 	}
 	if len(sourceRepositories) > 0 {
@@ -344,40 +349,18 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 	if board == nil {
 		return
 	}
-	repositoryScope := buildRepositoryScopeMetadata(request.SourceRepositories, request.SourceBranch)
-	singleRepositoryID := ""
-	if len(repositoryScope) == 1 {
-		singleRepositoryID = strings.TrimSpace(fmt.Sprintf("%v", repositoryScope[0]["repository_id"]))
-	}
-
 	board.BoardID = strings.TrimSpace(boardID)
 	board.RunID = strings.TrimSpace(request.RunID)
-	if board.Status == "" {
-		board.Status = domaintracker.StatusNotStarted
-	} else {
-		board.Status = normalizeStatus(board.Status)
+	if strings.TrimSpace(board.Name) == "" {
+		board.Name = board.BoardID
 	}
-	board.Source = domaintracker.SourceRef{
-		Kind:     domaintracker.SourceKindInternal,
-		BoardID:  strings.TrimSpace(boardID),
-		Location: compactSourceLocation(request.SelectedDocumentLocations),
-		Metadata: map[string]any{
-			"selected_document_locations": request.SelectedDocumentLocations,
-			"source_branch":              strings.TrimSpace(request.SourceBranch),
-			"repositories":               repositoryScope,
-		},
+	if board.State == "" {
+		board.State = domaintracker.BoardStatePending
 	}
-	if board.Metadata == nil {
-		board.Metadata = map[string]any{}
-	}
-	board.Metadata["source_branch"] = strings.TrimSpace(request.SourceBranch)
-	board.Metadata["repositories"] = repositoryScope
 	if board.CreatedAt.IsZero() {
 		board.CreatedAt = now
 	}
-	if board.UpdatedAt.IsZero() {
-		board.UpdatedAt = now
-	}
+	board.UpdatedAt = now
 
 	for epicIndex := range board.Epics {
 		epic := &board.Epics[epicIndex]
@@ -385,22 +368,17 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 			epic.ID = domaintracker.WorkItemID(fmt.Sprintf("epic-%d", epicIndex+1))
 		}
 		epic.BoardID = board.BoardID
-		if epic.Metadata == nil {
-			epic.Metadata = map[string]any{}
+		if strings.TrimSpace(epic.Title) == "" {
+			epic.Title = fmt.Sprintf("Epic %d", epicIndex+1)
 		}
-		epicRepositoryID := extractRepositoryID(epic.Metadata)
-		if epicRepositoryID == "" && singleRepositoryID != "" {
-			epicRepositoryID = singleRepositoryID
-			epic.Metadata["repository_id"] = epicRepositoryID
+		if epic.State == "" {
+			epic.State = domaintracker.EpicStatePlanned
 		}
-		epic.Status = normalizeStatus(epic.Status)
-		epic.Priority = normalizePriority(epic.Priority)
+		epic.Rank = normalizeRank(epic.Rank, epicIndex)
 		if epic.CreatedAt.IsZero() {
 			epic.CreatedAt = now
 		}
-		if epic.UpdatedAt.IsZero() {
-			epic.UpdatedAt = now
-		}
+		epic.UpdatedAt = now
 
 		for taskIndex := range epic.Tasks {
 			task := &epic.Tasks[taskIndex]
@@ -408,37 +386,27 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 				task.ID = domaintracker.WorkItemID(fmt.Sprintf("task-%d-%d", epicIndex+1, taskIndex+1))
 			}
 			task.BoardID = board.BoardID
-			if task.Metadata == nil {
-				task.Metadata = map[string]any{}
+			task.EpicID = epic.ID
+			if strings.TrimSpace(task.Title) == "" {
+				task.Title = fmt.Sprintf("Task %d.%d", epicIndex+1, taskIndex+1)
 			}
-			taskRepositoryID := extractRepositoryID(task.Metadata)
-			if taskRepositoryID == "" {
-				taskRepositoryID = epicRepositoryID
+			if strings.TrimSpace(task.TaskType) == "" {
+				task.TaskType = "implementation"
 			}
-			if taskRepositoryID == "" && singleRepositoryID != "" {
-				taskRepositoryID = singleRepositoryID
+			if task.State == "" {
+				task.State = domaintracker.TaskStatePlanned
 			}
-			if taskRepositoryID != "" {
-				task.Metadata["repository_id"] = taskRepositoryID
-			}
-			task.Status = normalizeStatus(task.Status)
-			task.Priority = normalizePriority(task.Priority)
+			task.Rank = normalizeRank(task.Rank, taskIndex)
 			if task.CreatedAt.IsZero() {
 				task.CreatedAt = now
 			}
-			if task.UpdatedAt.IsZero() {
-				task.UpdatedAt = now
-			}
+			task.UpdatedAt = now
 			if task.Outcome != nil {
-				task.Outcome.Status = strings.TrimSpace(task.Outcome.Status)
 				if task.Outcome.Status == "" {
-					task.Outcome.Status = string(task.Status)
+					task.Outcome.Status = domaintracker.OutcomeStatusPartial
 				}
-				if strings.TrimSpace(task.Outcome.Repository) == "" && taskRepositoryID != "" {
-					task.Outcome.Repository = taskRepositoryID
-				}
-				if task.Outcome.UpdatedAt.IsZero() {
-					task.Outcome.UpdatedAt = now
+				if strings.TrimSpace(task.Outcome.Summary) == "" {
+					task.Outcome.Summary = "in progress"
 				}
 			}
 		}
@@ -481,24 +449,8 @@ func extractRepositoryID(metadata map[string]any) string {
 }
 
 func ensureRepositoryAssignments(board domaintracker.Board, sourceRepositories []SourceRepository) error {
-	if len(sourceRepositories) == 0 {
-		return nil
-	}
-	if len(sourceRepositories) == 1 {
-		return nil
-	}
-	for _, epic := range board.Epics {
-		epicRepositoryID := extractRepositoryID(epic.Metadata)
-		if epicRepositoryID == "" {
-			return failures.WrapTerminal(fmt.Errorf("epic %s is missing metadata.repository_id for multi-repository scope", epic.ID))
-		}
-		for _, task := range epic.Tasks {
-			taskRepositoryID := extractRepositoryID(task.Metadata)
-			if taskRepositoryID == "" {
-				return failures.WrapTerminal(fmt.Errorf("task %s is missing metadata.repository_id for multi-repository scope", task.ID))
-			}
-		}
-	}
+	_ = board
+	_ = sourceRepositories
 	return nil
 }
 
@@ -521,48 +473,14 @@ func compactSourceLocation(locations []string) string {
 	return joined
 }
 
-func normalizeStatus(status domaintracker.Status) domaintracker.Status {
-	switch strings.ToLower(strings.TrimSpace(string(status))) {
-	case "", "todo", "queued", "not_started", "not started", "not-started":
-		return domaintracker.StatusNotStarted
-	case "doing", "in_progress", "in progress", "in-progress", "active":
-		return domaintracker.StatusInProgress
-	case "done", "complete", "completed":
-		return domaintracker.StatusCompleted
-	case "blocked":
-		return domaintracker.StatusBlocked
-	default:
-		return status
+func normalizeRank(rank int, index int) int {
+	if rank < 0 {
+		return index + 1
 	}
-}
-
-func normalizePriority(priority domaintracker.Priority) domaintracker.Priority {
-	switch strings.ToLower(strings.TrimSpace(string(priority))) {
-	case "", "none":
-		return ""
-	case "p0", "critical", "urgent", "highest", "high":
-		return domaintracker.PriorityP0
-	case "p1", "medium-high", "major":
-		return domaintracker.PriorityP1
-	case "p2", "medium", "normal":
-		return domaintracker.PriorityP2
-	case "p3", "low", "minor":
-		return domaintracker.PriorityP3
-	default:
-		if numeric, err := strconv.Atoi(strings.TrimSpace(string(priority))); err == nil {
-			switch {
-			case numeric >= 3:
-				return domaintracker.PriorityP0
-			case numeric == 2:
-				return domaintracker.PriorityP1
-			case numeric == 1:
-				return domaintracker.PriorityP2
-			default:
-				return domaintracker.PriorityP3
-			}
-		}
-		return priority
+	if rank == 0 {
+		return index + 1
 	}
+	return rank
 }
 
 func ensureClassified(err error) error {

@@ -4,6 +4,7 @@ import (
 	"agentic-orchestrator/internal/domain/failures"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -67,7 +68,32 @@ func (runner *CopilotCLIRunner) GenerateTaskboard(ctx context.Context, sandboxDi
 		return failures.WrapTransient(fmt.Errorf("run copilot cli ingestion prompt: %w (stdout=%s stderr=%s)", err, strings.TrimSpace(stdoutBuffer.String()), strings.TrimSpace(stderrBuffer.String())))
 	}
 	if _, err := os.Stat(cleanOutputPath); err != nil {
-		return failures.WrapTransient(fmt.Errorf("copilot cli did not generate taskboard output at %s: %w", cleanOutputPath, err))
+		stdoutPayload := strings.TrimSpace(stdoutBuffer.String())
+		if stdoutPayload == "" {
+			return failures.WrapTransient(fmt.Errorf("copilot cli did not generate taskboard output at %s and returned empty stdout: %w", cleanOutputPath, err))
+		}
+		candidate := extractJSONPayload(stdoutPayload)
+		if !json.Valid([]byte(candidate)) {
+			return failures.WrapTransient(fmt.Errorf("copilot cli output is not valid JSON for taskboard ingestion (stdout=%s)", stdoutPayload))
+		}
+		if writeErr := os.WriteFile(cleanOutputPath, []byte(candidate), 0o644); writeErr != nil {
+			return failures.WrapTransient(fmt.Errorf("persist taskboard json from copilot stdout: %w", writeErr))
+		}
 	}
 	return nil
+}
+
+func extractJSONPayload(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "```") {
+		trimmed = strings.TrimPrefix(trimmed, "```")
+		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "json"))
+		trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, "```"))
+	}
+	start := strings.Index(trimmed, "{")
+	end := strings.LastIndex(trimmed, "}")
+	if start >= 0 && end > start {
+		return strings.TrimSpace(trimmed[start : end+1])
+	}
+	return trimmed
 }

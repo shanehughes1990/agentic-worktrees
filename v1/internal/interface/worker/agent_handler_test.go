@@ -470,14 +470,17 @@ func TestAgentWorkflowHandlerClaimsAndAppliesTrackerTask(t *testing.T) {
 		}},
 	}}
 	trackerService := &fakeTrackerTaskService{claimResult: applicationtracker.ClaimedTask{
-		ClaimID: "claim-1",
-		Task: domaintracker.Task{WorkItem: domaintracker.WorkItem{
+		ClaimToken: "claim-1",
+		Task: domaintracker.Task{
 			ID:          domaintracker.WorkItemID("task-123"),
 			BoardID:     "board-1",
+			EpicID:      domaintracker.WorkItemID("epic-1"),
 			Title:       "Finish implementation",
 			Description: "Apply tracker integration",
-			Status:      domaintracker.StatusInProgress,
-		}},
+			TaskType:    "implementation",
+			State:       domaintracker.TaskStateInProgress,
+			Rank:        1,
+		},
 	}}
 
 	handler, err := NewAgentWorkflowHandlerWithProjectSetupAndTracker(
@@ -517,8 +520,11 @@ func TestAgentWorkflowHandlerClaimsAndAppliesTrackerTask(t *testing.T) {
 	if !trackerService.claimCalled {
 		t.Fatalf("expected tracker claim to be called")
 	}
-	if trackerService.claimRequest.ProjectID != "project-1" || trackerService.claimRequest.BoardID != "board-1" || trackerService.claimRequest.WorkerID != "worker-1" {
+	if trackerService.claimRequest.ProjectID != "project-1" || trackerService.claimRequest.BoardID != "board-1" || trackerService.claimRequest.AgentID != "worker-1" {
 		t.Fatalf("unexpected claim request: %+v", trackerService.claimRequest)
+	}
+	if trackerService.claimRequest.LeaseTTL <= 0 {
+		t.Fatalf("expected positive lease ttl, got %s", trackerService.claimRequest.LeaseTTL)
 	}
 	if !strings.Contains(agentService.request.Prompt, "Task ID: task-123") {
 		t.Fatalf("expected claimed task prompt enrichment, got %q", agentService.request.Prompt)
@@ -526,7 +532,7 @@ func TestAgentWorkflowHandlerClaimsAndAppliesTrackerTask(t *testing.T) {
 	if !trackerService.applyCalled {
 		t.Fatalf("expected tracker apply to be called")
 	}
-	if trackerService.applyRequest.ClaimID != "claim-1" || trackerService.applyRequest.TaskID != "task-123" || trackerService.applyRequest.NextStatus != domaintracker.StatusCompleted {
+	if trackerService.applyRequest.ClaimToken != "claim-1" || trackerService.applyRequest.TaskID != "task-123" || trackerService.applyRequest.NextState != domaintracker.TaskStateCompleted {
 		t.Fatalf("unexpected apply request: %+v", trackerService.applyRequest)
 	}
 }

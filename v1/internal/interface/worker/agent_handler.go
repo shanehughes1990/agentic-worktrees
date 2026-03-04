@@ -215,13 +215,14 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 		claimed, claimErr := handler.trackerService.ClaimNextTask(ctx, applicationtracker.ClaimNextTaskRequest{
 			ProjectID: strings.TrimSpace(payload.ProjectID),
 			BoardID:   boardID,
-			WorkerID:  strings.TrimSpace(payload.SessionID),
+			AgentID:   strings.TrimSpace(payload.SessionID),
+			LeaseTTL:  30 * time.Minute,
 		})
 		if claimErr != nil {
 			handler.safeRecordExecution(ctx, request, job.Kind, "source_state", taskengine.ExecutionStatusFailed, claimErr.Error())
 			return fmt.Errorf("claim next tracker task: %w", claimErr)
 		}
-		claimID = strings.TrimSpace(claimed.ClaimID)
+		claimID = strings.TrimSpace(claimed.ClaimToken)
 		claimedTaskID = strings.TrimSpace(string(claimed.Task.ID))
 		request.Prompt = mergeTaskPrompt(request.Prompt, claimed.Task)
 	}
@@ -259,13 +260,13 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 
 	if handler.trackerService != nil && strings.TrimSpace(payload.ProjectID) != "" && boardID != "" && claimID != "" && claimedTaskID != "" {
 		_, applyErr := handler.trackerService.ApplyTaskResult(ctx, applicationtracker.ApplyTaskResultRequest{
-			ProjectID:     strings.TrimSpace(payload.ProjectID),
-			BoardID:       boardID,
-			ClaimID:       claimID,
-			TaskID:        claimedTaskID,
-			NextStatus:    domaintracker.StatusCompleted,
-			OutcomeStatus: "completed",
-			OutcomeReason: "agent workflow completed",
+			ProjectID:      strings.TrimSpace(payload.ProjectID),
+			BoardID:        boardID,
+			ClaimToken:     claimID,
+			TaskID:         claimedTaskID,
+			NextState:      domaintracker.TaskStateCompleted,
+			OutcomeStatus:  domaintracker.OutcomeStatusSuccess,
+			OutcomeSummary: "agent workflow completed",
 		})
 		if applyErr != nil {
 			handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, applyErr.Error())

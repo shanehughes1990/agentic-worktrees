@@ -8,146 +8,170 @@ import (
 	"time"
 )
 
-type Status string
+type BoardState string
 
 const (
-	StatusNotStarted Status = "not-started"
-	StatusInProgress Status = "in-progress"
-	StatusCompleted  Status = "completed"
-	StatusBlocked    Status = "blocked"
+	BoardStatePending   BoardState = "pending"
+	BoardStateActive    BoardState = "active"
+	BoardStateCompleted BoardState = "completed"
+	BoardStateFailed    BoardState = "failed"
 )
 
-func (status Status) Validate() error {
+func (state BoardState) Validate() error {
+	switch state {
+	case BoardStatePending, BoardStateActive, BoardStateCompleted, BoardStateFailed:
+		return nil
+	default:
+		return failures.WrapTerminal(fmt.Errorf("unsupported board state %q", state))
+	}
+}
+
+type EpicState string
+
+const (
+	EpicStatePlanned    EpicState = "planned"
+	EpicStateInProgress EpicState = "in_progress"
+	EpicStateCompleted  EpicState = "completed"
+	EpicStateBlocked    EpicState = "blocked"
+	EpicStateFailed     EpicState = "failed"
+)
+
+func (state EpicState) Validate() error {
+	switch state {
+	case EpicStatePlanned, EpicStateInProgress, EpicStateCompleted, EpicStateBlocked, EpicStateFailed:
+		return nil
+	default:
+		return failures.WrapTerminal(fmt.Errorf("unsupported epic state %q", state))
+	}
+}
+
+type TaskState string
+
+const (
+	TaskStatePlanned      TaskState = "planned"
+	TaskStateInProgress   TaskState = "in_progress"
+	TaskStateCompleted    TaskState = "completed"
+	TaskStateFailed       TaskState = "failed"
+	TaskStateNoWorkNeeded TaskState = "no_work_needed"
+)
+
+func (state TaskState) Validate() error {
+	switch state {
+	case TaskStatePlanned, TaskStateInProgress, TaskStateCompleted, TaskStateFailed, TaskStateNoWorkNeeded:
+		return nil
+	default:
+		return failures.WrapTerminal(fmt.Errorf("unsupported task state %q", state))
+	}
+}
+
+type OutcomeStatus string
+
+const (
+	OutcomeStatusSuccess OutcomeStatus = "success"
+	OutcomeStatusPartial OutcomeStatus = "partial"
+	OutcomeStatusFailed  OutcomeStatus = "failed"
+)
+
+func (status OutcomeStatus) Validate() error {
 	switch status {
-	case StatusNotStarted, StatusInProgress, StatusCompleted, StatusBlocked:
+	case OutcomeStatusSuccess, OutcomeStatusPartial, OutcomeStatusFailed:
 		return nil
 	default:
-		return failures.WrapTerminal(fmt.Errorf("unsupported status %q", status))
+		return failures.WrapTerminal(fmt.Errorf("unsupported outcome status %q", status))
 	}
-}
-
-type SourceKind string
-
-const (
-	SourceKindInternal SourceKind = "internal"
-)
-
-func (kind SourceKind) Validate() error {
-	switch kind {
-	case SourceKindInternal:
-		return nil
-	default:
-		return failures.WrapTerminal(fmt.Errorf("unsupported source kind %q", kind))
-	}
-}
-
-type SourceRef struct {
-	Kind     SourceKind     `json:"kind"`
-	Location string         `json:"location,omitempty"`
-	BoardID  string         `json:"board_id,omitempty"`
-	Config   map[string]any `json:"config,omitempty"`
-	Metadata map[string]any `json:"metadata,omitempty"`
-}
-
-func (source SourceRef) Validate() error {
-	if err := source.Kind.Validate(); err != nil {
-		return err
-	}
-	switch source.Kind {
-	case SourceKindInternal:
-		if strings.TrimSpace(source.Location) == "" {
-			return failures.WrapTerminal(errors.New("location is required for internal source"))
-		}
-	}
-	return nil
 }
 
 type WorkItemID string
 
-func (id WorkItemID) Validate() error {
+func (id WorkItemID) Validate(name string) error {
 	if strings.TrimSpace(string(id)) == "" {
-		return failures.WrapTerminal(errors.New("id is required"))
+		return failures.WrapTerminal(fmt.Errorf("%s is required", name))
 	}
 	return nil
 }
 
-type Priority string
-
-const (
-	PriorityP0 Priority = "p0"
-	PriorityP1 Priority = "p1"
-	PriorityP2 Priority = "p2"
-	PriorityP3 Priority = "p3"
-)
-
-func (priority Priority) Validate() error {
-	if strings.TrimSpace(string(priority)) == "" {
-		return nil
-	}
-	switch priority {
-	case PriorityP0, PriorityP1, PriorityP2, PriorityP3:
-		return nil
-	default:
-		return failures.WrapTerminal(fmt.Errorf("unsupported priority %q", priority))
-	}
-}
-
-type WorkItem struct {
-	ID          WorkItemID     `json:"id"`
-	BoardID     string         `json:"board_id"`
-	Title       string         `json:"title"`
-	Description string         `json:"description,omitempty"`
-	Status      Status         `json:"status"`
-	Priority    Priority       `json:"priority,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
-	CreatedAt   time.Time      `json:"created_at,omitempty"`
-	UpdatedAt   time.Time      `json:"updated_at,omitempty"`
-}
-
-func (item WorkItem) Validate() error {
-	if err := item.ID.Validate(); err != nil {
-		return err
-	}
-	if strings.TrimSpace(item.BoardID) == "" {
-		return failures.WrapTerminal(errors.New("board_id is required"))
-	}
-	if strings.TrimSpace(item.Title) == "" {
-		return failures.WrapTerminal(errors.New("title is required"))
-	}
-	if err := item.Status.Validate(); err != nil {
-		return err
-	}
-	if err := item.Priority.Validate(); err != nil {
-		return err
-	}
-	return nil
+type TaskModelAudit struct {
+	ModelProvider     string     `json:"model_provider"`
+	ModelName         string     `json:"model_name"`
+	ModelVersion      string     `json:"model_version,omitempty"`
+	ModelRunID        string     `json:"model_run_id,omitempty"`
+	PromptFingerprint string     `json:"prompt_fingerprint,omitempty"`
+	InputTokens       *int       `json:"input_tokens,omitempty"`
+	OutputTokens      *int       `json:"output_tokens,omitempty"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	CompletedAt       *time.Time `json:"completed_at,omitempty"`
 }
 
 type TaskOutcome struct {
-	Status          string    `json:"status"`
-	Reason          string    `json:"reason,omitempty"`
-	TaskBranch      string    `json:"task_branch,omitempty"`
-	Repository        string    `json:"repository,omitempty"`
-	ResumeSessionID string    `json:"resume_session_id,omitempty"`
-	UpdatedAt       time.Time `json:"updated_at,omitempty"`
+	Status       OutcomeStatus `json:"status"`
+	Summary      string        `json:"summary"`
+	ErrorCode    string        `json:"error_code,omitempty"`
+	ErrorMessage string        `json:"error_message,omitempty"`
 }
 
 func (outcome TaskOutcome) Validate() error {
-	if strings.TrimSpace(outcome.Status) == "" {
-		return failures.WrapTerminal(errors.New("status is required"))
+	if err := outcome.Status.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(outcome.Summary) == "" {
+		return failures.WrapTerminal(errors.New("summary is required"))
+	}
+	if outcome.Status == OutcomeStatusFailed && strings.TrimSpace(outcome.ErrorCode) == "" {
+		return failures.WrapTerminal(errors.New("error_code is required for failed outcome"))
 	}
 	return nil
 }
 
 type Task struct {
-	WorkItem
-	DependsOn []WorkItemID `json:"depends_on,omitempty"`
-	Outcome   *TaskOutcome `json:"outcome,omitempty"`
+	ID              WorkItemID      `json:"id"`
+	BoardID         string          `json:"board_id"`
+	EpicID          WorkItemID      `json:"epic_id"`
+	Title           string          `json:"title"`
+	Description     string          `json:"description,omitempty"`
+	TaskType        string          `json:"task_type"`
+	State           TaskState       `json:"state"`
+	Rank            int             `json:"rank"`
+	DependsOnTaskIDs []WorkItemID   `json:"depends_on_task_ids,omitempty"`
+	Audit           TaskModelAudit  `json:"audit,omitempty"`
+	Outcome         *TaskOutcome    `json:"outcome,omitempty"`
+	ClaimedByAgentID string         `json:"claimed_by_agent_id,omitempty"`
+	ClaimedAt       *time.Time      `json:"claimed_at,omitempty"`
+	ClaimExpiresAt  *time.Time      `json:"claim_expires_at,omitempty"`
+	ClaimToken      string          `json:"claim_token,omitempty"`
+	AttemptCount    int             `json:"attempt_count,omitempty"`
+	CreatedAt       time.Time       `json:"created_at,omitempty"`
+	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
 }
 
 func (task Task) Validate() error {
-	if err := task.WorkItem.Validate(); err != nil {
+	if err := task.ID.Validate("task id"); err != nil {
 		return err
+	}
+	if strings.TrimSpace(task.BoardID) == "" {
+		return failures.WrapTerminal(errors.New("task board_id is required"))
+	}
+	if err := task.EpicID.Validate("task epic_id"); err != nil {
+		return err
+	}
+	if strings.TrimSpace(task.Title) == "" {
+		return failures.WrapTerminal(errors.New("task title is required"))
+	}
+	if strings.TrimSpace(task.TaskType) == "" {
+		return failures.WrapTerminal(errors.New("task_type is required"))
+	}
+	if err := task.State.Validate(); err != nil {
+		return err
+	}
+	if task.Rank < 0 {
+		return failures.WrapTerminal(errors.New("task rank cannot be negative"))
+	}
+	for _, dependencyID := range task.DependsOnTaskIDs {
+		if err := dependencyID.Validate("task dependency id"); err != nil {
+			return err
+		}
+		if dependencyID == task.ID {
+			return failures.WrapTerminal(fmt.Errorf("task %s cannot depend on itself", task.ID))
+		}
 	}
 	if task.Outcome != nil {
 		if err := task.Outcome.Validate(); err != nil {
@@ -158,37 +182,65 @@ func (task Task) Validate() error {
 }
 
 type Epic struct {
-	WorkItem
-	DependsOn []WorkItemID `json:"depends_on,omitempty"`
-	Tasks     []Task       `json:"tasks"`
+	ID               WorkItemID    `json:"id"`
+	BoardID          string        `json:"board_id"`
+	Title            string        `json:"title"`
+	Objective        string        `json:"objective,omitempty"`
+	State            EpicState     `json:"state"`
+	Rank             int           `json:"rank"`
+	DependsOnEpicIDs []WorkItemID  `json:"depends_on_epic_ids,omitempty"`
+	Tasks            []Task        `json:"tasks"`
+	CreatedAt        time.Time     `json:"created_at,omitempty"`
+	UpdatedAt        time.Time     `json:"updated_at,omitempty"`
 }
 
 func (epic Epic) Validate() error {
-	if err := epic.WorkItem.Validate(); err != nil {
+	if err := epic.ID.Validate("epic id"); err != nil {
 		return err
 	}
-	if len(epic.Tasks) == 0 {
-		return failures.WrapTerminal(errors.New("tasks are required"))
+	if strings.TrimSpace(epic.BoardID) == "" {
+		return failures.WrapTerminal(errors.New("epic board_id is required"))
+	}
+	if strings.TrimSpace(epic.Title) == "" {
+		return failures.WrapTerminal(errors.New("epic title is required"))
+	}
+	if err := epic.State.Validate(); err != nil {
+		return err
+	}
+	if epic.Rank < 0 {
+		return failures.WrapTerminal(errors.New("epic rank cannot be negative"))
+	}
+	for _, dependencyID := range epic.DependsOnEpicIDs {
+		if err := dependencyID.Validate("epic dependency id"); err != nil {
+			return err
+		}
+		if dependencyID == epic.ID {
+			return failures.WrapTerminal(fmt.Errorf("epic %s cannot depend on itself", epic.ID))
+		}
 	}
 	for _, task := range epic.Tasks {
 		if err := task.Validate(); err != nil {
 			return err
+		}
+		if task.BoardID != epic.BoardID {
+			return failures.WrapTerminal(fmt.Errorf("task %s board_id must match epic board_id", task.ID))
+		}
+		if task.EpicID != epic.ID {
+			return failures.WrapTerminal(fmt.Errorf("task %s epic_id must match parent epic", task.ID))
 		}
 	}
 	return nil
 }
 
 type Board struct {
-	BoardID   string         `json:"board_id"`
-	RunID     string         `json:"run_id"`
-	Title     string         `json:"title,omitempty"`
-	Goal      string         `json:"goal,omitempty"`
-	Source    SourceRef      `json:"source"`
-	Status    Status         `json:"status"`
-	Epics     []Epic         `json:"epics"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	BoardID   string     `json:"board_id"`
+	RunID     string     `json:"run_id"`
+	ProjectID string     `json:"project_id,omitempty"`
+	Name      string     `json:"name,omitempty"`
+	State     BoardState `json:"state"`
+	Epics     []Epic     `json:"epics"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 func (board Board) Validate() error {
@@ -198,20 +250,16 @@ func (board Board) Validate() error {
 	if strings.TrimSpace(board.RunID) == "" {
 		return failures.WrapTerminal(errors.New("run_id is required"))
 	}
-	if err := board.Source.Validate(); err != nil {
+	if err := board.State.Validate(); err != nil {
 		return err
 	}
-	if err := board.Status.Validate(); err != nil {
-		return err
-	}
-
 	epicIDs := make(map[WorkItemID]struct{}, len(board.Epics))
 	taskIDs := map[WorkItemID]struct{}{}
 	for _, epic := range board.Epics {
 		if err := epic.Validate(); err != nil {
 			return err
 		}
-		if strings.TrimSpace(epic.BoardID) != board.BoardID {
+		if epic.BoardID != board.BoardID {
 			return failures.WrapTerminal(fmt.Errorf("epic %s board_id must equal board board_id", epic.ID))
 		}
 		if _, exists := epicIDs[epic.ID]; exists {
@@ -219,30 +267,25 @@ func (board Board) Validate() error {
 		}
 		epicIDs[epic.ID] = struct{}{}
 		for _, task := range epic.Tasks {
-			if strings.TrimSpace(task.BoardID) != board.BoardID {
-				return failures.WrapTerminal(fmt.Errorf("task %s board_id must equal board board_id", task.ID))
-			}
 			if _, exists := taskIDs[task.ID]; exists {
 				return failures.WrapTerminal(fmt.Errorf("duplicate task id %q", task.ID))
 			}
 			taskIDs[task.ID] = struct{}{}
 		}
 	}
-
 	for _, epic := range board.Epics {
-		for _, dependencyEpicID := range epic.DependsOn {
-			if _, exists := epicIDs[WorkItemID(strings.TrimSpace(string(dependencyEpicID)))]; !exists {
+		for _, dependencyEpicID := range epic.DependsOnEpicIDs {
+			if _, exists := epicIDs[dependencyEpicID]; !exists {
 				return failures.WrapTerminal(fmt.Errorf("epic %s depends on missing epic %s", epic.ID, dependencyEpicID))
 			}
 		}
 		for _, task := range epic.Tasks {
-			for _, dependencyTaskID := range task.DependsOn {
-				if _, exists := taskIDs[WorkItemID(strings.TrimSpace(string(dependencyTaskID)))]; !exists {
+			for _, dependencyTaskID := range task.DependsOnTaskIDs {
+				if _, exists := taskIDs[dependencyTaskID]; !exists {
 					return failures.WrapTerminal(fmt.Errorf("task %s depends on missing task %s", task.ID, dependencyTaskID))
 				}
 			}
 		}
 	}
-
 	return nil
 }
