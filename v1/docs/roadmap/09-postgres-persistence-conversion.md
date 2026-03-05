@@ -15,7 +15,6 @@ Consolidate durable application state into PostgreSQL (single primary database),
 | Domain Surface                                     | Current State                                                              | Source Files                                                                                                                                                                      | Postgres Requirement                                                                                                                                                           |
 | -------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Workflow admission ledger (run/task/job lifecycle) | **Postgres-backed (implemented)** for enqueue admission writes (`queued`)  | `internal/application/taskengine/scheduler.go`, `internal/infrastructure/taskengine/postgres/admission_ledger.go`, `internal/interface/graphql/resolvers/scm_resolver_helpers.go` | Persist every admitted job and lifecycle transition (`queued`, `running`, `succeeded`, `failed`, `skipped`, `dead_lettered`) keyed by `run_id/task_id/job_id/idempotency_key`. |
-| Retry checkpoints                                  | **Postgres-backed (implemented)**                                          | `internal/infrastructure/taskengine/postgres/checkpoint_store.go`, worker handlers                                                                                                | Keep durable checkpoint persistence in Postgres as source of truth.                                                                                                            |
 | Execution journal                                  | **Postgres-backed (implemented)**                                          | `internal/infrastructure/taskengine/postgres/execution_journal.go`, worker handlers                                                                                               | Keep durable execution records in Postgres for replay/audit/debug.                                                                                                             |
 | Dead-letter triage history                         | **Postgres-backed (implemented for requeue audit events)**                 | `internal/infrastructure/queue/asynq/dead_letter_manager.go`, `internal/infrastructure/taskengine/postgres/dead_letter_audit.go`                                                  | Persist dead-letter snapshots and operator actions (`requeue`, `discard`, reason, actor, timestamp).                                                                           |
 | SCM repository lease coordination                  | **Postgres-backed (implemented)**                                          | `internal/infrastructure/scm/postgres_repo_lease_manager.go`, `internal/application/scm/coordinator.go`                                                                           | Keep lease table as durable coordination layer across workers.                                                                                                                 |
@@ -36,11 +35,9 @@ Consolidate durable application state into PostgreSQL (single primary database),
 - `workflow_runs` — run-level metadata and status.
 - `workflow_tasks` — task-level state per run.
 - `workflow_jobs` — job records keyed by queue task ID + correlation IDs. **(enqueue admission writes implemented)**
-- `job_checkpoints` — durable step/token checkpoints. **(implemented)**
 - `job_execution_events` — append-only execution journal. **(implemented as upserted current-state records)**
 - `dead_letter_events` — dead-letter snapshots and operator actions. **(requeue audit implemented)**
 - `scm_repo_leases` — lease ownership + expiry. **(implemented)**
-- `tracker_board_snapshots` — canonical board snapshots by run/board. **(implemented)**
 - `tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes` — full normalized tracker model. **(implemented)**
 - `agent_session_snapshots` — latest session view + resumable context.
 - `supervisor_events` — policy decisions and transition history. **(implemented)**
@@ -57,7 +54,6 @@ Consolidate durable application state into PostgreSQL (single primary database),
 
 ### Phase 1 — Execution Reliability First
 
-- [x] Replace Redis checkpoint store with Postgres checkpoint repository.
 - [x] Replace Redis execution journal with Postgres execution repository.
 - [x] Add workflow run/task/job admission ledger writes at enqueue time.
 - [x] Persist dead-letter triage events alongside asynq inspection actions (requeue action path).

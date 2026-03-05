@@ -3,7 +3,6 @@ package postgres
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -60,21 +59,6 @@ func (trackerProjectBoardRecord) TableName() string {
 	return "project_boards"
 }
 
-type trackerBoardSnapshotRecord struct {
-	ID         uint      `gorm:"primaryKey"`
-	CreatedAt  time.Time `gorm:"column:created_at"`
-	UpdatedAt  time.Time `gorm:"column:updated_at"`
-	RunID      string `gorm:"column:run_id;size:255;not null;uniqueIndex:idx_tracker_board_snapshot,priority:1"`
-	BoardID    string `gorm:"column:board_id;size:255;not null;uniqueIndex:idx_tracker_board_snapshot,priority:2"`
-	SourceKind string `gorm:"column:source_kind;size:64;not null"`
-	SourceRef  string `gorm:"column:source_ref"`
-	Payload    []byte `gorm:"column:payload;not null"`
-}
-
-func (trackerBoardSnapshotRecord) TableName() string {
-	return "project_board_snapshots"
-}
-
 type ProjectSetupRepository struct {
 	db             *gorm.DB
 	scmTokenCrypto *SCMTokenCrypto
@@ -87,26 +71,10 @@ func NewProjectSetupRepository(db *gorm.DB, scmTokenCrypto *SCMTokenCrypto) (*Pr
 	if scmTokenCrypto == nil {
 		return nil, fmt.Errorf("project setup repository scm token crypto is required")
 	}
-	if err := normalizeLegacyProjectSetupSchema(db); err != nil {
-		return nil, fmt.Errorf("project setup repository normalize legacy schema: %w", err)
-	}
-	if err := db.AutoMigrate(&projectSetupRecord{}, &projectSCMRecord{}, &projectRepositoryRecord{}, &trackerProjectBoardRecord{}, &trackerBoardSnapshotRecord{}); err != nil {
+	if err := db.AutoMigrate(&projectSetupRecord{}, &projectSCMRecord{}, &projectRepositoryRecord{}, &trackerProjectBoardRecord{}); err != nil {
 		return nil, fmt.Errorf("project setup repository migrate: %w", err)
 	}
 	return &ProjectSetupRepository{db: db, scmTokenCrypto: scmTokenCrypto}, nil
-}
-
-func normalizeLegacyProjectSetupSchema(db *gorm.DB) error {
-	if db == nil || db.Migrator() == nil {
-		return nil
-	}
-	migrator := db.Migrator()
-	if migrator.HasTable("tracker_board_snapshots") && !migrator.HasTable("project_board_snapshots") {
-		if err := migrator.RenameTable("tracker_board_snapshots", "project_board_snapshots"); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (repository *ProjectSetupRepository) RotateSCMTokenEncryptionKeys(ctx context.Context) error {
@@ -250,10 +218,8 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 		}
 		if len(setup.Boards) > 0 {
 			boards := make([]trackerProjectBoardRecord, 0, len(setup.Boards))
-			snapshots := make([]trackerBoardSnapshotRecord, 0)
 			now := time.Now().UTC()
 			for _, boardSetup := range setup.Boards {
-				trimmedTrackerProvider := strings.TrimSpace(boardSetup.TrackerProvider)
 				trimmedBoardID := strings.TrimSpace(boardSetup.BoardID)
 				if trimmedBoardID == "" {
 					continue
@@ -270,27 +236,6 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 					CreatedAt: now,
 					UpdatedAt: now,
 				})
-				if trimmedTrackerProvider == "internal" {
-					payload, err := json.Marshal(map[string]any{
-						"board_id":   trimmedBoardID,
-						"run_id":     projectRecord.ProjectID,
-						"title":      boardName,
-						"status":     "not-started",
-						"epics":      []any{},
-						"created_at": now,
-						"updated_at": now,
-					})
-					if err != nil {
-						return fmt.Errorf("encode internal tracker board snapshot payload: %w", err)
-					}
-					snapshots = append(snapshots, trackerBoardSnapshotRecord{
-						RunID:      projectRecord.ProjectID,
-						BoardID:    trimmedBoardID,
-						SourceKind: "internal",
-						SourceRef:  trimmedBoardID,
-						Payload:    payload,
-					})
-				}
 			}
 			if len(boards) > 0 {
 				for _, board := range boards {
@@ -299,16 +244,6 @@ func (repository *ProjectSetupRepository) UpsertProjectSetup(ctx context.Context
 						DoUpdates: clause.AssignmentColumns([]string{"project_id", "name", "updated_at"}),
 					}).Create(&board).Error; err != nil {
 						return fmt.Errorf("upsert project boards: %w", err)
-					}
-				}
-			}
-			if len(snapshots) > 0 {
-				for _, snapshot := range snapshots {
-					if err := tx.Clauses(clause.OnConflict{
-						Columns:   []clause.Column{{Name: "run_id"}, {Name: "board_id"}},
-						DoNothing: true,
-					}).Create(&snapshot).Error; err != nil {
-						return fmt.Errorf("insert internal tracker snapshot: %w", err)
 					}
 				}
 			}

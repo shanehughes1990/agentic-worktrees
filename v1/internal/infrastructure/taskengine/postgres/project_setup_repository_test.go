@@ -3,7 +3,6 @@ package postgres
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -55,87 +54,6 @@ func sampleProjectSetup() applicationcontrolplane.ProjectSetup {
 	}
 }
 
-func TestProjectSetupRepositorySeedsInitialInternalSnapshot(t *testing.T) {
-	db := newProjectSetupTestDB(t)
-	crypto := newProjectSetupTestCrypto(t, db)
-	repo, err := NewProjectSetupRepository(db, crypto)
-	if err != nil {
-		t.Fatalf("new repository: %v", err)
-	}
-
-	if _, err := repo.UpsertProjectSetup(context.Background(), sampleProjectSetup()); err != nil {
-		t.Fatalf("upsert setup: %v", err)
-	}
-
-	var snapshot trackerBoardSnapshotRecord
-	if err := db.Where("run_id = ? AND board_id = ?", "project-1", "project_1_board").Take(&snapshot).Error; err != nil {
-		t.Fatalf("load snapshot: %v", err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(snapshot.Payload, &payload); err != nil {
-		t.Fatalf("decode snapshot payload: %v", err)
-	}
-	if payload["status"] != "not-started" {
-		t.Fatalf("expected seeded status not-started, got %v", payload["status"])
-	}
-}
-
-func TestProjectSetupRepositoryDoesNotOverwriteExistingInternalSnapshot(t *testing.T) {
-	db := newProjectSetupTestDB(t)
-	crypto := newProjectSetupTestCrypto(t, db)
-	repo, err := NewProjectSetupRepository(db, crypto)
-	if err != nil {
-		t.Fatalf("new repository: %v", err)
-	}
-
-	if _, err := repo.UpsertProjectSetup(context.Background(), sampleProjectSetup()); err != nil {
-		t.Fatalf("upsert setup: %v", err)
-	}
-
-	persistedBoard := map[string]any{
-		"board_id": "project_1_board",
-		"run_id":   "project-1",
-		"title":    "Project 1 Board",
-		"status":   "in-progress",
-		"epics": []map[string]any{{
-			"id":       "epic-1",
-			"board_id": "project_1_board",
-			"title":    "Existing Epic",
-			"status":   "in-progress",
-			"tasks": []map[string]any{{
-				"id":       "task-1",
-				"board_id": "project_1_board",
-				"title":    "Existing Task",
-				"status":   "in-progress",
-			}},
-		}},
-	}
-	persistedPayload, err := json.Marshal(persistedBoard)
-	if err != nil {
-		t.Fatalf("encode persisted payload: %v", err)
-	}
-	if err := db.Model(&trackerBoardSnapshotRecord{}).
-		Where("run_id = ? AND board_id = ?", "project-1", "project_1_board").
-		Update("payload", persistedPayload).Error; err != nil {
-		t.Fatalf("seed persisted payload: %v", err)
-	}
-
-	if _, err := repo.UpsertProjectSetup(context.Background(), sampleProjectSetup()); err != nil {
-		t.Fatalf("second upsert setup: %v", err)
-	}
-
-	var snapshot trackerBoardSnapshotRecord
-	if err := db.Where("run_id = ? AND board_id = ?", "project-1", "project_1_board").Take(&snapshot).Error; err != nil {
-		t.Fatalf("load snapshot: %v", err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(snapshot.Payload, &payload); err != nil {
-		t.Fatalf("decode snapshot payload: %v", err)
-	}
-	if payload["status"] != "in-progress" {
-		t.Fatalf("expected existing board payload to be preserved, got status %v", payload["status"])
-	}
-}
 
 func TestProjectSetupRepositoryEncryptsSCMTokenAtRest(t *testing.T) {
 	db := newProjectSetupTestDB(t)
@@ -168,31 +86,6 @@ func TestProjectSetupRepositoryEncryptsSCMTokenAtRest(t *testing.T) {
 	}
 	if loadedSetup.SCMs[0].SCMToken != "ghp_super_secret_token" {
 		t.Fatalf("expected decrypted scm token for internal use, got %q", loadedSetup.SCMs[0].SCMToken)
-	}
-}
-
-func TestProjectSetupRepositoryWithoutBoardsDoesNotSeedSnapshot(t *testing.T) {
-	db := newProjectSetupTestDB(t)
-	crypto := newProjectSetupTestCrypto(t, db)
-	repo, err := NewProjectSetupRepository(db, crypto)
-	if err != nil {
-		t.Fatalf("new repository: %v", err)
-	}
-
-	setup := sampleProjectSetup()
-	setup.Boards = nil
-	if _, err := repo.UpsertProjectSetup(context.Background(), setup); err != nil {
-		t.Fatalf("upsert setup: %v", err)
-	}
-
-	var snapshotCount int64
-	if err := db.Model(&trackerBoardSnapshotRecord{}).
-		Where("run_id = ?", "project-1").
-		Count(&snapshotCount).Error; err != nil {
-		t.Fatalf("count snapshots: %v", err)
-	}
-	if snapshotCount != 0 {
-		t.Fatalf("expected no tracker snapshots for setup without boards, got %d", snapshotCount)
 	}
 }
 

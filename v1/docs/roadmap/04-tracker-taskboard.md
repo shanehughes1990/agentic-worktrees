@@ -17,7 +17,6 @@ Implement tracker-agnostic planning and execution intake through a canonical int
 - [x] Add board-source selection at project/workflow boundary.
 - [x] Define external provider adapter boundary (Jira/Linear-ready contract).
 - [x] Add ingestion/sync integration tests against canonical model.
-- [x] Persist board snapshots on ingestion sync (`tracker_board_snapshots`).
 - [x] Implement full normalized Postgres tracker model (`tracker_boards`, `tracker_epics`, `tracker_tasks`, `tracker_task_outcomes`).
 
 ## Deliverables

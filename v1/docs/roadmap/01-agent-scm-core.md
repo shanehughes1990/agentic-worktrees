@@ -64,7 +64,6 @@ Make execution reliability durable by persisting state transitions and resumabil
 
 ### Task Checklist
 
-- [x] Persist retry checkpoints in Postgres (`job_checkpoints`) and load by `idempotency_key` at job start.
 - [x] Persist execution state in Postgres (`job_execution_events`) for deterministic replay/audit.
 - [x] Persist workflow admission writes (`queued`) for `workflow_runs/workflow_tasks/workflow_jobs`.
 - [x] Persist dead-letter triage requeue audit events (`dead_letter_events`).

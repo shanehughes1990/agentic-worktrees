@@ -17,7 +17,6 @@ Deliver one execution plane that supports local and remote workers with shared d
 - [x] Register worker handlers through the task engine path.
 - [x] Define worker capability advertisement contract.
 - [x] Implement remote worker adapter contract and SCM-backed remote bootstrap sequence.
-- [x] Persist checkpoints in Postgres (`job_checkpoints`).
 - [x] Persist execution state in Postgres (`job_execution_events`).
 - [x] Replace in-memory SCM lease coordination with Postgres lease manager (`scm_repo_leases`).
 

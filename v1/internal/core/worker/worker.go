@@ -51,7 +51,6 @@ type WorkerApp struct {
 	taskScheduler             *taskengine.Scheduler
 	taskEnginePlatform        taskengine.Consumer
 	databaseClient            *postgresdb.Client
-	checkpointStore           taskengine.CheckpointStore
 	executionJournal          taskengine.ExecutionJournal
 	projectSetupRepository    applicationcontrolplane.ProjectSetupRepository
 	projectDocumentRepository applicationcontrolplane.ProjectDocumentRepository
@@ -99,10 +98,6 @@ func New() (*WorkerApp, error) {
 		return nil, fmt.Errorf("init postgres dead-letter audit: %w", err)
 	}
 	taskEnginePlatform.SetDeadLetterAudit(deadLetterAudit)
-	checkpointStore, err := infrataskenginepostgres.NewPostgresCheckpointStore(databaseClient.DB())
-	if err != nil {
-		return nil, fmt.Errorf("init postgres checkpoint store: %w", err)
-	}
 	executionJournal, err := infrataskenginepostgres.NewPostgresExecutionJournal(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init postgres execution journal: %w", err)
@@ -161,7 +156,6 @@ func New() (*WorkerApp, error) {
 		taskScheduler:             taskScheduler,
 		taskEnginePlatform:        taskEnginePlatform,
 		databaseClient:            databaseClient,
-		checkpointStore:           checkpointStore,
 		executionJournal:          executionJournal,
 		projectSetupRepository:    projectSetupRepository,
 		projectDocumentRepository: projectDocumentRepository,
@@ -297,7 +291,7 @@ func (app *WorkerApp) Run() error {
 			}
 			return service, nil
 		},
-		app.checkpointStore,
+		nil,
 		app.executionJournal,
 		app.supervisorService,
 	)
@@ -318,7 +312,7 @@ func (app *WorkerApp) Run() error {
 			}
 			return service, nil
 		},
-		app.checkpointStore,
+		nil,
 		app.executionJournal,
 		app.supervisorService,
 	)
