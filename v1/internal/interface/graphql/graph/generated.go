@@ -92,6 +92,7 @@ type ComplexityRoot struct {
 		DeleteTaskboard              func(childComplexity int, input models.DeleteTaskboardInput) int
 		DeleteTaskboardEpic          func(childComplexity int, input models.DeleteTaskboardEpicInput) int
 		DeleteTaskboardTask          func(childComplexity int, input models.DeleteTaskboardTaskInput) int
+		RefineIngestionPrompt        func(childComplexity int, input models.RefineIngestionPromptInput) int
 		RequestProjectDocumentUpload func(childComplexity int, input models.RequestProjectDocumentUploadInput) int
 		RequeueDeadLetter            func(childComplexity int, input models.RequeueDeadLetterInput) int
 		RunIngestionAgent            func(childComplexity int, input models.RunIngestionAgentInput) int
@@ -187,6 +188,10 @@ type ComplexityRoot struct {
 		WorkerSessions            func(childComplexity int, limit *int32) int
 		WorkerSettings            func(childComplexity int) int
 		WorkflowJobs              func(childComplexity int, runID string, taskID *string, limit *int32) int
+	}
+
+	RefineIngestionPromptSuccess struct {
+		Prompt func(childComplexity int) int
 	}
 
 	RequestProjectDocumentUploadSuccess struct {
@@ -378,6 +383,7 @@ type MutationResolver interface {
 	DeleteProjectSetup(ctx context.Context, input models.DeleteProjectSetupInput) (models.DeleteProjectSetupResult, error)
 	RequestProjectDocumentUpload(ctx context.Context, input models.RequestProjectDocumentUploadInput) (models.RequestProjectDocumentUploadResult, error)
 	RunIngestionAgent(ctx context.Context, input models.RunIngestionAgentInput) (models.RunIngestionAgentResult, error)
+	RefineIngestionPrompt(ctx context.Context, input models.RefineIngestionPromptInput) (models.RefineIngestionPromptResult, error)
 	CreateTaskboard(ctx context.Context, input models.CreateTaskboardInput) (models.TaskboardMutationResult, error)
 	UpdateTaskboard(ctx context.Context, input models.UpdateTaskboardInput) (models.TaskboardMutationResult, error)
 	DeleteTaskboard(ctx context.Context, input models.DeleteTaskboardInput) (models.TaskboardDeleteResult, error)
@@ -674,6 +680,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteTaskboardTask(childComplexity, args["input"].(models.DeleteTaskboardTaskInput)), true
+	case "Mutation.refineIngestionPrompt":
+		if e.ComplexityRoot.Mutation.RefineIngestionPrompt == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_refineIngestionPrompt_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RefineIngestionPrompt(childComplexity, args["input"].(models.RefineIngestionPromptInput)), true
 	case "Mutation.requestProjectDocumentUpload":
 		if e.ComplexityRoot.Mutation.RequestProjectDocumentUpload == nil {
 			break
@@ -1146,6 +1163,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.WorkflowJobs(childComplexity, args["runID"].(string), args["taskID"].(*string), args["limit"].(*int32)), true
+
+	case "RefineIngestionPromptSuccess.prompt":
+		if e.ComplexityRoot.RefineIngestionPromptSuccess.Prompt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RefineIngestionPromptSuccess.Prompt(childComplexity), true
 
 	case "RequestProjectDocumentUploadSuccess.cdnURL":
 		if e.ComplexityRoot.RequestProjectDocumentUploadSuccess.CdnURL == nil {
@@ -1859,6 +1883,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputProjectSCMInput,
+		ec.unmarshalInputRefineIngestionPromptInput,
 		ec.unmarshalInputRepositorySourceBranchInput,
 		ec.unmarshalInputRequestProjectDocumentUploadInput,
 		ec.unmarshalInputRequeueDeadLetterInput,
@@ -2353,6 +2378,12 @@ input RunIngestionAgentInput {
   repositorySourceBranches: [RepositorySourceBranchInput!]
 }
 
+input RefineIngestionPromptInput {
+  projectID: String!
+  taskboardName: String!
+  userPrompt: String
+}
+
 input RepositorySourceBranchInput {
   repositoryID: String!
   branch: String!
@@ -2367,6 +2398,12 @@ type RunIngestionAgentSuccess {
 }
 
 union RunIngestionAgentResult = RunIngestionAgentSuccess | GraphError
+
+type RefineIngestionPromptSuccess {
+  prompt: String!
+}
+
+union RefineIngestionPromptResult = RefineIngestionPromptSuccess | GraphError
 
 type ProjectRepositoryBranchOptions {
   repositoryID: String!
@@ -2474,6 +2511,7 @@ extend type Mutation {
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
   runIngestionAgent(input: RunIngestionAgentInput!): RunIngestionAgentResult!
+  refineIngestionPrompt(input: RefineIngestionPromptInput!): RefineIngestionPromptResult!
   createTaskboard(input: CreateTaskboardInput!): TaskboardMutationResult!
   updateTaskboard(input: UpdateTaskboardInput!): TaskboardMutationResult!
   deleteTaskboard(input: DeleteTaskboardInput!): TaskboardDeleteResult!
@@ -2647,6 +2685,17 @@ func (ec *executionContext) field_Mutation_deleteTaskboard_args(ctx context.Cont
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDeleteTaskboardInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐDeleteTaskboardInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_refineIngestionPrompt_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNRefineIngestionPromptInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRefineIngestionPromptInput)
 	if err != nil {
 		return nil, err
 	}
@@ -4027,6 +4076,47 @@ func (ec *executionContext) fieldContext_Mutation_runIngestionAgent(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_runIngestionAgent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refineIngestionPrompt(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_refineIngestionPrompt,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefineIngestionPrompt(ctx, fc.Args["input"].(models.RefineIngestionPromptInput))
+		},
+		nil,
+		ec.marshalNRefineIngestionPromptResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRefineIngestionPromptResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_refineIngestionPrompt(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type RefineIngestionPromptResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refineIngestionPrompt_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -6332,6 +6422,35 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RefineIngestionPromptSuccess_prompt(ctx context.Context, field graphql.CollectedField, obj *models.RefineIngestionPromptSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RefineIngestionPromptSuccess_prompt,
+		func(ctx context.Context) (any, error) {
+			return obj.Prompt, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RefineIngestionPromptSuccess_prompt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RefineIngestionPromptSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11734,6 +11853,46 @@ func (ec *executionContext) unmarshalInputProjectSCMInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRefineIngestionPromptInput(ctx context.Context, obj any) (models.RefineIngestionPromptInput, error) {
+	var it models.RefineIngestionPromptInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "taskboardName", "userPrompt"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "taskboardName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskboardName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskboardName = data
+		case "userPrompt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userPrompt"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserPrompt = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRepositorySourceBranchInput(ctx context.Context, obj any) (models.RepositorySourceBranchInput, error) {
 	var it models.RepositorySourceBranchInput
 	asMap := map[string]any{}
@@ -12435,6 +12594,33 @@ func (ec *executionContext) _ProjectSetupsResult(ctx context.Context, sel ast.Se
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of ProjectSetupsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _RefineIngestionPromptResult(ctx context.Context, sel ast.SelectionSet, obj models.RefineIngestionPromptResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.RefineIngestionPromptSuccess:
+		return ec._RefineIngestionPromptSuccess(ctx, sel, &obj)
+	case *models.RefineIngestionPromptSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RefineIngestionPromptSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of RefineIngestionPromptResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -13150,7 +13336,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "RequeueDeadLetterResult", "TaskboardsResult", "TaskboardResult", "TaskboardMutationResult", "TaskboardDeleteResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "RequeueDeadLetterResult", "TaskboardsResult", "TaskboardResult", "TaskboardMutationResult", "TaskboardDeleteResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "RefineIngestionPromptResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -13246,6 +13432,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "runIngestionAgent":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_runIngestionAgent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refineIngestionPrompt":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refineIngestionPrompt(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14255,6 +14448,45 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var refineIngestionPromptSuccessImplementors = []string{"RefineIngestionPromptSuccess", "RefineIngestionPromptResult"}
+
+func (ec *executionContext) _RefineIngestionPromptSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.RefineIngestionPromptSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, refineIngestionPromptSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RefineIngestionPromptSuccess")
+		case "prompt":
+			out.Values[i] = ec._RefineIngestionPromptSuccess_prompt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -16388,6 +16620,21 @@ func (ec *executionContext) marshalNProjectSetupsResult2agenticᚑorchestrator�
 		return graphql.Null
 	}
 	return ec._ProjectSetupsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRefineIngestionPromptInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRefineIngestionPromptInput(ctx context.Context, v any) (models.RefineIngestionPromptInput, error) {
+	res, err := ec.unmarshalInputRefineIngestionPromptInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRefineIngestionPromptResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRefineIngestionPromptResult(ctx context.Context, sel ast.SelectionSet, v models.RefineIngestionPromptResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RefineIngestionPromptResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRepositorySourceBranchInput2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐRepositorySourceBranchInput(ctx context.Context, v any) (*models.RepositorySourceBranchInput, error) {

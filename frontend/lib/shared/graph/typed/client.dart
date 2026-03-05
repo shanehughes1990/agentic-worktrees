@@ -56,6 +56,8 @@ GraphQLClient buildGraphqlClient(String httpEndpoint) {
   return GraphQLClient(
     cache: GraphQLCache(store: InMemoryStore()),
     link: link,
+    // AI-backed mutations can take longer than the default request timeout.
+    queryRequestTimeout: const Duration(seconds: 75),
     defaultPolicies: DefaultPolicies(
       query: Policies(fetch: FetchPolicy.networkOnly),
       mutate: Policies(fetch: FetchPolicy.networkOnly),

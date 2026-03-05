@@ -14,6 +14,7 @@ import (
 	"agentic-orchestrator/internal/domain/failures"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	domainscm "agentic-orchestrator/internal/domain/scm"
+	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	infrastructurecdngoogle "agentic-orchestrator/internal/infrastructure/cdn/google"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
@@ -41,18 +42,19 @@ import (
 )
 
 type WorkerApp struct {
-	config                    Config
-	httpServer                *http.Server
-	observabilityPlatform     *observability.Platform
-	healthPlatform            *healthcheck.Platform
-	taskScheduler             *taskengine.Scheduler
-	taskEnginePlatform        taskengine.Consumer
-	databaseClient            *postgresdb.Client
-	executionJournal          taskengine.ExecutionJournal
-	projectSetupRepository    applicationcontrolplane.ProjectSetupRepository
-	projectDocumentRepository applicationcontrolplane.ProjectDocumentRepository
-	workerService             *applicationworker.Service
-	realtimeTransport         domainrealtime.WorkerLifecycleTransport
+	config                     Config
+	httpServer                 *http.Server
+	observabilityPlatform      *observability.Platform
+	healthPlatform             *healthcheck.Platform
+	taskScheduler              *taskengine.Scheduler
+	taskEnginePlatform         taskengine.Consumer
+	databaseClient             *postgresdb.Client
+	executionJournal           taskengine.ExecutionJournal
+	projectSetupRepository     applicationcontrolplane.ProjectSetupRepository
+	projectDocumentRepository  applicationcontrolplane.ProjectDocumentRepository
+	promptRefinementRepository applicationcontrolplane.PromptRefinementRepository
+	workerService              *applicationworker.Service
+	realtimeTransport          domainrealtime.WorkerLifecycleTransport
 }
 
 type workerJobRegistration struct {
@@ -123,6 +125,10 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init project document repository: %w", err)
 	}
+	promptRefinementRepository, err := infrataskenginepostgres.NewPromptRefinementRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init prompt refinement repository: %w", err)
+	}
 	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
@@ -131,18 +137,19 @@ func New() (*WorkerApp, error) {
 	healthPlatform.Mount(mux)
 
 	return &WorkerApp{
-		config:                    config,
-		httpServer:                &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
-		observabilityPlatform:     observabilityPlatform,
-		healthPlatform:            healthPlatform,
-		taskScheduler:             taskScheduler,
-		taskEnginePlatform:        taskEnginePlatform,
-		databaseClient:            databaseClient,
-		executionJournal:          executionJournal,
-		projectSetupRepository:    projectSetupRepository,
-		projectDocumentRepository: projectDocumentRepository,
-		workerService:             workerService,
-		realtimeTransport:         realtimeTransport,
+		config:                     config,
+		httpServer:                 &http.Server{Addr: fmt.Sprintf(":%d", config.App.Port), Handler: mux},
+		observabilityPlatform:      observabilityPlatform,
+		healthPlatform:             healthPlatform,
+		taskScheduler:              taskScheduler,
+		taskEnginePlatform:         taskEnginePlatform,
+		databaseClient:             databaseClient,
+		executionJournal:           executionJournal,
+		projectSetupRepository:     projectSetupRepository,
+		projectDocumentRepository:  projectDocumentRepository,
+		promptRefinementRepository: promptRefinementRepository,
+		workerService:              workerService,
+		realtimeTransport:          realtimeTransport,
 	}, nil
 }
 
@@ -192,9 +199,9 @@ func (app *WorkerApp) Run() error {
 			return nil, fmt.Errorf("create project repository root path: %w", err)
 		}
 		githubAdapter, adapterErr := infrascm.NewGitHubAdapter(infrascm.GitHubAdapterConfig{
-			RepoPath:         repoPath,
+			RepoPath:           repoPath,
 			RepositoryRootPath: repositoryRootPath,
-			RepositoryURL:    strings.TrimSpace(repositoryURL),
+			RepositoryURL:      strings.TrimSpace(repositoryURL),
 		}, nil, infrascm.NewStaticTokenProvider(scm.SCMToken), infrascm.NewExecGitRunner())
 		if adapterErr != nil {
 			return nil, fmt.Errorf("init github scm adapter: %w", adapterErr)
@@ -322,6 +329,12 @@ func (app *WorkerApp) Run() error {
 	documentTaskService.SetProjectFileStore(documentStore)
 	documentTaskService.SetProjectCDNSigner(cdnSigner)
 	documentTaskService.SetProjectDocumentRootPrefix(app.config.RemoteStorage.BucketPrefix)
+	documentTaskService.SetPromptRefinementRepository(app.promptRefinementRepository)
+	promptRefiner, err := infraagent.NewCopilotPromptRefiner("", "gpt-5.3-codex")
+	if err != nil {
+		return fmt.Errorf("init prompt refiner: %w", err)
+	}
+	documentTaskService.SetPromptRefiner(promptRefiner)
 	documentPrepareHandler, err := workerinterface.NewProjectDocumentPrepareUploadHandler(documentTaskService)
 	if err != nil {
 		return fmt.Errorf("create project document prepare-upload handler: %w", err)
@@ -329,6 +342,10 @@ func (app *WorkerApp) Run() error {
 	documentDeleteHandler, err := workerinterface.NewProjectDocumentDeleteHandler(documentTaskService)
 	if err != nil {
 		return fmt.Errorf("create project document delete handler: %w", err)
+	}
+	promptRefinementHandler, err := workerinterface.NewPromptRefinementHandler(documentTaskService)
+	if err != nil {
+		return fmt.Errorf("create prompt refinement handler: %w", err)
 	}
 	hostname, hostnameErr := os.Hostname()
 	if hostnameErr != nil {
@@ -375,6 +392,7 @@ func (app *WorkerApp) Run() error {
 		{kind: taskengine.JobKindSCMWorkflow, handler: scmHandler, label: "scm workflow"},
 		{kind: taskengine.JobKindProjectDocumentUploadPrepare, handler: documentPrepareHandler, label: "project document prepare upload"},
 		{kind: taskengine.JobKindProjectDocumentDelete, handler: documentDeleteHandler, label: "project document delete"},
+		{kind: taskengine.JobKindPromptRefinementAgent, handler: promptRefinementHandler, label: "prompt refinement agent"},
 	}
 	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
 		return err
@@ -942,12 +960,12 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				syncedRepositories++
 				if entry != nil {
 					entry.WithFields(map[string]any{
-						"runtime":       "worker",
-						"worker_id":     strings.TrimSpace(workerID),
-						"project_id":    projectID,
-						"repository_id": repositoryID,
-						"owner":         owner,
-						"repository":    repositoryName,
+						"runtime":         "worker",
+						"worker_id":       strings.TrimSpace(workerID),
+						"project_id":      projectID,
+						"repository_id":   repositoryID,
+						"owner":           owner,
+						"repository":      repositoryName,
 						"repository_path": repositoryPath,
 					}).Debug("repository reconcile sync completed")
 				}
@@ -966,12 +984,12 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				skippedRepositories++
 				if entry != nil {
 					entry.WithError(ensureErr).WithFields(map[string]any{
-						"runtime":       "worker",
-						"worker_id":     strings.TrimSpace(workerID),
-						"project_id":    projectID,
-						"repository_id": repositoryID,
-						"owner":         owner,
-						"repository":    repositoryName,
+						"runtime":         "worker",
+						"worker_id":       strings.TrimSpace(workerID),
+						"project_id":      projectID,
+						"repository_id":   repositoryID,
+						"owner":           owner,
+						"repository":      repositoryName,
 						"repository_path": repositoryPath,
 					}).Debug("failed to ensure repository during repository reconcile")
 				}
@@ -981,12 +999,12 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 				skippedRepositories++
 				if entry != nil {
 					entry.WithError(syncErr).WithFields(map[string]any{
-						"runtime":       "worker",
-						"worker_id":     strings.TrimSpace(workerID),
-						"project_id":    projectID,
-						"repository_id": repositoryID,
-						"owner":         owner,
-						"repository":    repositoryName,
+						"runtime":         "worker",
+						"worker_id":       strings.TrimSpace(workerID),
+						"project_id":      projectID,
+						"repository_id":   repositoryID,
+						"owner":           owner,
+						"repository":      repositoryName,
 						"repository_path": repositoryPath,
 					}).Debug("failed to sync repository after ensure during repository reconcile")
 				}
@@ -995,12 +1013,12 @@ func (app *WorkerApp) reconcileProjectSourceArtifacts(ctx context.Context, worke
 			syncedRepositories++
 			if entry != nil {
 				entry.WithFields(map[string]any{
-					"runtime":       "worker",
-					"worker_id":     strings.TrimSpace(workerID),
-					"project_id":    projectID,
-					"repository_id": repositoryID,
-					"owner":         owner,
-					"repository":    repositoryName,
+					"runtime":         "worker",
+					"worker_id":       strings.TrimSpace(workerID),
+					"project_id":      projectID,
+					"repository_id":   repositoryID,
+					"owner":           owner,
+					"repository":      repositoryName,
 					"repository_path": repositoryPath,
 				}).Debug("repository reconcile ensure+sync completed")
 			}

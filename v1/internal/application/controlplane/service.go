@@ -242,10 +242,13 @@ type Service struct {
 	projectDocumentRepository ProjectDocumentRepository
 	projectFileStore          ProjectFileStore
 	projectCDNSigner          ProjectCDNSigner
+	promptRefinementRepository PromptRefinementRepository
+	promptRefiner              PromptRefiner
 	projectDocumentRootPrefix string
 	projectDocumentRemoteStorageType string
 	projectDocumentGoogleApplicationCredentialsPath string
 	projectDocumentUploadWait time.Duration
+	promptRefinementWait time.Duration
 	deadLetterManager taskengine.DeadLetterManager
 	cleanupManager    ProjectCleanupManager
 }
@@ -264,6 +267,7 @@ func NewService(scheduler *taskengine.Scheduler, queryRepository QueryRepository
 		projectDocumentRootPrefix: "projects",
 		projectDocumentRemoteStorageType: "gcs",
 		projectDocumentUploadWait: 5 * time.Second,
+		promptRefinementWait: 60 * time.Second,
 		deadLetterManager: deadLetterManager,
 	}, nil
 }

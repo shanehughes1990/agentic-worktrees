@@ -149,6 +149,10 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init project document repository: %w", err)
 	}
+	promptRefinementRepository, err := infrataskenginepostgres.NewPromptRefinementRepository(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init prompt refinement repository: %w", err)
+	}
 	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
@@ -158,6 +162,7 @@ func New() (*APIApp, error) {
 	}
 	controlPlaneService.SetProjectRepositoryBranchCatalog(&apiProjectRepositoryBranchCatalog{repositoryRootPath: filepath.Join(os.TempDir(), "agentic-orchestrator")})
 	controlPlaneService.SetProjectDocumentRepository(projectDocumentRepository)
+	controlPlaneService.SetPromptRefinementRepository(promptRefinementRepository)
 	if err := bootstrapRemoteStorage(config, controlPlaneService); err != nil {
 		return nil, fmt.Errorf("bootstrap remote storage: %w", err)
 	}
@@ -506,9 +511,9 @@ func (app *APIApp) runHeartbeatResponseListener(ctx context.Context) {
 			return nil
 		}
 		_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerHeartbeat, response.RequestID, map[string]any{
-			"request_id":  response.RequestID,
-			"worker_id":   response.WorkerID,
-			"epoch":       response.Epoch,
+			"request_id":   response.RequestID,
+			"worker_id":    response.WorkerID,
+			"epoch":        response.Epoch,
 			"responded_at": response.RespondedAt.UTC().Format(time.RFC3339Nano),
 		})
 		_ = request
@@ -581,12 +586,12 @@ func (app *APIApp) runWorkerSessionStreamPublisher(ctx context.Context) {
 				before, exists := previous[workerID]
 				if !exists {
 					_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerRegistrationAccepted, workerID, map[string]any{
-						"worker_id":       worker.WorkerID,
-						"epoch":           worker.Epoch,
-						"state":           string(worker.State),
-						"last_heartbeat":  worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
+						"worker_id":        worker.WorkerID,
+						"epoch":            worker.Epoch,
+						"state":            string(worker.State),
+						"last_heartbeat":   worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
 						"lease_expires_at": worker.LeaseExpiresAt.UTC().Format(time.RFC3339Nano),
-						"updated_at":      worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
+						"updated_at":       worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
 					})
 					continue
 				}
@@ -596,12 +601,12 @@ func (app *APIApp) runWorkerSessionStreamPublisher(ctx context.Context) {
 					!before.LastHeartbeat.Equal(worker.LastHeartbeat) ||
 					!before.LeaseExpiresAt.Equal(worker.LeaseExpiresAt) {
 					_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerHeartbeat, workerID, map[string]any{
-						"worker_id":       worker.WorkerID,
-						"epoch":           worker.Epoch,
-						"state":           string(worker.State),
-						"last_heartbeat":  worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
+						"worker_id":        worker.WorkerID,
+						"epoch":            worker.Epoch,
+						"state":            string(worker.State),
+						"last_heartbeat":   worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
 						"lease_expires_at": worker.LeaseExpiresAt.UTC().Format(time.RFC3339Nano),
-						"updated_at":      worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
+						"updated_at":       worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
 					})
 				}
 			}
@@ -611,13 +616,13 @@ func (app *APIApp) runWorkerSessionStreamPublisher(ctx context.Context) {
 					continue
 				}
 				_ = app.publishWorkerStreamEvent(ctx, domainstream.EventWorkerInvalidated, workerID, map[string]any{
-					"worker_id":       worker.WorkerID,
-					"epoch":           worker.Epoch,
-					"state":           string(worker.State),
-					"reason":          "worker removed from registry",
-					"last_heartbeat":  worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
+					"worker_id":        worker.WorkerID,
+					"epoch":            worker.Epoch,
+					"state":            string(worker.State),
+					"reason":           "worker removed from registry",
+					"last_heartbeat":   worker.LastHeartbeat.UTC().Format(time.RFC3339Nano),
 					"lease_expires_at": worker.LeaseExpiresAt.UTC().Format(time.RFC3339Nano),
-					"updated_at":      worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
+					"updated_at":       worker.UpdatedAt.UTC().Format(time.RFC3339Nano),
 				})
 			}
 
@@ -635,12 +640,12 @@ func (app *APIApp) publishWorkerStreamEvent(ctx context.Context, eventType domai
 		resolvedCorrelationID = fmt.Sprintf("worker-%d", time.Now().UTC().UnixNano())
 	}
 	_, err := app.streamService.AppendAndPublish(ctx, domainstream.Event{
-		EventID:      fmt.Sprintf("%s-%d", strings.ReplaceAll(string(eventType), ".", "_"), time.Now().UTC().UnixNano()),
-		OccurredAt:   time.Now().UTC(),
-		Source:       domainstream.SourceWorker,
-		EventType:    eventType,
+		EventID:        fmt.Sprintf("%s-%d", strings.ReplaceAll(string(eventType), ".", "_"), time.Now().UTC().UnixNano()),
+		OccurredAt:     time.Now().UTC(),
+		Source:         domainstream.SourceWorker,
+		EventType:      eventType,
 		CorrelationIDs: domainstream.CorrelationIDs{CorrelationID: resolvedCorrelationID},
-		Payload:      payload,
+		Payload:        payload,
 	})
 	return err
 }

@@ -12,6 +12,7 @@ type JobKind string
 const (
 	JobKindIngestionAgent        JobKind = "ingestion.agent.run"
 	JobKindAgentWorkflow         JobKind = "agent.workflow.run"
+	JobKindPromptRefinementAgent JobKind = "prompt.refinement.agent.run"
 	JobKindSCMWorkflow           JobKind = "scm.workflow.run"
 	JobKindProjectDocumentUploadPrepare JobKind = "project.document.upload.prepare"
 	JobKindProjectDocumentDelete        JobKind = "project.document.delete"

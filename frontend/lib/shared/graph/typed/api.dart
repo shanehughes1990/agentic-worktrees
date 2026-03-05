@@ -903,6 +903,67 @@ class ControlPlaneApi {
     );
   }
 
+  Future<ApiResult<String>> refineIngestionPrompt({
+    required String projectID,
+    required String taskboardName,
+    String? userPrompt,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+      mutation RefineIngestionPrompt(
+      \$input: RefineIngestionPromptInput!
+      ) {
+      refineIngestionPrompt(input: \$input) {
+        __typename
+        ... on RefineIngestionPromptSuccess {
+        prompt
+        }
+        ... on GraphError {
+        code
+        message
+        field
+        }
+      }
+      }
+    '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'projectID': projectID,
+            'taskboardName': taskboardName,
+            'userPrompt': userPrompt,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'refineIngestionPrompt',
+    );
+    if (error != null) {
+      return ApiResult<String>.failure(error);
+    }
+    final payload =
+        result.data?['refineIngestionPrompt'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<String>.failure(
+        'refineIngestionPrompt returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<String>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    return ApiResult<String>.success(
+      (payload['prompt'] as String? ?? '').trim(),
+    );
+  }
+
   Future<ApiResult<List<ProjectRepositoryBranchOption>>>
   projectRepositoryBranches({required String projectID}) async {
     final result = await _client.query(

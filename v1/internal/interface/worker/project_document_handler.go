@@ -67,3 +67,31 @@ func (handler *ProjectDocumentDeleteHandler) Handle(ctx context.Context, job tas
 	}
 	return nil
 }
+
+type PromptRefinementHandler struct {
+	service *applicationcontrolplane.Service
+}
+
+func NewPromptRefinementHandler(service *applicationcontrolplane.Service) (*PromptRefinementHandler, error) {
+	if service == nil {
+		return nil, fmt.Errorf("control-plane service is required")
+	}
+	return &PromptRefinementHandler{service: service}, nil
+}
+
+func (handler *PromptRefinementHandler) Handle(ctx context.Context, job taskengine.Job) error {
+	if handler == nil || handler.service == nil {
+		return fmt.Errorf("prompt refinement handler is not initialized")
+	}
+	var payload applicationcontrolplane.PromptRefinementPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		return fmt.Errorf("decode prompt refinement payload: %w", err)
+	}
+	if strings.TrimSpace(payload.RequestID) == "" {
+		return fmt.Errorf("request_id is required")
+	}
+	if err := handler.service.ExecutePromptRefinement(ctx, payload.RequestID); err != nil {
+		return err
+	}
+	return nil
+}

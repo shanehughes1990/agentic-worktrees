@@ -35,6 +35,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   bool _isUploadingFiles = false;
   bool _isCreatingTaskboard = false;
   bool _isRefreshingProjectSetup = false;
+  final Set<String> _deletingDocumentIDs = <String>{};
   String? _statusMessage;
 
   @override
@@ -324,6 +325,100 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     });
   }
 
+  Future<void> _deleteProjectDocument(ProjectDocument document) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Document?'),
+          content: Text(
+            'Delete "${document.fileName}" from this project and remote storage? This cannot be undone.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _deletingDocumentIDs.add(document.documentID);
+      _statusMessage = null;
+    });
+
+    final deleteResult = await _api.deleteProjectDocument(
+      projectID: _projectSetup.projectID,
+      documentID: document.documentID,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!deleteResult.isSuccess) {
+      setState(() {
+        _deletingDocumentIDs.remove(document.documentID);
+        _statusMessage =
+            'Failed deleting ${document.fileName}: ${deleteResult.errorMessage ?? 'unknown error'}';
+      });
+      return;
+    }
+
+    final removed = await _waitForDocumentRemoval(document.documentID);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _deletingDocumentIDs.remove(document.documentID);
+      _statusMessage = removed
+          ? 'Deleted ${document.fileName} from project and remote storage.'
+          : 'Deletion queued for ${document.fileName}; refresh shortly to confirm completion.';
+    });
+  }
+
+  Future<bool> _waitForDocumentRemoval(String documentID) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (DateTime.now().isBefore(deadline)) {
+      final result = await _api.projectDocuments(
+        projectID: _projectSetup.projectID,
+        limit: 100,
+      );
+      if (!mounted) {
+        return false;
+      }
+      if (!result.isSuccess || result.data == null) {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        continue;
+      }
+
+      final documents = result.data!;
+      final exists = documents.any(
+        (ProjectDocument item) => item.documentID == documentID,
+      );
+      setState(() {
+        _projectDocuments = documents;
+      });
+      if (!exists) {
+        return true;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    }
+    await _loadProjectDocuments();
+    return false;
+  }
+
   Future<void> _createNewTaskboard() async {
     final branchOptionsResult = await _api.projectRepositoryBranches(
       projectID: _projectSetup.projectID,
@@ -355,6 +450,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     };
     final taskboardNameController = TextEditingController();
     final promptController = TextEditingController();
+    var isGeneratingPrompt = false;
     final draft = await showDialog<_NewTaskboardDraft>(
       context: context,
       builder: (BuildContext context) {
@@ -431,6 +527,76 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                           hintText:
                               'Describe what you want in the new taskboard.',
                           border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: isGeneratingPrompt
+                              ? null
+                              : () async {
+                                  final taskboardName = taskboardNameController
+                                      .text
+                                      .trim();
+                                  if (taskboardName.isEmpty) {
+                                    setDialogState(() {
+                                      isGeneratingPrompt = false;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Enter a taskboard name before generating a prompt.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setDialogState(() {
+                                    isGeneratingPrompt = true;
+                                  });
+                                  final response = await _api
+                                      .refineIngestionPrompt(
+                                        projectID: _projectSetup.projectID,
+                                        taskboardName: taskboardName,
+                                        userPrompt: promptController.text,
+                                      );
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  if (response.isSuccess &&
+                                      response.data != null &&
+                                      response.data!.trim().isNotEmpty) {
+                                    final generatedPrompt = response.data!
+                                        .trim();
+                                    promptController.text = generatedPrompt;
+                                    promptController.selection =
+                                        TextSelection.collapsed(
+                                          offset: generatedPrompt.length,
+                                        );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Prompt generation failed: ${response.errorMessage ?? 'unknown error'}',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  setDialogState(() {
+                                    isGeneratingPrompt = false;
+                                  });
+                                },
+                          icon: isGeneratingPrompt
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome),
+                          label: const Text('AI: Generate Prompt'),
                         ),
                       ),
                       if (_projectSetup.repositories.isNotEmpty) ...<Widget>[
@@ -752,6 +918,9 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                             ..._projectDocuments.map((
                               ProjectDocument document,
                             ) {
+                              final isDeleting = _deletingDocumentIDs.contains(
+                                document.documentID,
+                              );
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: Row(
@@ -781,6 +950,28 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                                           ),
                                         ],
                                       ),
+                                    ),
+                                    IconButton(
+                                      onPressed: isDeleting
+                                          ? null
+                                          : () => _deleteProjectDocument(
+                                              document,
+                                            ),
+                                      icon: isDeleting
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.delete_outline,
+                                              size: 18,
+                                            ),
+                                      tooltip: isDeleting
+                                          ? 'Deleting...'
+                                          : 'Delete document',
                                     ),
                                   ],
                                 ),

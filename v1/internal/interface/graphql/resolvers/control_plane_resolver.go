@@ -163,6 +163,22 @@ func (r *mutationResolver) RunIngestionAgent(ctx context.Context, input models.R
 	}, nil
 }
 
+// RefineIngestionPrompt is the resolver for the refineIngestionPrompt field.
+func (r *mutationResolver) RefineIngestionPrompt(ctx context.Context, input models.RefineIngestionPromptInput) (models.RefineIngestionPromptResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	result, err := r.Resolver.ControlPlaneService.RefineIngestionPrompt(ctx, applicationcontrolplane.RefineIngestionPromptInput{
+		ProjectID:     input.ProjectID,
+		TaskboardName: input.TaskboardName,
+		UserPrompt:    derefString(input.UserPrompt),
+	})
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("refine ingestion prompt: %w", err)), nil
+	}
+	return models.RefineIngestionPromptSuccess{Prompt: result.Prompt}, nil
+}
+
 // CreateTaskboard is the resolver for the createTaskboard field.
 func (r *mutationResolver) CreateTaskboard(ctx context.Context, input models.CreateTaskboardInput) (models.TaskboardMutationResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.TrackerService == nil {

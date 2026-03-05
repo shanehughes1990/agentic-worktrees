@@ -391,6 +391,12 @@ input RunIngestionAgentInput {
   repositorySourceBranches: [RepositorySourceBranchInput!]
 }
 
+input RefineIngestionPromptInput {
+  projectID: String!
+  taskboardName: String!
+  userPrompt: String
+}
+
 input RepositorySourceBranchInput {
   repositoryID: String!
   branch: String!
@@ -405,6 +411,12 @@ type RunIngestionAgentSuccess {
 }
 
 union RunIngestionAgentResult = RunIngestionAgentSuccess | GraphError
+
+type RefineIngestionPromptSuccess {
+  prompt: String!
+}
+
+union RefineIngestionPromptResult = RefineIngestionPromptSuccess | GraphError
 
 type ProjectRepositoryBranchOptions {
   repositoryID: String!
@@ -512,6 +524,7 @@ extend type Mutation {
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
   requestProjectDocumentUpload(input: RequestProjectDocumentUploadInput!): RequestProjectDocumentUploadResult!
   runIngestionAgent(input: RunIngestionAgentInput!): RunIngestionAgentResult!
+  refineIngestionPrompt(input: RefineIngestionPromptInput!): RefineIngestionPromptResult!
   createTaskboard(input: CreateTaskboardInput!): TaskboardMutationResult!
   updateTaskboard(input: UpdateTaskboardInput!): TaskboardMutationResult!
   deleteTaskboard(input: DeleteTaskboardInput!): TaskboardDeleteResult!

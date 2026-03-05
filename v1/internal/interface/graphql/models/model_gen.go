@@ -46,6 +46,10 @@ type ProjectSetupsResult interface {
 	IsProjectSetupsResult()
 }
 
+type RefineIngestionPromptResult interface {
+	IsRefineIngestionPromptResult()
+}
+
 type RequestProjectDocumentUploadResult interface {
 	IsRequestProjectDocumentUploadResult()
 }
@@ -256,6 +260,8 @@ func (GraphError) IsRequestProjectDocumentUploadResult() {}
 
 func (GraphError) IsRunIngestionAgentResult() {}
 
+func (GraphError) IsRefineIngestionPromptResult() {}
+
 func (GraphError) IsProjectRepositoryBranchesResult() {}
 
 func (GraphError) IsDeleteProjectDocumentResult() {}
@@ -372,6 +378,18 @@ func (ProjectSetupsSuccess) IsProjectSetupsResult() {}
 
 type Query struct {
 }
+
+type RefineIngestionPromptInput struct {
+	ProjectID     string  `json:"projectID"`
+	TaskboardName string  `json:"taskboardName"`
+	UserPrompt    *string `json:"userPrompt,omitempty"`
+}
+
+type RefineIngestionPromptSuccess struct {
+	Prompt string `json:"prompt"`
+}
+
+func (RefineIngestionPromptSuccess) IsRefineIngestionPromptResult() {}
 
 type RepositorySourceBranchInput struct {
 	RepositoryID string `json:"repositoryID"`

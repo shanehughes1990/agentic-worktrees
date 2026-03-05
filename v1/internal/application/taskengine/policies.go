@@ -20,6 +20,14 @@ func DefaultPolicies() map[JobKind]JobPolicy {
 			DefaultTimeout:        10 * time.Minute,
 			DefaultMaxRetry:       3,
 		},
+		JobKindPromptRefinementAgent: {
+			DefaultQueue:          "agent",
+			RequireIdempotencyKey: true,
+			RequireUniqueFor:      true,
+			DefaultUniqueFor:      2 * time.Minute,
+			DefaultTimeout:        3 * time.Minute,
+			DefaultMaxRetry:       2,
+		},
 		JobKindSCMWorkflow: {
 			DefaultQueue:          "scm",
 			RequireIdempotencyKey: true,
