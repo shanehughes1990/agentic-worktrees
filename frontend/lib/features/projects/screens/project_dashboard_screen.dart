@@ -1820,20 +1820,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        if (activeEvents.isEmpty)
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 220),
-            alignment: Alignment.center,
-            child: const Text(
-              'No active worker activity right now.',
-              textAlign: TextAlign.center,
-            ),
-          )
-        else
-          ...activeEvents.take(120).map(_buildEventCard),
-      ],
+      children: <Widget>[...activeEvents.take(120).map(_buildEventCard)],
     );
   }
 
@@ -1997,6 +1984,8 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   @override
   Widget build(BuildContext context) {
     final activeNowCount = _activeLiveEntriesByKey.length;
+    final showGlobalEmptyState =
+        _mode == _EventsBoardMode.globalLive && activeNowCount == 0;
     return Scaffold(
       appBar: AppBar(
         leadingWidth: 260,
@@ -2100,23 +2089,42 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: <Widget>[
-                    if (_mode == _EventsBoardMode.globalLive)
-                      _buildGlobalPanel()
-                    else if (_mode == _EventsBoardMode.pipelineDrilldown)
-                      _buildPipelinePanel()
-                    else
-                      _buildSessionPanel(),
-                    if (_statusMessage != null) ...<Widget>[
-                      const SizedBox(height: 10),
-                      Text(_statusMessage!),
-                    ],
-                  ],
-                ),
-              ),
+              child: showGlobalEmptyState
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Text(
+                              'No active worker activity right now.',
+                              textAlign: TextAlign.center,
+                            ),
+                            if (_statusMessage != null) ...<Widget>[
+                              const SizedBox(height: 10),
+                              Text(_statusMessage!),
+                            ],
+                          ],
+                        ),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: <Widget>[
+                          if (_mode == _EventsBoardMode.globalLive)
+                            _buildGlobalPanel()
+                          else if (_mode == _EventsBoardMode.pipelineDrilldown)
+                            _buildPipelinePanel()
+                          else
+                            _buildSessionPanel(),
+                          if (_statusMessage != null) ...<Widget>[
+                            const SizedBox(height: 10),
+                            Text(_statusMessage!),
+                          ],
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
