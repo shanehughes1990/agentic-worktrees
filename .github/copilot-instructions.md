@@ -1,10 +1,3 @@
-## FILESYSTEM MCP ENFORCEMENT OVERRIDE
-
-- For all file and directory operations (read, write, edit, search, move, copy, delete, chmod, touch, traverse, tree, stat, resolve), the ONLY allowed tool family is `mcp_filesystem_fs_*`.
-- Do not use non-filesystem tools for file operations when a filesystem MCP equivalent exists.
-- If a filesystem MCP operation is unavailable or fails for a required file operation, STOP and report blocked; do not fall back to terminal-based editing or scripting.
-- This override supersedes any conflicting or older tool guidance in this file.
-
 ## TEST ETHICS ENFORCEMENT OVERRIDE
 
 - NEVER create or keep tests that pass by asserting unsafe/broken behavior as acceptable ("fake green" tests).
