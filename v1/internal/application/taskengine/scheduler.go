@@ -7,15 +7,10 @@ import (
 	"time"
 )
 
-type AdmissionSignalSink interface {
-	OnAdmitted(ctx context.Context, record AdmissionRecord) error
-}
-
 type Scheduler struct {
-	engine              Engine
-	policies            map[JobKind]JobPolicy
-	admissionLedger     AdmissionLedger
-	admissionSignalSink AdmissionSignalSink
+	engine          Engine
+	policies        map[JobKind]JobPolicy
+	admissionLedger AdmissionLedger
 }
 
 func NewScheduler(engine Engine, policies map[JobKind]JobPolicy) (*Scheduler, error) {
@@ -33,13 +28,6 @@ func (scheduler *Scheduler) SetAdmissionLedger(ledger AdmissionLedger) {
 		return
 	}
 	scheduler.admissionLedger = ledger
-}
-
-func (scheduler *Scheduler) SetAdmissionSignalSink(sink AdmissionSignalSink) {
-	if scheduler == nil {
-		return
-	}
-	scheduler.admissionSignalSink = sink
 }
 
 func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest) (EnqueueResult, error) {
@@ -103,11 +91,6 @@ func (scheduler *Scheduler) Enqueue(ctx context.Context, request EnqueueRequest)
 	if scheduler.admissionLedger != nil {
 		if err := scheduler.admissionLedger.Upsert(ctx, record); err != nil {
 			return EnqueueResult{}, fmt.Errorf("persist admission ledger: %w", err)
-		}
-	}
-	if scheduler.admissionSignalSink != nil {
-		if err := scheduler.admissionSignalSink.OnAdmitted(ctx, record); err != nil {
-			return EnqueueResult{}, fmt.Errorf("emit admission supervisor signal: %w", err)
 		}
 	}
 

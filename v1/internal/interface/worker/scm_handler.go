@@ -180,34 +180,28 @@ type SCMWorkflowHandler struct {
 	runtimeResolver   scmRuntimeResolver
 	checkpointStore   taskengine.CheckpointStore
 	executionJournal  taskengine.ExecutionJournal
-	supervisorService supervisorSignalService
 }
 
 func NewSCMWorkflowHandler(service SCMRuntimeService) (*SCMWorkflowHandler, error) {
-	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, nil, nil, nil)
+	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, nil, nil)
 }
 
 func NewSCMWorkflowHandlerWithCheckpointStore(service SCMRuntimeService, checkpointStore taskengine.CheckpointStore) (*SCMWorkflowHandler, error) {
-	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, checkpointStore, nil, nil)
+	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, checkpointStore, nil)
 }
 
 func NewSCMWorkflowHandlerWithReliability(service SCMRuntimeService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*SCMWorkflowHandler, error) {
-	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, checkpointStore, executionJournal, nil)
+	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, checkpointStore, executionJournal)
+}
+func NewSCMWorkflowHandlerWithProjectSetup(projectRepository projectSetupLookup, serviceFactory scmServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*SCMWorkflowHandler, error) {
+	return newSCMWorkflowHandler(&projectSetupSCMRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory}, checkpointStore, executionJournal)
 }
 
-func NewSCMWorkflowHandlerWithSupervisor(service SCMRuntimeService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*SCMWorkflowHandler, error) {
-	return newSCMWorkflowHandler(&staticSCMRuntimeResolver{service: service}, checkpointStore, executionJournal, supervisorService)
-}
-
-func NewSCMWorkflowHandlerWithProjectSetup(projectRepository projectSetupLookup, serviceFactory scmServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*SCMWorkflowHandler, error) {
-	return newSCMWorkflowHandler(&projectSetupSCMRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory}, checkpointStore, executionJournal, supervisorService)
-}
-
-func newSCMWorkflowHandler(runtimeResolver scmRuntimeResolver, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*SCMWorkflowHandler, error) {
+func newSCMWorkflowHandler(runtimeResolver scmRuntimeResolver, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*SCMWorkflowHandler, error) {
 	if runtimeResolver == nil {
 		return nil, fmt.Errorf("scm runtime resolver is required")
 	}
-	return &SCMWorkflowHandler{runtimeResolver: runtimeResolver, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
+	return &SCMWorkflowHandler{runtimeResolver: runtimeResolver, checkpointStore: checkpointStore, executionJournal: executionJournal}, nil
 }
 
 func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -274,10 +268,7 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 		readiness, readinessErr := service.CheckMergeReadiness(ctx, applicationscm.CheckMergeReadinessRequest{Repository: repository, PullRequestNumber: payload.PullRequestID, Metadata: metadata})
 		executionErr = readinessErr
 		if readinessErr == nil {
-			handler.safeSupervisorPRChecksEvaluated(ctx, metadata.CorrelationIDs, repository, payload.PullRequestID, readiness)
-			if readiness.CanMerge {
-				handler.safeSupervisorPRMergeRequested(ctx, metadata.CorrelationIDs, repository, payload.PullRequestID, payload.MergeMethod)
-			}
+			_ = readiness
 		}
 	case "merge_pull_request":
 		_, executionErr = service.MergePullRequest(ctx, applicationscm.MergePullRequestRequest{Spec: domainscm.MergePullRequestSpec{Repository: repository, PullRequestNumber: payload.PullRequestID, Method: domainscm.MergeMethod(payload.MergeMethod)}, Metadata: metadata})
@@ -293,7 +284,6 @@ func (handler *SCMWorkflowHandler) Handle(ctx context.Context, job taskengine.Jo
 			handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("persist completed checkpoint: %w", err)
 		}
-		handler.safeSupervisorCheckpoint(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation)
 	}
 	handler.safeRecordExecution(ctx, metadata.CorrelationIDs, job.Kind, idempotencyKey, operation, taskengine.ExecutionStatusSucceeded, "")
 	return nil
@@ -316,11 +306,7 @@ func scopedRepositoryPath(projectID string, repositoryPath string) string {
 }
 
 func (handler *SCMWorkflowHandler) safeRecordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) {
-	record, err := handler.recordExecution(ctx, correlationIDs, kind, idempotencyKey, step, status, errorMessage)
-	if err != nil {
-		return
-	}
-	handler.safeSupervisorExecution(ctx, record)
+	_, _ = handler.recordExecution(ctx, correlationIDs, kind, idempotencyKey, step, status, errorMessage)
 }
 
 func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlationIDs taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string, status taskengine.ExecutionStatus, errorMessage string) (taskengine.ExecutionRecord, error) {
@@ -343,32 +329,4 @@ func (handler *SCMWorkflowHandler) recordExecution(ctx context.Context, correlat
 		return taskengine.ExecutionRecord{}, fmt.Errorf("record execution journal: %w", err)
 	}
 	return record, nil
-}
-
-func (handler *SCMWorkflowHandler) safeSupervisorExecution(ctx context.Context, record taskengine.ExecutionRecord) {
-	if handler == nil || handler.supervisorService == nil {
-		return
-	}
-	_, _ = handler.supervisorService.OnExecution(ctx, record, 0, 0)
-}
-
-func (handler *SCMWorkflowHandler) safeSupervisorCheckpoint(ctx context.Context, correlation taskengine.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string) {
-	if handler == nil || handler.supervisorService == nil {
-		return
-	}
-	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, correlation, kind, idempotencyKey, step)
-}
-
-func (handler *SCMWorkflowHandler) safeSupervisorPRChecksEvaluated(ctx context.Context, correlation taskengine.CorrelationIDs, repository domainscm.Repository, pullRequestNumber int, readiness domainscm.MergeReadiness) {
-	if handler == nil || handler.supervisorService == nil {
-		return
-	}
-	_, _ = handler.supervisorService.OnPRChecksEvaluated(ctx, correlation, repository.Provider, repository.Owner, repository.Name, pullRequestNumber, readiness.CanMerge, readiness.Reason)
-}
-
-func (handler *SCMWorkflowHandler) safeSupervisorPRMergeRequested(ctx context.Context, correlation taskengine.CorrelationIDs, repository domainscm.Repository, pullRequestNumber int, mergeMethod string) {
-	if handler == nil || handler.supervisorService == nil {
-		return
-	}
-	_, _ = handler.supervisorService.OnPRMergeRequested(ctx, correlation, repository.Provider, repository.Owner, repository.Name, pullRequestNumber, mergeMethod)
 }

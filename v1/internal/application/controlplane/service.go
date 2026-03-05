@@ -1,9 +1,7 @@
 package controlplane
 
 import (
-	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
-	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
 	"context"
 	"fmt"
 	"net/url"
@@ -238,7 +236,6 @@ func (request ApproveIssueIntakeRequest) Validate() error {
 
 type Service struct {
 	scheduler         *taskengine.Scheduler
-	supervisorService *applicationsupervisor.Service
 	queryRepository   QueryRepository
 	projectRepository ProjectSetupRepository
 	repositoryBranchCatalog ProjectRepositoryBranchCatalog
@@ -253,7 +250,7 @@ type Service struct {
 	cleanupManager    ProjectCleanupManager
 }
 
-func NewService(scheduler *taskengine.Scheduler, supervisorService *applicationsupervisor.Service, queryRepository QueryRepository, projectRepository ProjectSetupRepository, deadLetterManager taskengine.DeadLetterManager) (*Service, error) {
+func NewService(scheduler *taskengine.Scheduler, queryRepository QueryRepository, projectRepository ProjectSetupRepository, deadLetterManager taskengine.DeadLetterManager) (*Service, error) {
 	if queryRepository == nil {
 		return nil, fmt.Errorf("control-plane query repository is required")
 	}
@@ -262,7 +259,6 @@ func NewService(scheduler *taskengine.Scheduler, supervisorService *applications
 	}
 	return &Service{
 		scheduler:         scheduler,
-		supervisorService: supervisorService,
 		queryRepository:   queryRepository,
 		projectRepository: projectRepository,
 		projectDocumentRootPrefix: "projects",
@@ -496,18 +492,10 @@ func boardIDFromName(name string) string {
 	return strings.Trim(cleaned, "_")
 }
 
-func (service *Service) ApproveIssueIntake(ctx context.Context, request ApproveIssueIntakeRequest) (domainsupervisor.Decision, error) {
-	if service == nil || service.supervisorService == nil {
-		return domainsupervisor.Decision{}, fmt.Errorf("supervisor service is not configured")
-	}
-	if err := request.Validate(); err != nil {
-		return domainsupervisor.Decision{}, err
-	}
-	decision, err := service.supervisorService.OnIssueApproved(ctx, taskengine.CorrelationIDs{RunID: strings.TrimSpace(request.RunID), TaskID: strings.TrimSpace(request.TaskID), JobID: strings.TrimSpace(request.JobID), ProjectID: strings.TrimSpace(request.ProjectID)}, strings.TrimSpace(request.Source), strings.TrimSpace(request.IssueReference), strings.TrimSpace(request.ApprovedBy))
-	if err != nil {
-		return domainsupervisor.Decision{}, fmt.Errorf("approve issue intake: %w", err)
-	}
-	return decision, nil
+func (service *Service) ApproveIssueIntake(ctx context.Context, request ApproveIssueIntakeRequest) (interface{}, error) {
+	_ = ctx
+	_ = request
+	return nil, fmt.Errorf("supervisor feature removed - ApproveIssueIntake no longer supported")
 }
 
 func (service *Service) RequeueDeadLetter(ctx context.Context, queue string, taskID string) error {

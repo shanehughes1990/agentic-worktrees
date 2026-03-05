@@ -67,7 +67,7 @@ func receiveHeartbeatEvent(endpoint string, timeout time.Duration) error {
 		return fmt.Errorf("expected connection_ack, got %q", ack.Type)
 	}
 
-	query := "subscription WorkerSessionRealtime($correlation: SupervisorCorrelationInput!, $fromOffset: Int) {" +
+ 	query := "subscription WorkerSessionRealtime($correlation: CorrelationInput!, $fromOffset: Int) {" +
 		" workerSessionStream(correlation: $correlation, fromOffset: $fromOffset) {" +
 		" __typename" +
 		" ... on StreamEventSuccess { event { eventType } }" +

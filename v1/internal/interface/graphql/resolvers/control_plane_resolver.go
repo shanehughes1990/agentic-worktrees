@@ -17,26 +17,6 @@ import (
 	"time"
 )
 
-// ApproveIssueIntake is the resolver for the approveIssueIntake field.
-func (r *mutationResolver) ApproveIssueIntake(ctx context.Context, input models.ApproveIssueIntakeInput) (models.ApproveIssueIntakeResult, error) {
-	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
-		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
-	}
-	decision, err := r.Resolver.ControlPlaneService.ApproveIssueIntake(ctx, applicationcontrolplane.ApproveIssueIntakeRequest{
-		RunID:          input.RunID,
-		TaskID:         input.TaskID,
-		JobID:          input.JobID,
-		ProjectID:      input.ProjectID,
-		Source:         input.Source,
-		IssueReference: input.IssueReference,
-		ApprovedBy:     input.ApprovedBy,
-	})
-	if err != nil {
-		return graphErrorFromError(fmt.Errorf("approve issue intake: %w", err)), nil
-	}
-	return models.ApproveIssueIntakeSuccess{Decision: mapSupervisorDecision(decision)}, nil
-}
-
 // RequeueDeadLetter is the resolver for the requeueDeadLetter field.
 func (r *mutationResolver) RequeueDeadLetter(ctx context.Context, input models.RequeueDeadLetterInput) (models.RequeueDeadLetterResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
@@ -610,11 +590,11 @@ func (r *queryResolver) WorkflowJobs(ctx context.Context, runID string, taskID *
 }
 
 // ExecutionHistory is the resolver for the executionHistory field.
-func (r *queryResolver) ExecutionHistory(ctx context.Context, correlation models.SupervisorCorrelationInput, limit *int32) (models.ExecutionHistoryResult, error) {
+func (r *queryResolver) ExecutionHistory(ctx context.Context, correlation models.CorrelationInput, limit *int32) (models.ExecutionHistoryResult, error) {
 	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
 		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
 	}
-	history, err := r.Resolver.ControlPlaneService.ExecutionHistory(ctx, applicationcontrolplane.CorrelationFilter{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: derefString(correlation.ProjectID)}, int32ToInt(limit))
+	history, err := r.Resolver.ControlPlaneService.ExecutionHistory(ctx, applicationcontrolplane.CorrelationFilter{RunID: derefString(correlation.RunID), TaskID: derefString(correlation.TaskID), JobID: derefString(correlation.JobID), ProjectID: derefString(correlation.ProjectID)}, int32ToInt(limit))
 	if err != nil {
 		return graphErrorFromError(fmt.Errorf("load execution history: %w", err)), nil
 	}
@@ -827,7 +807,7 @@ func (r *queryResolver) WorkerSettings(ctx context.Context) (models.WorkerSettin
 }
 
 // WorkerSessionStream is the resolver for the workerSessionStream field.
-func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventWorkerRegistrationAccepted, domainstream.EventWorkerHeartbeat, domainstream.EventWorkerInvalidated:
@@ -839,7 +819,7 @@ func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlat
 }
 
 // SessionActivityStream is the resolver for the sessionActivityStream field.
-func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventSessionStarted, domainstream.EventSessionUpdated, domainstream.EventSessionCheckpointed, domainstream.EventSessionEnded, domainstream.EventSessionRecovered, domainstream.EventSessionHealth, domainstream.EventSessionInjectedPrompt:
@@ -851,7 +831,7 @@ func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correl
 }
 
 // WorkflowExecutionStream is the resolver for the workflowExecutionStream field.
-func (r *subscriptionResolver) WorkflowExecutionStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+func (r *subscriptionResolver) WorkflowExecutionStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventToolStarted, domainstream.EventToolCompleted, domainstream.EventPermissionRequested, domainstream.EventPermissionDecided:
@@ -863,7 +843,7 @@ func (r *subscriptionResolver) WorkflowExecutionStream(ctx context.Context, corr
 }
 
 // AgentOutputStream is the resolver for the agentOutputStream field.
-func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventAgentChunk, domainstream.EventAgentTurnCompleted:
@@ -875,7 +855,7 @@ func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlatio
 }
 
 // TaskboardStream is the resolver for the taskboardStream field.
-func (r *subscriptionResolver) TaskboardStream(ctx context.Context, correlation models.SupervisorCorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+func (r *subscriptionResolver) TaskboardStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
 	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
 		switch eventType {
 		case domainstream.EventTaskboardUpdated, domainstream.EventTaskboardDeleted:

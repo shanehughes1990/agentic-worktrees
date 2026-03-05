@@ -93,7 +93,7 @@ func newControlPlaneIngestionService(t *testing.T, setup *ProjectSetup, engine *
 	if err != nil {
 		t.Fatalf("new scheduler: %v", err)
 	}
-	service, err := NewService(scheduler, nil, &ingestionQueryRepoStub{}, &ingestionProjectRepoStub{setup: setup}, nil)
+ 	service, err := NewService(scheduler, &ingestionQueryRepoStub{}, &ingestionProjectRepoStub{setup: setup}, nil)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}

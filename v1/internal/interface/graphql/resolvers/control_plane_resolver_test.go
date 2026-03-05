@@ -3,10 +3,8 @@ package resolvers
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	applicationstream "agentic-orchestrator/internal/application/stream"
-	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	domainstream "agentic-orchestrator/internal/domain/stream"
-	domainsupervisor "agentic-orchestrator/internal/domain/supervisor"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
 	"testing"
@@ -144,25 +142,6 @@ func (repository *controlPlaneFakeProjectRepository) DeleteProjectSetup(ctx cont
 	return nil
 }
 
-type supervisorMemoryEventStoreForControlPlane struct {
-	decisions []domainsupervisor.Decision
-}
-
-func (store *supervisorMemoryEventStoreForControlPlane) Append(_ context.Context, decision domainsupervisor.Decision) error {
-	store.decisions = append(store.decisions, decision)
-	return nil
-}
-
-func (store *supervisorMemoryEventStoreForControlPlane) ListByCorrelation(_ context.Context, correlation domainsupervisor.CorrelationIDs) ([]domainsupervisor.Decision, error) {
-	result := make([]domainsupervisor.Decision, 0)
-	for _, decision := range store.decisions {
-		if decision.CorrelationIDs == correlation {
-			result = append(result, decision)
-		}
-	}
-	return result, nil
-}
-
 type controlPlaneMemoryStreamStore struct {
 	events []domainstream.Event
 }
@@ -198,11 +177,7 @@ func newControlPlaneResolverFixture(t *testing.T) *Resolver {
 	if err != nil {
 		t.Fatalf("new scheduler: %v", err)
 	}
-	supervisorService, err := applicationsupervisor.NewService(&supervisorMemoryEventStoreForControlPlane{}, nil)
-	if err != nil {
-		t.Fatalf("new supervisor service: %v", err)
-	}
-	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, supervisorService, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeProjectRepository{}, &controlPlaneFakeDeadLetterManager{})
+ 	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeProjectRepository{}, &controlPlaneFakeDeadLetterManager{})
 	if err != nil {
 		t.Fatalf("new control-plane service: %v", err)
 	}
@@ -210,7 +185,7 @@ func newControlPlaneResolverFixture(t *testing.T) *Resolver {
 	if err != nil {
 		t.Fatalf("new stream service: %v", err)
 	}
-	return NewResolver(scheduler, supervisorService, controlPlaneService, streamService, nil)
+ 	return NewResolver(scheduler, controlPlaneService, streamService, nil)
 }
 
 func TestControlPlaneSessionsQueryReturnsTypedUnionSuccess(t *testing.T) {
@@ -230,22 +205,6 @@ func TestControlPlaneSessionsQueryReturnsTypedUnionSuccess(t *testing.T) {
 
 func TestControlPlaneMutationsReturnTypedUnionSuccess(t *testing.T) {
 	resolver := newControlPlaneResolverFixture(t)
-	approvalResult, approvalErr := (&mutationResolver{resolver}).ApproveIssueIntake(context.Background(), models.ApproveIssueIntakeInput{
-		RunID:          "run-1",
-		TaskID:         "task-1",
-		JobID:          "job-1",
-		ProjectID:      "project-1",
-		Source:         "octo/repo",
-		IssueReference: "octo/repo#1",
-		ApprovedBy:     "user-1",
-	})
-	if approvalErr != nil {
-		t.Fatalf("ApproveIssueIntake() error = %v", approvalErr)
-	}
-	if _, ok := approvalResult.(models.ApproveIssueIntakeSuccess); !ok {
-		t.Fatalf("expected ApproveIssueIntakeSuccess, got %T", approvalResult)
-	}
-
 	deleteResult, deleteErr := (&mutationResolver{resolver}).DeleteProjectSetup(context.Background(), models.DeleteProjectSetupInput{ProjectID: "project-1"})
 	if deleteErr != nil {
 		t.Fatalf("DeleteProjectSetup() error = %v", deleteErr)
@@ -259,7 +218,10 @@ func TestControlPlaneAgentOutputSubscriptionPublishesTypedUnionEvent(t *testing.
 	resolver := newControlPlaneResolverFixture(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	stream, err := (&subscriptionResolver{resolver}).AgentOutputStream(ctx, models.SupervisorCorrelationInput{RunID: "run-1", TaskID: "task-1", JobID: "job-1"}, nil)
+ 	runID := "run-1"
+ 	taskID := "task-1"
+ 	jobID := "job-1"
+ 	stream, err := (&subscriptionResolver{resolver}).AgentOutputStream(ctx, models.CorrelationInput{RunID: &runID, TaskID: &taskID, JobID: &jobID}, nil)
 	if err != nil {
 		t.Fatalf("AgentOutputStream() error = %v", err)
 	}
@@ -301,7 +263,7 @@ func TestControlPlaneTaskboardSubscriptionPublishesOnProjectSetupUpsert(t *testi
 	defer cancel()
 
 	projectID := "project-1"
-	stream, err := (&subscriptionResolver{resolver}).TaskboardStream(ctx, models.SupervisorCorrelationInput{RunID: "", TaskID: "", JobID: "", ProjectID: &projectID}, nil)
+ 	stream, err := (&subscriptionResolver{resolver}).TaskboardStream(ctx, models.CorrelationInput{ProjectID: &projectID}, nil)
 	if err != nil {
 		t.Fatalf("TaskboardStream() error = %v", err)
 	}
@@ -363,20 +325,16 @@ func TestControlPlaneTaskboardSubscriptionReceivesCrossProcessEvents(t *testing.
 	if err != nil {
 		t.Fatalf("new scheduler: %v", err)
 	}
-	supervisorService, err := applicationsupervisor.NewService(&supervisorMemoryEventStoreForControlPlane{}, nil)
-	if err != nil {
-		t.Fatalf("new supervisor service: %v", err)
-	}
-	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, supervisorService, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeProjectRepository{}, &controlPlaneFakeDeadLetterManager{})
+ 	controlPlaneService, err := applicationcontrolplane.NewService(scheduler, &controlPlaneFakeQueryRepository{}, &controlPlaneFakeProjectRepository{}, &controlPlaneFakeDeadLetterManager{})
 	if err != nil {
 		t.Fatalf("new control-plane service: %v", err)
 	}
-	resolver := NewResolver(scheduler, supervisorService, controlPlaneService, subscriberStreamService, nil)
+ 	resolver := NewResolver(scheduler, controlPlaneService, subscriberStreamService, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	projectID := "project-1"
-	stream, err := (&subscriptionResolver{resolver}).TaskboardStream(ctx, models.SupervisorCorrelationInput{RunID: "", TaskID: "", JobID: "", ProjectID: &projectID}, nil)
+ 	stream, err := (&subscriptionResolver{resolver}).TaskboardStream(ctx, models.CorrelationInput{ProjectID: &projectID}, nil)
 	if err != nil {
 		t.Fatalf("TaskboardStream() error = %v", err)
 	}

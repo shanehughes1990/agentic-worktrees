@@ -4,7 +4,6 @@ import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	applicationrealtime "agentic-orchestrator/internal/application/realtime"
 	applicationstream "agentic-orchestrator/internal/application/stream"
-	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
@@ -19,7 +18,6 @@ import (
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
-	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	infratrackerpostgres "agentic-orchestrator/internal/infrastructure/tracker"
 	"agentic-orchestrator/internal/interface/graphql/graph"
@@ -127,14 +125,6 @@ func New() (*APIApp, error) {
 		return nil, fmt.Errorf("init postgres dead-letter audit: %w", err)
 	}
 	taskEnginePlatform.SetDeadLetterAudit(deadLetterAudit)
-	supervisorEventStore, err := infrasupervisorpostgres.NewEventStore(databaseClient.DB())
-	if err != nil {
-		return nil, fmt.Errorf("init postgres supervisor event store: %w", err)
-	}
-	supervisorService, err := applicationsupervisor.NewService(supervisorEventStore, nil)
-	if err != nil {
-		return nil, fmt.Errorf("init supervisor service: %w", err)
-	}
 	streamEventStore, err := infrastreampostgres.NewEventStore(databaseClient.DB())
 	if err != nil {
 		return nil, fmt.Errorf("init postgres stream event store: %w", err)
@@ -162,7 +152,7 @@ func New() (*APIApp, error) {
 	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
-	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, supervisorService, controlPlaneQueryRepository, projectSetupRepository, taskEnginePlatform)
+	controlPlaneService, err := applicationcontrolplane.NewService(taskScheduler, controlPlaneQueryRepository, projectSetupRepository, taskEnginePlatform)
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
@@ -208,7 +198,7 @@ func New() (*APIApp, error) {
 		streamService.SetHealthEvaluator(acpClient)
 	}
 
-	resolver := resolvers.NewResolver(taskScheduler, supervisorService, controlPlaneService, streamService, workerService, trackerService)
+	resolver := resolvers.NewResolver(taskScheduler, controlPlaneService, streamService, workerService, trackerService)
 	server := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})

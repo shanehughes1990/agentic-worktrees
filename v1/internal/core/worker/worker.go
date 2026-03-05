@@ -6,7 +6,6 @@ import (
 	applicationingestion "agentic-orchestrator/internal/application/ingestion"
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	applicationstream "agentic-orchestrator/internal/application/stream"
-	applicationsupervisor "agentic-orchestrator/internal/application/supervisor"
 	"agentic-orchestrator/internal/application/taskengine"
 	applicationtracker "agentic-orchestrator/internal/application/tracker"
 	applicationworker "agentic-orchestrator/internal/application/worker"
@@ -23,8 +22,6 @@ import (
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
 	infrastreampostgres "agentic-orchestrator/internal/infrastructure/stream/postgres"
-	infrasupervisorpostgres "agentic-orchestrator/internal/infrastructure/supervisor/postgres"
-	infrasupervisortaskengine "agentic-orchestrator/internal/infrastructure/supervisor/taskengine"
 	infrataskenginepostgres "agentic-orchestrator/internal/infrastructure/taskengine/postgres"
 	infratrackerpostgres "agentic-orchestrator/internal/infrastructure/tracker"
 	workerinterface "agentic-orchestrator/internal/interface/worker"
@@ -54,7 +51,6 @@ type WorkerApp struct {
 	executionJournal          taskengine.ExecutionJournal
 	projectSetupRepository    applicationcontrolplane.ProjectSetupRepository
 	projectDocumentRepository applicationcontrolplane.ProjectDocumentRepository
-	supervisorService         *applicationsupervisor.Service
 	workerService             *applicationworker.Service
 	realtimeTransport         domainrealtime.WorkerLifecycleTransport
 }
@@ -102,20 +98,6 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init postgres execution journal: %w", err)
 	}
-	supervisorEventStore, err := infrasupervisorpostgres.NewEventStore(databaseClient.DB())
-	if err != nil {
-		return nil, fmt.Errorf("init postgres supervisor event store: %w", err)
-	}
-	supervisorService, err := applicationsupervisor.NewService(supervisorEventStore, nil)
-	if err != nil {
-		return nil, fmt.Errorf("init supervisor service: %w", err)
-	}
-	supervisorDispatcher, err := infrasupervisortaskengine.NewDispatcher(taskScheduler)
-	if err != nil {
-		return nil, fmt.Errorf("init supervisor task dispatcher: %w", err)
-	}
-	supervisorService.SetDispatcher(supervisorDispatcher)
-	taskScheduler.SetAdmissionSignalSink(supervisorService)
 
 	workerRegistry, err := infrataskenginepostgres.NewWorkerRegistry(databaseClient.DB())
 	if err != nil {
@@ -159,7 +141,6 @@ func New() (*WorkerApp, error) {
 		executionJournal:          executionJournal,
 		projectSetupRepository:    projectSetupRepository,
 		projectDocumentRepository: projectDocumentRepository,
-		supervisorService:         supervisorService,
 		workerService:             workerService,
 		realtimeTransport:         realtimeTransport,
 	}, nil
@@ -293,7 +274,6 @@ func (app *WorkerApp) Run() error {
 		},
 		nil,
 		app.executionJournal,
-		app.supervisorService,
 	)
 	if err != nil {
 		return fmt.Errorf("create agent workflow handler: %w", err)
@@ -314,7 +294,6 @@ func (app *WorkerApp) Run() error {
 		},
 		nil,
 		app.executionJournal,
-		app.supervisorService,
 	)
 	if err != nil {
 		return fmt.Errorf("create scm workflow handler: %w", err)
@@ -323,7 +302,7 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("init control-plane query repository: %w", err)
 	}
-	documentTaskService, err := applicationcontrolplane.NewService(app.taskScheduler, app.supervisorService, controlPlaneQueryRepository, app.projectSetupRepository, nil)
+	documentTaskService, err := applicationcontrolplane.NewService(app.taskScheduler, controlPlaneQueryRepository, app.projectSetupRepository, nil)
 	if err != nil {
 		return fmt.Errorf("init document task service: %w", err)
 	}

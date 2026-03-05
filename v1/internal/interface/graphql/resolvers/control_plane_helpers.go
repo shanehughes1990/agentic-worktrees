@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func streamSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.SupervisorCorrelationInput, fromOffset *int32, eventFilter func(domainstream.EventType) bool) (<-chan models.StreamEventResult, error) {
+ func streamSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.CorrelationInput, fromOffset *int32, eventFilter func(domainstream.EventType) bool) (<-chan models.StreamEventResult, error) {
 	if streamService == nil {
 		return singleEventStream(models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "stream service is not configured"}), nil
 	}
@@ -85,14 +85,14 @@ func streamSubscription(ctx context.Context, streamService *applicationstream.Se
 	return output, nil
 }
 
-func matchesCorrelation(event domainstream.Event, correlation models.SupervisorCorrelationInput) bool {
-	if strings.TrimSpace(correlation.RunID) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(correlation.RunID) {
+ func matchesCorrelation(event domainstream.Event, correlation models.CorrelationInput) bool {
+ 	if strings.TrimSpace(derefString(correlation.RunID)) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(derefString(correlation.RunID)) {
 		return false
 	}
-	if strings.TrimSpace(correlation.TaskID) != "" && strings.TrimSpace(event.CorrelationIDs.TaskID) != strings.TrimSpace(correlation.TaskID) {
+ 	if strings.TrimSpace(derefString(correlation.TaskID)) != "" && strings.TrimSpace(event.CorrelationIDs.TaskID) != strings.TrimSpace(derefString(correlation.TaskID)) {
 		return false
 	}
-	if strings.TrimSpace(correlation.JobID) != "" && strings.TrimSpace(event.CorrelationIDs.JobID) != strings.TrimSpace(correlation.JobID) {
+ 	if strings.TrimSpace(derefString(correlation.JobID)) != "" && strings.TrimSpace(event.CorrelationIDs.JobID) != strings.TrimSpace(derefString(correlation.JobID)) {
 		return false
 	}
 	if strings.TrimSpace(derefString(correlation.ProjectID)) != "" && strings.TrimSpace(event.CorrelationIDs.ProjectID) != strings.TrimSpace(derefString(correlation.ProjectID)) {

@@ -495,15 +495,14 @@ func TestAgentWorkflowHandlerClaimsAndAppliesTrackerTask(t *testing.T) {
 		},
 		nil,
 		nil,
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("new handler: %v", err)
-	}
-
-	payload, err := json.Marshal(AgentWorkflowPayload{
-		SessionID:      "worker-1",
-		Prompt:         "Base prompt",
+ 	)
+ 	if err != nil {
+ 		t.Fatalf("new handler: %v", err)
+ 	}
+ 
+ 	payload, err := json.Marshal(AgentWorkflowPayload{
+ 		SessionID:      "worker-1",
+ 		Prompt:         "Base prompt",
 		ProjectID:      "project-1",
 		RunID:          "run-1",
 		TaskID:         "task-1",

@@ -1,3 +1,10 @@
+ input CorrelationInput {
+   runID: String
+   taskID: String
+   jobID: String
+   projectID: String
+ }
+ 
 enum JobKind {
   INGESTION_AGENT_RUN
   AGENT_WORKFLOW_RUN
@@ -85,22 +92,6 @@ union DeadLetterHistoryResult = DeadLetterHistorySuccess | GraphError
 enum TrackerSourceKind {
   INTERNAL
 }
-
-input ApproveIssueIntakeInput {
-  runID: String!
-  taskID: String!
-  jobID: String!
-  projectID: String!
-  source: String!
-  issueReference: String!
-  approvedBy: String!
-}
-
-type ApproveIssueIntakeSuccess {
-  decision: SupervisorDecision!
-}
-
-union ApproveIssueIntakeResult = ApproveIssueIntakeSuccess | GraphError
 
 input RequeueDeadLetterInput {
   queue: String!
@@ -486,7 +477,7 @@ extend type Query {
   sessions(limit: Int = 50): SessionsResult!
   session(runID: String!): SessionResult!
   workflowJobs(runID: String!, taskID: String, limit: Int = 100): WorkflowJobsResult!
-  executionHistory(correlation: SupervisorCorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
+  executionHistory(correlation: CorrelationInput!, limit: Int = 100): ExecutionHistoryResult!
   deadLetterHistory(queue: String, limit: Int = 100): DeadLetterHistoryResult!
   projectSetups(limit: Int = 50): ProjectSetupsResult!
   projectSetup(projectID: String!): ProjectSetupResult!
@@ -500,7 +491,6 @@ extend type Query {
 }
 
 extend type Mutation {
-  approveIssueIntake(input: ApproveIssueIntakeInput!): ApproveIssueIntakeResult!
   requeueDeadLetter(input: RequeueDeadLetterInput!): RequeueDeadLetterResult!
   upsertProjectSetup(input: UpsertProjectSetupInput!): UpsertProjectSetupResult!
   deleteProjectSetup(input: DeleteProjectSetupInput!): DeleteProjectSetupResult!
@@ -520,9 +510,9 @@ extend type Mutation {
 }
 
 extend type Subscription {
-  workerSessionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
-  sessionActivityStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
-  workflowExecutionStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
-  agentOutputStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
-  taskboardStream(correlation: SupervisorCorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+   workerSessionStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+   sessionActivityStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+   workflowExecutionStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+   agentOutputStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+   taskboardStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
 }

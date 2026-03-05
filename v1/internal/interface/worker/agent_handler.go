@@ -111,56 +111,49 @@ type AgentWorkflowHandler struct {
 	trackerService    trackerTaskService
 	checkpointStore   taskengine.CheckpointStore
 	executionJournal  taskengine.ExecutionJournal
-	supervisorService supervisorSignalService
 }
 
 func NewAgentWorkflowHandler(service AgentRuntimeService) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, nil, nil, nil)
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, nil, nil)
 }
 
 func NewAgentWorkflowHandlerWithCheckpointStore(service AgentRuntimeService, checkpointStore taskengine.CheckpointStore) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, nil, nil)
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, nil)
 }
 
 func NewAgentWorkflowHandlerWithReliability(service AgentRuntimeService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, executionJournal, nil)
+	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, executionJournal)
 }
 
-func NewAgentWorkflowHandlerWithSupervisor(service AgentRuntimeService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandler(&staticAgentRuntimeResolver{service: service}, checkpointStore, executionJournal, supervisorService)
-}
-
-func NewAgentWorkflowHandlerWithProjectSetup(projectRepository projectSetupLookup, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+func NewAgentWorkflowHandlerWithProjectSetup(projectRepository projectSetupLookup, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
 	return newAgentWorkflowHandlerWithTracker(
 		&projectSetupAgentRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory},
 		projectRepository,
 		nil,
 		checkpointStore,
 		executionJournal,
-		supervisorService,
 	)
 }
 
-func NewAgentWorkflowHandlerWithProjectSetupAndTracker(projectRepository projectSetupLookup, trackerService trackerTaskService, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+func NewAgentWorkflowHandlerWithProjectSetupAndTracker(projectRepository projectSetupLookup, trackerService trackerTaskService, serviceFactory agentServiceFactoryFunc, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
 	return newAgentWorkflowHandlerWithTracker(
 		&projectSetupAgentRuntimeResolver{projectRepository: projectRepository, serviceFactory: serviceFactory},
 		projectRepository,
 		trackerService,
 		checkpointStore,
 		executionJournal,
-		supervisorService,
 	)
 }
 
-func newAgentWorkflowHandler(runtimeResolver agentRuntimeResolver, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
-	return newAgentWorkflowHandlerWithTracker(runtimeResolver, nil, nil, checkpointStore, executionJournal, supervisorService)
+func newAgentWorkflowHandler(runtimeResolver agentRuntimeResolver, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
+	return newAgentWorkflowHandlerWithTracker(runtimeResolver, nil, nil, checkpointStore, executionJournal)
 }
 
-func newAgentWorkflowHandlerWithTracker(runtimeResolver agentRuntimeResolver, projectRepository projectSetupLookup, trackerService trackerTaskService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal, supervisorService supervisorSignalService) (*AgentWorkflowHandler, error) {
+func newAgentWorkflowHandlerWithTracker(runtimeResolver agentRuntimeResolver, projectRepository projectSetupLookup, trackerService trackerTaskService, checkpointStore taskengine.CheckpointStore, executionJournal taskengine.ExecutionJournal) (*AgentWorkflowHandler, error) {
 	if runtimeResolver == nil {
 		return nil, fmt.Errorf("agent runtime resolver is required")
 	}
-	return &AgentWorkflowHandler{runtimeResolver: runtimeResolver, projectRepository: projectRepository, trackerService: trackerService, checkpointStore: checkpointStore, executionJournal: executionJournal, supervisorService: supervisorService}, nil
+	return &AgentWorkflowHandler{runtimeResolver: runtimeResolver, projectRepository: projectRepository, trackerService: trackerService, checkpointStore: checkpointStore, executionJournal: executionJournal}, nil
 }
 
 func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -229,7 +222,7 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 
 	step := "source_state"
 	if record, err := handler.recordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusRunning, ""); err == nil {
-		handler.safeSupervisorExecution(ctx, record)
+		_ = record
 	}
 
 	retryCheckpoint := (taskengine.RetryCheckpointContract{
@@ -279,18 +272,13 @@ func (handler *AgentWorkflowHandler) Handle(ctx context.Context, job taskengine.
 			handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusFailed, err.Error())
 			return fmt.Errorf("persist completed checkpoint: %w", err)
 		}
-		handler.safeSupervisorCheckpoint(ctx, request.Metadata.CorrelationIDs, job.Kind, idempotencyKey, step)
 	}
 	handler.safeRecordExecution(ctx, request, job.Kind, step, taskengine.ExecutionStatusSucceeded, "")
 	return nil
 }
 
 func (handler *AgentWorkflowHandler) safeRecordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) {
-	record, err := handler.recordExecution(ctx, request, kind, step, status, errorMessage)
-	if err != nil {
-		return
-	}
-	handler.safeSupervisorExecution(ctx, record)
+	_, _ = handler.recordExecution(ctx, request, kind, step, status, errorMessage)
 }
 
 func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, request domainagent.ExecutionRequest, kind taskengine.JobKind, step string, status taskengine.ExecutionStatus, errorMessage string) (taskengine.ExecutionRecord, error) {
@@ -313,20 +301,6 @@ func (handler *AgentWorkflowHandler) recordExecution(ctx context.Context, reques
 		return taskengine.ExecutionRecord{}, fmt.Errorf("record execution journal: %w", err)
 	}
 	return record, nil
-}
-
-func (handler *AgentWorkflowHandler) safeSupervisorExecution(ctx context.Context, record taskengine.ExecutionRecord) {
-	if handler == nil || handler.supervisorService == nil {
-		return
-	}
-	_, _ = handler.supervisorService.OnExecution(ctx, record, 0, 0)
-}
-
-func (handler *AgentWorkflowHandler) safeSupervisorCheckpoint(ctx context.Context, correlation domainagent.CorrelationIDs, kind taskengine.JobKind, idempotencyKey string, step string) {
-	if handler == nil || handler.supervisorService == nil {
-		return
-	}
-	_, _ = handler.supervisorService.OnCheckpointSaved(ctx, taskengine.CorrelationIDs{RunID: correlation.RunID, TaskID: correlation.TaskID, JobID: correlation.JobID, ProjectID: correlation.ProjectID}, kind, idempotencyKey, step)
 }
 
 func mergeTaskPrompt(basePrompt string, task domaintracker.Task) string {

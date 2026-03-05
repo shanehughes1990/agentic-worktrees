@@ -10,10 +10,6 @@ import (
 	"time"
 )
 
-type ApproveIssueIntakeResult interface {
-	IsApproveIssueIntakeResult()
-}
-
 type DeadLetterHistoryResult interface {
 	IsDeadLetterHistoryResult()
 }
@@ -78,10 +74,6 @@ type StreamEventResult interface {
 	IsStreamEventResult()
 }
 
-type SupervisorDecisionHistoryResult interface {
-	IsSupervisorDecisionHistoryResult()
-}
-
 type TaskboardDeleteResult interface {
 	IsTaskboardDeleteResult()
 }
@@ -114,21 +106,12 @@ type WorkflowJobsResult interface {
 	IsWorkflowJobsResult()
 }
 
-type ApproveIssueIntakeInput struct {
-	RunID          string `json:"runID"`
-	TaskID         string `json:"taskID"`
-	JobID          string `json:"jobID"`
-	ProjectID      string `json:"projectID"`
-	Source         string `json:"source"`
-	IssueReference string `json:"issueReference"`
-	ApprovedBy     string `json:"approvedBy"`
+type CorrelationInput struct {
+	RunID     *string `json:"runID,omitempty"`
+	TaskID    *string `json:"taskID,omitempty"`
+	JobID     *string `json:"jobID,omitempty"`
+	ProjectID *string `json:"projectID,omitempty"`
 }
-
-type ApproveIssueIntakeSuccess struct {
-	Decision *SupervisorDecision `json:"decision"`
-}
-
-func (ApproveIssueIntakeSuccess) IsApproveIssueIntakeResult() {}
 
 type CreateTaskboardEpicInput struct {
 	ProjectID        string   `json:"projectID"`
@@ -247,8 +230,6 @@ func (GraphError) IsExecutionHistoryResult() {}
 
 func (GraphError) IsDeadLetterHistoryResult() {}
 
-func (GraphError) IsApproveIssueIntakeResult() {}
-
 func (GraphError) IsRequeueDeadLetterResult() {}
 
 func (GraphError) IsTaskboardsResult() {}
@@ -286,8 +267,6 @@ func (GraphError) IsWorkerSessionsResult() {}
 func (GraphError) IsWorkerSettingsResult() {}
 
 func (GraphError) IsScmSupportedOperationsResult() {}
-
-func (GraphError) IsSupervisorDecisionHistoryResult() {}
 
 type Mutation struct {
 }
@@ -498,44 +477,6 @@ func (StreamEventSuccess) IsStreamEventResult() {}
 type Subscription struct {
 }
 
-type SupervisorCorrelationInput struct {
-	RunID     string  `json:"runID"`
-	TaskID    string  `json:"taskID"`
-	JobID     string  `json:"jobID"`
-	ProjectID *string `json:"projectID,omitempty"`
-}
-
-type SupervisorDecision struct {
-	RunID         string                             `json:"runID"`
-	TaskID        string                             `json:"taskID"`
-	JobID         string                             `json:"jobID"`
-	ProjectID     string                             `json:"projectID"`
-	SignalType    SupervisorSignalType               `json:"signalType"`
-	FromState     SupervisorState                    `json:"fromState"`
-	ToState       SupervisorState                    `json:"toState"`
-	Action        SupervisorActionCode               `json:"action"`
-	Reason        SupervisorReasonCode               `json:"reason"`
-	RuleName      string                             `json:"ruleName"`
-	RulePriority  int32                              `json:"rulePriority"`
-	OccurredAt    time.Time                          `json:"occurredAt"`
-	AttentionZone SupervisorAttentionZone            `json:"attentionZone"`
-	Attempt       int32                              `json:"attempt"`
-	MaxRetry      int32                              `json:"maxRetry"`
-	FailureClass  FailureClass                       `json:"failureClass"`
-	Metadata      []*SupervisorDecisionMetadataEntry `json:"metadata"`
-}
-
-type SupervisorDecisionHistorySuccess struct {
-	Decisions []*SupervisorDecision `json:"decisions"`
-}
-
-func (SupervisorDecisionHistorySuccess) IsSupervisorDecisionHistoryResult() {}
-
-type SupervisorDecisionMetadataEntry struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 type Taskboard struct {
 	BoardID   string           `json:"boardID"`
 	ProjectID string           `json:"projectID"`
@@ -690,63 +631,6 @@ type WorkflowJobsSuccess struct {
 }
 
 func (WorkflowJobsSuccess) IsWorkflowJobsResult() {}
-
-type FailureClass string
-
-const (
-	FailureClassUnknown   FailureClass = "UNKNOWN"
-	FailureClassTransient FailureClass = "TRANSIENT"
-	FailureClassTerminal  FailureClass = "TERMINAL"
-)
-
-var AllFailureClass = []FailureClass{
-	FailureClassUnknown,
-	FailureClassTransient,
-	FailureClassTerminal,
-}
-
-func (e FailureClass) IsValid() bool {
-	switch e {
-	case FailureClassUnknown, FailureClassTransient, FailureClassTerminal:
-		return true
-	}
-	return false
-}
-
-func (e FailureClass) String() string {
-	return string(e)
-}
-
-func (e *FailureClass) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = FailureClass(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid FailureClass", str)
-	}
-	return nil
-}
-
-func (e FailureClass) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *FailureClass) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e FailureClass) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
 
 type GraphErrorCode string
 
@@ -1166,379 +1050,6 @@ func (e *StreamEventSource) UnmarshalJSON(b []byte) error {
 }
 
 func (e StreamEventSource) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-type SupervisorActionCode string
-
-const (
-	SupervisorActionCodeContinue      SupervisorActionCode = "CONTINUE"
-	SupervisorActionCodeRetry         SupervisorActionCode = "RETRY"
-	SupervisorActionCodeBlock         SupervisorActionCode = "BLOCK"
-	SupervisorActionCodeEscalate      SupervisorActionCode = "ESCALATE"
-	SupervisorActionCodeRequestRework SupervisorActionCode = "REQUEST_REWORK"
-	SupervisorActionCodeMerge         SupervisorActionCode = "MERGE"
-	SupervisorActionCodeRefuse        SupervisorActionCode = "REFUSE"
-	SupervisorActionCodeStartTask     SupervisorActionCode = "START_TASK"
-)
-
-var AllSupervisorActionCode = []SupervisorActionCode{
-	SupervisorActionCodeContinue,
-	SupervisorActionCodeRetry,
-	SupervisorActionCodeBlock,
-	SupervisorActionCodeEscalate,
-	SupervisorActionCodeRequestRework,
-	SupervisorActionCodeMerge,
-	SupervisorActionCodeRefuse,
-	SupervisorActionCodeStartTask,
-}
-
-func (e SupervisorActionCode) IsValid() bool {
-	switch e {
-	case SupervisorActionCodeContinue, SupervisorActionCodeRetry, SupervisorActionCodeBlock, SupervisorActionCodeEscalate, SupervisorActionCodeRequestRework, SupervisorActionCodeMerge, SupervisorActionCodeRefuse, SupervisorActionCodeStartTask:
-		return true
-	}
-	return false
-}
-
-func (e SupervisorActionCode) String() string {
-	return string(e)
-}
-
-func (e *SupervisorActionCode) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = SupervisorActionCode(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid SupervisorActionCode", str)
-	}
-	return nil
-}
-
-func (e SupervisorActionCode) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *SupervisorActionCode) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e SupervisorActionCode) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-type SupervisorAttentionZone string
-
-const (
-	SupervisorAttentionZoneNone      SupervisorAttentionZone = "NONE"
-	SupervisorAttentionZoneTracker   SupervisorAttentionZone = "TRACKER"
-	SupervisorAttentionZoneScm       SupervisorAttentionZone = "SCM"
-	SupervisorAttentionZoneExecution SupervisorAttentionZone = "EXECUTION"
-)
-
-var AllSupervisorAttentionZone = []SupervisorAttentionZone{
-	SupervisorAttentionZoneNone,
-	SupervisorAttentionZoneTracker,
-	SupervisorAttentionZoneScm,
-	SupervisorAttentionZoneExecution,
-}
-
-func (e SupervisorAttentionZone) IsValid() bool {
-	switch e {
-	case SupervisorAttentionZoneNone, SupervisorAttentionZoneTracker, SupervisorAttentionZoneScm, SupervisorAttentionZoneExecution:
-		return true
-	}
-	return false
-}
-
-func (e SupervisorAttentionZone) String() string {
-	return string(e)
-}
-
-func (e *SupervisorAttentionZone) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = SupervisorAttentionZone(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid SupervisorAttentionZone", str)
-	}
-	return nil
-}
-
-func (e SupervisorAttentionZone) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *SupervisorAttentionZone) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e SupervisorAttentionZone) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-type SupervisorReasonCode string
-
-const (
-	SupervisorReasonCodeJobAdmitted               SupervisorReasonCode = "JOB_ADMITTED"
-	SupervisorReasonCodeExecutionProgressed       SupervisorReasonCode = "EXECUTION_PROGRESSED"
-	SupervisorReasonCodeExecutionSucceeded        SupervisorReasonCode = "EXECUTION_SUCCEEDED"
-	SupervisorReasonCodeExecutionFailedRetry      SupervisorReasonCode = "EXECUTION_FAILED_RETRY"
-	SupervisorReasonCodeExecutionFailedMaxRetries SupervisorReasonCode = "EXECUTION_FAILED_MAX_RETRIES"
-	SupervisorReasonCodeExecutionFailedTerminal   SupervisorReasonCode = "EXECUTION_FAILED_TERMINAL"
-	SupervisorReasonCodeTrackerAttentionRequired  SupervisorReasonCode = "TRACKER_ATTENTION_REQUIRED"
-	SupervisorReasonCodeTrackerAttentionCleared   SupervisorReasonCode = "TRACKER_ATTENTION_CLEARED"
-	SupervisorReasonCodeScmAttentionRequired      SupervisorReasonCode = "SCM_ATTENTION_REQUIRED"
-	SupervisorReasonCodeScmAttentionCleared       SupervisorReasonCode = "SCM_ATTENTION_CLEARED"
-	SupervisorReasonCodePrConflictDetected        SupervisorReasonCode = "PR_CONFLICT_DETECTED"
-	SupervisorReasonCodePrReviewChangesRequested  SupervisorReasonCode = "PR_REVIEW_CHANGES_REQUESTED"
-	SupervisorReasonCodePrChecksFailed            SupervisorReasonCode = "PR_CHECKS_FAILED"
-	SupervisorReasonCodePrChecksPassed            SupervisorReasonCode = "PR_CHECKS_PASSED"
-	SupervisorReasonCodePrMergeApproved           SupervisorReasonCode = "PR_MERGE_APPROVED"
-	SupervisorReasonCodePrMergeRefused            SupervisorReasonCode = "PR_MERGE_REFUSED"
-	SupervisorReasonCodeIssueAwaitingApproval     SupervisorReasonCode = "ISSUE_AWAITING_APPROVAL"
-	SupervisorReasonCodeIssueTaskKickoff          SupervisorReasonCode = "ISSUE_TASK_KICKOFF"
-	SupervisorReasonCodeManualOverride            SupervisorReasonCode = "MANUAL_OVERRIDE"
-	SupervisorReasonCodePolicyDefaultContinue     SupervisorReasonCode = "POLICY_DEFAULT_CONTINUE"
-)
-
-var AllSupervisorReasonCode = []SupervisorReasonCode{
-	SupervisorReasonCodeJobAdmitted,
-	SupervisorReasonCodeExecutionProgressed,
-	SupervisorReasonCodeExecutionSucceeded,
-	SupervisorReasonCodeExecutionFailedRetry,
-	SupervisorReasonCodeExecutionFailedMaxRetries,
-	SupervisorReasonCodeExecutionFailedTerminal,
-	SupervisorReasonCodeTrackerAttentionRequired,
-	SupervisorReasonCodeTrackerAttentionCleared,
-	SupervisorReasonCodeScmAttentionRequired,
-	SupervisorReasonCodeScmAttentionCleared,
-	SupervisorReasonCodePrConflictDetected,
-	SupervisorReasonCodePrReviewChangesRequested,
-	SupervisorReasonCodePrChecksFailed,
-	SupervisorReasonCodePrChecksPassed,
-	SupervisorReasonCodePrMergeApproved,
-	SupervisorReasonCodePrMergeRefused,
-	SupervisorReasonCodeIssueAwaitingApproval,
-	SupervisorReasonCodeIssueTaskKickoff,
-	SupervisorReasonCodeManualOverride,
-	SupervisorReasonCodePolicyDefaultContinue,
-}
-
-func (e SupervisorReasonCode) IsValid() bool {
-	switch e {
-	case SupervisorReasonCodeJobAdmitted, SupervisorReasonCodeExecutionProgressed, SupervisorReasonCodeExecutionSucceeded, SupervisorReasonCodeExecutionFailedRetry, SupervisorReasonCodeExecutionFailedMaxRetries, SupervisorReasonCodeExecutionFailedTerminal, SupervisorReasonCodeTrackerAttentionRequired, SupervisorReasonCodeTrackerAttentionCleared, SupervisorReasonCodeScmAttentionRequired, SupervisorReasonCodeScmAttentionCleared, SupervisorReasonCodePrConflictDetected, SupervisorReasonCodePrReviewChangesRequested, SupervisorReasonCodePrChecksFailed, SupervisorReasonCodePrChecksPassed, SupervisorReasonCodePrMergeApproved, SupervisorReasonCodePrMergeRefused, SupervisorReasonCodeIssueAwaitingApproval, SupervisorReasonCodeIssueTaskKickoff, SupervisorReasonCodeManualOverride, SupervisorReasonCodePolicyDefaultContinue:
-		return true
-	}
-	return false
-}
-
-func (e SupervisorReasonCode) String() string {
-	return string(e)
-}
-
-func (e *SupervisorReasonCode) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = SupervisorReasonCode(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid SupervisorReasonCode", str)
-	}
-	return nil
-}
-
-func (e SupervisorReasonCode) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *SupervisorReasonCode) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e SupervisorReasonCode) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-type SupervisorSignalType string
-
-const (
-	SupervisorSignalTypeJobAdmitted              SupervisorSignalType = "JOB_ADMITTED"
-	SupervisorSignalTypeExecutionProgressed      SupervisorSignalType = "EXECUTION_PROGRESSED"
-	SupervisorSignalTypeExecutionFailed          SupervisorSignalType = "EXECUTION_FAILED"
-	SupervisorSignalTypeExecutionSucceeded       SupervisorSignalType = "EXECUTION_SUCCEEDED"
-	SupervisorSignalTypeCheckpointSaved          SupervisorSignalType = "CHECKPOINT_SAVED"
-	SupervisorSignalTypeTrackerAttentionNeeded   SupervisorSignalType = "TRACKER_ATTENTION_NEEDED"
-	SupervisorSignalTypeTrackerAttentionCleared  SupervisorSignalType = "TRACKER_ATTENTION_CLEARED"
-	SupervisorSignalTypeScmAttentionNeeded       SupervisorSignalType = "SCM_ATTENTION_NEEDED"
-	SupervisorSignalTypeScmAttentionCleared      SupervisorSignalType = "SCM_ATTENTION_CLEARED"
-	SupervisorSignalTypePrConflictDetected       SupervisorSignalType = "PR_CONFLICT_DETECTED"
-	SupervisorSignalTypePrReviewChangesRequested SupervisorSignalType = "PR_REVIEW_CHANGES_REQUESTED"
-	SupervisorSignalTypePrChecksFailed           SupervisorSignalType = "PR_CHECKS_FAILED"
-	SupervisorSignalTypePrChecksPassed           SupervisorSignalType = "PR_CHECKS_PASSED"
-	SupervisorSignalTypePrMergeRequested         SupervisorSignalType = "PR_MERGE_REQUESTED"
-	SupervisorSignalTypeIssueOpened              SupervisorSignalType = "ISSUE_OPENED"
-	SupervisorSignalTypeIssueApproved            SupervisorSignalType = "ISSUE_APPROVED"
-	SupervisorSignalTypeManualOverride           SupervisorSignalType = "MANUAL_OVERRIDE"
-)
-
-var AllSupervisorSignalType = []SupervisorSignalType{
-	SupervisorSignalTypeJobAdmitted,
-	SupervisorSignalTypeExecutionProgressed,
-	SupervisorSignalTypeExecutionFailed,
-	SupervisorSignalTypeExecutionSucceeded,
-	SupervisorSignalTypeCheckpointSaved,
-	SupervisorSignalTypeTrackerAttentionNeeded,
-	SupervisorSignalTypeTrackerAttentionCleared,
-	SupervisorSignalTypeScmAttentionNeeded,
-	SupervisorSignalTypeScmAttentionCleared,
-	SupervisorSignalTypePrConflictDetected,
-	SupervisorSignalTypePrReviewChangesRequested,
-	SupervisorSignalTypePrChecksFailed,
-	SupervisorSignalTypePrChecksPassed,
-	SupervisorSignalTypePrMergeRequested,
-	SupervisorSignalTypeIssueOpened,
-	SupervisorSignalTypeIssueApproved,
-	SupervisorSignalTypeManualOverride,
-}
-
-func (e SupervisorSignalType) IsValid() bool {
-	switch e {
-	case SupervisorSignalTypeJobAdmitted, SupervisorSignalTypeExecutionProgressed, SupervisorSignalTypeExecutionFailed, SupervisorSignalTypeExecutionSucceeded, SupervisorSignalTypeCheckpointSaved, SupervisorSignalTypeTrackerAttentionNeeded, SupervisorSignalTypeTrackerAttentionCleared, SupervisorSignalTypeScmAttentionNeeded, SupervisorSignalTypeScmAttentionCleared, SupervisorSignalTypePrConflictDetected, SupervisorSignalTypePrReviewChangesRequested, SupervisorSignalTypePrChecksFailed, SupervisorSignalTypePrChecksPassed, SupervisorSignalTypePrMergeRequested, SupervisorSignalTypeIssueOpened, SupervisorSignalTypeIssueApproved, SupervisorSignalTypeManualOverride:
-		return true
-	}
-	return false
-}
-
-func (e SupervisorSignalType) String() string {
-	return string(e)
-}
-
-func (e *SupervisorSignalType) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = SupervisorSignalType(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid SupervisorSignalType", str)
-	}
-	return nil
-}
-
-func (e SupervisorSignalType) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *SupervisorSignalType) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e SupervisorSignalType) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-type SupervisorState string
-
-const (
-	SupervisorStateIdle       SupervisorState = "IDLE"
-	SupervisorStateExecuting  SupervisorState = "EXECUTING"
-	SupervisorStateReviewing  SupervisorState = "REVIEWING"
-	SupervisorStateRework     SupervisorState = "REWORK"
-	SupervisorStateMergeReady SupervisorState = "MERGE_READY"
-	SupervisorStateBlocked    SupervisorState = "BLOCKED"
-	SupervisorStateEscalated  SupervisorState = "ESCALATED"
-	SupervisorStateMerged     SupervisorState = "MERGED"
-	SupervisorStateRefused    SupervisorState = "REFUSED"
-	SupervisorStateCompleted  SupervisorState = "COMPLETED"
-)
-
-var AllSupervisorState = []SupervisorState{
-	SupervisorStateIdle,
-	SupervisorStateExecuting,
-	SupervisorStateReviewing,
-	SupervisorStateRework,
-	SupervisorStateMergeReady,
-	SupervisorStateBlocked,
-	SupervisorStateEscalated,
-	SupervisorStateMerged,
-	SupervisorStateRefused,
-	SupervisorStateCompleted,
-}
-
-func (e SupervisorState) IsValid() bool {
-	switch e {
-	case SupervisorStateIdle, SupervisorStateExecuting, SupervisorStateReviewing, SupervisorStateRework, SupervisorStateMergeReady, SupervisorStateBlocked, SupervisorStateEscalated, SupervisorStateMerged, SupervisorStateRefused, SupervisorStateCompleted:
-		return true
-	}
-	return false
-}
-
-func (e SupervisorState) String() string {
-	return string(e)
-}
-
-func (e *SupervisorState) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = SupervisorState(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid SupervisorState", str)
-	}
-	return nil
-}
-
-func (e SupervisorState) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *SupervisorState) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e SupervisorState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
