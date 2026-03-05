@@ -1254,7 +1254,6 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   int _nextProjectEventsOffset = 0;
   int _nextPipelineEventsOffset = 0;
   int _nextSessionActivityOffset = 0;
-  final TextEditingController _filterController = TextEditingController();
   final TextEditingController _runIDController = TextEditingController();
   final TextEditingController _taskIDController = TextEditingController();
   final TextEditingController _jobIDController = TextEditingController();
@@ -1291,7 +1290,6 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
     _liveFeedHandshakeTimer?.cancel();
     _liveFeedReconnectTimer?.cancel();
     _activeLivePruneTimer?.cancel();
-    _filterController.dispose();
     _runIDController.dispose();
     _taskIDController.dispose();
     _jobIDController.dispose();
@@ -1814,47 +1812,27 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   }
 
   Widget _buildGlobalPanel() {
-    final filter = _filterController.text.trim().toLowerCase();
-    final filtered =
+    final activeEvents =
         _activeLiveEntriesByKey.values
             .map((entry) => entry.event)
-            .where((event) {
-              if (filter.isEmpty) {
-                return true;
-              }
-              return event.eventType.toLowerCase().contains(filter) ||
-                  event.payload.toLowerCase().contains(filter) ||
-                  (event.runID ?? '').toLowerCase().contains(filter) ||
-                  (event.sessionID ?? '').toLowerCase().contains(filter);
-            })
             .toList(growable: false)
           ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-
-    final activeCount = _activeLiveEntriesByKey.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          'Active now: $activeCount',
-          style: Theme.of(context).textTheme.labelMedium,
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _filterController,
-          onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: 'Filter active feed',
-            hintText: 'event type, payload, run or session',
-            isDense: true,
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (filtered.isEmpty)
-          const Text('No active worker activity right now.')
+        if (activeEvents.isEmpty)
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 220),
+            alignment: Alignment.center,
+            child: const Text(
+              'No active worker activity right now.',
+              textAlign: TextAlign.center,
+            ),
+          )
         else
-          ...filtered.take(120).map(_buildEventCard),
+          ...activeEvents.take(120).map(_buildEventCard),
       ],
     );
   }
@@ -2018,9 +1996,10 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
 
   @override
   Widget build(BuildContext context) {
+    final activeNowCount = _activeLiveEntriesByKey.length;
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: 185,
+        leadingWidth: 260,
         leading: Row(
           children: <Widget>[
             const BackButton(),
@@ -2040,6 +2019,18 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Active $activeNowCount',
+                style: Theme.of(context).textTheme.labelSmall,
               ),
             ),
           ],
