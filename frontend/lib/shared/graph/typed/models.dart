@@ -252,6 +252,7 @@ class TaskboardModel {
     required this.name,
     required this.state,
     required this.epics,
+    required this.ingestionAudits,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -261,8 +262,37 @@ class TaskboardModel {
   final String name;
   final String state;
   final List<TaskboardEpicModel> epics;
+  final List<TaskModelAuditModel> ingestionAudits;
   final DateTime createdAt;
   final DateTime updatedAt;
+}
+
+class TaskModelAuditModel {
+  const TaskModelAuditModel({
+    required this.modelProvider,
+    required this.modelName,
+    required this.modelVersion,
+    required this.modelRunID,
+    required this.agentSessionID,
+    required this.agentStreamID,
+    required this.promptFingerprint,
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.startedAt,
+    required this.completedAt,
+  });
+
+  final String modelProvider;
+  final String modelName;
+  final String? modelVersion;
+  final String? modelRunID;
+  final String? agentSessionID;
+  final String? agentStreamID;
+  final String? promptFingerprint;
+  final int? inputTokens;
+  final int? outputTokens;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
 }
 
 class TaskboardEpicModel {
@@ -298,6 +328,7 @@ class TaskboardTaskModel {
     required this.state,
     required this.rank,
     required this.dependsOnTaskIDs,
+    required this.audits,
   });
 
   final String id;
@@ -309,6 +340,7 @@ class TaskboardTaskModel {
   final String state;
   final int rank;
   final List<String> dependsOnTaskIDs;
+  final List<TaskModelAuditModel> audits;
 }
 
 String prettyJson(String raw) {

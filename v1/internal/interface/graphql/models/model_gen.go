@@ -477,14 +477,29 @@ func (StreamEventSuccess) IsStreamEventResult() {}
 type Subscription struct {
 }
 
+type TaskModelAudit struct {
+	ModelProvider     string     `json:"modelProvider"`
+	ModelName         string     `json:"modelName"`
+	ModelVersion      *string    `json:"modelVersion,omitempty"`
+	ModelRunID        *string    `json:"modelRunID,omitempty"`
+	AgentSessionID    *string    `json:"agentSessionID,omitempty"`
+	AgentStreamID     *string    `json:"agentStreamID,omitempty"`
+	PromptFingerprint *string    `json:"promptFingerprint,omitempty"`
+	InputTokens       *int32     `json:"inputTokens,omitempty"`
+	OutputTokens      *int32     `json:"outputTokens,omitempty"`
+	StartedAt         *time.Time `json:"startedAt,omitempty"`
+	CompletedAt       *time.Time `json:"completedAt,omitempty"`
+}
+
 type Taskboard struct {
-	BoardID   string           `json:"boardID"`
-	ProjectID string           `json:"projectID"`
-	Name      string           `json:"name"`
-	State     string           `json:"state"`
-	Epics     []*TaskboardEpic `json:"epics"`
-	CreatedAt time.Time        `json:"createdAt"`
-	UpdatedAt time.Time        `json:"updatedAt"`
+	BoardID         string            `json:"boardID"`
+	ProjectID       string            `json:"projectID"`
+	Name            string            `json:"name"`
+	State           string            `json:"state"`
+	Epics           []*TaskboardEpic  `json:"epics"`
+	IngestionAudits []*TaskModelAudit `json:"ingestionAudits"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	UpdatedAt       time.Time         `json:"updatedAt"`
 }
 
 type TaskboardDeleteSuccess struct {
@@ -517,15 +532,16 @@ type TaskboardSuccess struct {
 func (TaskboardSuccess) IsTaskboardResult() {}
 
 type TaskboardTask struct {
-	ID               string   `json:"id"`
-	BoardID          string   `json:"boardID"`
-	EpicID           string   `json:"epicID"`
-	Title            string   `json:"title"`
-	Description      *string  `json:"description,omitempty"`
-	TaskType         string   `json:"taskType"`
-	State            string   `json:"state"`
-	Rank             int32    `json:"rank"`
-	DependsOnTaskIDs []string `json:"dependsOnTaskIDs"`
+	ID               string            `json:"id"`
+	BoardID          string            `json:"boardID"`
+	EpicID           string            `json:"epicID"`
+	Title            string            `json:"title"`
+	Description      *string           `json:"description,omitempty"`
+	TaskType         string            `json:"taskType"`
+	State            string            `json:"state"`
+	Rank             int32             `json:"rank"`
+	DependsOnTaskIDs []string          `json:"dependsOnTaskIDs"`
+	Audits           []*TaskModelAudit `json:"audits"`
 }
 
 type TaskboardsSuccess struct {

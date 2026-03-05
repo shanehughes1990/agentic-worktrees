@@ -995,6 +995,19 @@ class ControlPlaneApi {
                   state
                   createdAt
                   updatedAt
+                  ingestionAudits {
+                    modelProvider
+                    modelName
+                    modelVersion
+                    modelRunID
+                    agentSessionID
+                    agentStreamID
+                    promptFingerprint
+                    inputTokens
+                    outputTokens
+                    startedAt
+                    completedAt
+                  }
                   epics {
                     id
                     boardID
@@ -1013,6 +1026,19 @@ class ControlPlaneApi {
                       state
                       rank
                       dependsOnTaskIDs
+                    audits {
+                      modelProvider
+                      modelName
+                      modelVersion
+                      modelRunID
+                      agentSessionID
+                      agentStreamID
+                      promptFingerprint
+                      inputTokens
+                      outputTokens
+                      startedAt
+                      completedAt
+                    }
                     }
                   }
                 }
@@ -1078,6 +1104,19 @@ class ControlPlaneApi {
                   state
                   createdAt
                   updatedAt
+                  ingestionAudits {
+                    modelProvider
+                    modelName
+                    modelVersion
+                    modelRunID
+                    agentSessionID
+                    agentStreamID
+                    promptFingerprint
+                    inputTokens
+                    outputTokens
+                    startedAt
+                    completedAt
+                  }
                   epics {
                     id
                     boardID
@@ -1096,6 +1135,19 @@ class ControlPlaneApi {
                       state
                       rank
                       dependsOnTaskIDs
+                    audits {
+                      modelProvider
+                      modelName
+                      modelVersion
+                      modelRunID
+                      agentSessionID
+                      agentStreamID
+                      promptFingerprint
+                      inputTokens
+                      outputTokens
+                      startedAt
+                      completedAt
+                    }
                     }
                   }
                 }
@@ -1161,6 +1213,19 @@ class ControlPlaneApi {
               state
               createdAt
               updatedAt
+              ingestionAudits {
+                modelProvider
+                modelName
+                modelVersion
+                modelRunID
+                agentSessionID
+                agentStreamID
+                promptFingerprint
+                inputTokens
+                outputTokens
+                startedAt
+                completedAt
+              }
               epics {
                 id
                 boardID
@@ -1179,6 +1244,19 @@ class ControlPlaneApi {
                   state
                   rank
                   dependsOnTaskIDs
+                audits {
+                  modelProvider
+                  modelName
+                  modelVersion
+                  modelRunID
+                  agentSessionID
+                  agentStreamID
+                  promptFingerprint
+                  inputTokens
+                  outputTokens
+                  startedAt
+                  completedAt
+                }
                 }
               }
             }
@@ -1215,6 +1293,19 @@ class ControlPlaneApi {
               state
               createdAt
               updatedAt
+              ingestionAudits {
+                modelProvider
+                modelName
+                modelVersion
+                modelRunID
+                agentSessionID
+                agentStreamID
+                promptFingerprint
+                inputTokens
+                outputTokens
+                startedAt
+                completedAt
+              }
               epics {
                 id
                 boardID
@@ -1233,6 +1324,19 @@ class ControlPlaneApi {
                   state
                   rank
                   dependsOnTaskIDs
+                audits {
+                  modelProvider
+                  modelName
+                  modelVersion
+                  modelRunID
+                  agentSessionID
+                  agentStreamID
+                  promptFingerprint
+                  inputTokens
+                  outputTokens
+                  startedAt
+                  completedAt
+                }
                 }
               }
             }
@@ -1506,6 +1610,37 @@ class ControlPlaneApi {
                               const <dynamic>[])
                           .whereType<String>()
                           .toList(growable: false),
+                  audits:
+                      (task['audits'] as List<dynamic>? ?? const <dynamic>[])
+                          .whereType<Map<String, dynamic>>()
+                          .map(
+                            (Map<String, dynamic> audit) => TaskModelAuditModel(
+                              modelProvider: audit['modelProvider'] as String,
+                              modelName: audit['modelName'] as String,
+                              modelVersion: audit['modelVersion'] as String?,
+                              modelRunID: audit['modelRunID'] as String?,
+                              agentSessionID:
+                                  audit['agentSessionID'] as String?,
+                              agentStreamID: audit['agentStreamID'] as String?,
+                              promptFingerprint:
+                                  audit['promptFingerprint'] as String?,
+                              inputTokens: (audit['inputTokens'] as num?)
+                                  ?.toInt(),
+                              outputTokens: (audit['outputTokens'] as num?)
+                                  ?.toInt(),
+                              startedAt: audit['startedAt'] == null
+                                  ? null
+                                  : DateTime.parse(
+                                      audit['startedAt'] as String,
+                                    ).toLocal(),
+                              completedAt: audit['completedAt'] == null
+                                  ? null
+                                  : DateTime.parse(
+                                      audit['completedAt'] as String,
+                                    ).toLocal(),
+                            ),
+                          )
+                          .toList(growable: false),
                 ),
               )
               .toList(growable: false);
@@ -1530,6 +1665,31 @@ class ControlPlaneApi {
       projectID: board['projectID'] as String,
       name: board['name'] as String,
       state: board['state'] as String,
+      ingestionAudits:
+          (board['ingestionAudits'] as List<dynamic>? ?? const <dynamic>[])
+              .whereType<Map<String, dynamic>>()
+              .map(
+                (Map<String, dynamic> audit) => TaskModelAuditModel(
+                  modelProvider: audit['modelProvider'] as String,
+                  modelName: audit['modelName'] as String,
+                  modelVersion: audit['modelVersion'] as String?,
+                  modelRunID: audit['modelRunID'] as String?,
+                  agentSessionID: audit['agentSessionID'] as String?,
+                  agentStreamID: audit['agentStreamID'] as String?,
+                  promptFingerprint: audit['promptFingerprint'] as String?,
+                  inputTokens: (audit['inputTokens'] as num?)?.toInt(),
+                  outputTokens: (audit['outputTokens'] as num?)?.toInt(),
+                  startedAt: audit['startedAt'] == null
+                      ? null
+                      : DateTime.parse(audit['startedAt'] as String).toLocal(),
+                  completedAt: audit['completedAt'] == null
+                      ? null
+                      : DateTime.parse(
+                          audit['completedAt'] as String,
+                        ).toLocal(),
+                ),
+              )
+              .toList(growable: false),
       createdAt: DateTime.parse(board['createdAt'] as String).toLocal(),
       updatedAt: DateTime.parse(board['updatedAt'] as String).toLocal(),
       epics: epics,
@@ -1555,6 +1715,19 @@ class ControlPlaneApi {
               state
               createdAt
               updatedAt
+              ingestionAudits {
+                modelProvider
+                modelName
+                modelVersion
+                modelRunID
+                agentSessionID
+                agentStreamID
+                promptFingerprint
+                inputTokens
+                outputTokens
+                startedAt
+                completedAt
+              }
               epics {
                 id
                 boardID
@@ -1573,6 +1746,19 @@ class ControlPlaneApi {
                   state
                   rank
                   dependsOnTaskIDs
+                audits {
+                  modelProvider
+                  modelName
+                  modelVersion
+                  modelRunID
+                  agentSessionID
+                  agentStreamID
+                  promptFingerprint
+                  inputTokens
+                  outputTokens
+                  startedAt
+                  completedAt
+                }
                 }
               }
             }
@@ -1600,6 +1786,19 @@ class ControlPlaneApi {
               state
               createdAt
               updatedAt
+              ingestionAudits {
+                modelProvider
+                modelName
+                modelVersion
+                modelRunID
+                agentSessionID
+                agentStreamID
+                promptFingerprint
+                inputTokens
+                outputTokens
+                startedAt
+                completedAt
+              }
               epics {
                 id
                 boardID
@@ -1618,6 +1817,19 @@ class ControlPlaneApi {
                   state
                   rank
                   dependsOnTaskIDs
+                audits {
+                  modelProvider
+                  modelName
+                  modelVersion
+                  modelRunID
+                  agentSessionID
+                  agentStreamID
+                  promptFingerprint
+                  inputTokens
+                  outputTokens
+                  startedAt
+                  completedAt
+                }
                 }
               }
             }
@@ -1668,6 +1880,19 @@ class ControlPlaneApi {
                   state
                   rank
                   dependsOnTaskIDs
+                audits {
+                  modelProvider
+                  modelName
+                  modelVersion
+                  modelRunID
+                  agentSessionID
+                  agentStreamID
+                  promptFingerprint
+                  inputTokens
+                  outputTokens
+                  startedAt
+                  completedAt
+                }
                 }
               }
             }
@@ -1713,6 +1938,19 @@ class ControlPlaneApi {
                   state
                   rank
                   dependsOnTaskIDs
+                audits {
+                  modelProvider
+                  modelName
+                  modelVersion
+                  modelRunID
+                  agentSessionID
+                  agentStreamID
+                  promptFingerprint
+                  inputTokens
+                  outputTokens
+                  startedAt
+                  completedAt
+                }
                 }
               }
             }

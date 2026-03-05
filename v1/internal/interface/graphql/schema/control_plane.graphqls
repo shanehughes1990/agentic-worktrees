@@ -134,6 +134,7 @@ type TaskboardTask {
   state: String!
   rank: Int!
   dependsOnTaskIDs: [String!]!
+  audits: [TaskModelAudit!]!
 }
 
 type TaskboardEpic {
@@ -147,12 +148,27 @@ type TaskboardEpic {
   tasks: [TaskboardTask!]!
 }
 
+type TaskModelAudit {
+  modelProvider: String!
+  modelName: String!
+  modelVersion: String
+  modelRunID: String
+  agentSessionID: String
+  agentStreamID: String
+  promptFingerprint: String
+  inputTokens: Int
+  outputTokens: Int
+  startedAt: Time
+  completedAt: Time
+}
+
 type Taskboard {
   boardID: String!
   projectID: String!
   name: String!
   state: String!
   epics: [TaskboardEpic!]!
+  ingestionAudits: [TaskModelAudit!]!
   createdAt: Time!
   updatedAt: Time!
 }

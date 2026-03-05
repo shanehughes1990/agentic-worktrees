@@ -1,8 +1,8 @@
 package worker
 
 import (
-	applicationtaskengine "agentic-orchestrator/internal/application/taskengine"
 	applicationscm "agentic-orchestrator/internal/application/scm"
+	applicationtaskengine "agentic-orchestrator/internal/application/taskengine"
 	domainscm "agentic-orchestrator/internal/domain/scm"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
@@ -53,7 +53,7 @@ func (runner *parityGitRunner) Run(ctx context.Context, directory string, argume
 		runner.fetchCalls++
 		return "", nil
 	}
-	if arguments[0] == "repository" && len(arguments) >= 6 && arguments[1] == "add" {
+	if arguments[0] == "worktree" && len(arguments) >= 6 && arguments[1] == "add" {
 		runner.repositoryAddCalls++
 		return "", nil
 	}

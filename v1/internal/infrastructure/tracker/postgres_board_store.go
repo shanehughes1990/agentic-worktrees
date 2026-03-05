@@ -5,6 +5,7 @@ import (
 	"agentic-orchestrator/internal/domain/failures"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,12 +17,13 @@ import (
 )
 
 type projectBoardRecord struct {
-	ID        string    `gorm:"column:id;size:255;primaryKey"`
-	ProjectID string    `gorm:"column:project_id;size:255;not null;index:idx_project_boards_project_id"`
-	Name      string    `gorm:"column:name;not null"`
-	State     string    `gorm:"column:state;size:64;not null"`
-	CreatedAt time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt time.Time `gorm:"column:updated_at;not null;index:idx_project_boards_updated_at"`
+	ID              string    `gorm:"column:id;size:255;primaryKey"`
+	ProjectID       string    `gorm:"column:project_id;size:255;not null;index:idx_project_boards_project_id"`
+	Name            string    `gorm:"column:name;not null"`
+	State           string    `gorm:"column:state;size:64;not null"`
+	IngestionAudits []byte    `gorm:"column:ingestion_audits;type:jsonb"`
+	CreatedAt       time.Time `gorm:"column:created_at;not null"`
+	UpdatedAt       time.Time `gorm:"column:updated_at;not null;index:idx_project_boards_updated_at"`
 }
 
 func (projectBoardRecord) TableName() string { return "project_boards" }
@@ -56,16 +58,17 @@ type projectBoardTaskRecord struct {
 	ClaimExpiresAt   *time.Time `gorm:"column:claim_expires_at;index:idx_project_board_tasks_claim_expiry"`
 	ClaimToken       string     `gorm:"column:claim_token;size:255"`
 	AttemptCount     int        `gorm:"column:attempt_count;not null;default:0"`
+	TaskAudits       []byte     `gorm:"column:task_audits;type:jsonb"`
 
-	ModelProvider     string `gorm:"column:model_provider;not null"`
-	ModelName         string `gorm:"column:model_name;not null"`
-	ModelVersion      string `gorm:"column:model_version"`
-	ModelRunID        string `gorm:"column:model_run_id;index:idx_project_board_tasks_model_run_id"`
-	AgentSessionID    string `gorm:"column:agent_session_id"`
-	AgentStreamID     string `gorm:"column:agent_stream_id"`
-	PromptFingerprint string `gorm:"column:prompt_fingerprint"`
-	InputTokens       *int   `gorm:"column:input_tokens"`
-	OutputTokens      *int   `gorm:"column:output_tokens"`
+	ModelProvider     string     `gorm:"column:model_provider;not null"`
+	ModelName         string     `gorm:"column:model_name;not null"`
+	ModelVersion      string     `gorm:"column:model_version"`
+	ModelRunID        string     `gorm:"column:model_run_id;index:idx_project_board_tasks_model_run_id"`
+	AgentSessionID    string     `gorm:"column:agent_session_id"`
+	AgentStreamID     string     `gorm:"column:agent_stream_id"`
+	PromptFingerprint string     `gorm:"column:prompt_fingerprint"`
+	InputTokens       *int       `gorm:"column:input_tokens"`
+	OutputTokens      *int       `gorm:"column:output_tokens"`
 	StartedAt         *time.Time `gorm:"column:started_at"`
 	CompletedAt       *time.Time `gorm:"column:completed_at"`
 
@@ -145,11 +148,15 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 		if projectID == "" {
 			projectID = strings.TrimSpace(board.RunID)
 		}
-		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
+		ingestionAudits, err := marshalTaskModelAudits(board.IngestionAudits)
+		if err != nil {
+			return failures.WrapTerminal(fmt.Errorf("marshal board ingestion audits: %w", err))
+		}
+		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), IngestionAudits: ingestionAudits, CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
 		if boardRecord.Name == "" {
 			boardRecord.Name = boardRecord.ID
 		}
-		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.Assignments(map[string]any{"project_id": boardRecord.ProjectID, "name": boardRecord.Name, "state": boardRecord.State, "updated_at": now})}).Create(&boardRecord).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.Assignments(map[string]any{"project_id": boardRecord.ProjectID, "name": boardRecord.Name, "state": boardRecord.State, "ingestion_audits": boardRecord.IngestionAudits, "updated_at": now})}).Create(&boardRecord).Error; err != nil {
 			return failures.WrapTransient(fmt.Errorf("upsert project board: %w", err))
 		}
 		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardTaskRecord{}).Error; err != nil {
@@ -164,7 +171,12 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 			epicRecord := projectBoardEpicRecord{ID: strings.TrimSpace(string(epic.ID)), BoardID: boardRecord.ID, Title: strings.TrimSpace(epic.Title), Objective: strings.TrimSpace(epic.Objective), State: string(epic.State), Rank: epic.Rank, DependsOnEpicIDs: pq.StringArray(workItemIDsToStrings(epic.DependsOnEpicIDs)), CreatedAt: safeTime(epic.CreatedAt, now), UpdatedAt: now}
 			epicRecords = append(epicRecords, epicRecord)
 			for _, task := range epic.Tasks {
-				taskRecord := projectBoardTaskRecord{ID: strings.TrimSpace(string(task.ID)), BoardID: boardRecord.ID, EpicID: epicRecord.ID, Title: strings.TrimSpace(task.Title), Description: strings.TrimSpace(task.Description), TaskType: strings.TrimSpace(task.TaskType), State: string(task.State), Rank: task.Rank, DependsOnTaskIDs: pq.StringArray(workItemIDsToStrings(task.DependsOnTaskIDs)), ClaimedByAgentID: strings.TrimSpace(task.ClaimedByAgentID), ClaimedAt: task.ClaimedAt, ClaimExpiresAt: task.ClaimExpiresAt, ClaimToken: strings.TrimSpace(task.ClaimToken), AttemptCount: task.AttemptCount, ModelProvider: strings.TrimSpace(task.Audit.ModelProvider), ModelName: strings.TrimSpace(task.Audit.ModelName), ModelVersion: strings.TrimSpace(task.Audit.ModelVersion), ModelRunID: strings.TrimSpace(task.Audit.ModelRunID), AgentSessionID: strings.TrimSpace(task.Audit.AgentSessionID), AgentStreamID: strings.TrimSpace(task.Audit.AgentStreamID), PromptFingerprint: strings.TrimSpace(task.Audit.PromptFingerprint), InputTokens: task.Audit.InputTokens, OutputTokens: task.Audit.OutputTokens, StartedAt: task.Audit.StartedAt, CompletedAt: task.Audit.CompletedAt, OutcomeStatus: outcomeStatus(task), OutcomeSummary: outcomeSummary(task), OutcomeErrorCode: outcomeErrorCode(task), OutcomeErrorMessage: outcomeErrorMessage(task), CreatedAt: safeTime(task.CreatedAt, now), UpdatedAt: now}
+				taskAudits, err := marshalTaskModelAudits(task.Audits)
+				if err != nil {
+					return failures.WrapTerminal(fmt.Errorf("marshal task audits for %s: %w", strings.TrimSpace(string(task.ID)), err))
+				}
+				legacyAudit := firstTaskAudit(task.Audits)
+				taskRecord := projectBoardTaskRecord{ID: strings.TrimSpace(string(task.ID)), BoardID: boardRecord.ID, EpicID: epicRecord.ID, Title: strings.TrimSpace(task.Title), Description: strings.TrimSpace(task.Description), TaskType: strings.TrimSpace(task.TaskType), State: string(task.State), Rank: task.Rank, DependsOnTaskIDs: pq.StringArray(workItemIDsToStrings(task.DependsOnTaskIDs)), ClaimedByAgentID: strings.TrimSpace(task.ClaimedByAgentID), ClaimedAt: task.ClaimedAt, ClaimExpiresAt: task.ClaimExpiresAt, ClaimToken: strings.TrimSpace(task.ClaimToken), AttemptCount: task.AttemptCount, TaskAudits: taskAudits, ModelProvider: strings.TrimSpace(legacyAudit.ModelProvider), ModelName: strings.TrimSpace(legacyAudit.ModelName), ModelVersion: strings.TrimSpace(legacyAudit.ModelVersion), ModelRunID: strings.TrimSpace(legacyAudit.ModelRunID), AgentSessionID: strings.TrimSpace(legacyAudit.AgentSessionID), AgentStreamID: strings.TrimSpace(legacyAudit.AgentStreamID), PromptFingerprint: strings.TrimSpace(legacyAudit.PromptFingerprint), InputTokens: legacyAudit.InputTokens, OutputTokens: legacyAudit.OutputTokens, StartedAt: legacyAudit.StartedAt, CompletedAt: legacyAudit.CompletedAt, OutcomeStatus: outcomeStatus(task), OutcomeSummary: outcomeSummary(task), OutcomeErrorCode: outcomeErrorCode(task), OutcomeErrorMessage: outcomeErrorMessage(task), CreatedAt: safeTime(task.CreatedAt, now), UpdatedAt: now}
 				taskRecords = append(taskRecords, taskRecord)
 			}
 		}
@@ -379,19 +391,63 @@ func (store *PostgresBoardStore) LoadBoard(ctx context.Context, projectID string
 	for _, rec := range epicRecords {
 		epics = append(epics, domaintracker.Epic{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, Title: rec.Title, Objective: rec.Objective, State: domaintracker.EpicState(rec.State), Rank: rec.Rank, DependsOnEpicIDs: stringsToWorkItemIDs([]string(rec.DependsOnEpicIDs)), Tasks: tasksByEpic[rec.ID], CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt})
 	}
-	board := domaintracker.Board{BoardID: boardRecord.ID, RunID: boardRecord.ProjectID, ProjectID: boardRecord.ProjectID, Name: boardRecord.Name, State: domaintracker.BoardState(boardRecord.State), Epics: epics, CreatedAt: boardRecord.CreatedAt, UpdatedAt: boardRecord.UpdatedAt}
+	ingestionAudits, err := unmarshalTaskModelAudits(boardRecord.IngestionAudits)
+	if err != nil {
+		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("decode board ingestion audits: %w", err))
+	}
+	board := domaintracker.Board{BoardID: boardRecord.ID, RunID: boardRecord.ProjectID, ProjectID: boardRecord.ProjectID, Name: boardRecord.Name, State: domaintracker.BoardState(boardRecord.State), Epics: epics, IngestionAudits: ingestionAudits, CreatedAt: boardRecord.CreatedAt, UpdatedAt: boardRecord.UpdatedAt}
 	if err := board.Validate(); err != nil {
 		return domaintracker.Board{}, err
 	}
 	return board, nil
 }
 
+func marshalTaskModelAudits(audits []domaintracker.TaskModelAudit) ([]byte, error) {
+	if len(audits) == 0 {
+		return []byte("[]"), nil
+	}
+	encoded, err := json.Marshal(audits)
+	if err != nil {
+		return nil, err
+	}
+	return encoded, nil
+}
+
+func unmarshalTaskModelAudits(raw []byte) ([]domaintracker.TaskModelAudit, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	decoded := make([]domaintracker.TaskModelAudit, 0)
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
 func mapTaskRecord(rec projectBoardTaskRecord) domaintracker.Task {
-	task := domaintracker.Task{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, EpicID: domaintracker.WorkItemID(rec.EpicID), Title: rec.Title, Description: rec.Description, TaskType: rec.TaskType, State: domaintracker.TaskState(rec.State), Rank: rec.Rank, DependsOnTaskIDs: stringsToWorkItemIDs([]string(rec.DependsOnTaskIDs)), Audit: domaintracker.TaskModelAudit{ModelProvider: rec.ModelProvider, ModelName: rec.ModelName, ModelVersion: rec.ModelVersion, ModelRunID: rec.ModelRunID, AgentSessionID: rec.AgentSessionID, AgentStreamID: rec.AgentStreamID, PromptFingerprint: rec.PromptFingerprint, InputTokens: rec.InputTokens, OutputTokens: rec.OutputTokens, StartedAt: rec.StartedAt, CompletedAt: rec.CompletedAt}, ClaimedByAgentID: rec.ClaimedByAgentID, ClaimedAt: rec.ClaimedAt, ClaimExpiresAt: rec.ClaimExpiresAt, ClaimToken: rec.ClaimToken, AttemptCount: rec.AttemptCount, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt}
+	audits, err := unmarshalTaskModelAudits(rec.TaskAudits)
+	if err != nil || len(audits) == 0 {
+		audits = legacyTaskAudits(rec)
+	}
+	task := domaintracker.Task{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, EpicID: domaintracker.WorkItemID(rec.EpicID), Title: rec.Title, Description: rec.Description, TaskType: rec.TaskType, State: domaintracker.TaskState(rec.State), Rank: rec.Rank, DependsOnTaskIDs: stringsToWorkItemIDs([]string(rec.DependsOnTaskIDs)), Audits: audits, ClaimedByAgentID: rec.ClaimedByAgentID, ClaimedAt: rec.ClaimedAt, ClaimExpiresAt: rec.ClaimExpiresAt, ClaimToken: rec.ClaimToken, AttemptCount: rec.AttemptCount, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt}
 	if strings.TrimSpace(rec.OutcomeStatus) != "" {
 		task.Outcome = &domaintracker.TaskOutcome{Status: domaintracker.OutcomeStatus(rec.OutcomeStatus), Summary: rec.OutcomeSummary, ErrorCode: rec.OutcomeErrorCode, ErrorMessage: rec.OutcomeErrorMessage}
 	}
 	return task
+}
+
+func firstTaskAudit(audits []domaintracker.TaskModelAudit) domaintracker.TaskModelAudit {
+	if len(audits) == 0 {
+		return domaintracker.TaskModelAudit{}
+	}
+	return audits[0]
+}
+
+func legacyTaskAudits(rec projectBoardTaskRecord) []domaintracker.TaskModelAudit {
+	if strings.TrimSpace(rec.ModelProvider) == "" && strings.TrimSpace(rec.ModelName) == "" && strings.TrimSpace(rec.ModelVersion) == "" && strings.TrimSpace(rec.ModelRunID) == "" && strings.TrimSpace(rec.AgentSessionID) == "" && strings.TrimSpace(rec.AgentStreamID) == "" && strings.TrimSpace(rec.PromptFingerprint) == "" && rec.InputTokens == nil && rec.OutputTokens == nil && rec.StartedAt == nil && rec.CompletedAt == nil {
+		return nil
+	}
+	return []domaintracker.TaskModelAudit{{ModelProvider: rec.ModelProvider, ModelName: rec.ModelName, ModelVersion: rec.ModelVersion, ModelRunID: rec.ModelRunID, AgentSessionID: rec.AgentSessionID, AgentStreamID: rec.AgentStreamID, PromptFingerprint: rec.PromptFingerprint, InputTokens: rec.InputTokens, OutputTokens: rec.OutputTokens, StartedAt: rec.StartedAt, CompletedAt: rec.CompletedAt}}
 }
 
 func workItemIDsToStrings(ids []domaintracker.WorkItemID) []string {

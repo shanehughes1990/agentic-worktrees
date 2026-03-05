@@ -33,6 +33,22 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 	for _, epic := range board.Epics {
 		tasks := make([]*models.TaskboardTask, 0, len(epic.Tasks))
 		for _, task := range epic.Tasks {
+			taskAudits := make([]*models.TaskModelAudit, 0, len(task.Audits))
+			for _, audit := range task.Audits {
+				taskAudits = append(taskAudits, &models.TaskModelAudit{
+					ModelProvider:     strings.TrimSpace(audit.ModelProvider),
+					ModelName:         strings.TrimSpace(audit.ModelName),
+					ModelVersion:      nilIfEmpty(audit.ModelVersion),
+					ModelRunID:        nilIfEmpty(audit.ModelRunID),
+					AgentSessionID:    nilIfEmpty(audit.AgentSessionID),
+					AgentStreamID:     nilIfEmpty(audit.AgentStreamID),
+					PromptFingerprint: nilIfEmpty(audit.PromptFingerprint),
+					InputTokens:       intPtrToInt32Ptr(audit.InputTokens),
+					OutputTokens:      intPtrToInt32Ptr(audit.OutputTokens),
+					StartedAt:         audit.StartedAt,
+					CompletedAt:       audit.CompletedAt,
+				})
+			}
 			tasks = append(tasks, &models.TaskboardTask{
 				ID:               strings.TrimSpace(string(task.ID)),
 				BoardID:          strings.TrimSpace(task.BoardID),
@@ -43,17 +59,34 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 				State:            strings.TrimSpace(string(task.State)),
 				Rank:             int32(task.Rank),
 				DependsOnTaskIDs: workItemIDsToStrings(task.DependsOnTaskIDs),
+				Audits:           taskAudits,
 			})
 		}
 		epics = append(epics, &models.TaskboardEpic{
-			ID:              strings.TrimSpace(string(epic.ID)),
-			BoardID:         strings.TrimSpace(epic.BoardID),
-			Title:           strings.TrimSpace(epic.Title),
-			Objective:       nilIfEmpty(epic.Objective),
-			State:           strings.TrimSpace(string(epic.State)),
-			Rank:            int32(epic.Rank),
+			ID:               strings.TrimSpace(string(epic.ID)),
+			BoardID:          strings.TrimSpace(epic.BoardID),
+			Title:            strings.TrimSpace(epic.Title),
+			Objective:        nilIfEmpty(epic.Objective),
+			State:            strings.TrimSpace(string(epic.State)),
+			Rank:             int32(epic.Rank),
 			DependsOnEpicIDs: workItemIDsToStrings(epic.DependsOnEpicIDs),
-			Tasks:           tasks,
+			Tasks:            tasks,
+		})
+	}
+	ingestionAudits := make([]*models.TaskModelAudit, 0, len(board.IngestionAudits))
+	for _, audit := range board.IngestionAudits {
+		ingestionAudits = append(ingestionAudits, &models.TaskModelAudit{
+			ModelProvider:     strings.TrimSpace(audit.ModelProvider),
+			ModelName:         strings.TrimSpace(audit.ModelName),
+			ModelVersion:      nilIfEmpty(audit.ModelVersion),
+			ModelRunID:        nilIfEmpty(audit.ModelRunID),
+			AgentSessionID:    nilIfEmpty(audit.AgentSessionID),
+			AgentStreamID:     nilIfEmpty(audit.AgentStreamID),
+			PromptFingerprint: nilIfEmpty(audit.PromptFingerprint),
+			InputTokens:       intPtrToInt32Ptr(audit.InputTokens),
+			OutputTokens:      intPtrToInt32Ptr(audit.OutputTokens),
+			StartedAt:         audit.StartedAt,
+			CompletedAt:       audit.CompletedAt,
 		})
 	}
 	name := strings.TrimSpace(board.Name)
@@ -61,14 +94,23 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 		name = strings.TrimSpace(board.BoardID)
 	}
 	return &models.Taskboard{
-		BoardID:   strings.TrimSpace(board.BoardID),
-		ProjectID: strings.TrimSpace(board.ProjectID),
-		Name:      name,
-		State:     strings.TrimSpace(string(board.State)),
-		Epics:     epics,
-		CreatedAt: board.CreatedAt.UTC(),
-		UpdatedAt: board.UpdatedAt.UTC(),
+		BoardID:         strings.TrimSpace(board.BoardID),
+		ProjectID:       strings.TrimSpace(board.ProjectID),
+		Name:            name,
+		State:           strings.TrimSpace(string(board.State)),
+		Epics:           epics,
+		IngestionAudits: ingestionAudits,
+		CreatedAt:       board.CreatedAt.UTC(),
+		UpdatedAt:       board.UpdatedAt.UTC(),
 	}
+}
+
+func intPtrToInt32Ptr(value *int) *int32 {
+	if value == nil {
+		return nil
+	}
+	converted := int32(*value)
+	return &converted
 }
 
 func parseBoardState(value string) (domaintracker.BoardState, error) {

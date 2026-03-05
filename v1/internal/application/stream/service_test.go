@@ -94,7 +94,7 @@ func TestServiceInjectPromptPublishesEvent(t *testing.T) {
 	}
 }
 
-func TestServiceDropsSubscriberOnBackpressure(t *testing.T) {
+func TestServiceDropsOldestEventOnBackpressure(t *testing.T) {
 	store := &fakeStore{}
 	service, err := NewService(store)
 	if err != nil {
@@ -127,12 +127,21 @@ func TestServiceDropsSubscriberOnBackpressure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("append second event: %v", err)
 	}
-	_, open := <-channel
+	latest, open := <-channel
 	if !open {
-		t.Fatalf("expected buffered first event before closure")
+		t.Fatalf("expected subscriber channel to remain open")
 	}
-	_, open = <-channel
-	if open {
-		t.Fatalf("expected subscriber channel to be closed due to backpressure")
+	sequence, ok := latest.Payload["sequence"].(int)
+	if !ok {
+		t.Fatalf("expected integer sequence payload, got %#v", latest.Payload["sequence"])
+	}
+	if sequence != 2 {
+		t.Fatalf("expected latest event sequence 2 after backpressure drop, got %d", sequence)
+	}
+
+	select {
+	case extra := <-channel:
+		t.Fatalf("expected no additional buffered events, got %#v", extra)
+	default:
 	}
 }

@@ -125,24 +125,24 @@ func (outcome TaskOutcome) Validate() error {
 }
 
 type Task struct {
-	ID              WorkItemID      `json:"id"`
-	BoardID         string          `json:"board_id"`
-	EpicID          WorkItemID      `json:"epic_id"`
-	Title           string          `json:"title"`
-	Description     string          `json:"description,omitempty"`
-	TaskType        string          `json:"task_type"`
-	State           TaskState       `json:"state"`
-	Rank            int             `json:"rank"`
-	DependsOnTaskIDs []WorkItemID   `json:"depends_on_task_ids,omitempty"`
-	Audit           TaskModelAudit  `json:"audit,omitempty"`
-	Outcome         *TaskOutcome    `json:"outcome,omitempty"`
-	ClaimedByAgentID string         `json:"claimed_by_agent_id,omitempty"`
-	ClaimedAt       *time.Time      `json:"claimed_at,omitempty"`
-	ClaimExpiresAt  *time.Time      `json:"claim_expires_at,omitempty"`
-	ClaimToken      string          `json:"claim_token,omitempty"`
-	AttemptCount    int             `json:"attempt_count,omitempty"`
-	CreatedAt       time.Time       `json:"created_at,omitempty"`
-	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
+	ID               WorkItemID       `json:"id"`
+	BoardID          string           `json:"board_id"`
+	EpicID           WorkItemID       `json:"epic_id"`
+	Title            string           `json:"title"`
+	Description      string           `json:"description,omitempty"`
+	TaskType         string           `json:"task_type"`
+	State            TaskState        `json:"state"`
+	Rank             int              `json:"rank"`
+	DependsOnTaskIDs []WorkItemID     `json:"depends_on_task_ids,omitempty"`
+	Audits           []TaskModelAudit `json:"audits,omitempty"`
+	Outcome          *TaskOutcome     `json:"outcome,omitempty"`
+	ClaimedByAgentID string           `json:"claimed_by_agent_id,omitempty"`
+	ClaimedAt        *time.Time       `json:"claimed_at,omitempty"`
+	ClaimExpiresAt   *time.Time       `json:"claim_expires_at,omitempty"`
+	ClaimToken       string           `json:"claim_token,omitempty"`
+	AttemptCount     int              `json:"attempt_count,omitempty"`
+	CreatedAt        time.Time        `json:"created_at,omitempty"`
+	UpdatedAt        time.Time        `json:"updated_at,omitempty"`
 }
 
 func (task Task) Validate() error {
@@ -184,16 +184,16 @@ func (task Task) Validate() error {
 }
 
 type Epic struct {
-	ID               WorkItemID    `json:"id"`
-	BoardID          string        `json:"board_id"`
-	Title            string        `json:"title"`
-	Objective        string        `json:"objective,omitempty"`
-	State            EpicState     `json:"state"`
-	Rank             int           `json:"rank"`
-	DependsOnEpicIDs []WorkItemID  `json:"depends_on_epic_ids,omitempty"`
-	Tasks            []Task        `json:"tasks"`
-	CreatedAt        time.Time     `json:"created_at,omitempty"`
-	UpdatedAt        time.Time     `json:"updated_at,omitempty"`
+	ID               WorkItemID   `json:"id"`
+	BoardID          string       `json:"board_id"`
+	Title            string       `json:"title"`
+	Objective        string       `json:"objective,omitempty"`
+	State            EpicState    `json:"state"`
+	Rank             int          `json:"rank"`
+	DependsOnEpicIDs []WorkItemID `json:"depends_on_epic_ids,omitempty"`
+	Tasks            []Task       `json:"tasks"`
+	CreatedAt        time.Time    `json:"created_at,omitempty"`
+	UpdatedAt        time.Time    `json:"updated_at,omitempty"`
 }
 
 func (epic Epic) Validate() error {
@@ -235,14 +235,15 @@ func (epic Epic) Validate() error {
 }
 
 type Board struct {
-	BoardID   string     `json:"board_id"`
-	RunID     string     `json:"run_id"`
-	ProjectID string     `json:"project_id,omitempty"`
-	Name      string     `json:"name,omitempty"`
-	State     BoardState `json:"state"`
-	Epics     []Epic     `json:"epics"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	BoardID         string           `json:"board_id"`
+	RunID           string           `json:"run_id"`
+	ProjectID       string           `json:"project_id,omitempty"`
+	Name            string           `json:"name,omitempty"`
+	State           BoardState       `json:"state"`
+	Epics           []Epic           `json:"epics"`
+	IngestionAudits []TaskModelAudit `json:"ingestion_audits,omitempty"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 func (board Board) Validate() error {

@@ -220,8 +220,10 @@ func (service *Service) generateAndValidateBoard(
 	var lastValidationErr error
 	feedback := ""
 	runContext := AgentRunContext{StreamID: ingestionStreamID(request)}
+	ingestionAudits := make([]domaintracker.TaskModelAudit, 0, maxTaskboardValidationAttempts)
 
 	for attempt := 1; attempt <= maxTaskboardValidationAttempts; attempt++ {
+		attemptStartedAt := time.Now().UTC()
 		attemptPrompt := basePrompt
 		attemptPrompt = strings.TrimSpace(attemptPrompt + "\n\nExecution continuity:\n- stream_id: " + strings.TrimSpace(runContext.StreamID) + "\n- session_id: " + strings.TrimSpace(runContext.SessionID) + "\n- Reuse this same stream/session for retries and continuation.")
 		if strings.TrimSpace(feedback) != "" {
@@ -234,6 +236,16 @@ func (service *Service) generateAndValidateBoard(
 			return domaintracker.Board{}, ensureClassified(runErr)
 		}
 		runContext = mergeRunContext(runContext, nextRunContext)
+		attemptCompletedAt := time.Now().UTC()
+		ingestionAudits = append(ingestionAudits, domaintracker.TaskModelAudit{
+			ModelProvider:  "copilot",
+			ModelName:      strings.TrimSpace(model),
+			ModelRunID:     strings.TrimSpace(runContext.StreamID),
+			AgentSessionID: strings.TrimSpace(runContext.SessionID),
+			AgentStreamID:  strings.TrimSpace(runContext.StreamID),
+			StartedAt:      &attemptStartedAt,
+			CompletedAt:    &attemptCompletedAt,
+		})
 
 		boardJSON, readErr := os.ReadFile(outputPath)
 		if readErr != nil {
@@ -253,6 +265,7 @@ func (service *Service) generateAndValidateBoard(
 		}
 
 		normalizeBoard(&board, request, boardID, now, runContext)
+		board.IngestionAudits = ingestionAudits
 		if err := ensureRepositoryAssignments(board, normalizedSourceRepositories); err != nil {
 			lastValidationErr = err
 			feedback = err.Error()
@@ -340,7 +353,7 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		"- Output must be plain-text JSON only (no markdown, no prose, no code fences).",
 		"- Write valid JSON only to this exact output path: " + strings.TrimSpace(outputPath),
 		"- The JSON must match the exact schema below; do not add extra fields.",
-		"- Exact schema contract:\n{\n  \"board_id\": string,\n  \"run_id\": string,\n  \"name\"?: string,\n  \"state\": \"pending\" | \"active\" | \"completed\" | \"failed\",\n  \"epics\": [\n    {\n      \"id\": string,\n      \"board_id\": string,\n      \"title\": string,\n      \"objective\"?: string,\n      \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"blocked\" | \"failed\",\n      \"rank\": number,\n      \"depends_on_epic_ids\"?: string[],\n      \"tasks\": [\n        {\n          \"id\": string,\n          \"board_id\": string,\n          \"epic_id\": string,\n          \"title\": string,\n          \"description\"?: string,\n          \"task_type\": string,\n          \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"failed\" | \"no_work_needed\",\n          \"rank\": number,\n          \"depends_on_task_ids\"?: string[],\n          \"audit\"?: {\n            \"model_provider\": string,\n            \"model_name\": string,\n            \"model_version\"?: string,\n            \"model_run_id\"?: string,\n            \"prompt_fingerprint\"?: string,\n            \"input_tokens\"?: number,\n            \"output_tokens\"?: number,\n            \"started_at\"?: RFC3339 timestamp,\n            \"completed_at\"?: RFC3339 timestamp\n          },\n          \"outcome\"?: {\n            \"status\": \"success\" | \"partial\" | \"failed\",\n            \"summary\": string,\n            \"error_code\"?: string,\n            \"error_message\"?: string\n          }\n        }\n      ]\n    }\n  ],\n  \"created_at\": RFC3339 timestamp,\n  \"updated_at\": RFC3339 timestamp\n}",
+		"- Exact schema contract:\n{\n  \"board_id\": string,\n  \"run_id\": string,\n  \"name\"?: string,\n  \"state\": \"pending\" | \"active\" | \"completed\" | \"failed\",\n  \"epics\": [\n    {\n      \"id\": string,\n      \"board_id\": string,\n      \"title\": string,\n      \"objective\"?: string,\n      \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"blocked\" | \"failed\",\n      \"rank\": number,\n      \"depends_on_epic_ids\"?: string[],\n      \"tasks\": [\n        {\n          \"id\": string,\n          \"board_id\": string,\n          \"epic_id\": string,\n          \"title\": string,\n          \"description\"?: string,\n          \"task_type\": string,\n          \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"failed\" | \"no_work_needed\",\n          \"rank\": number,\n          \"depends_on_task_ids\"?: string[],\n          \"audits\"?: [\n            {\n              \"model_provider\": string,\n              \"model_name\": string,\n              \"model_version\"?: string,\n              \"model_run_id\"?: string,\n              \"agent_session_id\"?: string,\n              \"agent_stream_id\"?: string,\n              \"prompt_fingerprint\"?: string,\n              \"input_tokens\"?: number,\n              \"output_tokens\"?: number,\n              \"started_at\"?: RFC3339 timestamp,\n              \"completed_at\"?: RFC3339 timestamp\n            }\n          ],\n          \"outcome\"?: {\n            \"status\": \"success\" | \"partial\" | \"failed\",\n            \"summary\": string,\n            \"error_code\"?: string,\n            \"error_message\"?: string\n          }\n        }\n      ]\n    }\n  ],\n  \"ingestion_audits\"?: [\n    {\n      \"model_provider\": string,\n      \"model_name\": string,\n      \"model_version\"?: string,\n      \"model_run_id\"?: string,\n      \"agent_session_id\"?: string,\n      \"agent_stream_id\"?: string,\n      \"prompt_fingerprint\"?: string,\n      \"input_tokens\"?: number,\n      \"output_tokens\"?: number,\n      \"started_at\"?: RFC3339 timestamp,\n      \"completed_at\"?: RFC3339 timestamp\n    }\n  ],\n  \"created_at\": RFC3339 timestamp,\n  \"updated_at\": RFC3339 timestamp\n}",
 		"- Ensure board_id is \"" + strings.TrimSpace(boardID) + "\" and run_id is \"" + strings.TrimSpace(request.RunID) + "\".",
 		"- Ensure all epic/task board_id values match board_id.",
 		"- Required board fields: board_id, run_id, state, epics, created_at, updated_at.",
@@ -520,14 +533,20 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 				task.CreatedAt = now
 			}
 			task.UpdatedAt = now
-			if strings.TrimSpace(task.Audit.AgentSessionID) == "" {
-				task.Audit.AgentSessionID = strings.TrimSpace(runContext.SessionID)
+			if len(task.Audits) == 0 {
+				task.Audits = []domaintracker.TaskModelAudit{{}}
 			}
-			if strings.TrimSpace(task.Audit.AgentStreamID) == "" {
-				task.Audit.AgentStreamID = strings.TrimSpace(runContext.StreamID)
-			}
-			if strings.TrimSpace(task.Audit.ModelRunID) == "" {
-				task.Audit.ModelRunID = strings.TrimSpace(runContext.StreamID)
+			for auditIndex := range task.Audits {
+				audit := &task.Audits[auditIndex]
+				if strings.TrimSpace(audit.AgentSessionID) == "" {
+					audit.AgentSessionID = strings.TrimSpace(runContext.SessionID)
+				}
+				if strings.TrimSpace(audit.AgentStreamID) == "" {
+					audit.AgentStreamID = strings.TrimSpace(runContext.StreamID)
+				}
+				if strings.TrimSpace(audit.ModelRunID) == "" {
+					audit.ModelRunID = strings.TrimSpace(runContext.StreamID)
+				}
 			}
 			if task.Outcome != nil {
 				if task.Outcome.Status == "" {

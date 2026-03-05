@@ -260,14 +260,29 @@ type ComplexityRoot struct {
 		WorkflowExecutionStream func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32) int
 	}
 
+	TaskModelAudit struct {
+		AgentSessionID    func(childComplexity int) int
+		AgentStreamID     func(childComplexity int) int
+		CompletedAt       func(childComplexity int) int
+		InputTokens       func(childComplexity int) int
+		ModelName         func(childComplexity int) int
+		ModelProvider     func(childComplexity int) int
+		ModelRunID        func(childComplexity int) int
+		ModelVersion      func(childComplexity int) int
+		OutputTokens      func(childComplexity int) int
+		PromptFingerprint func(childComplexity int) int
+		StartedAt         func(childComplexity int) int
+	}
+
 	Taskboard struct {
-		BoardID   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		Epics     func(childComplexity int) int
-		Name      func(childComplexity int) int
-		ProjectID func(childComplexity int) int
-		State     func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		BoardID         func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		Epics           func(childComplexity int) int
+		IngestionAudits func(childComplexity int) int
+		Name            func(childComplexity int) int
+		ProjectID       func(childComplexity int) int
+		State           func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
 	}
 
 	TaskboardDeleteSuccess struct {
@@ -294,6 +309,7 @@ type ComplexityRoot struct {
 	}
 
 	TaskboardTask struct {
+		Audits           func(childComplexity int) int
 		BoardID          func(childComplexity int) int
 		DependsOnTaskIDs func(childComplexity int) int
 		Description      func(childComplexity int) int
@@ -1412,6 +1428,73 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Subscription.WorkflowExecutionStream(childComplexity, args["correlation"].(models.CorrelationInput), args["fromOffset"].(*int32)), true
 
+	case "TaskModelAudit.agentSessionID":
+		if e.ComplexityRoot.TaskModelAudit.AgentSessionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.AgentSessionID(childComplexity), true
+	case "TaskModelAudit.agentStreamID":
+		if e.ComplexityRoot.TaskModelAudit.AgentStreamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.AgentStreamID(childComplexity), true
+	case "TaskModelAudit.completedAt":
+		if e.ComplexityRoot.TaskModelAudit.CompletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.CompletedAt(childComplexity), true
+	case "TaskModelAudit.inputTokens":
+		if e.ComplexityRoot.TaskModelAudit.InputTokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.InputTokens(childComplexity), true
+	case "TaskModelAudit.modelName":
+		if e.ComplexityRoot.TaskModelAudit.ModelName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.ModelName(childComplexity), true
+	case "TaskModelAudit.modelProvider":
+		if e.ComplexityRoot.TaskModelAudit.ModelProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.ModelProvider(childComplexity), true
+	case "TaskModelAudit.modelRunID":
+		if e.ComplexityRoot.TaskModelAudit.ModelRunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.ModelRunID(childComplexity), true
+	case "TaskModelAudit.modelVersion":
+		if e.ComplexityRoot.TaskModelAudit.ModelVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.ModelVersion(childComplexity), true
+	case "TaskModelAudit.outputTokens":
+		if e.ComplexityRoot.TaskModelAudit.OutputTokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.OutputTokens(childComplexity), true
+	case "TaskModelAudit.promptFingerprint":
+		if e.ComplexityRoot.TaskModelAudit.PromptFingerprint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.PromptFingerprint(childComplexity), true
+	case "TaskModelAudit.startedAt":
+		if e.ComplexityRoot.TaskModelAudit.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskModelAudit.StartedAt(childComplexity), true
+
 	case "Taskboard.boardID":
 		if e.ComplexityRoot.Taskboard.BoardID == nil {
 			break
@@ -1430,6 +1513,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Taskboard.Epics(childComplexity), true
+	case "Taskboard.ingestionAudits":
+		if e.ComplexityRoot.Taskboard.IngestionAudits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.IngestionAudits(childComplexity), true
 	case "Taskboard.name":
 		if e.ComplexityRoot.Taskboard.Name == nil {
 			break
@@ -1525,6 +1614,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TaskboardSuccess.Board(childComplexity), true
 
+	case "TaskboardTask.audits":
+		if e.ComplexityRoot.TaskboardTask.Audits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.Audits(childComplexity), true
 	case "TaskboardTask.boardID":
 		if e.ComplexityRoot.TaskboardTask.BoardID == nil {
 			break
@@ -2001,6 +2096,7 @@ type TaskboardTask {
   state: String!
   rank: Int!
   dependsOnTaskIDs: [String!]!
+  audits: [TaskModelAudit!]!
 }
 
 type TaskboardEpic {
@@ -2014,12 +2110,27 @@ type TaskboardEpic {
   tasks: [TaskboardTask!]!
 }
 
+type TaskModelAudit {
+  modelProvider: String!
+  modelName: String!
+  modelVersion: String
+  modelRunID: String
+  agentSessionID: String
+  agentStreamID: String
+  promptFingerprint: String
+  inputTokens: Int
+  outputTokens: Int
+  startedAt: Time
+  completedAt: Time
+}
+
 type Taskboard {
   boardID: String!
   projectID: String!
   name: String!
   state: String!
   epics: [TaskboardEpic!]!
+  ingestionAudits: [TaskModelAudit!]!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -7521,6 +7632,325 @@ func (ec *executionContext) fieldContext_Subscription_taskboardStream(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _TaskModelAudit_modelProvider(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_modelProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.ModelProvider, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_modelProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_modelName(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_modelName,
+		func(ctx context.Context) (any, error) {
+			return obj.ModelName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_modelName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_modelVersion(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_modelVersion,
+		func(ctx context.Context) (any, error) {
+			return obj.ModelVersion, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_modelVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_modelRunID(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_modelRunID,
+		func(ctx context.Context) (any, error) {
+			return obj.ModelRunID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_modelRunID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_agentSessionID(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_agentSessionID,
+		func(ctx context.Context) (any, error) {
+			return obj.AgentSessionID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_agentSessionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_agentStreamID(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_agentStreamID,
+		func(ctx context.Context) (any, error) {
+			return obj.AgentStreamID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_agentStreamID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_promptFingerprint(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_promptFingerprint,
+		func(ctx context.Context) (any, error) {
+			return obj.PromptFingerprint, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_promptFingerprint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_inputTokens(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_inputTokens,
+		func(ctx context.Context) (any, error) {
+			return obj.InputTokens, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint32,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_inputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_outputTokens(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_outputTokens,
+		func(ctx context.Context) (any, error) {
+			return obj.OutputTokens, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint32,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_outputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_startedAt(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_startedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskModelAudit_completedAt(ctx context.Context, field graphql.CollectedField, obj *models.TaskModelAudit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskModelAudit_completedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskModelAudit_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskModelAudit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Taskboard_boardID(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7679,6 +8109,59 @@ func (ec *executionContext) fieldContext_Taskboard_epics(_ context.Context, fiel
 				return ec.fieldContext_TaskboardEpic_tasks(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TaskboardEpic", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Taskboard_ingestionAudits(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_ingestionAudits,
+		func(ctx context.Context) (any, error) {
+			return obj.IngestionAudits, nil
+		},
+		nil,
+		ec.marshalNTaskModelAudit2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskModelAuditᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_ingestionAudits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "modelProvider":
+				return ec.fieldContext_TaskModelAudit_modelProvider(ctx, field)
+			case "modelName":
+				return ec.fieldContext_TaskModelAudit_modelName(ctx, field)
+			case "modelVersion":
+				return ec.fieldContext_TaskModelAudit_modelVersion(ctx, field)
+			case "modelRunID":
+				return ec.fieldContext_TaskModelAudit_modelRunID(ctx, field)
+			case "agentSessionID":
+				return ec.fieldContext_TaskModelAudit_agentSessionID(ctx, field)
+			case "agentStreamID":
+				return ec.fieldContext_TaskModelAudit_agentStreamID(ctx, field)
+			case "promptFingerprint":
+				return ec.fieldContext_TaskModelAudit_promptFingerprint(ctx, field)
+			case "inputTokens":
+				return ec.fieldContext_TaskModelAudit_inputTokens(ctx, field)
+			case "outputTokens":
+				return ec.fieldContext_TaskModelAudit_outputTokens(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_TaskModelAudit_startedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_TaskModelAudit_completedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TaskModelAudit", field.Name)
 		},
 	}
 	return fc, nil
@@ -8016,6 +8499,8 @@ func (ec *executionContext) fieldContext_TaskboardEpic_tasks(_ context.Context, 
 				return ec.fieldContext_TaskboardTask_rank(ctx, field)
 			case "dependsOnTaskIDs":
 				return ec.fieldContext_TaskboardTask_dependsOnTaskIDs(ctx, field)
+			case "audits":
+				return ec.fieldContext_TaskboardTask_audits(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TaskboardTask", field.Name)
 		},
@@ -8057,6 +8542,8 @@ func (ec *executionContext) fieldContext_TaskboardMutationSuccess_board(_ contex
 				return ec.fieldContext_Taskboard_state(ctx, field)
 			case "epics":
 				return ec.fieldContext_Taskboard_epics(ctx, field)
+			case "ingestionAudits":
+				return ec.fieldContext_Taskboard_ingestionAudits(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Taskboard_createdAt(ctx, field)
 			case "updatedAt":
@@ -8102,6 +8589,8 @@ func (ec *executionContext) fieldContext_TaskboardSuccess_board(_ context.Contex
 				return ec.fieldContext_Taskboard_state(ctx, field)
 			case "epics":
 				return ec.fieldContext_Taskboard_epics(ctx, field)
+			case "ingestionAudits":
+				return ec.fieldContext_Taskboard_ingestionAudits(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Taskboard_createdAt(ctx, field)
 			case "updatedAt":
@@ -8374,6 +8863,59 @@ func (ec *executionContext) fieldContext_TaskboardTask_dependsOnTaskIDs(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _TaskboardTask_audits(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_audits,
+		func(ctx context.Context) (any, error) {
+			return obj.Audits, nil
+		},
+		nil,
+		ec.marshalNTaskModelAudit2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskModelAuditᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_audits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "modelProvider":
+				return ec.fieldContext_TaskModelAudit_modelProvider(ctx, field)
+			case "modelName":
+				return ec.fieldContext_TaskModelAudit_modelName(ctx, field)
+			case "modelVersion":
+				return ec.fieldContext_TaskModelAudit_modelVersion(ctx, field)
+			case "modelRunID":
+				return ec.fieldContext_TaskModelAudit_modelRunID(ctx, field)
+			case "agentSessionID":
+				return ec.fieldContext_TaskModelAudit_agentSessionID(ctx, field)
+			case "agentStreamID":
+				return ec.fieldContext_TaskModelAudit_agentStreamID(ctx, field)
+			case "promptFingerprint":
+				return ec.fieldContext_TaskModelAudit_promptFingerprint(ctx, field)
+			case "inputTokens":
+				return ec.fieldContext_TaskModelAudit_inputTokens(ctx, field)
+			case "outputTokens":
+				return ec.fieldContext_TaskModelAudit_outputTokens(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_TaskModelAudit_startedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_TaskModelAudit_completedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TaskModelAudit", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TaskboardsSuccess_boards(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardsSuccess) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8408,6 +8950,8 @@ func (ec *executionContext) fieldContext_TaskboardsSuccess_boards(_ context.Cont
 				return ec.fieldContext_Taskboard_state(ctx, field)
 			case "epics":
 				return ec.fieldContext_Taskboard_epics(ctx, field)
+			case "ingestionAudits":
+				return ec.fieldContext_Taskboard_ingestionAudits(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Taskboard_createdAt(ctx, field)
 			case "updatedAt":
@@ -14233,6 +14777,68 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	}
 }
 
+var taskModelAuditImplementors = []string{"TaskModelAudit"}
+
+func (ec *executionContext) _TaskModelAudit(ctx context.Context, sel ast.SelectionSet, obj *models.TaskModelAudit) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskModelAuditImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskModelAudit")
+		case "modelProvider":
+			out.Values[i] = ec._TaskModelAudit_modelProvider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modelName":
+			out.Values[i] = ec._TaskModelAudit_modelName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modelVersion":
+			out.Values[i] = ec._TaskModelAudit_modelVersion(ctx, field, obj)
+		case "modelRunID":
+			out.Values[i] = ec._TaskModelAudit_modelRunID(ctx, field, obj)
+		case "agentSessionID":
+			out.Values[i] = ec._TaskModelAudit_agentSessionID(ctx, field, obj)
+		case "agentStreamID":
+			out.Values[i] = ec._TaskModelAudit_agentStreamID(ctx, field, obj)
+		case "promptFingerprint":
+			out.Values[i] = ec._TaskModelAudit_promptFingerprint(ctx, field, obj)
+		case "inputTokens":
+			out.Values[i] = ec._TaskModelAudit_inputTokens(ctx, field, obj)
+		case "outputTokens":
+			out.Values[i] = ec._TaskModelAudit_outputTokens(ctx, field, obj)
+		case "startedAt":
+			out.Values[i] = ec._TaskModelAudit_startedAt(ctx, field, obj)
+		case "completedAt":
+			out.Values[i] = ec._TaskModelAudit_completedAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var taskboardImplementors = []string{"Taskboard"}
 
 func (ec *executionContext) _Taskboard(ctx context.Context, sel ast.SelectionSet, obj *models.Taskboard) graphql.Marshaler {
@@ -14266,6 +14872,11 @@ func (ec *executionContext) _Taskboard(ctx context.Context, sel ast.SelectionSet
 			}
 		case "epics":
 			out.Values[i] = ec._Taskboard_epics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ingestionAudits":
+			out.Values[i] = ec._Taskboard_ingestionAudits(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -14540,6 +15151,11 @@ func (ec *executionContext) _TaskboardTask(ctx context.Context, sel ast.Selectio
 			}
 		case "dependsOnTaskIDs":
 			out.Values[i] = ec._TaskboardTask_dependsOnTaskIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "audits":
+			out.Values[i] = ec._TaskboardTask_audits(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -16007,6 +16623,32 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
+func (ec *executionContext) marshalNTaskModelAudit2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskModelAuditᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.TaskModelAudit) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTaskModelAudit2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskModelAudit(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTaskModelAudit2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskModelAudit(ctx context.Context, sel ast.SelectionSet, v *models.TaskModelAudit) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskModelAudit(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNTaskboard2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Taskboard) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -16536,6 +17178,24 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalString(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalTime(*v)
 	return res
 }
 
