@@ -4,6 +4,7 @@ import (
 	applicationlifecycle "agentic-orchestrator/internal/application/lifecycle"
 	"agentic-orchestrator/internal/application/taskengine"
 	domainlifecycle "agentic-orchestrator/internal/domain/lifecycle"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	"context"
 	"errors"
 	"strings"
@@ -24,6 +25,59 @@ func (store *fakeLifecycleStore) Append(_ context.Context, event domainlifecycle
 
 type fakeJobHandler struct {
 	err error
+}
+
+type fakeRuntimeTransport struct {
+	runtimeSignals []domainrealtime.RuntimeActivitySignal
+}
+
+func (transport *fakeRuntimeTransport) PublishRequest(context.Context, domainrealtime.HeartbeatRequest) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) PublishResponse(context.Context, domainrealtime.HeartbeatResponse) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) ListenRequests(context.Context, func(domainrealtime.HeartbeatRequest) error) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) ListenResponses(context.Context, func(domainrealtime.HeartbeatResponse) error) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) PublishRuntimeActivity(_ context.Context, signal domainrealtime.RuntimeActivitySignal) error {
+	transport.runtimeSignals = append(transport.runtimeSignals, signal)
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) ListenRuntimeActivity(context.Context, func(domainrealtime.RuntimeActivitySignal) error) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) PublishRegistrationSubmission(context.Context, domainrealtime.RegistrationSubmissionEvent) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) PublishRegistrationDecision(context.Context, domainrealtime.RegistrationDecisionEvent) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) ListenRegistrationSubmissions(context.Context, func(domainrealtime.RegistrationSubmissionEvent) error) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) ListenRegistrationDecisions(context.Context, func(domainrealtime.RegistrationDecisionEvent) error) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) PublishInvalidationIntent(context.Context, domainrealtime.InvalidationIntent) error {
+	return nil
+}
+
+func (transport *fakeRuntimeTransport) ListenInvalidationIntents(context.Context, func(domainrealtime.InvalidationIntent) error) error {
+	return nil
 }
 
 func (handler fakeJobHandler) Handle(ctx context.Context, job taskengine.Job) error {
@@ -127,5 +181,73 @@ func TestJobLifecycleMiddlewareUsesAttemptAwareEventIDs(t *testing.T) {
 	}
 	if !strings.Contains(store.events[0].EventID, "attempt-0") || !strings.Contains(store.events[2].EventID, "attempt-1") {
 		t.Fatalf("expected attempt suffixes in event IDs, got %q and %q", store.events[0].EventID, store.events[2].EventID)
+	}
+}
+
+func TestJobLifecycleMiddlewarePublishesRuntimeActivitySignals(t *testing.T) {
+	store := &fakeLifecycleStore{}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	transport := &fakeRuntimeTransport{}
+
+	handler := newJobLifecycleMiddleware("worker-1", service, transport, fakeJobHandler{})
+	if err := handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-live-1",
+		Payload:     []byte(`{"project_id":"project-1","run_id":"run-1","task_id":"task-1","job_id":"job-1","session_id":"session-1","idempotency_key":"idemp-live-1"}`),
+	}); err != nil {
+		t.Fatalf("handle job: %v", err)
+	}
+
+	if len(transport.runtimeSignals) < 2 {
+		t.Fatalf("expected at least started and completed runtime signals, got %d", len(transport.runtimeSignals))
+	}
+
+	var hasStarted bool
+	var hasCompleted bool
+	for _, signal := range transport.runtimeSignals {
+		if signal.EventType == "started" {
+			hasStarted = true
+		}
+		if signal.EventType == "completed" {
+			hasCompleted = true
+		}
+	}
+	if !hasStarted {
+		t.Fatalf("expected started runtime signal")
+	}
+	if !hasCompleted {
+		t.Fatalf("expected completed runtime signal")
+	}
+}
+
+func TestJobLifecycleMiddlewarePublishesRuntimeFailedSignalOnHandlerError(t *testing.T) {
+	store := &fakeLifecycleStore{}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	transport := &fakeRuntimeTransport{}
+
+	handler := newJobLifecycleMiddleware("worker-1", service, transport, fakeJobHandler{err: errors.New("boom")})
+	err = handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-live-2",
+		Payload:     []byte(`{"project_id":"project-1","run_id":"run-1","task_id":"task-1","job_id":"job-2","session_id":"session-2","idempotency_key":"idemp-live-2"}`),
+	})
+	if err == nil {
+		t.Fatalf("expected wrapped handler error")
+	}
+
+	var hasFailed bool
+	for _, signal := range transport.runtimeSignals {
+		if signal.EventType == "failed" {
+			hasFailed = true
+		}
+	}
+	if !hasFailed {
+		t.Fatalf("expected failed runtime signal")
 	}
 }

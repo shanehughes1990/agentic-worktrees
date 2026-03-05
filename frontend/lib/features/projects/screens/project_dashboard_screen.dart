@@ -1992,34 +1992,56 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         leading: Row(
           children: <Widget>[
             const BackButton(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
-                color: _liveFeedBadgeBackgroundColor(),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(Icons.circle, size: 8, color: _liveFeedStatusDotColor()),
-                  const SizedBox(width: 6),
-                  Text(
-                    _liveFeedStatusLabel(),
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Active $activeNowCount',
-                style: Theme.of(context).textTheme.labelSmall,
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _liveFeedBadgeBackgroundColor(),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.circle,
+                            size: 8,
+                            color: _liveFeedStatusDotColor(),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _liveFeedStatusLabel(),
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Active $activeNowCount',
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

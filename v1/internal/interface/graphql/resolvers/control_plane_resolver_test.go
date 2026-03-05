@@ -8,6 +8,7 @@ import (
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -654,6 +655,63 @@ func TestControlPlaneProjectEventsSubscriptionAcceptsWorkerLifecycleStartedWitho
 		case <-ctx.Done():
 			t.Fatalf("timeout waiting for lifecycle started live project event")
 		}
+	}
+}
+
+func TestControlPlaneProjectEventsSubscriptionSeedsActiveSnapshotImmediately(t *testing.T) {
+	resolver := newControlPlaneResolverFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	projectID := "project-1"
+	stream, err := (&subscriptionResolver{resolver}).ProjectEventsStream(ctx, projectID, nil)
+	if err != nil {
+		t.Fatalf("ProjectEventsStream() error = %v", err)
+	}
+
+	select {
+	case message, ok := <-stream:
+		if !ok {
+			t.Fatalf("expected open stream channel")
+		}
+		success, ok := message.(models.StreamEventSuccess)
+		if !ok {
+			t.Fatalf("expected StreamEventSuccess, got %T", message)
+		}
+		if success.Event == nil {
+			t.Fatalf("expected seeded event payload")
+		}
+		if success.Event.SessionID == nil || *success.Event.SessionID != "session-1" {
+			t.Fatalf("expected seeded session-1 event, got %+v", success.Event.SessionID)
+		}
+		if success.Event.EventType != string(domainstream.EventSessionHealth) {
+			t.Fatalf("expected seeded stream.session.health event, got %q", success.Event.EventType)
+		}
+		if !strings.Contains(success.Event.EventID, "seed:session-1:") {
+			t.Fatalf("expected seeded event id prefix, got %q", success.Event.EventID)
+		}
+	case <-ctx.Done():
+		t.Fatalf("timeout waiting for seeded project event")
+	}
+}
+
+func TestControlPlaneProjectEventsSubscriptionSkipsBootstrapWhenOffsetProvided(t *testing.T) {
+	resolver := newControlPlaneResolverFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	projectID := "project-1"
+	fromOffset := int32(1)
+	stream, err := (&subscriptionResolver{resolver}).ProjectEventsStream(ctx, projectID, &fromOffset)
+	if err != nil {
+		t.Fatalf("ProjectEventsStream() error = %v", err)
+	}
+
+	select {
+	case message := <-stream:
+		t.Fatalf("expected no bootstrap messages for offset replay subscription, got %T", message)
+	case <-ctx.Done():
+		// Expected: no live traffic and no bootstrap when fromOffset > 0.
 	}
 }
 
