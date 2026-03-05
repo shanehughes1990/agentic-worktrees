@@ -113,6 +113,16 @@
 - Forward-facing errors must be typed and represented as explicit union outputs (or equivalent typed schema patterns) so clients can deterministically handle failures.
 - Payloads and error contracts must make required data and supplied data unambiguous.
 
+## SUBSCRIPTION CONTRACT OWNERSHIP MANDATE
+
+- Subscription semantics are defined by server-side GraphQL contract logic; clients are listeners of that contract.
+- Do NOT rely on client-side filtering as the primary enforcement for subscription intent, scope, or correctness.
+- Create separate server-side subscriptions (or resolver-level server filters) per view intent when semantics differ.
+- Define distinct backend streams/subscriptions for distinct UX jobs and panel intents.
+- Avoid a single "kitchen sink" event stream as the client contract for all panels; if a broad stream exists, treat it as internal bus infrastructure, not the UX contract.
+- Keep "active now" views server-scoped with stateful semantics enforced at the source; do not approximate active-state semantics primarily on the client.
+- Client-side filtering is allowed only for lightweight presentation concerns after server contract filtering is already correct.
+
 ## PROJECT ENFORCEMENT
 
 - Any implementation that introduces non-approved REST control-plane endpoints is non-compliant.
