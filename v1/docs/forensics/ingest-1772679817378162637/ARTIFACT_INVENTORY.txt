@@ -1,0 +1,14 @@
+ARTIFACT_INVENTORY.txt
+INGESTION_CYCLE_1772679817378162637_FORENSICS.md
+copilot-logs/logs/process-1772679799515-37.log
+copilot-logs/logs/process-1772679819311-69.log
+copilot-logs/logs/process-1772680147696-452.log
+session-state/75c3f3fd-b59c-44f5-b245-5ca13f805947/checkpoints/index.md
+session-state/75c3f3fd-b59c-44f5-b245-5ca13f805947/events.jsonl
+session-state/75c3f3fd-b59c-44f5-b245-5ca13f805947/plan.md
+session-state/75c3f3fd-b59c-44f5-b245-5ca13f805947/session.db
+session-state/75c3f3fd-b59c-44f5-b245-5ca13f805947/workspace.yaml
+tool-output/copilot-tool-output-1772679825703-8cxzmw.txt
+tool-output/copilot-tool-output-1772679829902-e8ebiy.txt
+tool-output/copilot-tool-output-1772679840707-zghvrw.txt
+tool-output/copilot-tool-output-1772679956712-83u1gd.txt

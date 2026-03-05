@@ -1,0 +1,244 @@
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:1:# Tracker Domain V1
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:3:## Goal
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:13:## Domain Model
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:15:### Aggregate: ProjectBoard
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:33:### Entity: ProjectBoardEpic
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:55:### Entity: ProjectBoardTask
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:78:## Postgres Schema Contract
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:80:### project_boards
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:97:### project_board_epics
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:118:### project_board_tasks
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:174:## Mandatory Invariants
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:184:## Atomic NextTask Scheduling (DAG + Fan-Out/Fan-In)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:186:### Why
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:192:### NextTask contract
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:198:### Eligibility rules
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:211:### Deterministic ordering
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:215:### Atomic claim pattern (Postgres)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:226:### Fan-out behavior
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:231:### Fan-in behavior
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:237:### Lease and recovery rules
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:243:### Ingestion retry continuity (same asynq task invocation)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:249:## State Transition Guidance
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:256:## Implementation Notes
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:263:## Scope Guardrails (Explicit)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:271:## Go Domain Struct Model
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/TRACKER_DOMAIN_V1.md:377:### Validation expectations for the Go model
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:1:# Copilot CLI Session Filesystem Artifacts (Worker Exploration)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:7:## Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:23:## Direct output artifacts from the request
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:40:## Files modified after marker (request-correlated)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:52:## Session directory discovered for this exact request
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:64:## Key artifact contents
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:66:### `workspace.yaml`
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:73:### `events.jsonl`
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:84:### `checkpoints/index.md`
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:87:### `process-1772593497544-141.log`
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:95:## Global Copilot filesystem layout observed in worker
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/COPILOT_CLI_SESSION_FILESYSTEM_ARTIFACTS.md:104:## Conclusions
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:1:# Version 1 Roadmap (High-Level)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:3:## Purpose
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:9:## V1 Mission
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:13:## Non-Negotiable Constraints
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:24:## Release Pillars
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:61:## High-Level Delivery Phases
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:63:### Phase 0 — Foundation
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:69:### Phase 1 — Core Runtime Contracts (SCM/Agent/Worker First)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:76:### Phase 2 — Orchestrator + GraphQL Core
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:82:### Phase 3 — Tracker + Realtime + Client Surface
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:89:### Phase 4 — Release Hardening
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:95:## Current Persistence Status (Aligned to Slice Plans)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:100:## V1 Release Exit Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:113:## Risks to Track
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/VERSION_1_ROADMAP.md:122:## Immediate Priority Focus
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/SCOPE.md:1:# V1 Scope Boundaries
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/SCOPE.md:3:## Purpose
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/SCOPE.md:7:## Rewrite Policy (Mandatory)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/SCOPE.md:15:## In Scope (V1)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/SCOPE.md:25:## Out of Scope / Non-Goals (V1)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/SCOPE.md:35:## Scope Gates for New Work
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:1:# V1 Placement Rules
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:3:## Purpose
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:7:## Canonical Structure
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:19:## Mandatory Dependency Direction
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:25:## Layer Ownership
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:41:## Forbidden Placement
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/PLACEMENT_RULES.md:48:## Placement Decision Rule
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:1:# Worker Running CLI/Session Snapshot
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:5:## Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:9:## Runtime Target
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:16:## Active Copilot CLI Process
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:24:### Observed command-line payload (sanitized summary)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:44:## Process-level Forensics
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:55:## Session/Environment Signals
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:57:### Env keys seen in worker container (filtered)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:64:### Env keys seen for copilot process (`/proc/51/environ`, filtered)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:70:## Filesystem Artifacts
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:72:### Worker project/cache directories
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:77:### Worker log directory
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:81:### Ingestion sandbox root
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:87:### Sandbox git state
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:94:### Taskboard output file
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:100:## Worker Logs (compose stream)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:112:## Command Evidence (executed)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/WORKER_RUNNING_CLI_SESSION_SNAPSHOT.md:122:## Notes
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/README.md:1:# V1 Documentation Index
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/README.md:5:## Document Roles
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/README.md:18:## Detailed Plans
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/README.md:25:## Source of Truth Hierarchy
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:1:# Agent Orchestrator Reference Analysis (Informational)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:3:## Purpose
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:7:## Usage Rules
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:13:## Key Signals Worth Reusing Conceptually
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:20:## Mapping to V1 Canonical Slots
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:33:## Important V1 Interpretation
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/AGENT_ORCHESTRATOR_ANALYSIS.md:39:## Practical Outcome for Planning
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:1:# Slice 02 — Worker Execution Plane
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:8:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:12:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:23:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:30:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:37:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:42:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:48:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/02-worker-execution-plane.md:54:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:1:# Slice 09 — Postgres Persistence Conversion
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:3:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:7:## Scope Constraint
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:13:## Inventory — What SHOULD Persist to Postgres
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:27:## What Should NOT Move to Postgres
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:33:## Target Data Model (High-Level)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:46:## Conversion Roadmap
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:48:### Phase 0 — Foundation
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:55:### Phase 1 — Execution Reliability First
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:61:### Phase 2 — SCM Coordination Durability
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:67:### Phase 3 — Tracker and Session Persistence
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:73:### Phase 4 — Control Plane Read Models
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:79:### Phase 5 — Supervisor + Streams Alignment
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:85:## DDD Placement Rules for This Conversion
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:92:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:100:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/09-postgres-persistence-conversion.md:105:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:1:# Slice 03 — Orchestrator Supervisor
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:8:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:21:## AO-Informed Supervisor Patterns (Implementation Baseline)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:32:## Responsibility Boundary
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:41:## Tracker Intake Sources
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:50:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:65:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:76:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:86:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:92:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:104:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/03-orchestrator-supervisor.md:112:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:1:# Slice 01 — SCM Core (GitHub First, Agents Second)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:8:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:12:## Delivery Order
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:18:## Part 01A — SCM for GitHub (Full Vertical Slice)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:20:### Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:31:### Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:44:## Part 01B — SCM for Agents
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:46:### Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:50:### Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:59:## Reliability Hardening — Persistence Alignment
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:61:### Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:65:### Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:72:## AO-Informed Runtime Patterns (Adopted)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:82:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:89:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:96:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:102:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:111:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/01-agent-scm-core.md:116:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:1:# Slice 07 — Cross-Platform Client Experience
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:3:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:7:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:20:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:27:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:34:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:39:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:46:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:51:## Client Technical Direction (Locked)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:53:### Runtime + Platform Strategy
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:59:### Architecture Boundary Rule
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:65:### State Management
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:70:### GraphQL Typed Client + Codegen
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:76:### Baseline App Structure
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:85:## MVP Milestones (Client Start Plan)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:87:### Week 1 — Client Shell + Connectivity
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:99:### Week 2 — Control Plane P0 for Operator Board
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:112:### Week 3 — Session Detail + Historical Views
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:122:### Week 4 — Realtime Streams + Replay
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:132:### Week 5 — Packaging + Smoke Validation
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:141:## GraphQL Contract-First Backlog (Exact Operations)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:143:### Available Now (can be consumed immediately)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:150:### P0 Required Before Full Client Operations
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:159:### P1 Required For Operational UX Completion
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:167:## Start Gate Decision
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/07-client-experience.md:171:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:1:# Slice 06 — GraphQL Control Plane
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:9:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:13:## Control-Plane Mandate
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:25:## Violation Remediation Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:34:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:44:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:51:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:57:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:62:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:68:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/06-graphql-control-plane.md:72:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:1:# Slice 05 — Realtime Streams
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:8:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:14:## Copilot CLI-First Constraints (Research Summary)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:16:### Supported, stable surfaces
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:22:### Physical files on device (supported/observable)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:28:### Important limitation
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:34:## V1 Architecture Decision
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:42:## Event Contract (Copilot-focused)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:73:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:85:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:94:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:102:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:108:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:116:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/05-realtime-streams.md:122:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:1:# Slice 04 — Tracker and Taskboard Model
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:8:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:12:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:22:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:30:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:37:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:42:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:48:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/04-tracker-taskboard.md:54:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/README.md:1:# V1 Roadmap Slices (Detailed Plans)
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/README.md:3:## Purpose
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/README.md:10:## Slice Files
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/README.md:23:## Execution Order
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/README.md:38:## Common Rules for All Slices
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/README.md:47:## How to Use
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:1:# Slice 08 — Container-First Deployment
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:3:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:7:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:17:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:25:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:31:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:36:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:43:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/08-container-first-deployment.md:48:## Exit Check
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:1:# Slice 00 — Project Layout, Governance, and Persistence Baseline
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:3:## Status
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:8:## Objective
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:12:## Task Checklist
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:20:## Deliverables
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:27:## In Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:33:## Out of Scope
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:39:## Acceptance Criteria
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:46:## Dependencies
+/tmp/ingestion-sandbox-2107252471/sandbox/repos/agentic-worktrees/v1/docs/roadmap/00-project-layout.md:50:## Exit Check
