@@ -11,10 +11,9 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 )
 
- func streamSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.CorrelationInput, fromOffset *int32, eventFilter func(domainstream.EventType) bool) (<-chan models.StreamEventResult, error) {
+func streamSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.CorrelationInput, fromOffset *int32, eventFilter func(domainstream.Event) bool) (<-chan models.StreamEventResult, error) {
 	if streamService == nil {
 		return singleEventStream(models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "stream service is not configured"}), nil
 	}
@@ -28,11 +27,11 @@ import (
 	}
 	output := make(chan models.StreamEventResult, 64)
 	_, live, cancel := streamService.Subscribe(256)
+	_, changes, cancelChanges := streamService.SubscribeChanges(64)
 	go func() {
 		defer cancel()
+		defer cancelChanges()
 		defer close(output)
-		pollTicker := time.NewTicker(500 * time.Millisecond)
-		defer pollTicker.Stop()
 
 		lastOffset := uint64(offset)
 		emitBatch := func(events []domainstream.Event) bool {
@@ -40,7 +39,7 @@ import (
 				if event.StreamOffset > lastOffset {
 					lastOffset = event.StreamOffset
 				}
-				if !matchesCorrelation(event, correlation) || !eventFilter(event.EventType) {
+				if !matchesCorrelation(event, correlation) || !eventFilter(event) {
 					continue
 				}
 				select {
@@ -67,7 +66,7 @@ import (
 				if !emitBatch([]domainstream.Event{event}) {
 					return
 				}
-			case <-pollTicker.C:
+			case <-changes:
 				events, replayErr := streamService.ReplayFromOffset(ctx, lastOffset, 500)
 				if replayErr != nil {
 					select {
@@ -85,14 +84,93 @@ import (
 	return output, nil
 }
 
- func matchesCorrelation(event domainstream.Event, correlation models.CorrelationInput) bool {
- 	if strings.TrimSpace(derefString(correlation.RunID)) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(derefString(correlation.RunID)) {
+func streamLiveSubscription(ctx context.Context, streamService *applicationstream.Service, correlation models.CorrelationInput, fromOffset *int32, eventFilter func(domainstream.Event) bool) (<-chan models.StreamEventResult, error) {
+	if streamService == nil {
+		return singleEventStream(models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "stream service is not configured"}), nil
+	}
+	offset := int32ToInt(fromOffset)
+	if offset < 0 {
+		offset = 0
+	}
+	output := make(chan models.StreamEventResult, 64)
+	_, live, cancel := streamService.Subscribe(256)
+	go func() {
+		defer cancel()
+		defer close(output)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, open := <-live:
+				if !open {
+					return
+				}
+				// Runtime live signals may not have a persisted stream offset yet.
+				if event.StreamOffset > 0 && event.StreamOffset <= uint64(offset) {
+					continue
+				}
+				if !matchesCorrelation(event, correlation) || !eventFilter(event) {
+					continue
+				}
+				select {
+				case output <- models.StreamEventSuccess{Event: mapStreamEvent(event)}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return output, nil
+}
+
+func streamQuery(ctx context.Context, streamService *applicationstream.Service, correlation models.CorrelationInput, fromOffset *int32, limit *int32, eventFilter func(domainstream.Event) bool) models.StreamEventsResult {
+	if streamService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "stream service is not configured"}
+	}
+	offset := int32ToInt(fromOffset)
+	if offset < 0 {
+		offset = 0
+	}
+	resolvedLimit := int32ToInt(limit)
+	if resolvedLimit <= 0 {
+		resolvedLimit = 100
+	}
+	if resolvedLimit > 500 {
+		resolvedLimit = 500
+	}
+	events, err := streamService.ReplayFromOffset(ctx, uint64(offset), resolvedLimit)
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("replay stream events: %w", err))
+	}
+	items := make([]*models.StreamEvent, 0, len(events))
+	nextFromOffset := int32(offset)
+	for _, event := range events {
+		if !matchesCorrelation(event, correlation) || !eventFilter(event) {
+			continue
+		}
+		if event.StreamOffset > uint64(nextFromOffset) {
+			nextFromOffset = uint64ToInt32(event.StreamOffset)
+		}
+		items = append(items, mapStreamEvent(event))
+	}
+	return models.StreamEventsSuccess{Events: items, NextFromOffset: nextFromOffset}
+}
+
+func requireProjectScopedCorrelation(correlation models.CorrelationInput) error {
+	if strings.TrimSpace(derefString(correlation.ProjectID)) == "" {
+		return fmt.Errorf("project_id is required")
+	}
+	return nil
+}
+
+func matchesCorrelation(event domainstream.Event, correlation models.CorrelationInput) bool {
+	if strings.TrimSpace(derefString(correlation.RunID)) != "" && strings.TrimSpace(event.CorrelationIDs.RunID) != strings.TrimSpace(derefString(correlation.RunID)) {
 		return false
 	}
- 	if strings.TrimSpace(derefString(correlation.TaskID)) != "" && strings.TrimSpace(event.CorrelationIDs.TaskID) != strings.TrimSpace(derefString(correlation.TaskID)) {
+	if strings.TrimSpace(derefString(correlation.TaskID)) != "" && strings.TrimSpace(event.CorrelationIDs.TaskID) != strings.TrimSpace(derefString(correlation.TaskID)) {
 		return false
 	}
- 	if strings.TrimSpace(derefString(correlation.JobID)) != "" && strings.TrimSpace(event.CorrelationIDs.JobID) != strings.TrimSpace(derefString(correlation.JobID)) {
+	if strings.TrimSpace(derefString(correlation.JobID)) != "" && strings.TrimSpace(event.CorrelationIDs.JobID) != strings.TrimSpace(derefString(correlation.JobID)) {
 		return false
 	}
 	if strings.TrimSpace(derefString(correlation.ProjectID)) != "" && strings.TrimSpace(event.CorrelationIDs.ProjectID) != strings.TrimSpace(derefString(correlation.ProjectID)) {
@@ -106,6 +184,8 @@ func mapStreamEvent(event domainstream.Event) *models.StreamEvent {
 	if err != nil {
 		payload = []byte("{}")
 	}
+	expectedEventSeq, hasExpectedEventSeq := payloadInt32(event.Payload, "expected_event_seq")
+	observedEventSeq, hasObservedEventSeq := payloadInt32(event.Payload, "observed_event_seq")
 	return &models.StreamEvent{
 		EventID:       event.EventID,
 		StreamOffset:  uint64ToInt32(event.StreamOffset),
@@ -118,7 +198,57 @@ func mapStreamEvent(event domainstream.Event) *models.StreamEvent {
 		CorrelationID: strings.TrimSpace(event.CorrelationIDs.CorrelationID),
 		Source:        toGraphStreamEventSource(event.Source),
 		EventType:     string(event.EventType),
-		Payload:       string(payload),
+		GapDetected:   payloadBool(event.Payload, "gap_detected"),
+		GapReconciled: payloadBool(event.Payload, "gap_reconciled"),
+		ExpectedEventSeq: func() *int32 {
+			if !hasExpectedEventSeq {
+				return nil
+			}
+			value := expectedEventSeq
+			return &value
+		}(),
+		ObservedEventSeq: func() *int32 {
+			if !hasObservedEventSeq {
+				return nil
+			}
+			value := observedEventSeq
+			return &value
+		}(),
+		Payload: string(payload),
+	}
+}
+
+func payloadBool(payload map[string]any, key string) bool {
+	if payload == nil {
+		return false
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return false
+	}
+	value, ok := raw.(bool)
+	return ok && value
+}
+
+func payloadInt32(payload map[string]any, key string) (int32, bool) {
+	if payload == nil {
+		return 0, false
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return 0, false
+	}
+	switch value := raw.(type) {
+	case int:
+		return int64ToInt32(int64(value)), true
+	case int32:
+		return value, true
+	case int64:
+		return int64ToInt32(value), true
+	case float64:
+		return int64ToInt32(int64(value)), true
+	default:
+		return 0, false
 	}
 }
 
@@ -137,6 +267,16 @@ func int32ToInt(value *int32) int {
 }
 
 func uint64ToInt32(value uint64) int32 {
+	if value > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(value)
+}
+
+func int64ToInt32(value int64) int32 {
+	if value < math.MinInt32 {
+		return math.MinInt32
+	}
 	if value > math.MaxInt32 {
 		return math.MaxInt32
 	}
@@ -196,6 +336,21 @@ func toGraphSCMProvider(provider string) (models.SCMProvider, error) {
 	}
 }
 
+func toGraphLifecycleTreeNodeType(value applicationcontrolplane.LifecycleTreeNodeType) (models.LifecycleTreeNodeType, error) {
+	switch strings.TrimSpace(string(value)) {
+	case string(applicationcontrolplane.LifecycleTreeNodeTypeRun):
+		return models.LifecycleTreeNodeTypeRun, nil
+	case string(applicationcontrolplane.LifecycleTreeNodeTypeTask):
+		return models.LifecycleTreeNodeTypeTask, nil
+	case string(applicationcontrolplane.LifecycleTreeNodeTypeJob):
+		return models.LifecycleTreeNodeTypeJob, nil
+	case string(applicationcontrolplane.LifecycleTreeNodeTypeSession):
+		return models.LifecycleTreeNodeTypeSession, nil
+	default:
+		return "", fmt.Errorf("unsupported lifecycle tree node type %q", value)
+	}
+}
+
 func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models.ProjectSetup, error) {
 	if project == nil {
 		return nil, fmt.Errorf("project setup is required")
@@ -203,10 +358,10 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 	repositories := make([]*models.ProjectRepository, 0, len(project.Repositories))
 	for _, repository := range project.Repositories {
 		repositories = append(repositories, &models.ProjectRepository{
-			RepositoryID: repository.RepositoryID,
-			ScmID:        repository.SCMID,
+			RepositoryID:  repository.RepositoryID,
+			ScmID:         repository.SCMID,
 			RepositoryURL: repository.RepositoryURL,
-			IsPrimary:    repository.IsPrimary,
+			IsPrimary:     repository.IsPrimary,
 		})
 	}
 	scms := make([]*models.ProjectScm, 0, len(project.SCMs))
@@ -236,13 +391,13 @@ func toGraphProjectSetup(project *applicationcontrolplane.ProjectSetup) (*models
 		})
 	}
 	return &models.ProjectSetup{
-		ProjectID:     project.ProjectID,
-		ProjectName:   project.ProjectName,
-		Scms:          scms,
-		Repositories:  repositories,
-		Boards:        boards,
-		CreatedAt:     project.CreatedAt.UTC(),
-		UpdatedAt:     project.UpdatedAt.UTC(),
+		ProjectID:    project.ProjectID,
+		ProjectName:  project.ProjectName,
+		Scms:         scms,
+		Repositories: repositories,
+		Boards:       boards,
+		CreatedAt:    project.CreatedAt.UTC(),
+		UpdatedAt:    project.UpdatedAt.UTC(),
 	}, nil
 }
 

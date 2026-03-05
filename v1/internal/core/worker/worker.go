@@ -4,6 +4,7 @@ import (
 	applicationagent "agentic-orchestrator/internal/application/agent"
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
 	applicationingestion "agentic-orchestrator/internal/application/ingestion"
+	applicationlifecycle "agentic-orchestrator/internal/application/lifecycle"
 	applicationscm "agentic-orchestrator/internal/application/scm"
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	"agentic-orchestrator/internal/application/taskengine"
@@ -19,6 +20,7 @@ import (
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infrastructurefilestoregcs "agentic-orchestrator/internal/infrastructure/filestore/gcs"
 	infrastructureingestion "agentic-orchestrator/internal/infrastructure/ingestion"
+	infralifecyclepostgres "agentic-orchestrator/internal/infrastructure/lifecycle/postgres"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
@@ -55,6 +57,7 @@ type WorkerApp struct {
 	promptRefinementRepository applicationcontrolplane.PromptRefinementRepository
 	workerService              *applicationworker.Service
 	realtimeTransport          domainrealtime.WorkerLifecycleTransport
+	lifecycleService           *applicationlifecycle.Service
 }
 
 type workerJobRegistration struct {
@@ -129,6 +132,19 @@ func New() (*WorkerApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init prompt refinement repository: %w", err)
 	}
+	lifecycleEventStore, err := infralifecyclepostgres.NewEventStore(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init lifecycle event store: %w", err)
+	}
+	tableChangeWatcher, err := infrastructure_realtime.NewPGTableChangeWatcher(databaseClient.DB(), config.App.DatabaseDSN)
+	if err != nil {
+		return nil, fmt.Errorf("init table change watcher: %w", err)
+	}
+	lifecycleEventStore.SetTableChangeWatcher(tableChangeWatcher)
+	lifecycleService, err := applicationlifecycle.NewService(lifecycleEventStore)
+	if err != nil {
+		return nil, fmt.Errorf("init lifecycle service: %w", err)
+	}
 	if err := projectSetupRepository.MigrateLegacySCMTokensToEncrypted(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate legacy scm tokens: %w", err)
 	}
@@ -150,6 +166,7 @@ func New() (*WorkerApp, error) {
 		promptRefinementRepository: promptRefinementRepository,
 		workerService:              workerService,
 		realtimeTransport:          realtimeTransport,
+		lifecycleService:           lifecycleService,
 	}, nil
 }
 
@@ -230,6 +247,11 @@ func (app *WorkerApp) Run() error {
 	if err != nil {
 		return fmt.Errorf("init postgres stream event store: %w", err)
 	}
+	tableChangeWatcher, err := infrastructure_realtime.NewPGTableChangeWatcher(app.databaseClient.DB(), app.config.App.DatabaseDSN)
+	if err != nil {
+		return fmt.Errorf("init table change watcher: %w", err)
+	}
+	streamEventStore.SetTableChangeWatcher(tableChangeWatcher)
 	streamService, err := applicationstream.NewService(streamEventStore)
 	if err != nil {
 		return fmt.Errorf("init stream service: %w", err)
@@ -394,7 +416,7 @@ func (app *WorkerApp) Run() error {
 		{kind: taskengine.JobKindProjectDocumentDelete, handler: documentDeleteHandler, label: "project document delete"},
 		{kind: taskengine.JobKindPromptRefinementAgent, handler: promptRefinementHandler, label: "prompt refinement agent"},
 	}
-	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, registrations); err != nil {
+	if err := registerWorkerJobs(context.Background(), app.taskEnginePlatform, workerID, app.lifecycleService, app.realtimeTransport, registrations); err != nil {
 		return err
 	}
 	capabilities := workerCapabilities(registrations)
@@ -670,14 +692,15 @@ func ensureRuntimeFilesystem(config Config) error {
 	return nil
 }
 
-func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, registrations []workerJobRegistration) error {
+func registerWorkerJobs(ctx context.Context, consumer taskengine.Consumer, workerID string, lifecycleService *applicationlifecycle.Service, realtimeTransport domainrealtime.WorkerLifecycleTransport, registrations []workerJobRegistration) error {
 	if consumer == nil {
 		return fmt.Errorf("task engine platform is not initialized")
 	}
 
 	capabilities := make([]taskengine.WorkerCapability, 0, len(registrations))
 	for _, registration := range registrations {
-		if err := consumer.Register(registration.kind, registration.handler); err != nil {
+		handler := newJobLifecycleMiddleware(workerID, lifecycleService, realtimeTransport, registration.handler)
+		if err := consumer.Register(registration.kind, handler); err != nil {
 			return fmt.Errorf("register %s handler: %w", registration.label, err)
 		}
 		capabilities = append(capabilities, taskengine.WorkerCapability{Kind: registration.kind})

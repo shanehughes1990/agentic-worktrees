@@ -5,6 +5,7 @@ import (
 	"agentic-orchestrator/internal/application/taskengine"
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,6 +14,19 @@ import (
 
 type ControlPlaneQueryRepository struct {
 	db *gorm.DB
+}
+
+type lifecycleTreeSnapshotRow struct {
+	ProjectID       string    `gorm:"column:project_id"`
+	RunID           string    `gorm:"column:run_id"`
+	TaskID          string    `gorm:"column:task_id"`
+	JobID           string    `gorm:"column:job_id"`
+	SessionID       string    `gorm:"column:session_id"`
+	PipelineType    string    `gorm:"column:pipeline_type"`
+	SourceRuntime   string    `gorm:"column:source_runtime"`
+	CurrentState    string    `gorm:"column:current_state"`
+	CurrentSeverity string    `gorm:"column:current_severity"`
+	UpdatedAt       time.Time `gorm:"column:updated_at"`
 }
 
 func NewControlPlaneQueryRepository(db *gorm.DB) (*ControlPlaneQueryRepository, error) {
@@ -198,6 +212,283 @@ func (repository *ControlPlaneQueryRepository) ListDeadLetterHistory(ctx context
 		})
 	}
 	return result, nil
+}
+
+func (repository *ControlPlaneQueryRepository) ListLifecycleSessionSnapshots(ctx context.Context, projectID string, pipelineType string, limit int) ([]applicationcontrolplane.LifecycleSessionSnapshot, error) {
+	if repository == nil || repository.db == nil {
+		return nil, fmt.Errorf("control-plane query repository is not initialized")
+	}
+	projectID = strings.TrimSpace(projectID)
+	pipelineType = strings.TrimSpace(pipelineType)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+
+	type row struct {
+		ProjectID           string     `gorm:"column:project_id"`
+		RunID               string     `gorm:"column:run_id"`
+		TaskID              string     `gorm:"column:task_id"`
+		JobID               string     `gorm:"column:job_id"`
+		SessionID           string     `gorm:"column:session_id"`
+		PipelineType        string     `gorm:"column:pipeline_type"`
+		SourceRuntime       string     `gorm:"column:source_runtime"`
+		CurrentState        string     `gorm:"column:current_state"`
+		CurrentSeverity     string     `gorm:"column:current_severity"`
+		LastReasonCode      string     `gorm:"column:last_reason_code"`
+		LastReasonSummary   string     `gorm:"column:last_reason_summary"`
+		LastEventSeq        int64      `gorm:"column:last_event_seq"`
+		LastProjectEventSeq int64      `gorm:"column:last_project_event_seq"`
+		LastLivenessAt      *time.Time `gorm:"column:last_liveness_at"`
+		LastActivityAt      *time.Time `gorm:"column:last_activity_at"`
+		LastCheckpointAt    *time.Time `gorm:"column:last_checkpoint_at"`
+		StartedAt           time.Time  `gorm:"column:started_at"`
+		EndedAt             *time.Time `gorm:"column:ended_at"`
+		UpdatedAt           time.Time  `gorm:"column:updated_at"`
+	}
+
+	rows := make([]row, 0)
+	query := repository.db.WithContext(ctx).
+		Table("project_sessions").
+		Select("project_id, run_id, task_id, job_id, session_id, pipeline_type, source_runtime, current_state, current_severity, last_reason_code, last_reason_summary, last_event_seq, last_project_event_seq, last_liveness_at, last_activity_at, last_checkpoint_at, started_at, ended_at, updated_at").
+		Where("project_id = ?", projectID)
+	if pipelineType != "" {
+		query = query.Where("pipeline_type = ?", pipelineType)
+	}
+	if err := query.Order("updated_at DESC").Limit(limit).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list lifecycle session snapshots: %w", err)
+	}
+
+	result := make([]applicationcontrolplane.LifecycleSessionSnapshot, 0, len(rows))
+	for _, value := range rows {
+		result = append(result, applicationcontrolplane.LifecycleSessionSnapshot{
+			ProjectID:           value.ProjectID,
+			RunID:               value.RunID,
+			TaskID:              value.TaskID,
+			JobID:               value.JobID,
+			SessionID:           value.SessionID,
+			PipelineType:        value.PipelineType,
+			SourceRuntime:       value.SourceRuntime,
+			CurrentState:        value.CurrentState,
+			CurrentSeverity:     value.CurrentSeverity,
+			LastReasonCode:      value.LastReasonCode,
+			LastReasonSummary:   value.LastReasonSummary,
+			LastEventSeq:        value.LastEventSeq,
+			LastProjectEventSeq: value.LastProjectEventSeq,
+			LastLivenessAt:      utcTimePtr(value.LastLivenessAt),
+			LastActivityAt:      utcTimePtr(value.LastActivityAt),
+			LastCheckpointAt:    utcTimePtr(value.LastCheckpointAt),
+			StartedAt:           value.StartedAt.UTC(),
+			EndedAt:             utcTimePtr(value.EndedAt),
+			UpdatedAt:           value.UpdatedAt.UTC(),
+		})
+	}
+	return result, nil
+}
+
+func (repository *ControlPlaneQueryRepository) ListLifecycleSessionHistory(ctx context.Context, projectID string, sessionID string, fromEventSeq int64, limit int) ([]applicationcontrolplane.LifecycleHistoryEvent, error) {
+	if repository == nil || repository.db == nil {
+		return nil, fmt.Errorf("control-plane query repository is not initialized")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, fmt.Errorf("session_id is required")
+	}
+	if fromEventSeq < 0 {
+		fromEventSeq = 0
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+
+	type row struct {
+		EventID         string    `gorm:"column:event_id"`
+		ProjectID       string    `gorm:"column:project_id"`
+		RunID           string    `gorm:"column:run_id"`
+		TaskID          string    `gorm:"column:task_id"`
+		JobID           string    `gorm:"column:job_id"`
+		SessionID       string    `gorm:"column:session_id"`
+		PipelineType    string    `gorm:"column:pipeline_type"`
+		SourceRuntime   string    `gorm:"column:source_runtime"`
+		EventType       string    `gorm:"column:event_type"`
+		EventSeq        int64     `gorm:"column:event_seq"`
+		ProjectEventSeq int64     `gorm:"column:project_event_seq"`
+		OccurredAt      time.Time `gorm:"column:occurred_at"`
+		PayloadJSON     string    `gorm:"column:payload_json"`
+	}
+
+	rows := make([]row, 0)
+	err := repository.db.WithContext(ctx).
+		Table("project_session_history").
+		Select("event_id, project_id, run_id, task_id, job_id, session_id, pipeline_type, source_runtime, event_type, event_seq, project_event_seq, occurred_at, payload_json").
+		Where("project_id = ? AND session_id = ? AND event_seq > ?", projectID, sessionID, fromEventSeq).
+		Order("event_seq ASC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list lifecycle session history: %w", err)
+	}
+
+	result := make([]applicationcontrolplane.LifecycleHistoryEvent, 0, len(rows))
+	for _, value := range rows {
+		result = append(result, applicationcontrolplane.LifecycleHistoryEvent{
+			EventID:         value.EventID,
+			ProjectID:       value.ProjectID,
+			RunID:           value.RunID,
+			TaskID:          value.TaskID,
+			JobID:           value.JobID,
+			SessionID:       value.SessionID,
+			PipelineType:    value.PipelineType,
+			SourceRuntime:   value.SourceRuntime,
+			EventType:       value.EventType,
+			EventSeq:        value.EventSeq,
+			ProjectEventSeq: value.ProjectEventSeq,
+			OccurredAt:      value.OccurredAt.UTC(),
+			PayloadJSON:     value.PayloadJSON,
+		})
+	}
+	return result, nil
+}
+
+func (repository *ControlPlaneQueryRepository) ListLifecycleTreeNodes(ctx context.Context, filter applicationcontrolplane.LifecycleTreeFilter, limit int) ([]applicationcontrolplane.LifecycleTreeNode, error) {
+	if repository == nil || repository.db == nil {
+		return nil, fmt.Errorf("control-plane query repository is not initialized")
+	}
+	if strings.TrimSpace(filter.ProjectID) == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+
+	rows := make([]lifecycleTreeSnapshotRow, 0)
+	query := repository.db.WithContext(ctx).
+		Table("project_sessions").
+		Select("project_id, run_id, task_id, job_id, session_id, pipeline_type, source_runtime, current_state, current_severity, updated_at").
+		Where("project_id = ?", strings.TrimSpace(filter.ProjectID))
+	if strings.TrimSpace(filter.PipelineType) != "" {
+		query = query.Where("pipeline_type = ?", strings.TrimSpace(filter.PipelineType))
+	}
+	if strings.TrimSpace(filter.RunID) != "" {
+		query = query.Where("run_id = ?", strings.TrimSpace(filter.RunID))
+	}
+	if strings.TrimSpace(filter.TaskID) != "" {
+		query = query.Where("task_id = ?", strings.TrimSpace(filter.TaskID))
+	}
+	if strings.TrimSpace(filter.JobID) != "" {
+		query = query.Where("job_id = ?", strings.TrimSpace(filter.JobID))
+	}
+	if err := query.Order("updated_at DESC").Limit(limit).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list lifecycle tree nodes: %w", err)
+	}
+
+	runNodes := map[string]*applicationcontrolplane.LifecycleTreeNode{}
+	taskNodes := map[string]*applicationcontrolplane.LifecycleTreeNode{}
+	jobNodes := map[string]*applicationcontrolplane.LifecycleTreeNode{}
+	sessionNodes := map[string]*applicationcontrolplane.LifecycleTreeNode{}
+
+	for _, value := range rows {
+		runID := strings.TrimSpace(value.RunID)
+		taskID := strings.TrimSpace(value.TaskID)
+		jobID := strings.TrimSpace(value.JobID)
+		sessionID := strings.TrimSpace(value.SessionID)
+		if runID == "" || taskID == "" || jobID == "" || sessionID == "" {
+			continue
+		}
+
+		runNodeID := "run:" + runID
+		taskNodeID := runNodeID + "/task:" + taskID
+		jobNodeID := taskNodeID + "/job:" + jobID
+		sessionNodeID := jobNodeID + "/session:" + sessionID
+
+		runNode := ensureTreeNode(runNodes, runNodeID, "", applicationcontrolplane.LifecycleTreeNodeTypeRun, value)
+		updateTreeNodeAggregate(runNode, value)
+		taskNode := ensureTreeNode(taskNodes, taskNodeID, runNodeID, applicationcontrolplane.LifecycleTreeNodeTypeTask, value)
+		updateTreeNodeAggregate(taskNode, value)
+		jobNode := ensureTreeNode(jobNodes, jobNodeID, taskNodeID, applicationcontrolplane.LifecycleTreeNodeTypeJob, value)
+		updateTreeNodeAggregate(jobNode, value)
+
+		sessionNode := ensureTreeNode(sessionNodes, sessionNodeID, jobNodeID, applicationcontrolplane.LifecycleTreeNodeTypeSession, value)
+		sessionNode.NodeID = sessionNodeID
+		sessionNode.ParentNodeID = jobNodeID
+		sessionNode.RunID = runID
+		sessionNode.TaskID = taskID
+		sessionNode.JobID = jobID
+		sessionNode.SessionID = sessionID
+		sessionNode.PipelineType = strings.TrimSpace(value.PipelineType)
+		sessionNode.SourceRuntime = strings.TrimSpace(value.SourceRuntime)
+		sessionNode.CurrentState = strings.TrimSpace(value.CurrentState)
+		sessionNode.CurrentSeverity = strings.TrimSpace(value.CurrentSeverity)
+		sessionNode.SessionCount = 1
+		sessionNode.UpdatedAt = value.UpdatedAt.UTC()
+	}
+
+	result := make([]applicationcontrolplane.LifecycleTreeNode, 0, len(runNodes)+len(taskNodes)+len(jobNodes)+len(sessionNodes))
+	for _, nodes := range []map[string]*applicationcontrolplane.LifecycleTreeNode{runNodes, taskNodes, jobNodes, sessionNodes} {
+		for _, node := range nodes {
+			result = append(result, *node)
+		}
+	}
+	sort.SliceStable(result, func(left int, right int) bool {
+		if result[left].UpdatedAt.Equal(result[right].UpdatedAt) {
+			return result[left].NodeID < result[right].NodeID
+		}
+		return result[left].UpdatedAt.After(result[right].UpdatedAt)
+	})
+	return result, nil
+}
+
+func ensureTreeNode(store map[string]*applicationcontrolplane.LifecycleTreeNode, nodeID string, parentNodeID string, nodeType applicationcontrolplane.LifecycleTreeNodeType, value lifecycleTreeSnapshotRow) *applicationcontrolplane.LifecycleTreeNode {
+	node, exists := store[nodeID]
+	if exists {
+		return node
+	}
+	node = &applicationcontrolplane.LifecycleTreeNode{
+		NodeID:          nodeID,
+		ParentNodeID:    parentNodeID,
+		NodeType:        nodeType,
+		ProjectID:       strings.TrimSpace(value.ProjectID),
+		RunID:           strings.TrimSpace(value.RunID),
+		TaskID:          strings.TrimSpace(value.TaskID),
+		JobID:           strings.TrimSpace(value.JobID),
+		SessionID:       strings.TrimSpace(value.SessionID),
+		PipelineType:    strings.TrimSpace(value.PipelineType),
+		SourceRuntime:   strings.TrimSpace(value.SourceRuntime),
+		CurrentState:    strings.TrimSpace(value.CurrentState),
+		CurrentSeverity: strings.TrimSpace(value.CurrentSeverity),
+		SessionCount:    0,
+		UpdatedAt:       value.UpdatedAt.UTC(),
+	}
+	store[nodeID] = node
+	return node
+}
+
+func updateTreeNodeAggregate(node *applicationcontrolplane.LifecycleTreeNode, value lifecycleTreeSnapshotRow) {
+	if node == nil {
+		return
+	}
+	node.SessionCount++
+	if value.UpdatedAt.After(node.UpdatedAt) {
+		node.CurrentState = strings.TrimSpace(value.CurrentState)
+		node.CurrentSeverity = strings.TrimSpace(value.CurrentSeverity)
+		node.PipelineType = strings.TrimSpace(value.PipelineType)
+		node.SourceRuntime = strings.TrimSpace(value.SourceRuntime)
+		node.UpdatedAt = value.UpdatedAt.UTC()
+	}
+}
+
+func utcTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	converted := value.UTC()
+	return &converted
 }
 
 func parseAggregateTime(raw string) (time.Time, error) {

@@ -26,6 +26,26 @@ type ExecutionHistoryResult interface {
 	IsExecutionHistoryResult()
 }
 
+type InterventionMetricsResult interface {
+	IsInterventionMetricsResult()
+}
+
+type LifecycleHistoryResult interface {
+	IsLifecycleHistoryResult()
+}
+
+type LifecycleSessionSnapshotsResult interface {
+	IsLifecycleSessionSnapshotsResult()
+}
+
+type LifecycleTreeNodesResult interface {
+	IsLifecycleTreeNodesResult()
+}
+
+type ManualInterventionResult interface {
+	IsManualInterventionResult()
+}
+
 type ProjectDocumentPreviewResult interface {
 	IsProjectDocumentPreviewResult()
 }
@@ -78,6 +98,10 @@ type StreamEventResult interface {
 	IsStreamEventResult()
 }
 
+type StreamEventsResult interface {
+	IsStreamEventsResult()
+}
+
 type TaskboardDeleteResult interface {
 	IsTaskboardDeleteResult()
 }
@@ -110,6 +134,15 @@ type WorkflowJobsResult interface {
 	IsWorkflowJobsResult()
 }
 
+type ApplyManualInterventionInput struct {
+	ProjectID string                   `json:"projectID"`
+	SessionID string                   `json:"sessionID"`
+	Action    ManualInterventionAction `json:"action"`
+	Reason    string                   `json:"reason"`
+	ActorID   string                   `json:"actorID"`
+	Force     *bool                    `json:"force,omitempty"`
+}
+
 type CorrelationInput struct {
 	RunID     *string `json:"runID,omitempty"`
 	TaskID    *string `json:"taskID,omitempty"`
@@ -122,6 +155,8 @@ type CreateTaskboardEpicInput struct {
 	BoardID          string   `json:"boardID"`
 	Title            string   `json:"title"`
 	Objective        *string  `json:"objective,omitempty"`
+	RepositoryIDs    []string `json:"repositoryIDs,omitempty"`
+	Deliverables     []string `json:"deliverables,omitempty"`
 	State            string   `json:"state"`
 	Rank             int32    `json:"rank"`
 	DependsOnEpicIDs []string `json:"dependsOnEpicIDs,omitempty"`
@@ -138,6 +173,8 @@ type CreateTaskboardTaskInput struct {
 	EpicID           string   `json:"epicID"`
 	Title            string   `json:"title"`
 	Description      *string  `json:"description,omitempty"`
+	RepositoryIDs    []string `json:"repositoryIDs,omitempty"`
+	Deliverables     []string `json:"deliverables,omitempty"`
 	TaskType         string   `json:"taskType"`
 	State            string   `json:"state"`
 	Rank             int32    `json:"rank"`
@@ -268,11 +305,130 @@ func (GraphError) IsDeleteProjectDocumentResult() {}
 
 func (GraphError) IsStreamEventResult() {}
 
+func (GraphError) IsStreamEventsResult() {}
+
+func (GraphError) IsLifecycleSessionSnapshotsResult() {}
+
+func (GraphError) IsLifecycleHistoryResult() {}
+
+func (GraphError) IsLifecycleTreeNodesResult() {}
+
 func (GraphError) IsWorkerSessionsResult() {}
 
 func (GraphError) IsWorkerSettingsResult() {}
 
+func (GraphError) IsManualInterventionResult() {}
+
+func (GraphError) IsInterventionMetricsResult() {}
+
 func (GraphError) IsScmSupportedOperationsResult() {}
+
+type InterventionMetrics struct {
+	ProjectID              string `json:"projectID"`
+	InterventionCount      int32  `json:"interventionCount"`
+	SuccessfulOutcomeCount int32  `json:"successfulOutcomeCount"`
+	FailedOutcomeCount     int32  `json:"failedOutcomeCount"`
+	AverageRecoverySeconds int32  `json:"averageRecoverySeconds"`
+}
+
+type InterventionMetricsSuccess struct {
+	Metrics *InterventionMetrics `json:"metrics"`
+}
+
+func (InterventionMetricsSuccess) IsInterventionMetricsResult() {}
+
+type LifecycleHistoryEvent struct {
+	EventID         string    `json:"eventID"`
+	ProjectID       string    `json:"projectID"`
+	RunID           *string   `json:"runID,omitempty"`
+	TaskID          *string   `json:"taskID,omitempty"`
+	JobID           *string   `json:"jobID,omitempty"`
+	SessionID       string    `json:"sessionID"`
+	PipelineType    string    `json:"pipelineType"`
+	SourceRuntime   string    `json:"sourceRuntime"`
+	EventType       string    `json:"eventType"`
+	EventSeq        int32     `json:"eventSeq"`
+	ProjectEventSeq int32     `json:"projectEventSeq"`
+	OccurredAt      time.Time `json:"occurredAt"`
+	Payload         string    `json:"payload"`
+}
+
+type LifecycleHistorySuccess struct {
+	Events           []*LifecycleHistoryEvent `json:"events"`
+	NextFromEventSeq int32                    `json:"nextFromEventSeq"`
+}
+
+func (LifecycleHistorySuccess) IsLifecycleHistoryResult() {}
+
+type LifecycleSessionSnapshot struct {
+	ProjectID           string     `json:"projectID"`
+	RunID               *string    `json:"runID,omitempty"`
+	TaskID              *string    `json:"taskID,omitempty"`
+	JobID               *string    `json:"jobID,omitempty"`
+	SessionID           string     `json:"sessionID"`
+	PipelineType        string     `json:"pipelineType"`
+	SourceRuntime       string     `json:"sourceRuntime"`
+	CurrentState        string     `json:"currentState"`
+	CurrentSeverity     string     `json:"currentSeverity"`
+	LastReasonCode      *string    `json:"lastReasonCode,omitempty"`
+	LastReasonSummary   *string    `json:"lastReasonSummary,omitempty"`
+	LastEventSeq        int32      `json:"lastEventSeq"`
+	LastProjectEventSeq int32      `json:"lastProjectEventSeq"`
+	LastLivenessAt      *time.Time `json:"lastLivenessAt,omitempty"`
+	LastActivityAt      *time.Time `json:"lastActivityAt,omitempty"`
+	LastCheckpointAt    *time.Time `json:"lastCheckpointAt,omitempty"`
+	StartedAt           time.Time  `json:"startedAt"`
+	EndedAt             *time.Time `json:"endedAt,omitempty"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
+type LifecycleSessionSnapshotsSuccess struct {
+	Sessions []*LifecycleSessionSnapshot `json:"sessions"`
+}
+
+func (LifecycleSessionSnapshotsSuccess) IsLifecycleSessionSnapshotsResult() {}
+
+type LifecycleTreeFilterInput struct {
+	ProjectID    string  `json:"projectID"`
+	PipelineType *string `json:"pipelineType,omitempty"`
+	RunID        *string `json:"runID,omitempty"`
+	TaskID       *string `json:"taskID,omitempty"`
+	JobID        *string `json:"jobID,omitempty"`
+}
+
+type LifecycleTreeNode struct {
+	NodeID          string                `json:"nodeID"`
+	ParentNodeID    *string               `json:"parentNodeID,omitempty"`
+	NodeType        LifecycleTreeNodeType `json:"nodeType"`
+	ProjectID       string                `json:"projectID"`
+	RunID           *string               `json:"runID,omitempty"`
+	TaskID          *string               `json:"taskID,omitempty"`
+	JobID           *string               `json:"jobID,omitempty"`
+	SessionID       *string               `json:"sessionID,omitempty"`
+	PipelineType    *string               `json:"pipelineType,omitempty"`
+	SourceRuntime   *string               `json:"sourceRuntime,omitempty"`
+	CurrentState    *string               `json:"currentState,omitempty"`
+	CurrentSeverity *string               `json:"currentSeverity,omitempty"`
+	SessionCount    int32                 `json:"sessionCount"`
+	UpdatedAt       time.Time             `json:"updatedAt"`
+}
+
+type LifecycleTreeNodesSuccess struct {
+	Nodes []*LifecycleTreeNode `json:"nodes"`
+}
+
+func (LifecycleTreeNodesSuccess) IsLifecycleTreeNodesResult() {}
+
+type ManualInterventionSuccess struct {
+	Ok              bool   `json:"ok"`
+	EventID         string `json:"eventID"`
+	EventSeq        int32  `json:"eventSeq"`
+	ProjectEventSeq int32  `json:"projectEventSeq"`
+	Action          string `json:"action"`
+	ResultingState  string `json:"resultingState"`
+}
+
+func (ManualInterventionSuccess) IsManualInterventionResult() {}
 
 type Mutation struct {
 }
@@ -472,18 +628,22 @@ type SessionsSuccess struct {
 func (SessionsSuccess) IsSessionsResult() {}
 
 type StreamEvent struct {
-	EventID       string            `json:"eventID"`
-	StreamOffset  int32             `json:"streamOffset"`
-	OccurredAt    time.Time         `json:"occurredAt"`
-	RunID         *string           `json:"runID,omitempty"`
-	TaskID        *string           `json:"taskID,omitempty"`
-	JobID         *string           `json:"jobID,omitempty"`
-	ProjectID     *string           `json:"projectID,omitempty"`
-	SessionID     *string           `json:"sessionID,omitempty"`
-	CorrelationID string            `json:"correlationID"`
-	Source        StreamEventSource `json:"source"`
-	EventType     string            `json:"eventType"`
-	Payload       string            `json:"payload"`
+	EventID          string            `json:"eventID"`
+	StreamOffset     int32             `json:"streamOffset"`
+	OccurredAt       time.Time         `json:"occurredAt"`
+	RunID            *string           `json:"runID,omitempty"`
+	TaskID           *string           `json:"taskID,omitempty"`
+	JobID            *string           `json:"jobID,omitempty"`
+	ProjectID        *string           `json:"projectID,omitempty"`
+	SessionID        *string           `json:"sessionID,omitempty"`
+	CorrelationID    string            `json:"correlationID"`
+	Source           StreamEventSource `json:"source"`
+	EventType        string            `json:"eventType"`
+	GapDetected      bool              `json:"gapDetected"`
+	GapReconciled    bool              `json:"gapReconciled"`
+	ExpectedEventSeq *int32            `json:"expectedEventSeq,omitempty"`
+	ObservedEventSeq *int32            `json:"observedEventSeq,omitempty"`
+	Payload          string            `json:"payload"`
 }
 
 type StreamEventSuccess struct {
@@ -491,6 +651,13 @@ type StreamEventSuccess struct {
 }
 
 func (StreamEventSuccess) IsStreamEventResult() {}
+
+type StreamEventsSuccess struct {
+	Events         []*StreamEvent `json:"events"`
+	NextFromOffset int32          `json:"nextFromOffset"`
+}
+
+func (StreamEventsSuccess) IsStreamEventsResult() {}
 
 type Subscription struct {
 }
@@ -531,6 +698,8 @@ type TaskboardEpic struct {
 	BoardID          string           `json:"boardID"`
 	Title            string           `json:"title"`
 	Objective        *string          `json:"objective,omitempty"`
+	RepositoryIDs    []string         `json:"repositoryIDs"`
+	Deliverables     []string         `json:"deliverables"`
 	State            string           `json:"state"`
 	Rank             int32            `json:"rank"`
 	DependsOnEpicIDs []string         `json:"dependsOnEpicIDs"`
@@ -555,6 +724,8 @@ type TaskboardTask struct {
 	EpicID           string            `json:"epicID"`
 	Title            string            `json:"title"`
 	Description      *string           `json:"description,omitempty"`
+	RepositoryIDs    []string          `json:"repositoryIDs"`
+	Deliverables     []string          `json:"deliverables"`
 	TaskType         string            `json:"taskType"`
 	State            string            `json:"state"`
 	Rank             int32             `json:"rank"`
@@ -574,6 +745,8 @@ type UpdateTaskboardEpicInput struct {
 	EpicID           string   `json:"epicID"`
 	Title            string   `json:"title"`
 	Objective        *string  `json:"objective,omitempty"`
+	RepositoryIDs    []string `json:"repositoryIDs,omitempty"`
+	Deliverables     []string `json:"deliverables,omitempty"`
 	State            string   `json:"state"`
 	Rank             int32    `json:"rank"`
 	DependsOnEpicIDs []string `json:"dependsOnEpicIDs,omitempty"`
@@ -593,6 +766,8 @@ type UpdateTaskboardTaskInput struct {
 	EpicID           string   `json:"epicID"`
 	Title            string   `json:"title"`
 	Description      *string  `json:"description,omitempty"`
+	RepositoryIDs    []string `json:"repositoryIDs,omitempty"`
+	Deliverables     []string `json:"deliverables,omitempty"`
 	TaskType         string   `json:"taskType"`
 	State            string   `json:"state"`
 	Rank             int32    `json:"rank"`
@@ -787,6 +962,126 @@ func (e *JobKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e JobKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type LifecycleTreeNodeType string
+
+const (
+	LifecycleTreeNodeTypeRun     LifecycleTreeNodeType = "RUN"
+	LifecycleTreeNodeTypeTask    LifecycleTreeNodeType = "TASK"
+	LifecycleTreeNodeTypeJob     LifecycleTreeNodeType = "JOB"
+	LifecycleTreeNodeTypeSession LifecycleTreeNodeType = "SESSION"
+)
+
+var AllLifecycleTreeNodeType = []LifecycleTreeNodeType{
+	LifecycleTreeNodeTypeRun,
+	LifecycleTreeNodeTypeTask,
+	LifecycleTreeNodeTypeJob,
+	LifecycleTreeNodeTypeSession,
+}
+
+func (e LifecycleTreeNodeType) IsValid() bool {
+	switch e {
+	case LifecycleTreeNodeTypeRun, LifecycleTreeNodeTypeTask, LifecycleTreeNodeTypeJob, LifecycleTreeNodeTypeSession:
+		return true
+	}
+	return false
+}
+
+func (e LifecycleTreeNodeType) String() string {
+	return string(e)
+}
+
+func (e *LifecycleTreeNodeType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LifecycleTreeNodeType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LifecycleTreeNodeType", str)
+	}
+	return nil
+}
+
+func (e LifecycleTreeNodeType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LifecycleTreeNodeType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LifecycleTreeNodeType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ManualInterventionAction string
+
+const (
+	ManualInterventionActionNudge     ManualInterventionAction = "NUDGE"
+	ManualInterventionActionRetry     ManualInterventionAction = "RETRY"
+	ManualInterventionActionPause     ManualInterventionAction = "PAUSE"
+	ManualInterventionActionTerminate ManualInterventionAction = "TERMINATE"
+	ManualInterventionActionRestore   ManualInterventionAction = "RESTORE"
+)
+
+var AllManualInterventionAction = []ManualInterventionAction{
+	ManualInterventionActionNudge,
+	ManualInterventionActionRetry,
+	ManualInterventionActionPause,
+	ManualInterventionActionTerminate,
+	ManualInterventionActionRestore,
+}
+
+func (e ManualInterventionAction) IsValid() bool {
+	switch e {
+	case ManualInterventionActionNudge, ManualInterventionActionRetry, ManualInterventionActionPause, ManualInterventionActionTerminate, ManualInterventionActionRestore:
+		return true
+	}
+	return false
+}
+
+func (e ManualInterventionAction) String() string {
+	return string(e)
+}
+
+func (e *ManualInterventionAction) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ManualInterventionAction(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ManualInterventionAction", str)
+	}
+	return nil
+}
+
+func (e ManualInterventionAction) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ManualInterventionAction) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ManualInterventionAction) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

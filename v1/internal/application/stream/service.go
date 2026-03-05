@@ -25,12 +25,13 @@ type SessionHealthEvaluator interface {
 }
 
 type Service struct {
-	store           EventStore
-	injector        PromptInjector
-	healthEvaluator SessionHealthEvaluator
-	mu              sync.Mutex
-	subscribers     map[uint64]chan domainstream.Event
-	nextID          uint64
+	store             EventStore
+	injector          PromptInjector
+	healthEvaluator   SessionHealthEvaluator
+	mu                sync.Mutex
+	subscribers       map[uint64]chan domainstream.Event
+	changeSubscribers map[uint64]chan struct{}
+	nextID            uint64
 }
 
 func NewService(store EventStore) (*Service, error) {
@@ -38,8 +39,9 @@ func NewService(store EventStore) (*Service, error) {
 		return nil, ErrStoreRequired
 	}
 	return &Service{
-		store:       store,
-		subscribers: map[uint64]chan domainstream.Event{},
+		store:             store,
+		subscribers:       map[uint64]chan domainstream.Event{},
+		changeSubscribers: map[uint64]chan struct{}{},
 	}, nil
 }
 
@@ -66,6 +68,7 @@ func (service *Service) AppendAndPublish(ctx context.Context, event domainstream
 		return domainstream.Event{}, err
 	}
 	service.broadcast(persistedEvent)
+	service.broadcastChange()
 	return persistedEvent, nil
 }
 
@@ -95,6 +98,41 @@ func (service *Service) Subscribe(bufferSize int) (uint64, <-chan domainstream.E
 		service.mu.Unlock()
 	}
 	return id, channel, cancel
+}
+
+func (service *Service) SubscribeChanges(bufferSize int) (uint64, <-chan struct{}, func()) {
+	if bufferSize <= 0 {
+		bufferSize = 32
+	}
+	channel := make(chan struct{}, bufferSize)
+	id := atomic.AddUint64(&service.nextID, 1)
+	service.mu.Lock()
+	service.changeSubscribers[id] = channel
+	service.mu.Unlock()
+	cancel := func() {
+		service.mu.Lock()
+		current, exists := service.changeSubscribers[id]
+		if exists {
+			delete(service.changeSubscribers, id)
+			close(current)
+		}
+		service.mu.Unlock()
+	}
+	return id, channel, cancel
+}
+
+func (service *Service) NotifyExternalChange() {
+	if service == nil {
+		return
+	}
+	service.broadcastChange()
+}
+
+func (service *Service) PublishLive(event domainstream.Event) {
+	if service == nil {
+		return
+	}
+	service.broadcast(event)
 }
 
 func (service *Service) InjectPrompt(ctx context.Context, sessionID string, prompt string, correlationIDs domainstream.CorrelationIDs) (domainstream.Event, error) {
@@ -163,6 +201,25 @@ func (service *Service) broadcast(event domainstream.Event) {
 			}
 			select {
 			case channel <- event:
+			default:
+			}
+		}
+	}
+	service.mu.Unlock()
+}
+
+func (service *Service) broadcastChange() {
+	service.mu.Lock()
+	for _, channel := range service.changeSubscribers {
+		select {
+		case channel <- struct{}{}:
+		default:
+			select {
+			case <-channel:
+			default:
+			}
+			select {
+			case channel <- struct{}{}:
 			default:
 			}
 		}

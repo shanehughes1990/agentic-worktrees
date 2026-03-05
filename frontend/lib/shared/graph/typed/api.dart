@@ -1074,7 +1074,9 @@ class ControlPlaneApi {
                     boardID
                     title
                     objective
-                    state
+                repositoryIDs
+                deliverables
+                state
                     rank
                     dependsOnEpicIDs
                     tasks {
@@ -1083,7 +1085,9 @@ class ControlPlaneApi {
                       epicID
                       title
                       description
-                      taskType
+                  repositoryIDs
+                  deliverables
+                  taskType
                       state
                       rank
                       dependsOnTaskIDs
@@ -1183,7 +1187,9 @@ class ControlPlaneApi {
                     boardID
                     title
                     objective
-                    state
+                repositoryIDs
+                deliverables
+                state
                     rank
                     dependsOnEpicIDs
                     tasks {
@@ -1192,7 +1198,9 @@ class ControlPlaneApi {
                       epicID
                       title
                       description
-                      taskType
+                  repositoryIDs
+                  deliverables
+                  taskType
                       state
                       rank
                       dependsOnTaskIDs
@@ -1292,6 +1300,8 @@ class ControlPlaneApi {
                 boardID
                 title
                 objective
+                repositoryIDs
+                deliverables
                 state
                 rank
                 dependsOnEpicIDs
@@ -1301,6 +1311,8 @@ class ControlPlaneApi {
                   epicID
                   title
                   description
+                  repositoryIDs
+                  deliverables
                   taskType
                   state
                   rank
@@ -1372,6 +1384,8 @@ class ControlPlaneApi {
                 boardID
                 title
                 objective
+                repositoryIDs
+                deliverables
                 state
                 rank
                 dependsOnEpicIDs
@@ -1381,6 +1395,8 @@ class ControlPlaneApi {
                   epicID
                   title
                   description
+                  repositoryIDs
+                  deliverables
                   taskType
                   state
                   rank
@@ -1474,6 +1490,8 @@ class ControlPlaneApi {
     required String boardID,
     required String title,
     String? objective,
+    List<String> repositoryIDs = const <String>[],
+    List<String> deliverables = const <String>[],
     required String state,
     int rank = 0,
   }) => _runTaskboardMutation(
@@ -1488,6 +1506,8 @@ class ControlPlaneApi {
       'boardID': boardID,
       'title': title,
       'objective': objective,
+      'repositoryIDs': repositoryIDs,
+      'deliverables': deliverables,
       'state': state,
       'rank': rank,
       'dependsOnEpicIDs': <String>[],
@@ -1500,6 +1520,8 @@ class ControlPlaneApi {
     required String epicID,
     required String title,
     String? objective,
+    List<String> repositoryIDs = const <String>[],
+    List<String> deliverables = const <String>[],
     required String state,
     int rank = 0,
     List<String> dependsOnEpicIDs = const <String>[],
@@ -1516,6 +1538,8 @@ class ControlPlaneApi {
       'epicID': epicID,
       'title': title,
       'objective': objective,
+      'repositoryIDs': repositoryIDs,
+      'deliverables': deliverables,
       'state': state,
       'rank': rank,
       'dependsOnEpicIDs': dependsOnEpicIDs,
@@ -1542,6 +1566,8 @@ class ControlPlaneApi {
     required String epicID,
     required String title,
     String? description,
+    List<String> repositoryIDs = const <String>[],
+    List<String> deliverables = const <String>[],
     required String taskType,
     required String state,
     int rank = 0,
@@ -1558,6 +1584,8 @@ class ControlPlaneApi {
       'epicID': epicID,
       'title': title,
       'description': description,
+      'repositoryIDs': repositoryIDs,
+      'deliverables': deliverables,
       'taskType': taskType,
       'state': state,
       'rank': rank,
@@ -1572,6 +1600,8 @@ class ControlPlaneApi {
     required String taskID,
     required String title,
     String? description,
+    List<String> repositoryIDs = const <String>[],
+    List<String> deliverables = const <String>[],
     required String taskType,
     required String state,
     int rank = 0,
@@ -1590,6 +1620,8 @@ class ControlPlaneApi {
       'taskID': taskID,
       'title': title,
       'description': description,
+      'repositoryIDs': repositoryIDs,
+      'deliverables': deliverables,
       'taskType': taskType,
       'state': state,
       'rank': rank,
@@ -1663,6 +1695,16 @@ class ControlPlaneApi {
                   epicID: task['epicID'] as String,
                   title: task['title'] as String,
                   description: task['description'] as String?,
+                  repositoryIDs:
+                      (task['repositoryIDs'] as List<dynamic>? ??
+                              const <dynamic>[])
+                          .whereType<String>()
+                          .toList(growable: false),
+                  deliverables:
+                      (task['deliverables'] as List<dynamic>? ??
+                              const <dynamic>[])
+                          .whereType<String>()
+                          .toList(growable: false),
                   taskType: task['taskType'] as String,
                   state: task['state'] as String,
                   rank: (task['rank'] as num?)?.toInt() ?? 0,
@@ -1710,6 +1752,14 @@ class ControlPlaneApi {
             boardID: epic['boardID'] as String,
             title: epic['title'] as String,
             objective: epic['objective'] as String?,
+            repositoryIDs:
+                (epic['repositoryIDs'] as List<dynamic>? ?? const <dynamic>[])
+                    .whereType<String>()
+                    .toList(growable: false),
+            deliverables:
+                (epic['deliverables'] as List<dynamic>? ?? const <dynamic>[])
+                    .whereType<String>()
+                    .toList(growable: false),
             state: epic['state'] as String,
             rank: (epic['rank'] as num?)?.toInt() ?? 0,
             dependsOnEpicIDs:
@@ -1794,6 +1844,8 @@ class ControlPlaneApi {
                 boardID
                 title
                 objective
+                repositoryIDs
+                deliverables
                 state
                 rank
                 dependsOnEpicIDs
@@ -1803,6 +1855,8 @@ class ControlPlaneApi {
                   epicID
                   title
                   description
+                  repositoryIDs
+                  deliverables
                   taskType
                   state
                   rank
@@ -1865,6 +1919,8 @@ class ControlPlaneApi {
                 boardID
                 title
                 objective
+                repositoryIDs
+                deliverables
                 state
                 rank
                 dependsOnEpicIDs
@@ -1874,6 +1930,8 @@ class ControlPlaneApi {
                   epicID
                   title
                   description
+                  repositoryIDs
+                  deliverables
                   taskType
                   state
                   rank
@@ -1928,6 +1986,8 @@ class ControlPlaneApi {
                 boardID
                 title
                 objective
+                repositoryIDs
+                deliverables
                 state
                 rank
                 dependsOnEpicIDs
@@ -1937,6 +1997,8 @@ class ControlPlaneApi {
                   epicID
                   title
                   description
+                  repositoryIDs
+                  deliverables
                   taskType
                   state
                   rank
@@ -1986,6 +2048,8 @@ class ControlPlaneApi {
                 boardID
                 title
                 objective
+                repositoryIDs
+                deliverables
                 state
                 rank
                 dependsOnEpicIDs
@@ -1995,6 +2059,8 @@ class ControlPlaneApi {
                   epicID
                   title
                   description
+                  repositoryIDs
+                  deliverables
                   taskType
                   state
                   rank
@@ -2027,20 +2093,67 @@ class ControlPlaneApi {
 
   Stream<ApiResult<StreamEvent>> sessionActivityStream({
     required String runID,
+    String? projectID,
+    String? taskID,
+    String? jobID,
     int fromOffset = 0,
   }) {
+    final cleanRunID = runID.trim();
+    if (cleanRunID.isEmpty) {
+      return Stream<ApiResult<StreamEvent>>.value(
+        const ApiResult<StreamEvent>.failure('run_id is required'),
+      );
+    }
     return _client
-        .subscribe$SessionActivity(
-          gql_ops.Options$Subscription$SessionActivity(
-            variables: gql_ops.Variables$Subscription$SessionActivity(
-              runID: runID,
-              taskID: '',
-              jobID: '',
-              fromOffset: fromOffset,
-            ),
+        .subscribe(
+          SubscriptionOptions(
+            document: gql('''
+              subscription SessionActivityStream(
+                \$correlation: CorrelationInput!
+                \$fromOffset: Int!
+              ) {
+                sessionActivityStream(correlation: \$correlation, fromOffset: \$fromOffset) {
+                  __typename
+                  ... on StreamEventSuccess {
+                    event {
+                      eventID
+                      streamOffset
+                      occurredAt
+                      runID
+                      taskID
+                      jobID
+                      projectID
+                      sessionID
+                      correlationID
+                      source
+                      eventType
+                      gapDetected
+                      gapReconciled
+                      expectedEventSeq
+                      observedEventSeq
+                      payload
+                    }
+                  }
+                  ... on GraphError {
+                    code
+                    message
+                    field
+                  }
+                }
+              }
+            '''),
+            variables: <String, dynamic>{
+              'correlation': <String, dynamic>{
+                'runID': cleanRunID,
+                'taskID': taskID?.trim() ?? '',
+                'jobID': jobID?.trim() ?? '',
+                'projectID': projectID?.trim(),
+              },
+              'fromOffset': fromOffset,
+            },
           ),
         )
-        .map((result) {
+        .map((QueryResult result) {
           final error = _extractOperationError(
             result,
             field: 'sessionActivityStream',
@@ -2048,37 +2161,130 @@ class ControlPlaneApi {
           if (error != null) {
             return ApiResult<StreamEvent>.failure(error);
           }
-          final payload = result.parsedData?.sessionActivityStream;
+          final payload =
+              result.data?['sessionActivityStream'] as Map<String, dynamic>?;
           if (payload == null) {
             return const ApiResult<StreamEvent>.failure(
               'sessionActivityStream returned no data',
             );
           }
-          if (payload
-              is gql_ops.Subscription$SessionActivity$sessionActivityStream$$GraphError) {
+          if (payload['__typename'] == 'GraphError') {
             return ApiResult<StreamEvent>.failure(
               _graphErrorMessageTyped(
-                code: payload.code.toJson(),
-                message: payload.message,
-                field: payload.field,
+                code: payload['code'] as String? ?? 'INTERNAL',
+                message: payload['message'] as String? ?? 'unknown error',
+                field: payload['field'] as String?,
               ),
             );
           }
-          if (payload
-              is! gql_ops.Subscription$SessionActivity$sessionActivityStream$$StreamEventSuccess) {
+          final eventData = payload['event'] as Map<String, dynamic>?;
+          if (eventData == null) {
             return const ApiResult<StreamEvent>.failure(
-              'stream event payload missing',
+              'sessionActivityStream event payload missing',
             );
           }
-          final eventData = payload.event;
-          final event = StreamEvent(
-            eventID: eventData.eventID,
-            eventType: eventData.eventType,
-            source: eventData.source.toJson(),
-            payload: eventData.payload,
-            occurredAt: eventData.occurredAt.toLocal(),
+          return ApiResult<StreamEvent>.success(
+            _mapStreamEventFromMap(eventData),
           );
-          return ApiResult<StreamEvent>.success(event);
+        })
+        .asBroadcastStream();
+  }
+
+  Stream<ApiResult<StreamEvent>> pipelineEventsStream({
+    required String projectID,
+    String? runID,
+    String? taskID,
+    String? jobID,
+    int fromOffset = 0,
+  }) {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return Stream<ApiResult<StreamEvent>>.value(
+        const ApiResult<StreamEvent>.failure('project_id is required'),
+      );
+    }
+    return _client
+        .subscribe(
+          SubscriptionOptions(
+            document: gql('''
+              subscription PipelineEventsStream(
+                \$correlation: CorrelationInput!
+                \$fromOffset: Int!
+              ) {
+                pipelineEventsStream(correlation: \$correlation, fromOffset: \$fromOffset) {
+                  __typename
+                  ... on StreamEventSuccess {
+                    event {
+                      eventID
+                      streamOffset
+                      occurredAt
+                      runID
+                      taskID
+                      jobID
+                      projectID
+                      sessionID
+                      correlationID
+                      source
+                      eventType
+                      gapDetected
+                      gapReconciled
+                      expectedEventSeq
+                      observedEventSeq
+                      payload
+                    }
+                  }
+                  ... on GraphError {
+                    code
+                    message
+                    field
+                  }
+                }
+              }
+            '''),
+            variables: <String, dynamic>{
+              'correlation': <String, dynamic>{
+                'projectID': cleanProjectID,
+                'runID': runID?.trim() ?? '',
+                'taskID': taskID?.trim() ?? '',
+                'jobID': jobID?.trim() ?? '',
+              },
+              'fromOffset': fromOffset,
+            },
+          ),
+        )
+        .map((QueryResult result) {
+          final error = _extractOperationError(
+            result,
+            field: 'pipelineEventsStream',
+          );
+          if (error != null) {
+            return ApiResult<StreamEvent>.failure(error);
+          }
+          final payload =
+              result.data?['pipelineEventsStream'] as Map<String, dynamic>?;
+          if (payload == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'pipelineEventsStream returned no data',
+            );
+          }
+          if (payload['__typename'] == 'GraphError') {
+            return ApiResult<StreamEvent>.failure(
+              _graphErrorMessageTyped(
+                code: payload['code'] as String? ?? 'INTERNAL',
+                message: payload['message'] as String? ?? 'unknown error',
+                field: payload['field'] as String?,
+              ),
+            );
+          }
+          final eventData = payload['event'] as Map<String, dynamic>?;
+          if (eventData == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'pipelineEventsStream event payload missing',
+            );
+          }
+          return ApiResult<StreamEvent>.success(
+            _mapStreamEventFromMap(eventData),
+          );
         })
         .asBroadcastStream();
   }
@@ -2171,18 +2377,777 @@ class ControlPlaneApi {
             );
           }
           return ApiResult<StreamEvent>.success(
-            StreamEvent(
-              eventID: eventData['eventID'] as String,
-              eventType: eventData['eventType'] as String,
-              source: eventData['source'] as String,
-              payload: eventData['payload'] as String,
-              occurredAt: DateTime.parse(
-                eventData['occurredAt'] as String,
-              ).toLocal(),
-            ),
+            _mapStreamEventFromMap(eventData),
           );
         })
         .asBroadcastStream();
+  }
+
+  Future<ApiResult<List<StreamEvent>>> projectEvents({
+    required String projectID,
+    int fromOffset = 0,
+    int limit = 200,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return const ApiResult<List<StreamEvent>>.failure(
+        'project_id is required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query ProjectEvents(
+            \$projectID: String!
+            \$fromOffset: Int!
+            \$limit: Int!
+          ) {
+            projectEvents(projectID: \$projectID, fromOffset: \$fromOffset, limit: \$limit) {
+              __typename
+              ... on StreamEventsSuccess {
+                events {
+                  eventID
+                  streamOffset
+                  occurredAt
+                  runID
+                  taskID
+                  jobID
+                  projectID
+                  sessionID
+                  correlationID
+                  source
+                  eventType
+                  gapDetected
+                  gapReconciled
+                  expectedEventSeq
+                  observedEventSeq
+                  payload
+                }
+                nextFromOffset
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'projectID': cleanProjectID,
+          'fromOffset': fromOffset,
+          'limit': limit,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'projectEvents');
+    if (error != null) {
+      return ApiResult<List<StreamEvent>>.failure(error);
+    }
+    final payload = result.data?['projectEvents'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<StreamEvent>>.failure(
+        'projectEvents returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<StreamEvent>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final events = (payload['events'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(_mapStreamEventFromMap)
+        .toList(growable: false);
+    return ApiResult<List<StreamEvent>>.success(events);
+  }
+
+  Future<ApiResult<List<StreamEvent>>> pipelineEvents({
+    required String projectID,
+    String? runID,
+    String? taskID,
+    String? jobID,
+    int fromOffset = 0,
+    int limit = 200,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return const ApiResult<List<StreamEvent>>.failure(
+        'project_id is required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query PipelineEvents(
+            \$projectID: String!
+            \$runID: String
+            \$taskID: String
+            \$jobID: String
+            \$fromOffset: Int!
+            \$limit: Int!
+          ) {
+            pipelineEvents(
+              correlation: {
+                projectID: \$projectID
+                runID: \$runID
+                taskID: \$taskID
+                jobID: \$jobID
+              }
+              fromOffset: \$fromOffset
+              limit: \$limit
+            ) {
+              __typename
+              ... on StreamEventsSuccess {
+                events {
+                  eventID
+                  streamOffset
+                  occurredAt
+                  runID
+                  taskID
+                  jobID
+                  projectID
+                  sessionID
+                  correlationID
+                  source
+                  eventType
+                  gapDetected
+                  gapReconciled
+                  expectedEventSeq
+                  observedEventSeq
+                  payload
+                }
+                nextFromOffset
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'projectID': cleanProjectID,
+          'runID': runID?.trim().isEmpty ?? true ? null : runID!.trim(),
+          'taskID': taskID?.trim().isEmpty ?? true ? null : taskID!.trim(),
+          'jobID': jobID?.trim().isEmpty ?? true ? null : jobID!.trim(),
+          'fromOffset': fromOffset,
+          'limit': limit,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'pipelineEvents');
+    if (error != null) {
+      return ApiResult<List<StreamEvent>>.failure(error);
+    }
+    final payload = result.data?['pipelineEvents'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<StreamEvent>>.failure(
+        'pipelineEvents returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<StreamEvent>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final events = (payload['events'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(_mapStreamEventFromMap)
+        .toList(growable: false);
+    return ApiResult<List<StreamEvent>>.success(events);
+  }
+
+  Stream<ApiResult<StreamEvent>> projectEventsStream({
+    required String projectID,
+    int fromOffset = 0,
+  }) {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return Stream<ApiResult<StreamEvent>>.value(
+        const ApiResult<StreamEvent>.failure('project_id is required'),
+      );
+    }
+    return _client
+        .subscribe(
+          SubscriptionOptions(
+            document: gql('''
+              subscription ProjectEventsStream(
+                \$projectID: String!
+                \$fromOffset: Int!
+              ) {
+                projectEventsStream(projectID: \$projectID, fromOffset: \$fromOffset) {
+                  __typename
+                  ... on StreamEventSuccess {
+                    event {
+                      eventID
+                      streamOffset
+                      occurredAt
+                      runID
+                      taskID
+                      jobID
+                      projectID
+                      sessionID
+                      correlationID
+                      source
+                      eventType
+                      gapDetected
+                      gapReconciled
+                      expectedEventSeq
+                      observedEventSeq
+                      payload
+                    }
+                  }
+                  ... on GraphError {
+                    code
+                    message
+                    field
+                  }
+                }
+              }
+            '''),
+            variables: <String, dynamic>{
+              'projectID': cleanProjectID,
+              'fromOffset': fromOffset,
+            },
+          ),
+        )
+        .map((QueryResult result) {
+          final error = _extractOperationError(
+            result,
+            field: 'projectEventsStream',
+          );
+          if (error != null) {
+            return ApiResult<StreamEvent>.failure(error);
+          }
+          final payload =
+              result.data?['projectEventsStream'] as Map<String, dynamic>?;
+          if (payload == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'projectEventsStream returned no data',
+            );
+          }
+          if (payload['__typename'] == 'GraphError') {
+            return ApiResult<StreamEvent>.failure(
+              _graphErrorMessageTyped(
+                code: payload['code'] as String? ?? 'INTERNAL',
+                message: payload['message'] as String? ?? 'unknown error',
+                field: payload['field'] as String?,
+              ),
+            );
+          }
+          final eventData = payload['event'] as Map<String, dynamic>?;
+          if (eventData == null) {
+            return const ApiResult<StreamEvent>.failure(
+              'projectEventsStream event payload missing',
+            );
+          }
+          return ApiResult<StreamEvent>.success(
+            _mapStreamEventFromMap(eventData),
+          );
+        })
+        .asBroadcastStream();
+  }
+
+  Future<ApiResult<List<LifecycleSessionSnapshotModel>>>
+  lifecycleSessionSnapshots({
+    required String projectID,
+    String? pipelineType,
+    int limit = 200,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return const ApiResult<List<LifecycleSessionSnapshotModel>>.failure(
+        'project_id is required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query LifecycleSessionSnapshots(
+            \$projectID: String!
+            \$pipelineType: String
+            \$limit: Int!
+          ) {
+            lifecycleSessionSnapshots(projectID: \$projectID, pipelineType: \$pipelineType, limit: \$limit) {
+              __typename
+              ... on LifecycleSessionSnapshotsSuccess {
+                sessions {
+                  projectID
+                  runID
+                  taskID
+                  jobID
+                  sessionID
+                  pipelineType
+                  sourceRuntime
+                  currentState
+                  currentSeverity
+                  lastReasonCode
+                  lastReasonSummary
+                  lastEventSeq
+                  lastProjectEventSeq
+                  lastLivenessAt
+                  lastActivityAt
+                  lastCheckpointAt
+                  startedAt
+                  endedAt
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'projectID': cleanProjectID,
+          'pipelineType': pipelineType?.trim().isEmpty ?? true
+              ? null
+              : pipelineType!.trim(),
+          'limit': limit,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'lifecycleSessionSnapshots',
+    );
+    if (error != null) {
+      return ApiResult<List<LifecycleSessionSnapshotModel>>.failure(error);
+    }
+    final payload =
+        result.data?['lifecycleSessionSnapshots'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<LifecycleSessionSnapshotModel>>.failure(
+        'lifecycleSessionSnapshots returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<LifecycleSessionSnapshotModel>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final sessions =
+        (payload['sessions'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map((Map<String, dynamic> session) {
+              DateTime? parseOptionalDate(String key) {
+                final raw = session[key] as String?;
+                if (raw == null || raw.trim().isEmpty) {
+                  return null;
+                }
+                return DateTime.parse(raw).toLocal();
+              }
+
+              return LifecycleSessionSnapshotModel(
+                projectID: session['projectID'] as String,
+                runID: session['runID'] as String?,
+                taskID: session['taskID'] as String?,
+                jobID: session['jobID'] as String?,
+                sessionID: session['sessionID'] as String,
+                pipelineType: session['pipelineType'] as String,
+                sourceRuntime: session['sourceRuntime'] as String?,
+                currentState: session['currentState'] as String,
+                currentSeverity: session['currentSeverity'] as String,
+                lastReasonCode: session['lastReasonCode'] as String?,
+                lastReasonSummary: session['lastReasonSummary'] as String?,
+                lastEventSeq: session['lastEventSeq'] as int,
+                lastProjectEventSeq: session['lastProjectEventSeq'] as int,
+                lastLivenessAt: parseOptionalDate('lastLivenessAt'),
+                lastActivityAt: parseOptionalDate('lastActivityAt'),
+                lastCheckpointAt: parseOptionalDate('lastCheckpointAt'),
+                startedAt: DateTime.parse(
+                  session['startedAt'] as String,
+                ).toLocal(),
+                endedAt: parseOptionalDate('endedAt'),
+                updatedAt: DateTime.parse(
+                  session['updatedAt'] as String,
+                ).toLocal(),
+              );
+            })
+            .toList(growable: false);
+    return ApiResult<List<LifecycleSessionSnapshotModel>>.success(sessions);
+  }
+
+  Future<ApiResult<List<LifecycleHistoryEventModel>>> lifecycleSessionHistory({
+    required String projectID,
+    required String sessionID,
+    int fromEventSeq = 0,
+    int limit = 500,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    final cleanSessionID = sessionID.trim();
+    if (cleanProjectID.isEmpty || cleanSessionID.isEmpty) {
+      return const ApiResult<List<LifecycleHistoryEventModel>>.failure(
+        'project_id and session_id are required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query LifecycleSessionHistory(
+            \$projectID: String!
+            \$sessionID: String!
+            \$fromEventSeq: Int!
+            \$limit: Int!
+          ) {
+            lifecycleSessionHistory(projectID: \$projectID, sessionID: \$sessionID, fromEventSeq: \$fromEventSeq, limit: \$limit) {
+              __typename
+              ... on LifecycleHistorySuccess {
+                events {
+                  eventID
+                  projectID
+                  runID
+                  taskID
+                  jobID
+                  sessionID
+                  pipelineType
+                  sourceRuntime
+                  eventType
+                  eventSeq
+                  projectEventSeq
+                  occurredAt
+                  payload
+                }
+                nextFromEventSeq
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'projectID': cleanProjectID,
+          'sessionID': cleanSessionID,
+          'fromEventSeq': fromEventSeq,
+          'limit': limit,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'lifecycleSessionHistory',
+    );
+    if (error != null) {
+      return ApiResult<List<LifecycleHistoryEventModel>>.failure(error);
+    }
+    final payload =
+        result.data?['lifecycleSessionHistory'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<LifecycleHistoryEventModel>>.failure(
+        'lifecycleSessionHistory returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<LifecycleHistoryEventModel>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final events = (payload['events'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (Map<String, dynamic> event) => LifecycleHistoryEventModel(
+            eventID: event['eventID'] as String,
+            projectID: event['projectID'] as String,
+            runID: event['runID'] as String?,
+            taskID: event['taskID'] as String?,
+            jobID: event['jobID'] as String?,
+            sessionID: event['sessionID'] as String,
+            pipelineType: event['pipelineType'] as String,
+            sourceRuntime: event['sourceRuntime'] as String,
+            eventType: event['eventType'] as String,
+            eventSeq: event['eventSeq'] as int,
+            projectEventSeq: event['projectEventSeq'] as int,
+            occurredAt: DateTime.parse(event['occurredAt'] as String).toLocal(),
+            payload: event['payload'] as String,
+          ),
+        )
+        .toList(growable: false);
+    return ApiResult<List<LifecycleHistoryEventModel>>.success(events);
+  }
+
+  Future<ApiResult<List<LifecycleTreeNodeModel>>> lifecycleTreeNodes({
+    required String projectID,
+    String? pipelineType,
+    String? runID,
+    String? taskID,
+    String? jobID,
+    int limit = 500,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return const ApiResult<List<LifecycleTreeNodeModel>>.failure(
+        'project_id is required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query LifecycleTreeNodes(
+            \$filter: LifecycleTreeFilterInput!
+            \$limit: Int!
+          ) {
+            lifecycleTreeNodes(filter: \$filter, limit: \$limit) {
+              __typename
+              ... on LifecycleTreeNodesSuccess {
+                nodes {
+                  nodeID
+                  parentNodeID
+                  nodeType
+                  projectID
+                  runID
+                  taskID
+                  jobID
+                  sessionID
+                  pipelineType
+                  sourceRuntime
+                  currentState
+                  currentSeverity
+                  sessionCount
+                  updatedAt
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'filter': <String, dynamic>{
+            'projectID': cleanProjectID,
+            'pipelineType': pipelineType?.trim().isEmpty ?? true
+                ? null
+                : pipelineType!.trim(),
+            'runID': runID?.trim().isEmpty ?? true ? null : runID!.trim(),
+            'taskID': taskID?.trim().isEmpty ?? true ? null : taskID!.trim(),
+            'jobID': jobID?.trim().isEmpty ?? true ? null : jobID!.trim(),
+          },
+          'limit': limit,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'lifecycleTreeNodes');
+    if (error != null) {
+      return ApiResult<List<LifecycleTreeNodeModel>>.failure(error);
+    }
+    final payload = result.data?['lifecycleTreeNodes'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<List<LifecycleTreeNodeModel>>.failure(
+        'lifecycleTreeNodes returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<List<LifecycleTreeNodeModel>>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final nodes = (payload['nodes'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (Map<String, dynamic> node) => LifecycleTreeNodeModel(
+            nodeID: node['nodeID'] as String,
+            parentNodeID: node['parentNodeID'] as String?,
+            nodeType: node['nodeType'] as String,
+            projectID: node['projectID'] as String,
+            runID: node['runID'] as String?,
+            taskID: node['taskID'] as String?,
+            jobID: node['jobID'] as String?,
+            sessionID: node['sessionID'] as String?,
+            pipelineType: node['pipelineType'] as String?,
+            sourceRuntime: node['sourceRuntime'] as String?,
+            currentState: node['currentState'] as String?,
+            currentSeverity: node['currentSeverity'] as String?,
+            sessionCount: node['sessionCount'] as int,
+            updatedAt: DateTime.parse(node['updatedAt'] as String).toLocal(),
+          ),
+        )
+        .toList(growable: false);
+    return ApiResult<List<LifecycleTreeNodeModel>>.success(nodes);
+  }
+
+  Future<ApiResult<InterventionMetricsModel>> interventionMetrics({
+    required String projectID,
+    int limit = 200,
+  }) async {
+    final cleanProjectID = projectID.trim();
+    if (cleanProjectID.isEmpty) {
+      return const ApiResult<InterventionMetricsModel>.failure(
+        'project_id is required',
+      );
+    }
+    final result = await _client.query(
+      QueryOptions(
+        document: gql('''
+          query InterventionMetrics(
+            \$projectID: String!
+            \$limit: Int!
+          ) {
+            interventionMetrics(projectID: \$projectID, limit: \$limit) {
+              __typename
+              ... on InterventionMetricsSuccess {
+                metrics {
+                  projectID
+                  interventionCount
+                  successfulOutcomeCount
+                  failedOutcomeCount
+                  averageRecoverySeconds
+                }
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'projectID': cleanProjectID,
+          'limit': limit,
+        },
+        fetchPolicy: FetchPolicy.networkOnly,
+      ),
+    );
+    final error = _extractOperationError(result, field: 'interventionMetrics');
+    if (error != null) {
+      return ApiResult<InterventionMetricsModel>.failure(error);
+    }
+    final payload =
+        result.data?['interventionMetrics'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<InterventionMetricsModel>.failure(
+        'interventionMetrics returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<InterventionMetricsModel>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    final metrics = payload['metrics'] as Map<String, dynamic>?;
+    if (metrics == null) {
+      return const ApiResult<InterventionMetricsModel>.failure(
+        'interventionMetrics payload missing',
+      );
+    }
+    return ApiResult<InterventionMetricsModel>.success(
+      InterventionMetricsModel(
+        projectID: metrics['projectID'] as String,
+        interventionCount: metrics['interventionCount'] as int,
+        successfulOutcomeCount: metrics['successfulOutcomeCount'] as int,
+        failedOutcomeCount: metrics['failedOutcomeCount'] as int,
+        averageRecoverySeconds: metrics['averageRecoverySeconds'] as int,
+      ),
+    );
+  }
+
+  Future<ApiResult<String>> applyManualIntervention({
+    required String projectID,
+    required String sessionID,
+    required String action,
+    required String reason,
+    required String actorID,
+    bool force = false,
+  }) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql('''
+          mutation ApplyManualIntervention(
+            \$input: ApplyManualInterventionInput!
+          ) {
+            applyManualIntervention(input: \$input) {
+              __typename
+              ... on ManualInterventionSuccess {
+                ok
+                eventID
+                eventSeq
+                projectEventSeq
+                action
+                resultingState
+              }
+              ... on GraphError {
+                code
+                message
+                field
+              }
+            }
+          }
+        '''),
+        variables: <String, dynamic>{
+          'input': <String, dynamic>{
+            'projectID': projectID.trim(),
+            'sessionID': sessionID.trim(),
+            'action': action.trim().toUpperCase(),
+            'reason': reason.trim(),
+            'actorID': actorID.trim(),
+            'force': force,
+          },
+        },
+      ),
+    );
+    final error = _extractOperationError(
+      result,
+      field: 'applyManualIntervention',
+    );
+    if (error != null) {
+      return ApiResult<String>.failure(error);
+    }
+    final payload =
+        result.data?['applyManualIntervention'] as Map<String, dynamic>?;
+    if (payload == null) {
+      return const ApiResult<String>.failure(
+        'applyManualIntervention returned no data',
+      );
+    }
+    if (payload['__typename'] == 'GraphError') {
+      return ApiResult<String>.failure(
+        _graphErrorMessageTyped(
+          code: payload['code'] as String? ?? 'INTERNAL',
+          message: payload['message'] as String? ?? 'unknown error',
+          field: payload['field'] as String?,
+        ),
+      );
+    }
+    return ApiResult<String>.success(payload['eventID'] as String? ?? 'ok');
   }
 
   Future<ApiResult<List<WorkerSession>>> workerSessions({
@@ -2461,18 +3426,33 @@ class ControlPlaneApi {
             );
           }
           return ApiResult<StreamEvent>.success(
-            StreamEvent(
-              eventID: eventData['eventID'] as String,
-              eventType: eventData['eventType'] as String,
-              source: eventData['source'] as String,
-              payload: eventData['payload'] as String,
-              occurredAt: DateTime.parse(
-                eventData['occurredAt'] as String,
-              ).toLocal(),
-            ),
+            _mapStreamEventFromMap(eventData),
           );
         })
         .asBroadcastStream();
+  }
+
+  StreamEvent _mapStreamEventFromMap(Map<String, dynamic> eventData) {
+    final occurredAtRaw = eventData['occurredAt'] as String?;
+    return StreamEvent(
+      eventID: eventData['eventID'] as String,
+      streamOffset: (eventData['streamOffset'] as int?) ?? 0,
+      eventType: eventData['eventType'] as String,
+      source: eventData['source'] as String,
+      payload: eventData['payload'] as String,
+      occurredAt: occurredAtRaw == null
+          ? DateTime.now().toLocal()
+          : DateTime.parse(occurredAtRaw).toLocal(),
+      runID: eventData['runID'] as String?,
+      taskID: eventData['taskID'] as String?,
+      jobID: eventData['jobID'] as String?,
+      projectID: eventData['projectID'] as String?,
+      sessionID: eventData['sessionID'] as String?,
+      gapDetected: (eventData['gapDetected'] as bool?) ?? false,
+      gapReconciled: (eventData['gapReconciled'] as bool?) ?? false,
+      expectedEventSeq: eventData['expectedEventSeq'] as int?,
+      observedEventSeq: eventData['observedEventSeq'] as int?,
+    );
   }
 
   String? _extractOperationError(QueryResult result, {required String field}) {

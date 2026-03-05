@@ -2,6 +2,8 @@ package postgres
 
 import (
 	applicationstream "agentic-orchestrator/internal/application/stream"
+	domainrealtime "agentic-orchestrator/internal/domain/realtime"
+	domainsecurity "agentic-orchestrator/internal/domain/security"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	"context"
 	"encoding/json"
@@ -33,7 +35,8 @@ func (streamEventRecord) TableName() string {
 }
 
 type EventStore struct {
-	db *gorm.DB
+	db      *gorm.DB
+	watcher domainrealtime.TableChangeWatcher
 }
 
 func NewEventStore(db *gorm.DB) (*EventStore, error) {
@@ -53,7 +56,9 @@ func (store *EventStore) Append(ctx context.Context, event domainstream.Event) (
 	if err := event.Validate(); err != nil {
 		return domainstream.Event{}, err
 	}
-	payloadJSON, err := json.Marshal(event.Payload)
+	redactedPayload, _ := domainsecurity.RedactPayload(event.Payload)
+	event.Payload = redactedPayload
+	payloadJSON, err := json.Marshal(redactedPayload)
 	if err != nil {
 		return domainstream.Event{}, fmt.Errorf("stream event store: marshal payload: %w", err)
 	}
@@ -74,7 +79,61 @@ func (store *EventStore) Append(ctx context.Context, event domainstream.Event) (
 		return domainstream.Event{}, fmt.Errorf("stream event store: append: %w", err)
 	}
 	event.StreamOffset = record.ID
+	store.publishTableChangeSignal(ctx, event, record)
 	return event, nil
+}
+
+func (store *EventStore) SetTableChangeWatcher(watcher domainrealtime.TableChangeWatcher) {
+	if store == nil {
+		return
+	}
+	store.watcher = watcher
+}
+
+func (store *EventStore) publishTableChangeSignal(ctx context.Context, event domainstream.Event, record streamEventRecord) {
+	if store == nil || store.watcher == nil {
+		return
+	}
+	_ = store.watcher.Publish(ctx, domainrealtime.TableChangeEvent{
+		Topic:           "stream_events_live",
+		Table:           "stream_events",
+		Operation:       "insert",
+		ProjectID:       strings.TrimSpace(record.ProjectID),
+		RunID:           strings.TrimSpace(record.RunID),
+		TaskID:          strings.TrimSpace(record.TaskID),
+		JobID:           strings.TrimSpace(record.JobID),
+		SessionID:       strings.TrimSpace(record.SessionID),
+		ProjectEventSeq: int64(record.ID),
+		SessionEventSeq: int64(record.ID),
+		OccurredAt:      record.OccurredAt.UTC(),
+		Payload: map[string]any{
+			"event_id":       strings.TrimSpace(event.EventID),
+			"stream_offset":  int64(event.StreamOffset),
+			"occurred_at":    event.OccurredAt.UTC().Format(time.RFC3339Nano),
+			"source":         strings.TrimSpace(string(event.Source)),
+			"event_type":     strings.TrimSpace(string(event.EventType)),
+			"run_id":         strings.TrimSpace(event.CorrelationIDs.RunID),
+			"task_id":        strings.TrimSpace(event.CorrelationIDs.TaskID),
+			"job_id":         strings.TrimSpace(event.CorrelationIDs.JobID),
+			"project_id":     strings.TrimSpace(event.CorrelationIDs.ProjectID),
+			"session_id":     strings.TrimSpace(event.CorrelationIDs.SessionID),
+			"correlation_id": strings.TrimSpace(event.CorrelationIDs.CorrelationID),
+			"payload":        event.Payload,
+		},
+	})
+	_ = store.watcher.Publish(ctx, domainrealtime.TableChangeEvent{
+		Topic:           "stream_events_changed",
+		Table:           "stream_events",
+		Operation:       "insert",
+		ProjectID:       strings.TrimSpace(record.ProjectID),
+		RunID:           strings.TrimSpace(record.RunID),
+		TaskID:          strings.TrimSpace(record.TaskID),
+		JobID:           strings.TrimSpace(record.JobID),
+		SessionID:       strings.TrimSpace(record.SessionID),
+		ProjectEventSeq: int64(record.ID),
+		SessionEventSeq: int64(record.ID),
+		OccurredAt:      record.OccurredAt.UTC(),
+	})
 }
 
 func (store *EventStore) ListFromOffset(ctx context.Context, offset uint64, limit int) ([]domainstream.Event, error) {

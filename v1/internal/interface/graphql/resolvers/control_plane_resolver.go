@@ -270,12 +270,20 @@ func (r *mutationResolver) CreateTaskboardEpic(ctx context.Context, input models
 		BoardID:          board.BoardID,
 		Title:            strings.TrimSpace(input.Title),
 		Objective:        strings.TrimSpace(derefString(input.Objective)),
+		RepositoryIDs:    sanitizeStringList(derefStrings(input.RepositoryIDs)),
+		Deliverables:     sanitizeStringList(derefStrings(input.Deliverables)),
 		State:            epicState,
 		Rank:             int(input.Rank),
 		DependsOnEpicIDs: stringsToWorkItemIDs(derefStrings(input.DependsOnEpicIDs)),
 		Tasks:            []domaintracker.Task{},
 		CreatedAt:        now,
 		UpdatedAt:        now,
+	}
+	if len(epic.RepositoryIDs) == 0 {
+		epic.RepositoryIDs = inferBoardRepositoryIDs(board)
+	}
+	if len(epic.Deliverables) == 0 {
+		epic.Deliverables = []string{fmt.Sprintf("Epic outcome: %s", strings.TrimSpace(epic.Title))}
 	}
 	if strings.TrimSpace(epic.Title) == "" {
 		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "title is required"}, nil
@@ -316,6 +324,14 @@ func (r *mutationResolver) UpdateTaskboardEpic(ctx context.Context, input models
 	epic := board.Epics[epicIndex]
 	epic.Title = strings.TrimSpace(input.Title)
 	epic.Objective = strings.TrimSpace(derefString(input.Objective))
+	epic.RepositoryIDs = sanitizeStringList(derefStrings(input.RepositoryIDs))
+	if len(epic.RepositoryIDs) == 0 {
+		epic.RepositoryIDs = inferBoardRepositoryIDs(board)
+	}
+	epic.Deliverables = sanitizeStringList(derefStrings(input.Deliverables))
+	if len(epic.Deliverables) == 0 {
+		epic.Deliverables = []string{fmt.Sprintf("Epic outcome: %s", strings.TrimSpace(epic.Title))}
+	}
 	epic.State = epicState
 	epic.Rank = int(input.Rank)
 	epic.DependsOnEpicIDs = stringsToWorkItemIDs(derefStrings(input.DependsOnEpicIDs))
@@ -392,6 +408,8 @@ func (r *mutationResolver) CreateTaskboardTask(ctx context.Context, input models
 		EpicID:           epic.ID,
 		Title:            strings.TrimSpace(input.Title),
 		Description:      strings.TrimSpace(derefString(input.Description)),
+		RepositoryIDs:    sanitizeStringList(derefStrings(input.RepositoryIDs)),
+		Deliverables:     sanitizeStringList(derefStrings(input.Deliverables)),
 		TaskType:         strings.TrimSpace(input.TaskType),
 		State:            taskState,
 		Rank:             int(input.Rank),
@@ -401,6 +419,12 @@ func (r *mutationResolver) CreateTaskboardTask(ctx context.Context, input models
 	}
 	if task.Title == "" || task.TaskType == "" {
 		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "title and task_type are required"}, nil
+	}
+	if len(task.RepositoryIDs) == 0 {
+		task.RepositoryIDs = append([]string(nil), epic.RepositoryIDs...)
+	}
+	if len(task.Deliverables) == 0 {
+		task.Deliverables = []string{fmt.Sprintf("Task outcome: %s", strings.TrimSpace(task.Title))}
 	}
 	epic.Tasks = append(epic.Tasks, task)
 	epic.UpdatedAt = now
@@ -458,6 +482,14 @@ func (r *mutationResolver) UpdateTaskboardTask(ctx context.Context, input models
 	task.EpicID = domaintracker.WorkItemID(strings.TrimSpace(input.EpicID))
 	task.Title = strings.TrimSpace(input.Title)
 	task.Description = strings.TrimSpace(derefString(input.Description))
+	task.RepositoryIDs = sanitizeStringList(derefStrings(input.RepositoryIDs))
+	if len(task.RepositoryIDs) == 0 {
+		task.RepositoryIDs = append([]string(nil), board.Epics[targetEpicIndex].RepositoryIDs...)
+	}
+	task.Deliverables = sanitizeStringList(derefStrings(input.Deliverables))
+	if len(task.Deliverables) == 0 {
+		task.Deliverables = []string{fmt.Sprintf("Task outcome: %s", strings.TrimSpace(task.Title))}
+	}
 	task.TaskType = strings.TrimSpace(input.TaskType)
 	task.State = taskState
 	task.Rank = int(input.Rank)
@@ -539,6 +571,32 @@ func (r *mutationResolver) UpdateWorkerSettings(ctx context.Context, input model
 		return graphErrorFromError(fmt.Errorf("update worker settings: %w", err)), nil
 	}
 	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
+}
+
+// ApplyManualIntervention is the resolver for the applyManualIntervention field.
+func (r *mutationResolver) ApplyManualIntervention(ctx context.Context, input models.ApplyManualInterventionInput) (models.ManualInterventionResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	result, err := r.Resolver.ControlPlaneService.ApplyManualIntervention(ctx, applicationcontrolplane.ManualInterventionRequest{
+		ProjectID: input.ProjectID,
+		SessionID: input.SessionID,
+		Action:    applicationcontrolplane.ManualInterventionAction(strings.ToLower(strings.TrimSpace(string(input.Action)))),
+		Reason:    input.Reason,
+		ActorID:   input.ActorID,
+		Force:     input.Force != nil && *input.Force,
+	})
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("apply manual intervention: %w", err)), nil
+	}
+	return models.ManualInterventionSuccess{
+		Ok:              true,
+		EventID:         result.EventID,
+		EventSeq:        int64ToInt32(result.EventSeq),
+		ProjectEventSeq: int64ToInt32(result.ProjectEventSeq),
+		Action:          result.Action,
+		ResultingState:  result.ResultingState,
+	}, nil
 }
 
 // Sessions is the resolver for the sessions field.
@@ -822,10 +880,156 @@ func (r *queryResolver) WorkerSettings(ctx context.Context) (models.WorkerSettin
 	return models.WorkerSettingsSuccess{Settings: &models.WorkerSettings{HeartbeatIntervalSeconds: int32(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int32(settings.ResponseDeadline.Seconds()), UpdatedAt: settings.UpdatedAt.UTC()}}, nil
 }
 
+// ProjectEvents is the resolver for the projectEvents field.
+func (r *queryResolver) ProjectEvents(ctx context.Context, projectID string, fromOffset *int32, limit *int32) (models.StreamEventsResult, error) {
+	return streamQuery(ctx, r.Resolver.StreamService, models.CorrelationInput{ProjectID: strPtr(strings.TrimSpace(projectID))}, fromOffset, limit, func(_ domainstream.Event) bool {
+		return true
+	}), nil
+}
+
+// PipelineEvents is the resolver for the pipelineEvents field.
+func (r *queryResolver) PipelineEvents(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32, limit *int32) (models.StreamEventsResult, error) {
+	if err := requireProjectScopedCorrelation(correlation); err != nil {
+		return graphErrorFromError(err), nil
+	}
+	return streamQuery(ctx, r.Resolver.StreamService, correlation, fromOffset, limit, func(_ domainstream.Event) bool {
+		return true
+	}), nil
+}
+
+// LifecycleSessionSnapshots is the resolver for the lifecycleSessionSnapshots field.
+func (r *queryResolver) LifecycleSessionSnapshots(ctx context.Context, projectID string, pipelineType *string, limit *int32) (models.LifecycleSessionSnapshotsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	records, err := r.Resolver.ControlPlaneService.LifecycleSessionSnapshots(ctx, projectID, derefString(pipelineType), int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load lifecycle session snapshots: %w", err)), nil
+	}
+	items := make([]*models.LifecycleSessionSnapshot, 0, len(records))
+	for _, record := range records {
+		items = append(items, &models.LifecycleSessionSnapshot{
+			ProjectID:           record.ProjectID,
+			RunID:               nilIfEmpty(record.RunID),
+			TaskID:              nilIfEmpty(record.TaskID),
+			JobID:               nilIfEmpty(record.JobID),
+			SessionID:           record.SessionID,
+			PipelineType:        record.PipelineType,
+			SourceRuntime:       record.SourceRuntime,
+			CurrentState:        record.CurrentState,
+			CurrentSeverity:     record.CurrentSeverity,
+			LastReasonCode:      nilIfEmpty(record.LastReasonCode),
+			LastReasonSummary:   nilIfEmpty(record.LastReasonSummary),
+			LastEventSeq:        int64ToInt32(record.LastEventSeq),
+			LastProjectEventSeq: int64ToInt32(record.LastProjectEventSeq),
+			LastLivenessAt:      record.LastLivenessAt,
+			LastActivityAt:      record.LastActivityAt,
+			LastCheckpointAt:    record.LastCheckpointAt,
+			StartedAt:           record.StartedAt.UTC(),
+			EndedAt:             record.EndedAt,
+			UpdatedAt:           record.UpdatedAt.UTC(),
+		})
+	}
+	return models.LifecycleSessionSnapshotsSuccess{Sessions: items}, nil
+}
+
+// LifecycleSessionHistory is the resolver for the lifecycleSessionHistory field.
+func (r *queryResolver) LifecycleSessionHistory(ctx context.Context, projectID string, sessionID string, fromEventSeq *int32, limit *int32) (models.LifecycleHistoryResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	records, err := r.Resolver.ControlPlaneService.LifecycleSessionHistory(ctx, projectID, sessionID, int64(int32ToInt(fromEventSeq)), int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load lifecycle session history: %w", err)), nil
+	}
+	items := make([]*models.LifecycleHistoryEvent, 0, len(records))
+	nextFromEventSeq := int64(int32ToInt(fromEventSeq))
+	for _, record := range records {
+		if record.EventSeq > nextFromEventSeq {
+			nextFromEventSeq = record.EventSeq
+		}
+		items = append(items, &models.LifecycleHistoryEvent{
+			EventID:         record.EventID,
+			ProjectID:       record.ProjectID,
+			RunID:           nilIfEmpty(record.RunID),
+			TaskID:          nilIfEmpty(record.TaskID),
+			JobID:           nilIfEmpty(record.JobID),
+			SessionID:       record.SessionID,
+			PipelineType:    record.PipelineType,
+			SourceRuntime:   record.SourceRuntime,
+			EventType:       record.EventType,
+			EventSeq:        int64ToInt32(record.EventSeq),
+			ProjectEventSeq: int64ToInt32(record.ProjectEventSeq),
+			OccurredAt:      record.OccurredAt.UTC(),
+			Payload:         record.PayloadJSON,
+		})
+	}
+	return models.LifecycleHistorySuccess{Events: items, NextFromEventSeq: int64ToInt32(nextFromEventSeq)}, nil
+}
+
+// LifecycleTreeNodes is the resolver for the lifecycleTreeNodes field.
+func (r *queryResolver) LifecycleTreeNodes(ctx context.Context, filter models.LifecycleTreeFilterInput, limit *int32) (models.LifecycleTreeNodesResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	nodes, err := r.Resolver.ControlPlaneService.LifecycleTreeNodes(ctx, applicationcontrolplane.LifecycleTreeFilter{
+		ProjectID:    strings.TrimSpace(filter.ProjectID),
+		PipelineType: strings.TrimSpace(derefString(filter.PipelineType)),
+		RunID:        strings.TrimSpace(derefString(filter.RunID)),
+		TaskID:       strings.TrimSpace(derefString(filter.TaskID)),
+		JobID:        strings.TrimSpace(derefString(filter.JobID)),
+	}, int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load lifecycle tree nodes: %w", err)), nil
+	}
+	items := make([]*models.LifecycleTreeNode, 0, len(nodes))
+	for _, node := range nodes {
+		nodeType, mapErr := toGraphLifecycleTreeNodeType(node.NodeType)
+		if mapErr != nil {
+			return graphErrorFromError(mapErr), nil
+		}
+		items = append(items, &models.LifecycleTreeNode{
+			NodeID:          node.NodeID,
+			ParentNodeID:    nilIfEmpty(node.ParentNodeID),
+			NodeType:        nodeType,
+			ProjectID:       node.ProjectID,
+			RunID:           nilIfEmpty(node.RunID),
+			TaskID:          nilIfEmpty(node.TaskID),
+			JobID:           nilIfEmpty(node.JobID),
+			SessionID:       nilIfEmpty(node.SessionID),
+			PipelineType:    nilIfEmpty(node.PipelineType),
+			SourceRuntime:   nilIfEmpty(node.SourceRuntime),
+			CurrentState:    nilIfEmpty(node.CurrentState),
+			CurrentSeverity: nilIfEmpty(node.CurrentSeverity),
+			SessionCount:    int32(node.SessionCount),
+			UpdatedAt:       node.UpdatedAt.UTC(),
+		})
+	}
+	return models.LifecycleTreeNodesSuccess{Nodes: items}, nil
+}
+
+// InterventionMetrics is the resolver for the interventionMetrics field.
+func (r *queryResolver) InterventionMetrics(ctx context.Context, projectID string, limit *int32) (models.InterventionMetricsResult, error) {
+	if r == nil || r.Resolver == nil || r.Resolver.ControlPlaneService == nil {
+		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "control-plane service is not configured"}, nil
+	}
+	metrics, err := r.Resolver.ControlPlaneService.InterventionMetrics(ctx, projectID, int32ToInt(limit))
+	if err != nil {
+		return graphErrorFromError(fmt.Errorf("load intervention metrics: %w", err)), nil
+	}
+	return models.InterventionMetricsSuccess{Metrics: &models.InterventionMetrics{
+		ProjectID:              metrics.ProjectID,
+		InterventionCount:      int32(metrics.InterventionCount),
+		SuccessfulOutcomeCount: int32(metrics.SuccessfulOutcomeCount),
+		FailedOutcomeCount:     int32(metrics.FailedOutcomeCount),
+		AverageRecoverySeconds: int32(metrics.AverageRecoverySeconds),
+	}}, nil
+}
+
 // WorkerSessionStream is the resolver for the workerSessionStream field.
 func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
-		switch eventType {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
+		switch event.EventType {
 		case domainstream.EventWorkerRegistrationAccepted, domainstream.EventWorkerHeartbeat, domainstream.EventWorkerInvalidated:
 			return true
 		default:
@@ -836,8 +1040,8 @@ func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlat
 
 // SessionActivityStream is the resolver for the sessionActivityStream field.
 func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
-		switch eventType {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
+		switch event.EventType {
 		case domainstream.EventSessionStarted, domainstream.EventSessionUpdated, domainstream.EventSessionCheckpointed, domainstream.EventSessionEnded, domainstream.EventSessionRecovered, domainstream.EventSessionHealth, domainstream.EventSessionInjectedPrompt:
 			return true
 		default:
@@ -848,8 +1052,8 @@ func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correl
 
 // WorkflowExecutionStream is the resolver for the workflowExecutionStream field.
 func (r *subscriptionResolver) WorkflowExecutionStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
-		switch eventType {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
+		switch event.EventType {
 		case domainstream.EventToolStarted, domainstream.EventToolCompleted, domainstream.EventPermissionRequested, domainstream.EventPermissionDecided:
 			return true
 		default:
@@ -860,8 +1064,8 @@ func (r *subscriptionResolver) WorkflowExecutionStream(ctx context.Context, corr
 
 // AgentOutputStream is the resolver for the agentOutputStream field.
 func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
-		switch eventType {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
+		switch event.EventType {
 		case domainstream.EventAgentChunk, domainstream.EventAgentTurnCompleted:
 			return true
 		default:
@@ -872,12 +1076,171 @@ func (r *subscriptionResolver) AgentOutputStream(ctx context.Context, correlatio
 
 // TaskboardStream is the resolver for the taskboardStream field.
 func (r *subscriptionResolver) TaskboardStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(eventType domainstream.EventType) bool {
-		switch eventType {
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
+		switch event.EventType {
 		case domainstream.EventTaskboardUpdated, domainstream.EventTaskboardDeleted:
 			return true
 		default:
 			return false
 		}
 	})
+}
+
+// ProjectEventsStream is the resolver for the projectEventsStream field.
+func (r *subscriptionResolver) ProjectEventsStream(ctx context.Context, projectID string, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+	stream, err := streamLiveSubscription(ctx, r.Resolver.StreamService, models.CorrelationInput{ProjectID: strPtr(strings.TrimSpace(projectID))}, fromOffset, func(event domainstream.Event) bool {
+		return isActiveRuntimeWorkerProjectEvent(event)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if int32ToInt(fromOffset) > 0 {
+		return stream, nil
+	}
+	output := make(chan models.StreamEventResult, 64)
+	go func() {
+		defer close(output)
+		for _, seeded := range bootstrapProjectActiveEvents(ctx, r.Resolver.ControlPlaneService, strings.TrimSpace(projectID)) {
+			select {
+			case output <- seeded:
+			case <-ctx.Done():
+				return
+			}
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, open := <-stream:
+				if !open {
+					return
+				}
+				select {
+				case output <- event:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return output, nil
+}
+
+// PipelineEventsStream is the resolver for the pipelineEventsStream field.
+func (r *subscriptionResolver) PipelineEventsStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
+	if err := requireProjectScopedCorrelation(correlation); err != nil {
+		return singleEventStream(graphErrorFromError(err)), nil
+	}
+	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(_ domainstream.Event) bool {
+		return true
+	})
+}
+
+func isActiveRuntimeWorkerProjectEvent(event domainstream.Event) bool {
+	if event.Source != domainstream.SourceWorker {
+		return false
+	}
+	if isWorkerSessionLifecycleEvent(event.EventType) {
+		return true
+	}
+	runtimeActivity, _ := event.Payload["runtime_activity"].(bool)
+	runtimeEvent := strings.ToLower(strings.TrimSpace(payloadString(event.Payload, "runtime_event")))
+	if runtimeEvent == "" {
+		runtimeEvent = strings.ToLower(strings.TrimSpace(payloadString(event.Payload, "lifecycle_event_type")))
+	}
+	if !runtimeActivity && runtimeEvent == "" {
+		return false
+	}
+	switch runtimeEvent {
+	case "started", "heartbeat", "updated", "healthy", "active", "enqueued", "completed", "failed", "terminated", "cancelled", "canceled", "exited", "paused":
+		return true
+	default:
+		return false
+	}
+}
+
+func bootstrapProjectActiveEvents(ctx context.Context, controlPlaneService *applicationcontrolplane.Service, projectID string) []models.StreamEventResult {
+	if controlPlaneService == nil || strings.TrimSpace(projectID) == "" {
+		return nil
+	}
+	snapshots, err := controlPlaneService.LifecycleSessionSnapshots(ctx, projectID, "", 300)
+	if err != nil {
+		return nil
+	}
+	results := make([]models.StreamEventResult, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		if !isActiveLifecycleSnapshot(snapshot) {
+			continue
+		}
+		results = append(results, models.StreamEventSuccess{Event: mapStreamEvent(streamEventFromLifecycleSnapshot(snapshot))})
+	}
+	return results
+}
+
+func isActiveLifecycleSnapshot(snapshot applicationcontrolplane.LifecycleSessionSnapshot) bool {
+	if snapshot.EndedAt != nil {
+		return false
+	}
+	state := strings.ToLower(strings.TrimSpace(snapshot.CurrentState))
+	if state == "" {
+		return true
+	}
+	if strings.Contains(state, "completed") || strings.Contains(state, "exited") {
+		return false
+	}
+	return true
+}
+
+func streamEventFromLifecycleSnapshot(snapshot applicationcontrolplane.LifecycleSessionSnapshot) domainstream.Event {
+	timestamp := snapshot.UpdatedAt.UTC()
+	if timestamp.IsZero() {
+		timestamp = time.Now().UTC()
+	}
+	return domainstream.Event{
+		EventID:      fmt.Sprintf("seed:%s:%d:%d", strings.TrimSpace(snapshot.SessionID), snapshot.LastProjectEventSeq, timestamp.UnixNano()),
+		StreamOffset: uint64(snapshot.LastProjectEventSeq),
+		OccurredAt:   timestamp,
+		Source:       domainstream.SourceWorker,
+		EventType:    domainstream.EventSessionHealth,
+		CorrelationIDs: domainstream.CorrelationIDs{
+			RunID:         strings.TrimSpace(snapshot.RunID),
+			TaskID:        strings.TrimSpace(snapshot.TaskID),
+			JobID:         strings.TrimSpace(snapshot.JobID),
+			ProjectID:     strings.TrimSpace(snapshot.ProjectID),
+			SessionID:     strings.TrimSpace(snapshot.SessionID),
+			CorrelationID: "session:" + strings.TrimSpace(snapshot.SessionID),
+		},
+		Payload: map[string]any{
+			"runtime_activity":     true,
+			"runtime_event":        "health",
+			"seeded_from_snapshot": true,
+			"current_state":        strings.TrimSpace(snapshot.CurrentState),
+			"current_severity":     strings.TrimSpace(snapshot.CurrentSeverity),
+			"pipeline_type":        strings.TrimSpace(snapshot.PipelineType),
+		},
+	}
+}
+
+func isWorkerSessionLifecycleEvent(eventType domainstream.EventType) bool {
+	switch eventType {
+	case domainstream.EventSessionStarted, domainstream.EventSessionHealth, domainstream.EventSessionEnded:
+		return true
+	default:
+		return false
+	}
+}
+
+func payloadString(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	raw, ok := payload[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	return value
 }

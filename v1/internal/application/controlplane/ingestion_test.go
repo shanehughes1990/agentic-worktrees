@@ -55,6 +55,30 @@ func (repository *ingestionQueryRepoStub) ListDeadLetterHistory(ctx context.Cont
 	return nil, nil
 }
 
+func (repository *ingestionQueryRepoStub) ListLifecycleSessionSnapshots(ctx context.Context, projectID string, pipelineType string, limit int) ([]LifecycleSessionSnapshot, error) {
+	_ = ctx
+	_ = projectID
+	_ = pipelineType
+	_ = limit
+	return nil, nil
+}
+
+func (repository *ingestionQueryRepoStub) ListLifecycleSessionHistory(ctx context.Context, projectID string, sessionID string, fromEventSeq int64, limit int) ([]LifecycleHistoryEvent, error) {
+	_ = ctx
+	_ = projectID
+	_ = sessionID
+	_ = fromEventSeq
+	_ = limit
+	return nil, nil
+}
+
+func (repository *ingestionQueryRepoStub) ListLifecycleTreeNodes(ctx context.Context, filter LifecycleTreeFilter, limit int) ([]LifecycleTreeNode, error) {
+	_ = ctx
+	_ = filter
+	_ = limit
+	return nil, nil
+}
+
 type ingestionProjectRepoStub struct {
 	setup *ProjectSetup
 }
@@ -93,7 +117,7 @@ func newControlPlaneIngestionService(t *testing.T, setup *ProjectSetup, engine *
 	if err != nil {
 		t.Fatalf("new scheduler: %v", err)
 	}
- 	service, err := NewService(scheduler, &ingestionQueryRepoStub{}, &ingestionProjectRepoStub{setup: setup}, nil)
+	service, err := NewService(scheduler, &ingestionQueryRepoStub{}, &ingestionProjectRepoStub{setup: setup}, nil)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -103,7 +127,7 @@ func newControlPlaneIngestionService(t *testing.T, setup *ProjectSetup, engine *
 func TestRunIngestionAgentIncludesExplicitBoardAndStreamInPayload(t *testing.T) {
 	setup := &ProjectSetup{
 		ProjectID: "project-1",
-		Boards: []ProjectBoard{{BoardID: "board-from-setup"}},
+		Boards:    []ProjectBoard{{BoardID: "board-from-setup"}},
 	}
 	engine := &captureEngine{}
 	service := newControlPlaneIngestionService(t, setup, engine)
@@ -142,7 +166,7 @@ func TestRunIngestionAgentIncludesExplicitBoardAndStreamInPayload(t *testing.T) 
 func TestRunIngestionAgentUsesProjectBoardWhenInputBoardMissing(t *testing.T) {
 	setup := &ProjectSetup{
 		ProjectID: "project-1",
-		Boards: []ProjectBoard{{BoardID: "board-from-setup"}},
+		Boards:    []ProjectBoard{{BoardID: "board-from-setup"}},
 	}
 	engine := &captureEngine{}
 	service := newControlPlaneIngestionService(t, setup, engine)
@@ -174,7 +198,7 @@ func TestRunIngestionAgentUsesProjectBoardWhenInputBoardMissing(t *testing.T) {
 func TestRunIngestionAgentAllowsDocsOnlyWithoutPrompt(t *testing.T) {
 	setup := &ProjectSetup{
 		ProjectID: "project-1",
-		Boards: []ProjectBoard{{BoardID: "board-from-setup"}},
+		Boards:    []ProjectBoard{{BoardID: "board-from-setup"}},
 	}
 	engine := &captureEngine{}
 	service := newControlPlaneIngestionService(t, setup, engine)

@@ -130,6 +130,8 @@ type Task struct {
 	EpicID           WorkItemID       `json:"epic_id"`
 	Title            string           `json:"title"`
 	Description      string           `json:"description,omitempty"`
+	RepositoryIDs    []string         `json:"repository_ids"`
+	Deliverables     []string         `json:"deliverables"`
 	TaskType         string           `json:"task_type"`
 	State            TaskState        `json:"state"`
 	Rank             int              `json:"rank"`
@@ -161,6 +163,22 @@ func (task Task) Validate() error {
 	if strings.TrimSpace(task.TaskType) == "" {
 		return failures.WrapTerminal(errors.New("task_type is required"))
 	}
+	if len(task.RepositoryIDs) == 0 {
+		return failures.WrapTerminal(errors.New("task repository_ids must include at least one repository"))
+	}
+	for _, repositoryID := range task.RepositoryIDs {
+		if strings.TrimSpace(repositoryID) == "" {
+			return failures.WrapTerminal(errors.New("task repository_ids cannot include empty values"))
+		}
+	}
+	if len(task.Deliverables) == 0 {
+		return failures.WrapTerminal(errors.New("task deliverables must include at least one deliverable"))
+	}
+	for _, deliverable := range task.Deliverables {
+		if strings.TrimSpace(deliverable) == "" {
+			return failures.WrapTerminal(errors.New("task deliverables cannot include empty values"))
+		}
+	}
 	if err := task.State.Validate(); err != nil {
 		return err
 	}
@@ -188,6 +206,8 @@ type Epic struct {
 	BoardID          string       `json:"board_id"`
 	Title            string       `json:"title"`
 	Objective        string       `json:"objective,omitempty"`
+	RepositoryIDs    []string     `json:"repository_ids"`
+	Deliverables     []string     `json:"deliverables"`
 	State            EpicState    `json:"state"`
 	Rank             int          `json:"rank"`
 	DependsOnEpicIDs []WorkItemID `json:"depends_on_epic_ids,omitempty"`
@@ -205,6 +225,22 @@ func (epic Epic) Validate() error {
 	}
 	if strings.TrimSpace(epic.Title) == "" {
 		return failures.WrapTerminal(errors.New("epic title is required"))
+	}
+	if len(epic.RepositoryIDs) == 0 {
+		return failures.WrapTerminal(errors.New("epic repository_ids must include at least one repository"))
+	}
+	for _, repositoryID := range epic.RepositoryIDs {
+		if strings.TrimSpace(repositoryID) == "" {
+			return failures.WrapTerminal(errors.New("epic repository_ids cannot include empty values"))
+		}
+	}
+	if len(epic.Deliverables) == 0 {
+		return failures.WrapTerminal(errors.New("epic deliverables must include at least one deliverable"))
+	}
+	for _, deliverable := range epic.Deliverables {
+		if strings.TrimSpace(deliverable) == "" {
+			return failures.WrapTerminal(errors.New("epic deliverables cannot include empty values"))
+		}
 	}
 	if err := epic.State.Validate(); err != nil {
 		return err

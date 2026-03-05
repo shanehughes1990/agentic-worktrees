@@ -202,17 +202,163 @@ class SupervisorDecision {
 class StreamEvent {
   const StreamEvent({
     required this.eventID,
+    required this.streamOffset,
     required this.eventType,
     required this.source,
     required this.payload,
     required this.occurredAt,
+    this.runID,
+    this.taskID,
+    this.jobID,
+    this.projectID,
+    this.sessionID,
+    this.gapDetected = false,
+    this.gapReconciled = false,
+    this.expectedEventSeq,
+    this.observedEventSeq,
   });
 
   final String eventID;
+  final int streamOffset;
   final String eventType;
   final String source;
   final String payload;
   final DateTime occurredAt;
+  final String? runID;
+  final String? taskID;
+  final String? jobID;
+  final String? projectID;
+  final String? sessionID;
+  final bool gapDetected;
+  final bool gapReconciled;
+  final int? expectedEventSeq;
+  final int? observedEventSeq;
+}
+
+class LifecycleSessionSnapshotModel {
+  const LifecycleSessionSnapshotModel({
+    required this.projectID,
+    required this.sessionID,
+    required this.pipelineType,
+    required this.currentState,
+    required this.currentSeverity,
+    required this.lastEventSeq,
+    required this.lastProjectEventSeq,
+    required this.startedAt,
+    required this.updatedAt,
+    this.runID,
+    this.taskID,
+    this.jobID,
+    this.sourceRuntime,
+    this.lastReasonCode,
+    this.lastReasonSummary,
+    this.lastLivenessAt,
+    this.lastActivityAt,
+    this.lastCheckpointAt,
+    this.endedAt,
+  });
+
+  final String projectID;
+  final String sessionID;
+  final String pipelineType;
+  final String currentState;
+  final String currentSeverity;
+  final int lastEventSeq;
+  final int lastProjectEventSeq;
+  final DateTime startedAt;
+  final DateTime updatedAt;
+  final String? runID;
+  final String? taskID;
+  final String? jobID;
+  final String? sourceRuntime;
+  final String? lastReasonCode;
+  final String? lastReasonSummary;
+  final DateTime? lastLivenessAt;
+  final DateTime? lastActivityAt;
+  final DateTime? lastCheckpointAt;
+  final DateTime? endedAt;
+}
+
+class LifecycleHistoryEventModel {
+  const LifecycleHistoryEventModel({
+    required this.eventID,
+    required this.projectID,
+    required this.sessionID,
+    required this.pipelineType,
+    required this.sourceRuntime,
+    required this.eventType,
+    required this.eventSeq,
+    required this.projectEventSeq,
+    required this.occurredAt,
+    required this.payload,
+    this.runID,
+    this.taskID,
+    this.jobID,
+  });
+
+  final String eventID;
+  final String projectID;
+  final String sessionID;
+  final String pipelineType;
+  final String sourceRuntime;
+  final String eventType;
+  final int eventSeq;
+  final int projectEventSeq;
+  final DateTime occurredAt;
+  final String payload;
+  final String? runID;
+  final String? taskID;
+  final String? jobID;
+}
+
+class LifecycleTreeNodeModel {
+  const LifecycleTreeNodeModel({
+    required this.nodeID,
+    required this.nodeType,
+    required this.projectID,
+    required this.sessionCount,
+    required this.updatedAt,
+    this.parentNodeID,
+    this.runID,
+    this.taskID,
+    this.jobID,
+    this.sessionID,
+    this.pipelineType,
+    this.sourceRuntime,
+    this.currentState,
+    this.currentSeverity,
+  });
+
+  final String nodeID;
+  final String nodeType;
+  final String projectID;
+  final int sessionCount;
+  final DateTime updatedAt;
+  final String? parentNodeID;
+  final String? runID;
+  final String? taskID;
+  final String? jobID;
+  final String? sessionID;
+  final String? pipelineType;
+  final String? sourceRuntime;
+  final String? currentState;
+  final String? currentSeverity;
+}
+
+class InterventionMetricsModel {
+  const InterventionMetricsModel({
+    required this.projectID,
+    required this.interventionCount,
+    required this.successfulOutcomeCount,
+    required this.failedOutcomeCount,
+    required this.averageRecoverySeconds,
+  });
+
+  final String projectID;
+  final int interventionCount;
+  final int successfulOutcomeCount;
+  final int failedOutcomeCount;
+  final int averageRecoverySeconds;
 }
 
 class WorkerSession {
@@ -301,6 +447,8 @@ class TaskboardEpicModel {
     required this.boardID,
     required this.title,
     required this.objective,
+    required this.repositoryIDs,
+    required this.deliverables,
     required this.state,
     required this.rank,
     required this.dependsOnEpicIDs,
@@ -311,6 +459,8 @@ class TaskboardEpicModel {
   final String boardID;
   final String title;
   final String? objective;
+  final List<String> repositoryIDs;
+  final List<String> deliverables;
   final String state;
   final int rank;
   final List<String> dependsOnEpicIDs;
@@ -324,6 +474,8 @@ class TaskboardTaskModel {
     required this.epicID,
     required this.title,
     required this.description,
+    required this.repositoryIDs,
+    required this.deliverables,
     required this.taskType,
     required this.state,
     required this.rank,
@@ -336,6 +488,8 @@ class TaskboardTaskModel {
   final String epicID;
   final String title;
   final String? description;
+  final List<String> repositoryIDs;
+  final List<String> deliverables;
   final String taskType;
   final String state;
   final int rank;

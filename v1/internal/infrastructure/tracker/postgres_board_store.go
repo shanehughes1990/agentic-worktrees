@@ -33,6 +33,8 @@ type projectBoardEpicRecord struct {
 	BoardID          string         `gorm:"column:board_id;size:255;not null;index:idx_project_board_epics_board_id"`
 	Title            string         `gorm:"column:title;not null"`
 	Objective        string         `gorm:"column:objective"`
+	RepositoryIDs    pq.StringArray `gorm:"column:repository_ids;type:text[];not null;default:'{}'"`
+	Deliverables     pq.StringArray `gorm:"column:deliverables;type:text[];not null;default:'{}'"`
 	State            string         `gorm:"column:state;size:64;not null;index:idx_project_board_epics_state"`
 	Rank             int            `gorm:"column:rank;not null"`
 	DependsOnEpicIDs pq.StringArray `gorm:"column:depends_on_epic_ids;type:text[];not null;default:'{}'"`
@@ -48,6 +50,8 @@ type projectBoardTaskRecord struct {
 	EpicID           string         `gorm:"column:epic_id;size:255;not null;index:idx_project_board_tasks_epic_id"`
 	Title            string         `gorm:"column:title;not null"`
 	Description      string         `gorm:"column:description"`
+	RepositoryIDs    pq.StringArray `gorm:"column:repository_ids;type:text[];not null;default:'{}'"`
+	Deliverables     pq.StringArray `gorm:"column:deliverables;type:text[];not null;default:'{}'"`
 	TaskType         string         `gorm:"column:task_type;not null"`
 	State            string         `gorm:"column:state;size:64;not null;index:idx_project_board_tasks_state"`
 	Rank             int            `gorm:"column:rank;not null"`
@@ -168,7 +172,7 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 		epicRecords := make([]projectBoardEpicRecord, 0, len(board.Epics))
 		taskRecords := make([]projectBoardTaskRecord, 0)
 		for _, epic := range board.Epics {
-			epicRecord := projectBoardEpicRecord{ID: strings.TrimSpace(string(epic.ID)), BoardID: boardRecord.ID, Title: strings.TrimSpace(epic.Title), Objective: strings.TrimSpace(epic.Objective), State: string(epic.State), Rank: epic.Rank, DependsOnEpicIDs: pq.StringArray(workItemIDsToStrings(epic.DependsOnEpicIDs)), CreatedAt: safeTime(epic.CreatedAt, now), UpdatedAt: now}
+			epicRecord := projectBoardEpicRecord{ID: strings.TrimSpace(string(epic.ID)), BoardID: boardRecord.ID, Title: strings.TrimSpace(epic.Title), Objective: strings.TrimSpace(epic.Objective), RepositoryIDs: pq.StringArray(normalizeStringSlice(epic.RepositoryIDs)), Deliverables: pq.StringArray(normalizeStringSlice(epic.Deliverables)), State: string(epic.State), Rank: epic.Rank, DependsOnEpicIDs: pq.StringArray(workItemIDsToStrings(epic.DependsOnEpicIDs)), CreatedAt: safeTime(epic.CreatedAt, now), UpdatedAt: now}
 			epicRecords = append(epicRecords, epicRecord)
 			for _, task := range epic.Tasks {
 				taskAudits, err := marshalTaskModelAudits(task.Audits)
@@ -176,7 +180,7 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 					return failures.WrapTerminal(fmt.Errorf("marshal task audits for %s: %w", strings.TrimSpace(string(task.ID)), err))
 				}
 				legacyAudit := firstTaskAudit(task.Audits)
-				taskRecord := projectBoardTaskRecord{ID: strings.TrimSpace(string(task.ID)), BoardID: boardRecord.ID, EpicID: epicRecord.ID, Title: strings.TrimSpace(task.Title), Description: strings.TrimSpace(task.Description), TaskType: strings.TrimSpace(task.TaskType), State: string(task.State), Rank: task.Rank, DependsOnTaskIDs: pq.StringArray(workItemIDsToStrings(task.DependsOnTaskIDs)), ClaimedByAgentID: strings.TrimSpace(task.ClaimedByAgentID), ClaimedAt: task.ClaimedAt, ClaimExpiresAt: task.ClaimExpiresAt, ClaimToken: strings.TrimSpace(task.ClaimToken), AttemptCount: task.AttemptCount, TaskAudits: taskAudits, ModelProvider: strings.TrimSpace(legacyAudit.ModelProvider), ModelName: strings.TrimSpace(legacyAudit.ModelName), ModelVersion: strings.TrimSpace(legacyAudit.ModelVersion), ModelRunID: strings.TrimSpace(legacyAudit.ModelRunID), AgentSessionID: strings.TrimSpace(legacyAudit.AgentSessionID), AgentStreamID: strings.TrimSpace(legacyAudit.AgentStreamID), PromptFingerprint: strings.TrimSpace(legacyAudit.PromptFingerprint), InputTokens: legacyAudit.InputTokens, OutputTokens: legacyAudit.OutputTokens, StartedAt: legacyAudit.StartedAt, CompletedAt: legacyAudit.CompletedAt, OutcomeStatus: outcomeStatus(task), OutcomeSummary: outcomeSummary(task), OutcomeErrorCode: outcomeErrorCode(task), OutcomeErrorMessage: outcomeErrorMessage(task), CreatedAt: safeTime(task.CreatedAt, now), UpdatedAt: now}
+				taskRecord := projectBoardTaskRecord{ID: strings.TrimSpace(string(task.ID)), BoardID: boardRecord.ID, EpicID: epicRecord.ID, Title: strings.TrimSpace(task.Title), Description: strings.TrimSpace(task.Description), RepositoryIDs: pq.StringArray(normalizeStringSlice(task.RepositoryIDs)), Deliverables: pq.StringArray(normalizeStringSlice(task.Deliverables)), TaskType: strings.TrimSpace(task.TaskType), State: string(task.State), Rank: task.Rank, DependsOnTaskIDs: pq.StringArray(workItemIDsToStrings(task.DependsOnTaskIDs)), ClaimedByAgentID: strings.TrimSpace(task.ClaimedByAgentID), ClaimedAt: task.ClaimedAt, ClaimExpiresAt: task.ClaimExpiresAt, ClaimToken: strings.TrimSpace(task.ClaimToken), AttemptCount: task.AttemptCount, TaskAudits: taskAudits, ModelProvider: strings.TrimSpace(legacyAudit.ModelProvider), ModelName: strings.TrimSpace(legacyAudit.ModelName), ModelVersion: strings.TrimSpace(legacyAudit.ModelVersion), ModelRunID: strings.TrimSpace(legacyAudit.ModelRunID), AgentSessionID: strings.TrimSpace(legacyAudit.AgentSessionID), AgentStreamID: strings.TrimSpace(legacyAudit.AgentStreamID), PromptFingerprint: strings.TrimSpace(legacyAudit.PromptFingerprint), InputTokens: legacyAudit.InputTokens, OutputTokens: legacyAudit.OutputTokens, StartedAt: legacyAudit.StartedAt, CompletedAt: legacyAudit.CompletedAt, OutcomeStatus: outcomeStatus(task), OutcomeSummary: outcomeSummary(task), OutcomeErrorCode: outcomeErrorCode(task), OutcomeErrorMessage: outcomeErrorMessage(task), CreatedAt: safeTime(task.CreatedAt, now), UpdatedAt: now}
 				taskRecords = append(taskRecords, taskRecord)
 			}
 		}
@@ -389,7 +393,7 @@ func (store *PostgresBoardStore) LoadBoard(ctx context.Context, projectID string
 	}
 	epics := make([]domaintracker.Epic, 0, len(epicRecords))
 	for _, rec := range epicRecords {
-		epics = append(epics, domaintracker.Epic{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, Title: rec.Title, Objective: rec.Objective, State: domaintracker.EpicState(rec.State), Rank: rec.Rank, DependsOnEpicIDs: stringsToWorkItemIDs([]string(rec.DependsOnEpicIDs)), Tasks: tasksByEpic[rec.ID], CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt})
+		epics = append(epics, domaintracker.Epic{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, Title: rec.Title, Objective: rec.Objective, RepositoryIDs: normalizeStringSlice([]string(rec.RepositoryIDs)), Deliverables: normalizeStringSlice([]string(rec.Deliverables)), State: domaintracker.EpicState(rec.State), Rank: rec.Rank, DependsOnEpicIDs: stringsToWorkItemIDs([]string(rec.DependsOnEpicIDs)), Tasks: tasksByEpic[rec.ID], CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt})
 	}
 	ingestionAudits, err := unmarshalTaskModelAudits(boardRecord.IngestionAudits)
 	if err != nil {
@@ -429,7 +433,7 @@ func mapTaskRecord(rec projectBoardTaskRecord) domaintracker.Task {
 	if err != nil || len(audits) == 0 {
 		audits = legacyTaskAudits(rec)
 	}
-	task := domaintracker.Task{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, EpicID: domaintracker.WorkItemID(rec.EpicID), Title: rec.Title, Description: rec.Description, TaskType: rec.TaskType, State: domaintracker.TaskState(rec.State), Rank: rec.Rank, DependsOnTaskIDs: stringsToWorkItemIDs([]string(rec.DependsOnTaskIDs)), Audits: audits, ClaimedByAgentID: rec.ClaimedByAgentID, ClaimedAt: rec.ClaimedAt, ClaimExpiresAt: rec.ClaimExpiresAt, ClaimToken: rec.ClaimToken, AttemptCount: rec.AttemptCount, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt}
+	task := domaintracker.Task{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, EpicID: domaintracker.WorkItemID(rec.EpicID), Title: rec.Title, Description: rec.Description, RepositoryIDs: normalizeStringSlice([]string(rec.RepositoryIDs)), Deliverables: normalizeStringSlice([]string(rec.Deliverables)), TaskType: rec.TaskType, State: domaintracker.TaskState(rec.State), Rank: rec.Rank, DependsOnTaskIDs: stringsToWorkItemIDs([]string(rec.DependsOnTaskIDs)), Audits: audits, ClaimedByAgentID: rec.ClaimedByAgentID, ClaimedAt: rec.ClaimedAt, ClaimExpiresAt: rec.ClaimExpiresAt, ClaimToken: rec.ClaimToken, AttemptCount: rec.AttemptCount, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt}
 	if strings.TrimSpace(rec.OutcomeStatus) != "" {
 		task.Outcome = &domaintracker.TaskOutcome{Status: domaintracker.OutcomeStatus(rec.OutcomeStatus), Summary: rec.OutcomeSummary, ErrorCode: rec.OutcomeErrorCode, ErrorMessage: rec.OutcomeErrorMessage}
 	}
@@ -470,6 +474,23 @@ func stringsToWorkItemIDs(values []string) []domaintracker.WorkItemID {
 			continue
 		}
 		result = append(result, domaintracker.WorkItemID(trimmed))
+	}
+	return result
+}
+
+func normalizeStringSlice(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
 	}
 	return result
 }

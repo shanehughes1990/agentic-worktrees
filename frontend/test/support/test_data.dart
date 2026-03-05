@@ -72,6 +72,7 @@ SupervisorDecision sampleSupervisorDecision() {
 StreamEvent sampleStreamEvent() {
   return StreamEvent(
     eventID: 'event-1',
+    streamOffset: 1,
     eventType: 'TASK_ENQUEUED',
     source: 'supervisor',
     payload: '{"ok":true}',

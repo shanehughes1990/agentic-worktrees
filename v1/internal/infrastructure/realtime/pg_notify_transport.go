@@ -15,6 +15,7 @@ import (
 const (
 	heartbeatRequestChannel       = "worker_heartbeat_request"
 	heartbeatResponseChannel      = "worker_heartbeat_response"
+	runtimeActivityChannel        = "worker_runtime_activity"
 	registrationSubmissionChannel = "worker_registration_submission"
 	registrationDecisionChannel   = "worker_registration_decision"
 	invalidationIntentChannel     = "worker_invalidation_intent"
@@ -69,6 +70,23 @@ func (transport *PGNotifyTransport) PublishResponse(ctx context.Context, respons
 	return nil
 }
 
+func (transport *PGNotifyTransport) PublishRuntimeActivity(ctx context.Context, signal domainrealtime.RuntimeActivitySignal) error {
+	if transport == nil || transport.db == nil {
+		return fmt.Errorf("pg notify transport is not initialized")
+	}
+	if err := signal.Validate(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(signal)
+	if err != nil {
+		return fmt.Errorf("marshal runtime activity signal: %w", err)
+	}
+	if err := transport.db.WithContext(ctx).Exec("SELECT pg_notify(?, ?)", runtimeActivityChannel, string(payload)).Error; err != nil {
+		return fmt.Errorf("publish runtime activity signal: %w", err)
+	}
+	return nil
+}
+
 func (transport *PGNotifyTransport) ListenRequests(ctx context.Context, handler func(domainrealtime.HeartbeatRequest) error) error {
 	return transport.listen(ctx, heartbeatRequestChannel, func(payload []byte) error {
 		request := domainrealtime.HeartbeatRequest{}
@@ -92,6 +110,19 @@ func (transport *PGNotifyTransport) ListenResponses(ctx context.Context, handler
 			return err
 		}
 		return handler(response)
+	})
+}
+
+func (transport *PGNotifyTransport) ListenRuntimeActivity(ctx context.Context, handler func(domainrealtime.RuntimeActivitySignal) error) error {
+	return transport.listen(ctx, runtimeActivityChannel, func(payload []byte) error {
+		signal := domainrealtime.RuntimeActivitySignal{}
+		if err := json.Unmarshal(payload, &signal); err != nil {
+			return fmt.Errorf("decode runtime activity signal: %w", err)
+		}
+		if err := signal.Validate(); err != nil {
+			return err
+		}
+		return handler(signal)
 	})
 }
 

@@ -83,7 +83,97 @@ type ComplexityRoot struct {
 		Message func(childComplexity int) int
 	}
 
+	InterventionMetrics struct {
+		AverageRecoverySeconds func(childComplexity int) int
+		FailedOutcomeCount     func(childComplexity int) int
+		InterventionCount      func(childComplexity int) int
+		ProjectID              func(childComplexity int) int
+		SuccessfulOutcomeCount func(childComplexity int) int
+	}
+
+	InterventionMetricsSuccess struct {
+		Metrics func(childComplexity int) int
+	}
+
+	LifecycleHistoryEvent struct {
+		EventID         func(childComplexity int) int
+		EventSeq        func(childComplexity int) int
+		EventType       func(childComplexity int) int
+		JobID           func(childComplexity int) int
+		OccurredAt      func(childComplexity int) int
+		Payload         func(childComplexity int) int
+		PipelineType    func(childComplexity int) int
+		ProjectEventSeq func(childComplexity int) int
+		ProjectID       func(childComplexity int) int
+		RunID           func(childComplexity int) int
+		SessionID       func(childComplexity int) int
+		SourceRuntime   func(childComplexity int) int
+		TaskID          func(childComplexity int) int
+	}
+
+	LifecycleHistorySuccess struct {
+		Events           func(childComplexity int) int
+		NextFromEventSeq func(childComplexity int) int
+	}
+
+	LifecycleSessionSnapshot struct {
+		CurrentSeverity     func(childComplexity int) int
+		CurrentState        func(childComplexity int) int
+		EndedAt             func(childComplexity int) int
+		JobID               func(childComplexity int) int
+		LastActivityAt      func(childComplexity int) int
+		LastCheckpointAt    func(childComplexity int) int
+		LastEventSeq        func(childComplexity int) int
+		LastLivenessAt      func(childComplexity int) int
+		LastProjectEventSeq func(childComplexity int) int
+		LastReasonCode      func(childComplexity int) int
+		LastReasonSummary   func(childComplexity int) int
+		PipelineType        func(childComplexity int) int
+		ProjectID           func(childComplexity int) int
+		RunID               func(childComplexity int) int
+		SessionID           func(childComplexity int) int
+		SourceRuntime       func(childComplexity int) int
+		StartedAt           func(childComplexity int) int
+		TaskID              func(childComplexity int) int
+		UpdatedAt           func(childComplexity int) int
+	}
+
+	LifecycleSessionSnapshotsSuccess struct {
+		Sessions func(childComplexity int) int
+	}
+
+	LifecycleTreeNode struct {
+		CurrentSeverity func(childComplexity int) int
+		CurrentState    func(childComplexity int) int
+		JobID           func(childComplexity int) int
+		NodeID          func(childComplexity int) int
+		NodeType        func(childComplexity int) int
+		ParentNodeID    func(childComplexity int) int
+		PipelineType    func(childComplexity int) int
+		ProjectID       func(childComplexity int) int
+		RunID           func(childComplexity int) int
+		SessionCount    func(childComplexity int) int
+		SessionID       func(childComplexity int) int
+		SourceRuntime   func(childComplexity int) int
+		TaskID          func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+	}
+
+	LifecycleTreeNodesSuccess struct {
+		Nodes func(childComplexity int) int
+	}
+
+	ManualInterventionSuccess struct {
+		Action          func(childComplexity int) int
+		EventID         func(childComplexity int) int
+		EventSeq        func(childComplexity int) int
+		Ok              func(childComplexity int) int
+		ProjectEventSeq func(childComplexity int) int
+		ResultingState  func(childComplexity int) int
+	}
+
 	Mutation struct {
+		ApplyManualIntervention      func(childComplexity int, input models.ApplyManualInterventionInput) int
 		CreateTaskboard              func(childComplexity int, input models.CreateTaskboardInput) int
 		CreateTaskboardEpic          func(childComplexity int, input models.CreateTaskboardEpicInput) int
 		CreateTaskboardTask          func(childComplexity int, input models.CreateTaskboardTaskInput) int
@@ -175,8 +265,14 @@ type ComplexityRoot struct {
 	Query struct {
 		DeadLetterHistory         func(childComplexity int, queue *string, limit *int32) int
 		ExecutionHistory          func(childComplexity int, correlation models.CorrelationInput, limit *int32) int
+		InterventionMetrics       func(childComplexity int, projectID string, limit *int32) int
+		LifecycleSessionHistory   func(childComplexity int, projectID string, sessionID string, fromEventSeq *int32, limit *int32) int
+		LifecycleSessionSnapshots func(childComplexity int, projectID string, pipelineType *string, limit *int32) int
+		LifecycleTreeNodes        func(childComplexity int, filter models.LifecycleTreeFilterInput, limit *int32) int
+		PipelineEvents            func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32, limit *int32) int
 		ProjectDocumentPreview    func(childComplexity int, projectID string, documentID string) int
 		ProjectDocuments          func(childComplexity int, projectID string, limit *int32) int
+		ProjectEvents             func(childComplexity int, projectID string, fromOffset *int32, limit *int32) int
 		ProjectRepositoryBranches func(childComplexity int, projectID string) int
 		ProjectSetup              func(childComplexity int, projectID string) int
 		ProjectSetups             func(childComplexity int, limit *int32) int
@@ -239,26 +335,37 @@ type ComplexityRoot struct {
 	}
 
 	StreamEvent struct {
-		CorrelationID func(childComplexity int) int
-		EventID       func(childComplexity int) int
-		EventType     func(childComplexity int) int
-		JobID         func(childComplexity int) int
-		OccurredAt    func(childComplexity int) int
-		Payload       func(childComplexity int) int
-		ProjectID     func(childComplexity int) int
-		RunID         func(childComplexity int) int
-		SessionID     func(childComplexity int) int
-		Source        func(childComplexity int) int
-		StreamOffset  func(childComplexity int) int
-		TaskID        func(childComplexity int) int
+		CorrelationID    func(childComplexity int) int
+		EventID          func(childComplexity int) int
+		EventType        func(childComplexity int) int
+		ExpectedEventSeq func(childComplexity int) int
+		GapDetected      func(childComplexity int) int
+		GapReconciled    func(childComplexity int) int
+		JobID            func(childComplexity int) int
+		ObservedEventSeq func(childComplexity int) int
+		OccurredAt       func(childComplexity int) int
+		Payload          func(childComplexity int) int
+		ProjectID        func(childComplexity int) int
+		RunID            func(childComplexity int) int
+		SessionID        func(childComplexity int) int
+		Source           func(childComplexity int) int
+		StreamOffset     func(childComplexity int) int
+		TaskID           func(childComplexity int) int
 	}
 
 	StreamEventSuccess struct {
 		Event func(childComplexity int) int
 	}
 
+	StreamEventsSuccess struct {
+		Events         func(childComplexity int) int
+		NextFromOffset func(childComplexity int) int
+	}
+
 	Subscription struct {
 		AgentOutputStream       func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32) int
+		PipelineEventsStream    func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32) int
+		ProjectEventsStream     func(childComplexity int, projectID string, fromOffset *int32) int
 		SessionActivityStream   func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32) int
 		TaskboardStream         func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32) int
 		WorkerSessionStream     func(childComplexity int, correlation models.CorrelationInput, fromOffset *int32) int
@@ -296,10 +403,12 @@ type ComplexityRoot struct {
 
 	TaskboardEpic struct {
 		BoardID          func(childComplexity int) int
+		Deliverables     func(childComplexity int) int
 		DependsOnEpicIDs func(childComplexity int) int
 		ID               func(childComplexity int) int
 		Objective        func(childComplexity int) int
 		Rank             func(childComplexity int) int
+		RepositoryIDs    func(childComplexity int) int
 		State            func(childComplexity int) int
 		Tasks            func(childComplexity int) int
 		Title            func(childComplexity int) int
@@ -316,11 +425,13 @@ type ComplexityRoot struct {
 	TaskboardTask struct {
 		Audits           func(childComplexity int) int
 		BoardID          func(childComplexity int) int
+		Deliverables     func(childComplexity int) int
 		DependsOnTaskIDs func(childComplexity int) int
 		Description      func(childComplexity int) int
 		EpicID           func(childComplexity int) int
 		ID               func(childComplexity int) int
 		Rank             func(childComplexity int) int
+		RepositoryIDs    func(childComplexity int) int
 		State            func(childComplexity int) int
 		TaskType         func(childComplexity int) int
 		Title            func(childComplexity int) int
@@ -395,6 +506,7 @@ type MutationResolver interface {
 	DeleteTaskboardTask(ctx context.Context, input models.DeleteTaskboardTaskInput) (models.TaskboardMutationResult, error)
 	DeleteProjectDocument(ctx context.Context, input models.DeleteProjectDocumentInput) (models.DeleteProjectDocumentResult, error)
 	UpdateWorkerSettings(ctx context.Context, input models.UpdateWorkerSettingsInput) (models.WorkerSettingsResult, error)
+	ApplyManualIntervention(ctx context.Context, input models.ApplyManualInterventionInput) (models.ManualInterventionResult, error)
 }
 type QueryResolver interface {
 	Sessions(ctx context.Context, limit *int32) (models.SessionsResult, error)
@@ -411,6 +523,12 @@ type QueryResolver interface {
 	Taskboard(ctx context.Context, projectID string, boardID string) (models.TaskboardResult, error)
 	WorkerSessions(ctx context.Context, limit *int32) (models.WorkerSessionsResult, error)
 	WorkerSettings(ctx context.Context) (models.WorkerSettingsResult, error)
+	ProjectEvents(ctx context.Context, projectID string, fromOffset *int32, limit *int32) (models.StreamEventsResult, error)
+	PipelineEvents(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32, limit *int32) (models.StreamEventsResult, error)
+	LifecycleSessionSnapshots(ctx context.Context, projectID string, pipelineType *string, limit *int32) (models.LifecycleSessionSnapshotsResult, error)
+	LifecycleSessionHistory(ctx context.Context, projectID string, sessionID string, fromEventSeq *int32, limit *int32) (models.LifecycleHistoryResult, error)
+	LifecycleTreeNodes(ctx context.Context, filter models.LifecycleTreeFilterInput, limit *int32) (models.LifecycleTreeNodesResult, error)
+	InterventionMetrics(ctx context.Context, projectID string, limit *int32) (models.InterventionMetricsResult, error)
 	ScmSupportedOperations(ctx context.Context) (models.ScmSupportedOperationsResult, error)
 }
 type SubscriptionResolver interface {
@@ -419,6 +537,8 @@ type SubscriptionResolver interface {
 	WorkflowExecutionStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	AgentOutputStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 	TaskboardStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
+	ProjectEventsStream(ctx context.Context, projectID string, fromOffset *int32) (<-chan models.StreamEventResult, error)
+	PipelineEventsStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error)
 }
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -592,6 +712,398 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.GraphError.Message(childComplexity), true
 
+	case "InterventionMetrics.averageRecoverySeconds":
+		if e.ComplexityRoot.InterventionMetrics.AverageRecoverySeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InterventionMetrics.AverageRecoverySeconds(childComplexity), true
+	case "InterventionMetrics.failedOutcomeCount":
+		if e.ComplexityRoot.InterventionMetrics.FailedOutcomeCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InterventionMetrics.FailedOutcomeCount(childComplexity), true
+	case "InterventionMetrics.interventionCount":
+		if e.ComplexityRoot.InterventionMetrics.InterventionCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InterventionMetrics.InterventionCount(childComplexity), true
+	case "InterventionMetrics.projectID":
+		if e.ComplexityRoot.InterventionMetrics.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InterventionMetrics.ProjectID(childComplexity), true
+	case "InterventionMetrics.successfulOutcomeCount":
+		if e.ComplexityRoot.InterventionMetrics.SuccessfulOutcomeCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InterventionMetrics.SuccessfulOutcomeCount(childComplexity), true
+
+	case "InterventionMetricsSuccess.metrics":
+		if e.ComplexityRoot.InterventionMetricsSuccess.Metrics == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InterventionMetricsSuccess.Metrics(childComplexity), true
+
+	case "LifecycleHistoryEvent.eventID":
+		if e.ComplexityRoot.LifecycleHistoryEvent.EventID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.EventID(childComplexity), true
+	case "LifecycleHistoryEvent.eventSeq":
+		if e.ComplexityRoot.LifecycleHistoryEvent.EventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.EventSeq(childComplexity), true
+	case "LifecycleHistoryEvent.eventType":
+		if e.ComplexityRoot.LifecycleHistoryEvent.EventType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.EventType(childComplexity), true
+	case "LifecycleHistoryEvent.jobID":
+		if e.ComplexityRoot.LifecycleHistoryEvent.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.JobID(childComplexity), true
+	case "LifecycleHistoryEvent.occurredAt":
+		if e.ComplexityRoot.LifecycleHistoryEvent.OccurredAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.OccurredAt(childComplexity), true
+	case "LifecycleHistoryEvent.payload":
+		if e.ComplexityRoot.LifecycleHistoryEvent.Payload == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.Payload(childComplexity), true
+	case "LifecycleHistoryEvent.pipelineType":
+		if e.ComplexityRoot.LifecycleHistoryEvent.PipelineType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.PipelineType(childComplexity), true
+	case "LifecycleHistoryEvent.projectEventSeq":
+		if e.ComplexityRoot.LifecycleHistoryEvent.ProjectEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.ProjectEventSeq(childComplexity), true
+	case "LifecycleHistoryEvent.projectID":
+		if e.ComplexityRoot.LifecycleHistoryEvent.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.ProjectID(childComplexity), true
+	case "LifecycleHistoryEvent.runID":
+		if e.ComplexityRoot.LifecycleHistoryEvent.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.RunID(childComplexity), true
+	case "LifecycleHistoryEvent.sessionID":
+		if e.ComplexityRoot.LifecycleHistoryEvent.SessionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.SessionID(childComplexity), true
+	case "LifecycleHistoryEvent.sourceRuntime":
+		if e.ComplexityRoot.LifecycleHistoryEvent.SourceRuntime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.SourceRuntime(childComplexity), true
+	case "LifecycleHistoryEvent.taskID":
+		if e.ComplexityRoot.LifecycleHistoryEvent.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistoryEvent.TaskID(childComplexity), true
+
+	case "LifecycleHistorySuccess.events":
+		if e.ComplexityRoot.LifecycleHistorySuccess.Events == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistorySuccess.Events(childComplexity), true
+	case "LifecycleHistorySuccess.nextFromEventSeq":
+		if e.ComplexityRoot.LifecycleHistorySuccess.NextFromEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleHistorySuccess.NextFromEventSeq(childComplexity), true
+
+	case "LifecycleSessionSnapshot.currentSeverity":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.CurrentSeverity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.CurrentSeverity(childComplexity), true
+	case "LifecycleSessionSnapshot.currentState":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.CurrentState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.CurrentState(childComplexity), true
+	case "LifecycleSessionSnapshot.endedAt":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.EndedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.EndedAt(childComplexity), true
+	case "LifecycleSessionSnapshot.jobID":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.JobID(childComplexity), true
+	case "LifecycleSessionSnapshot.lastActivityAt":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastActivityAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastActivityAt(childComplexity), true
+	case "LifecycleSessionSnapshot.lastCheckpointAt":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastCheckpointAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastCheckpointAt(childComplexity), true
+	case "LifecycleSessionSnapshot.lastEventSeq":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastEventSeq(childComplexity), true
+	case "LifecycleSessionSnapshot.lastLivenessAt":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastLivenessAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastLivenessAt(childComplexity), true
+	case "LifecycleSessionSnapshot.lastProjectEventSeq":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastProjectEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastProjectEventSeq(childComplexity), true
+	case "LifecycleSessionSnapshot.lastReasonCode":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastReasonCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastReasonCode(childComplexity), true
+	case "LifecycleSessionSnapshot.lastReasonSummary":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.LastReasonSummary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.LastReasonSummary(childComplexity), true
+	case "LifecycleSessionSnapshot.pipelineType":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.PipelineType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.PipelineType(childComplexity), true
+	case "LifecycleSessionSnapshot.projectID":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.ProjectID(childComplexity), true
+	case "LifecycleSessionSnapshot.runID":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.RunID(childComplexity), true
+	case "LifecycleSessionSnapshot.sessionID":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.SessionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.SessionID(childComplexity), true
+	case "LifecycleSessionSnapshot.sourceRuntime":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.SourceRuntime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.SourceRuntime(childComplexity), true
+	case "LifecycleSessionSnapshot.startedAt":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.StartedAt(childComplexity), true
+	case "LifecycleSessionSnapshot.taskID":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.TaskID(childComplexity), true
+	case "LifecycleSessionSnapshot.updatedAt":
+		if e.ComplexityRoot.LifecycleSessionSnapshot.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshot.UpdatedAt(childComplexity), true
+
+	case "LifecycleSessionSnapshotsSuccess.sessions":
+		if e.ComplexityRoot.LifecycleSessionSnapshotsSuccess.Sessions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleSessionSnapshotsSuccess.Sessions(childComplexity), true
+
+	case "LifecycleTreeNode.currentSeverity":
+		if e.ComplexityRoot.LifecycleTreeNode.CurrentSeverity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.CurrentSeverity(childComplexity), true
+	case "LifecycleTreeNode.currentState":
+		if e.ComplexityRoot.LifecycleTreeNode.CurrentState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.CurrentState(childComplexity), true
+	case "LifecycleTreeNode.jobID":
+		if e.ComplexityRoot.LifecycleTreeNode.JobID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.JobID(childComplexity), true
+	case "LifecycleTreeNode.nodeID":
+		if e.ComplexityRoot.LifecycleTreeNode.NodeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.NodeID(childComplexity), true
+	case "LifecycleTreeNode.nodeType":
+		if e.ComplexityRoot.LifecycleTreeNode.NodeType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.NodeType(childComplexity), true
+	case "LifecycleTreeNode.parentNodeID":
+		if e.ComplexityRoot.LifecycleTreeNode.ParentNodeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.ParentNodeID(childComplexity), true
+	case "LifecycleTreeNode.pipelineType":
+		if e.ComplexityRoot.LifecycleTreeNode.PipelineType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.PipelineType(childComplexity), true
+	case "LifecycleTreeNode.projectID":
+		if e.ComplexityRoot.LifecycleTreeNode.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.ProjectID(childComplexity), true
+	case "LifecycleTreeNode.runID":
+		if e.ComplexityRoot.LifecycleTreeNode.RunID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.RunID(childComplexity), true
+	case "LifecycleTreeNode.sessionCount":
+		if e.ComplexityRoot.LifecycleTreeNode.SessionCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.SessionCount(childComplexity), true
+	case "LifecycleTreeNode.sessionID":
+		if e.ComplexityRoot.LifecycleTreeNode.SessionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.SessionID(childComplexity), true
+	case "LifecycleTreeNode.sourceRuntime":
+		if e.ComplexityRoot.LifecycleTreeNode.SourceRuntime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.SourceRuntime(childComplexity), true
+	case "LifecycleTreeNode.taskID":
+		if e.ComplexityRoot.LifecycleTreeNode.TaskID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.TaskID(childComplexity), true
+	case "LifecycleTreeNode.updatedAt":
+		if e.ComplexityRoot.LifecycleTreeNode.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNode.UpdatedAt(childComplexity), true
+
+	case "LifecycleTreeNodesSuccess.nodes":
+		if e.ComplexityRoot.LifecycleTreeNodesSuccess.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LifecycleTreeNodesSuccess.Nodes(childComplexity), true
+
+	case "ManualInterventionSuccess.action":
+		if e.ComplexityRoot.ManualInterventionSuccess.Action == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ManualInterventionSuccess.Action(childComplexity), true
+	case "ManualInterventionSuccess.eventID":
+		if e.ComplexityRoot.ManualInterventionSuccess.EventID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ManualInterventionSuccess.EventID(childComplexity), true
+	case "ManualInterventionSuccess.eventSeq":
+		if e.ComplexityRoot.ManualInterventionSuccess.EventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ManualInterventionSuccess.EventSeq(childComplexity), true
+	case "ManualInterventionSuccess.ok":
+		if e.ComplexityRoot.ManualInterventionSuccess.Ok == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ManualInterventionSuccess.Ok(childComplexity), true
+	case "ManualInterventionSuccess.projectEventSeq":
+		if e.ComplexityRoot.ManualInterventionSuccess.ProjectEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ManualInterventionSuccess.ProjectEventSeq(childComplexity), true
+	case "ManualInterventionSuccess.resultingState":
+		if e.ComplexityRoot.ManualInterventionSuccess.ResultingState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ManualInterventionSuccess.ResultingState(childComplexity), true
+
+	case "Mutation.applyManualIntervention":
+		if e.ComplexityRoot.Mutation.ApplyManualIntervention == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_applyManualIntervention_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ApplyManualIntervention(childComplexity, args["input"].(models.ApplyManualInterventionInput)), true
 	case "Mutation.createTaskboard":
 		if e.ComplexityRoot.Mutation.CreateTaskboard == nil {
 			break
@@ -1029,7 +1541,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ExecutionHistory(childComplexity, args["correlation"].(models.CorrelationInput), args["limit"].(*int32)), true
+	case "Query.interventionMetrics":
+		if e.ComplexityRoot.Query.InterventionMetrics == nil {
+			break
+		}
 
+		args, err := ec.field_Query_interventionMetrics_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.InterventionMetrics(childComplexity, args["projectID"].(string), args["limit"].(*int32)), true
+
+	case "Query.lifecycleSessionHistory":
+		if e.ComplexityRoot.Query.LifecycleSessionHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lifecycleSessionHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LifecycleSessionHistory(childComplexity, args["projectID"].(string), args["sessionID"].(string), args["fromEventSeq"].(*int32), args["limit"].(*int32)), true
+	case "Query.lifecycleSessionSnapshots":
+		if e.ComplexityRoot.Query.LifecycleSessionSnapshots == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lifecycleSessionSnapshots_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LifecycleSessionSnapshots(childComplexity, args["projectID"].(string), args["pipelineType"].(*string), args["limit"].(*int32)), true
+	case "Query.lifecycleTreeNodes":
+		if e.ComplexityRoot.Query.LifecycleTreeNodes == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lifecycleTreeNodes_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LifecycleTreeNodes(childComplexity, args["filter"].(models.LifecycleTreeFilterInput), args["limit"].(*int32)), true
+	case "Query.pipelineEvents":
+		if e.ComplexityRoot.Query.PipelineEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_pipelineEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.PipelineEvents(childComplexity, args["correlation"].(models.CorrelationInput), args["fromOffset"].(*int32), args["limit"].(*int32)), true
 	case "Query.projectDocumentPreview":
 		if e.ComplexityRoot.Query.ProjectDocumentPreview == nil {
 			break
@@ -1052,6 +1619,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ProjectDocuments(childComplexity, args["projectID"].(string), args["limit"].(*int32)), true
+	case "Query.projectEvents":
+		if e.ComplexityRoot.Query.ProjectEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projectEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProjectEvents(childComplexity, args["projectID"].(string), args["fromOffset"].(*int32), args["limit"].(*int32)), true
 	case "Query.projectRepositoryBranches":
 		if e.ComplexityRoot.Query.ProjectRepositoryBranches == nil {
 			break
@@ -1334,12 +1912,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StreamEvent.EventType(childComplexity), true
+	case "StreamEvent.expectedEventSeq":
+		if e.ComplexityRoot.StreamEvent.ExpectedEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.ExpectedEventSeq(childComplexity), true
+	case "StreamEvent.gapDetected":
+		if e.ComplexityRoot.StreamEvent.GapDetected == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.GapDetected(childComplexity), true
+	case "StreamEvent.gapReconciled":
+		if e.ComplexityRoot.StreamEvent.GapReconciled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.GapReconciled(childComplexity), true
 	case "StreamEvent.jobID":
 		if e.ComplexityRoot.StreamEvent.JobID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.StreamEvent.JobID(childComplexity), true
+	case "StreamEvent.observedEventSeq":
+		if e.ComplexityRoot.StreamEvent.ObservedEventSeq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEvent.ObservedEventSeq(childComplexity), true
 	case "StreamEvent.occurredAt":
 		if e.ComplexityRoot.StreamEvent.OccurredAt == nil {
 			break
@@ -1396,6 +1998,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.StreamEventSuccess.Event(childComplexity), true
 
+	case "StreamEventsSuccess.events":
+		if e.ComplexityRoot.StreamEventsSuccess.Events == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEventsSuccess.Events(childComplexity), true
+	case "StreamEventsSuccess.nextFromOffset":
+		if e.ComplexityRoot.StreamEventsSuccess.NextFromOffset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamEventsSuccess.NextFromOffset(childComplexity), true
+
 	case "Subscription.agentOutputStream":
 		if e.ComplexityRoot.Subscription.AgentOutputStream == nil {
 			break
@@ -1407,6 +2022,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.AgentOutputStream(childComplexity, args["correlation"].(models.CorrelationInput), args["fromOffset"].(*int32)), true
+	case "Subscription.pipelineEventsStream":
+		if e.ComplexityRoot.Subscription.PipelineEventsStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_pipelineEventsStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.PipelineEventsStream(childComplexity, args["correlation"].(models.CorrelationInput), args["fromOffset"].(*int32)), true
+	case "Subscription.projectEventsStream":
+		if e.ComplexityRoot.Subscription.ProjectEventsStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_projectEventsStream_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.ProjectEventsStream(childComplexity, args["projectID"].(string), args["fromOffset"].(*int32)), true
 	case "Subscription.sessionActivityStream":
 		if e.ComplexityRoot.Subscription.SessionActivityStream == nil {
 			break
@@ -1581,6 +2218,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TaskboardEpic.BoardID(childComplexity), true
+	case "TaskboardEpic.deliverables":
+		if e.ComplexityRoot.TaskboardEpic.Deliverables == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.Deliverables(childComplexity), true
 	case "TaskboardEpic.dependsOnEpicIDs":
 		if e.ComplexityRoot.TaskboardEpic.DependsOnEpicIDs == nil {
 			break
@@ -1605,6 +2248,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TaskboardEpic.Rank(childComplexity), true
+	case "TaskboardEpic.repositoryIDs":
+		if e.ComplexityRoot.TaskboardEpic.RepositoryIDs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardEpic.RepositoryIDs(childComplexity), true
 	case "TaskboardEpic.state":
 		if e.ComplexityRoot.TaskboardEpic.State == nil {
 			break
@@ -1650,6 +2299,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TaskboardTask.BoardID(childComplexity), true
+	case "TaskboardTask.deliverables":
+		if e.ComplexityRoot.TaskboardTask.Deliverables == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.Deliverables(childComplexity), true
 	case "TaskboardTask.dependsOnTaskIDs":
 		if e.ComplexityRoot.TaskboardTask.DependsOnTaskIDs == nil {
 			break
@@ -1680,6 +2335,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TaskboardTask.Rank(childComplexity), true
+	case "TaskboardTask.repositoryIDs":
+		if e.ComplexityRoot.TaskboardTask.RepositoryIDs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardTask.RepositoryIDs(childComplexity), true
 	case "TaskboardTask.state":
 		if e.ComplexityRoot.TaskboardTask.State == nil {
 			break
@@ -1871,6 +2532,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputApplyManualInterventionInput,
 		ec.unmarshalInputCorrelationInput,
 		ec.unmarshalInputCreateTaskboardEpicInput,
 		ec.unmarshalInputCreateTaskboardInput,
@@ -1880,6 +2542,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputDeleteTaskboardEpicInput,
 		ec.unmarshalInputDeleteTaskboardInput,
 		ec.unmarshalInputDeleteTaskboardTaskInput,
+		ec.unmarshalInputLifecycleTreeFilterInput,
 		ec.unmarshalInputProjectBoardInput,
 		ec.unmarshalInputProjectRepositoryInput,
 		ec.unmarshalInputProjectSCMInput,
@@ -2117,6 +2780,8 @@ type TaskboardTask {
   epicID: String!
   title: String!
   description: String
+  repositoryIDs: [String!]!
+  deliverables: [String!]!
   taskType: String!
   state: String!
   rank: Int!
@@ -2129,6 +2794,8 @@ type TaskboardEpic {
   boardID: String!
   title: String!
   objective: String
+  repositoryIDs: [String!]!
+  deliverables: [String!]!
   state: String!
   rank: Int!
   dependsOnEpicIDs: [String!]!
@@ -2206,6 +2873,8 @@ input CreateTaskboardEpicInput {
   boardID: String!
   title: String!
   objective: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   state: String!
   rank: Int!
   dependsOnEpicIDs: [String!]
@@ -2217,6 +2886,8 @@ input UpdateTaskboardEpicInput {
   epicID: String!
   title: String!
   objective: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   state: String!
   rank: Int!
   dependsOnEpicIDs: [String!]
@@ -2234,6 +2905,8 @@ input CreateTaskboardTaskInput {
   epicID: String!
   title: String!
   description: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   taskType: String!
   state: String!
   rank: Int!
@@ -2247,6 +2920,8 @@ input UpdateTaskboardTaskInput {
   epicID: String!
   title: String!
   description: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   taskType: String!
   state: String!
   rank: Int!
@@ -2447,6 +3122,10 @@ type StreamEvent {
   correlationID: String!
   source: StreamEventSource!
   eventType: String!
+  gapDetected: Boolean!
+  gapReconciled: Boolean!
+  expectedEventSeq: Int
+  observedEventSeq: Int
   payload: String!
 }
 
@@ -2454,7 +3133,102 @@ type StreamEventSuccess {
   event: StreamEvent!
 }
 
+type StreamEventsSuccess {
+  events: [StreamEvent!]!
+  nextFromOffset: Int!
+}
+
 union StreamEventResult = StreamEventSuccess | GraphError
+union StreamEventsResult = StreamEventsSuccess | GraphError
+
+type LifecycleSessionSnapshot {
+  projectID: String!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String!
+  pipelineType: String!
+  sourceRuntime: String!
+  currentState: String!
+  currentSeverity: String!
+  lastReasonCode: String
+  lastReasonSummary: String
+  lastEventSeq: Int!
+  lastProjectEventSeq: Int!
+  lastLivenessAt: Time
+  lastActivityAt: Time
+  lastCheckpointAt: Time
+  startedAt: Time!
+  endedAt: Time
+  updatedAt: Time!
+}
+
+type LifecycleSessionSnapshotsSuccess {
+  sessions: [LifecycleSessionSnapshot!]!
+}
+
+union LifecycleSessionSnapshotsResult = LifecycleSessionSnapshotsSuccess | GraphError
+
+type LifecycleHistoryEvent {
+  eventID: String!
+  projectID: String!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String!
+  pipelineType: String!
+  sourceRuntime: String!
+  eventType: String!
+  eventSeq: Int!
+  projectEventSeq: Int!
+  occurredAt: Time!
+  payload: String!
+}
+
+type LifecycleHistorySuccess {
+  events: [LifecycleHistoryEvent!]!
+  nextFromEventSeq: Int!
+}
+
+union LifecycleHistoryResult = LifecycleHistorySuccess | GraphError
+
+enum LifecycleTreeNodeType {
+  RUN
+  TASK
+  JOB
+  SESSION
+}
+
+type LifecycleTreeNode {
+  nodeID: String!
+  parentNodeID: String
+  nodeType: LifecycleTreeNodeType!
+  projectID: String!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String
+  pipelineType: String
+  sourceRuntime: String
+  currentState: String
+  currentSeverity: String
+  sessionCount: Int!
+  updatedAt: Time!
+}
+
+input LifecycleTreeFilterInput {
+  projectID: String!
+  pipelineType: String
+  runID: String
+  taskID: String
+  jobID: String
+}
+
+type LifecycleTreeNodesSuccess {
+  nodes: [LifecycleTreeNode!]!
+}
+
+union LifecycleTreeNodesResult = LifecycleTreeNodesSuccess | GraphError
 
 type WorkerSession {
   workerID: String!
@@ -2483,6 +3257,48 @@ type WorkerSettingsSuccess {
 
 union WorkerSettingsResult = WorkerSettingsSuccess | GraphError
 
+enum ManualInterventionAction {
+  NUDGE
+  RETRY
+  PAUSE
+  TERMINATE
+  RESTORE
+}
+
+input ApplyManualInterventionInput {
+  projectID: String!
+  sessionID: String!
+  action: ManualInterventionAction!
+  reason: String!
+  actorID: String!
+  force: Boolean = false
+}
+
+type ManualInterventionSuccess {
+  ok: Boolean!
+  eventID: String!
+  eventSeq: Int!
+  projectEventSeq: Int!
+  action: String!
+  resultingState: String!
+}
+
+union ManualInterventionResult = ManualInterventionSuccess | GraphError
+
+type InterventionMetrics {
+  projectID: String!
+  interventionCount: Int!
+  successfulOutcomeCount: Int!
+  failedOutcomeCount: Int!
+  averageRecoverySeconds: Int!
+}
+
+type InterventionMetricsSuccess {
+  metrics: InterventionMetrics!
+}
+
+union InterventionMetricsResult = InterventionMetricsSuccess | GraphError
+
 input UpdateWorkerSettingsInput {
   heartbeatIntervalSeconds: Int!
   responseDeadlineSeconds: Int!
@@ -2503,6 +3319,12 @@ extend type Query {
   taskboard(projectID: String!, boardID: String!): TaskboardResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
+  projectEvents(projectID: String!, fromOffset: Int = 0, limit: Int = 100): StreamEventsResult!
+  pipelineEvents(correlation: CorrelationInput!, fromOffset: Int = 0, limit: Int = 100): StreamEventsResult!
+  lifecycleSessionSnapshots(projectID: String!, pipelineType: String, limit: Int = 100): LifecycleSessionSnapshotsResult!
+  lifecycleSessionHistory(projectID: String!, sessionID: String!, fromEventSeq: Int = 0, limit: Int = 100): LifecycleHistoryResult!
+  lifecycleTreeNodes(filter: LifecycleTreeFilterInput!, limit: Int = 200): LifecycleTreeNodesResult!
+  interventionMetrics(projectID: String!, limit: Int = 100): InterventionMetricsResult!
 }
 
 extend type Mutation {
@@ -2523,6 +3345,7 @@ extend type Mutation {
   deleteTaskboardTask(input: DeleteTaskboardTaskInput!): TaskboardMutationResult!
   deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
+  applyManualIntervention(input: ApplyManualInterventionInput!): ManualInterventionResult!
 }
 
 extend type Subscription {
@@ -2531,6 +3354,8 @@ extend type Subscription {
    workflowExecutionStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
    agentOutputStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
    taskboardStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  projectEventsStream(projectID: String!, fromOffset: Int = 0): StreamEventResult!
+  pipelineEventsStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `scalar Time
@@ -2603,6 +3428,17 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_applyManualIntervention_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNApplyManualInterventionInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐApplyManualInterventionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_createTaskboardEpic_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -2834,6 +3670,106 @@ func (ec *executionContext) field_Query_executionHistory_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_interventionMetrics_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lifecycleSessionHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sessionID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionID"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "fromEventSeq", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromEventSeq"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lifecycleSessionSnapshots_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "pipelineType", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["pipelineType"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lifecycleTreeNodes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalNLifecycleTreeFilterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeFilterInput)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_pipelineEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_projectDocumentPreview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2863,6 +3799,27 @@ func (ec *executionContext) field_Query_projectDocuments_args(ctx context.Contex
 		return nil, err
 	}
 	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projectEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
 	return args, nil
 }
 
@@ -2988,6 +3945,38 @@ func (ec *executionContext) field_Subscription_agentOutputStream_args(ctx contex
 		return nil, err
 	}
 	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_pipelineEventsStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "correlation", ec.unmarshalNCorrelationInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐCorrelationInput)
+	if err != nil {
+		return nil, err
+	}
+	args["correlation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["fromOffset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_projectEventsStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["projectID"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fromOffset", ec.unmarshalOInt2ᚖint32)
 	if err != nil {
 		return nil, err
@@ -3877,6 +4866,1914 @@ func (ec *executionContext) fieldContext_GraphError_field(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _InterventionMetrics_projectID(ctx context.Context, field graphql.CollectedField, obj *models.InterventionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InterventionMetrics_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InterventionMetrics_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InterventionMetrics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InterventionMetrics_interventionCount(ctx context.Context, field graphql.CollectedField, obj *models.InterventionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InterventionMetrics_interventionCount,
+		func(ctx context.Context) (any, error) {
+			return obj.InterventionCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InterventionMetrics_interventionCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InterventionMetrics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InterventionMetrics_successfulOutcomeCount(ctx context.Context, field graphql.CollectedField, obj *models.InterventionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InterventionMetrics_successfulOutcomeCount,
+		func(ctx context.Context) (any, error) {
+			return obj.SuccessfulOutcomeCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InterventionMetrics_successfulOutcomeCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InterventionMetrics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InterventionMetrics_failedOutcomeCount(ctx context.Context, field graphql.CollectedField, obj *models.InterventionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InterventionMetrics_failedOutcomeCount,
+		func(ctx context.Context) (any, error) {
+			return obj.FailedOutcomeCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InterventionMetrics_failedOutcomeCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InterventionMetrics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InterventionMetrics_averageRecoverySeconds(ctx context.Context, field graphql.CollectedField, obj *models.InterventionMetrics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InterventionMetrics_averageRecoverySeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.AverageRecoverySeconds, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InterventionMetrics_averageRecoverySeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InterventionMetrics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InterventionMetricsSuccess_metrics(ctx context.Context, field graphql.CollectedField, obj *models.InterventionMetricsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InterventionMetricsSuccess_metrics,
+		func(ctx context.Context) (any, error) {
+			return obj.Metrics, nil
+		},
+		nil,
+		ec.marshalNInterventionMetrics2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐInterventionMetrics,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InterventionMetricsSuccess_metrics(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InterventionMetricsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_InterventionMetrics_projectID(ctx, field)
+			case "interventionCount":
+				return ec.fieldContext_InterventionMetrics_interventionCount(ctx, field)
+			case "successfulOutcomeCount":
+				return ec.fieldContext_InterventionMetrics_successfulOutcomeCount(ctx, field)
+			case "failedOutcomeCount":
+				return ec.fieldContext_InterventionMetrics_failedOutcomeCount(ctx, field)
+			case "averageRecoverySeconds":
+				return ec.fieldContext_InterventionMetrics_averageRecoverySeconds(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type InterventionMetrics", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_eventID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_eventID,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_eventID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_projectID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_runID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_taskID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_jobID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_sessionID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_sessionID,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_sessionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_pipelineType(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_pipelineType,
+		func(ctx context.Context) (any, error) {
+			return obj.PipelineType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_pipelineType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_sourceRuntime(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_sourceRuntime,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceRuntime, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_sourceRuntime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_eventType(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_eventType,
+		func(ctx context.Context) (any, error) {
+			return obj.EventType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_eventType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_eventSeq(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_eventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.EventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_eventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_projectEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_projectEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectEventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_projectEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_occurredAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_occurredAt,
+		func(ctx context.Context) (any, error) {
+			return obj.OccurredAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_occurredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistoryEvent_payload(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistoryEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistoryEvent_payload,
+		func(ctx context.Context) (any, error) {
+			return obj.Payload, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistoryEvent_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistoryEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistorySuccess_events(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistorySuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistorySuccess_events,
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		ec.marshalNLifecycleHistoryEvent2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleHistoryEventᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistorySuccess_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistorySuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "eventID":
+				return ec.fieldContext_LifecycleHistoryEvent_eventID(ctx, field)
+			case "projectID":
+				return ec.fieldContext_LifecycleHistoryEvent_projectID(ctx, field)
+			case "runID":
+				return ec.fieldContext_LifecycleHistoryEvent_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_LifecycleHistoryEvent_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_LifecycleHistoryEvent_jobID(ctx, field)
+			case "sessionID":
+				return ec.fieldContext_LifecycleHistoryEvent_sessionID(ctx, field)
+			case "pipelineType":
+				return ec.fieldContext_LifecycleHistoryEvent_pipelineType(ctx, field)
+			case "sourceRuntime":
+				return ec.fieldContext_LifecycleHistoryEvent_sourceRuntime(ctx, field)
+			case "eventType":
+				return ec.fieldContext_LifecycleHistoryEvent_eventType(ctx, field)
+			case "eventSeq":
+				return ec.fieldContext_LifecycleHistoryEvent_eventSeq(ctx, field)
+			case "projectEventSeq":
+				return ec.fieldContext_LifecycleHistoryEvent_projectEventSeq(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_LifecycleHistoryEvent_occurredAt(ctx, field)
+			case "payload":
+				return ec.fieldContext_LifecycleHistoryEvent_payload(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LifecycleHistoryEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleHistorySuccess_nextFromEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleHistorySuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleHistorySuccess_nextFromEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.NextFromEventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleHistorySuccess_nextFromEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleHistorySuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_projectID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_runID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_taskID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_jobID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_sessionID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_sessionID,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_sessionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_pipelineType(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_pipelineType,
+		func(ctx context.Context) (any, error) {
+			return obj.PipelineType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_pipelineType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_sourceRuntime(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_sourceRuntime,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceRuntime, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_sourceRuntime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_currentState(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_currentState,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentState, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_currentState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_currentSeverity(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_currentSeverity,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentSeverity, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_currentSeverity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastReasonCode(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastReasonCode,
+		func(ctx context.Context) (any, error) {
+			return obj.LastReasonCode, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastReasonCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastReasonSummary(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastReasonSummary,
+		func(ctx context.Context) (any, error) {
+			return obj.LastReasonSummary, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastReasonSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.LastEventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastProjectEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastProjectEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.LastProjectEventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastProjectEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastLivenessAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastLivenessAt,
+		func(ctx context.Context) (any, error) {
+			return obj.LastLivenessAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastLivenessAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastActivityAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastActivityAt,
+		func(ctx context.Context) (any, error) {
+			return obj.LastActivityAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastActivityAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_lastCheckpointAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_lastCheckpointAt,
+		func(ctx context.Context) (any, error) {
+			return obj.LastCheckpointAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_lastCheckpointAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_startedAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_startedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_endedAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_endedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.EndedAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_endedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshot_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshot_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshot_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshotsSuccess_sessions(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleSessionSnapshotsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleSessionSnapshotsSuccess_sessions,
+		func(ctx context.Context) (any, error) {
+			return obj.Sessions, nil
+		},
+		nil,
+		ec.marshalNLifecycleSessionSnapshot2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleSessionSnapshotᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleSessionSnapshotsSuccess_sessions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleSessionSnapshotsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "projectID":
+				return ec.fieldContext_LifecycleSessionSnapshot_projectID(ctx, field)
+			case "runID":
+				return ec.fieldContext_LifecycleSessionSnapshot_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_LifecycleSessionSnapshot_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_LifecycleSessionSnapshot_jobID(ctx, field)
+			case "sessionID":
+				return ec.fieldContext_LifecycleSessionSnapshot_sessionID(ctx, field)
+			case "pipelineType":
+				return ec.fieldContext_LifecycleSessionSnapshot_pipelineType(ctx, field)
+			case "sourceRuntime":
+				return ec.fieldContext_LifecycleSessionSnapshot_sourceRuntime(ctx, field)
+			case "currentState":
+				return ec.fieldContext_LifecycleSessionSnapshot_currentState(ctx, field)
+			case "currentSeverity":
+				return ec.fieldContext_LifecycleSessionSnapshot_currentSeverity(ctx, field)
+			case "lastReasonCode":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastReasonCode(ctx, field)
+			case "lastReasonSummary":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastReasonSummary(ctx, field)
+			case "lastEventSeq":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastEventSeq(ctx, field)
+			case "lastProjectEventSeq":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastProjectEventSeq(ctx, field)
+			case "lastLivenessAt":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastLivenessAt(ctx, field)
+			case "lastActivityAt":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastActivityAt(ctx, field)
+			case "lastCheckpointAt":
+				return ec.fieldContext_LifecycleSessionSnapshot_lastCheckpointAt(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_LifecycleSessionSnapshot_startedAt(ctx, field)
+			case "endedAt":
+				return ec.fieldContext_LifecycleSessionSnapshot_endedAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_LifecycleSessionSnapshot_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LifecycleSessionSnapshot", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_nodeID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_nodeID,
+		func(ctx context.Context) (any, error) {
+			return obj.NodeID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_nodeID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_parentNodeID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_parentNodeID,
+		func(ctx context.Context) (any, error) {
+			return obj.ParentNodeID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_parentNodeID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_nodeType(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_nodeType,
+		func(ctx context.Context) (any, error) {
+			return obj.NodeType, nil
+		},
+		nil,
+		ec.marshalNLifecycleTreeNodeType2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodeType,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_nodeType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LifecycleTreeNodeType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_projectID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_projectID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_runID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_runID,
+		func(ctx context.Context) (any, error) {
+			return obj.RunID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_runID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_taskID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_taskID,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_taskID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_jobID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_jobID,
+		func(ctx context.Context) (any, error) {
+			return obj.JobID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_jobID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_sessionID(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_sessionID,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_sessionID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_pipelineType(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_pipelineType,
+		func(ctx context.Context) (any, error) {
+			return obj.PipelineType, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_pipelineType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_sourceRuntime(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_sourceRuntime,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceRuntime, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_sourceRuntime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_currentState(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_currentState,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentState, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_currentState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_currentSeverity(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_currentSeverity,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentSeverity, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_currentSeverity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_sessionCount(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_sessionCount,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_sessionCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNode_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNode_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNode_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LifecycleTreeNodesSuccess_nodes(ctx context.Context, field graphql.CollectedField, obj *models.LifecycleTreeNodesSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_LifecycleTreeNodesSuccess_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNLifecycleTreeNode2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_LifecycleTreeNodesSuccess_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LifecycleTreeNodesSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodeID":
+				return ec.fieldContext_LifecycleTreeNode_nodeID(ctx, field)
+			case "parentNodeID":
+				return ec.fieldContext_LifecycleTreeNode_parentNodeID(ctx, field)
+			case "nodeType":
+				return ec.fieldContext_LifecycleTreeNode_nodeType(ctx, field)
+			case "projectID":
+				return ec.fieldContext_LifecycleTreeNode_projectID(ctx, field)
+			case "runID":
+				return ec.fieldContext_LifecycleTreeNode_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_LifecycleTreeNode_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_LifecycleTreeNode_jobID(ctx, field)
+			case "sessionID":
+				return ec.fieldContext_LifecycleTreeNode_sessionID(ctx, field)
+			case "pipelineType":
+				return ec.fieldContext_LifecycleTreeNode_pipelineType(ctx, field)
+			case "sourceRuntime":
+				return ec.fieldContext_LifecycleTreeNode_sourceRuntime(ctx, field)
+			case "currentState":
+				return ec.fieldContext_LifecycleTreeNode_currentState(ctx, field)
+			case "currentSeverity":
+				return ec.fieldContext_LifecycleTreeNode_currentSeverity(ctx, field)
+			case "sessionCount":
+				return ec.fieldContext_LifecycleTreeNode_sessionCount(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_LifecycleTreeNode_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LifecycleTreeNode", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ManualInterventionSuccess_ok(ctx context.Context, field graphql.CollectedField, obj *models.ManualInterventionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ManualInterventionSuccess_ok,
+		func(ctx context.Context) (any, error) {
+			return obj.Ok, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ManualInterventionSuccess_ok(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ManualInterventionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ManualInterventionSuccess_eventID(ctx context.Context, field graphql.CollectedField, obj *models.ManualInterventionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ManualInterventionSuccess_eventID,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ManualInterventionSuccess_eventID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ManualInterventionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ManualInterventionSuccess_eventSeq(ctx context.Context, field graphql.CollectedField, obj *models.ManualInterventionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ManualInterventionSuccess_eventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.EventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ManualInterventionSuccess_eventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ManualInterventionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ManualInterventionSuccess_projectEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.ManualInterventionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ManualInterventionSuccess_projectEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectEventSeq, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ManualInterventionSuccess_projectEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ManualInterventionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ManualInterventionSuccess_action(ctx context.Context, field graphql.CollectedField, obj *models.ManualInterventionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ManualInterventionSuccess_action,
+		func(ctx context.Context) (any, error) {
+			return obj.Action, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ManualInterventionSuccess_action(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ManualInterventionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ManualInterventionSuccess_resultingState(ctx context.Context, field graphql.CollectedField, obj *models.ManualInterventionSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ManualInterventionSuccess_resultingState,
+		func(ctx context.Context) (any, error) {
+			return obj.ResultingState, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ManualInterventionSuccess_resultingState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ManualInterventionSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_requeueDeadLetter(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4568,6 +7465,47 @@ func (ec *executionContext) fieldContext_Mutation_updateWorkerSettings(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateWorkerSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_applyManualIntervention(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_applyManualIntervention,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ApplyManualIntervention(ctx, fc.Args["input"].(models.ApplyManualInterventionInput))
+		},
+		nil,
+		ec.marshalNManualInterventionResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐManualInterventionResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_applyManualIntervention(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ManualInterventionResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_applyManualIntervention_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -6290,6 +9228,252 @@ func (ec *executionContext) fieldContext_Query_workerSettings(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_projectEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_projectEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProjectEvents(ctx, fc.Args["projectID"].(string), fc.Args["fromOffset"].(*int32), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_projectEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projectEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pipelineEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_pipelineEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().PipelineEvents(ctx, fc.Args["correlation"].(models.CorrelationInput), fc.Args["fromOffset"].(*int32), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_pipelineEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_pipelineEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lifecycleSessionSnapshots(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_lifecycleSessionSnapshots,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LifecycleSessionSnapshots(ctx, fc.Args["projectID"].(string), fc.Args["pipelineType"].(*string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNLifecycleSessionSnapshotsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleSessionSnapshotsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_lifecycleSessionSnapshots(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LifecycleSessionSnapshotsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lifecycleSessionSnapshots_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lifecycleSessionHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_lifecycleSessionHistory,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LifecycleSessionHistory(ctx, fc.Args["projectID"].(string), fc.Args["sessionID"].(string), fc.Args["fromEventSeq"].(*int32), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNLifecycleHistoryResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleHistoryResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_lifecycleSessionHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LifecycleHistoryResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lifecycleSessionHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lifecycleTreeNodes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_lifecycleTreeNodes,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LifecycleTreeNodes(ctx, fc.Args["filter"].(models.LifecycleTreeFilterInput), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNLifecycleTreeNodesResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodesResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_lifecycleTreeNodes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type LifecycleTreeNodesResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lifecycleTreeNodes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_interventionMetrics(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_interventionMetrics,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().InterventionMetrics(ctx, fc.Args["projectID"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		ec.marshalNInterventionMetricsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐInterventionMetricsResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_interventionMetrics(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type InterventionMetricsResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_interventionMetrics_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_scmSupportedOperations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7462,6 +10646,122 @@ func (ec *executionContext) fieldContext_StreamEvent_eventType(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _StreamEvent_gapDetected(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_gapDetected,
+		func(ctx context.Context) (any, error) {
+			return obj.GapDetected, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_gapDetected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_gapReconciled(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_gapReconciled,
+		func(ctx context.Context) (any, error) {
+			return obj.GapReconciled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_gapReconciled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_expectedEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_expectedEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpectedEventSeq, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint32,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_expectedEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEvent_observedEventSeq(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEvent_observedEventSeq,
+		func(ctx context.Context) (any, error) {
+			return obj.ObservedEventSeq, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint32,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEvent_observedEventSeq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _StreamEvent_payload(ctx context.Context, field graphql.CollectedField, obj *models.StreamEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7537,10 +10837,110 @@ func (ec *executionContext) fieldContext_StreamEventSuccess_event(_ context.Cont
 				return ec.fieldContext_StreamEvent_source(ctx, field)
 			case "eventType":
 				return ec.fieldContext_StreamEvent_eventType(ctx, field)
+			case "gapDetected":
+				return ec.fieldContext_StreamEvent_gapDetected(ctx, field)
+			case "gapReconciled":
+				return ec.fieldContext_StreamEvent_gapReconciled(ctx, field)
+			case "expectedEventSeq":
+				return ec.fieldContext_StreamEvent_expectedEventSeq(ctx, field)
+			case "observedEventSeq":
+				return ec.fieldContext_StreamEvent_observedEventSeq(ctx, field)
 			case "payload":
 				return ec.fieldContext_StreamEvent_payload(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type StreamEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEventsSuccess_events(ctx context.Context, field graphql.CollectedField, obj *models.StreamEventsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEventsSuccess_events,
+		func(ctx context.Context) (any, error) {
+			return obj.Events, nil
+		},
+		nil,
+		ec.marshalNStreamEvent2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEventsSuccess_events(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEventsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "eventID":
+				return ec.fieldContext_StreamEvent_eventID(ctx, field)
+			case "streamOffset":
+				return ec.fieldContext_StreamEvent_streamOffset(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_StreamEvent_occurredAt(ctx, field)
+			case "runID":
+				return ec.fieldContext_StreamEvent_runID(ctx, field)
+			case "taskID":
+				return ec.fieldContext_StreamEvent_taskID(ctx, field)
+			case "jobID":
+				return ec.fieldContext_StreamEvent_jobID(ctx, field)
+			case "projectID":
+				return ec.fieldContext_StreamEvent_projectID(ctx, field)
+			case "sessionID":
+				return ec.fieldContext_StreamEvent_sessionID(ctx, field)
+			case "correlationID":
+				return ec.fieldContext_StreamEvent_correlationID(ctx, field)
+			case "source":
+				return ec.fieldContext_StreamEvent_source(ctx, field)
+			case "eventType":
+				return ec.fieldContext_StreamEvent_eventType(ctx, field)
+			case "gapDetected":
+				return ec.fieldContext_StreamEvent_gapDetected(ctx, field)
+			case "gapReconciled":
+				return ec.fieldContext_StreamEvent_gapReconciled(ctx, field)
+			case "expectedEventSeq":
+				return ec.fieldContext_StreamEvent_expectedEventSeq(ctx, field)
+			case "observedEventSeq":
+				return ec.fieldContext_StreamEvent_observedEventSeq(ctx, field)
+			case "payload":
+				return ec.fieldContext_StreamEvent_payload(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type StreamEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StreamEventsSuccess_nextFromOffset(ctx context.Context, field graphql.CollectedField, obj *models.StreamEventsSuccess) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_StreamEventsSuccess_nextFromOffset,
+		func(ctx context.Context) (any, error) {
+			return obj.NextFromOffset, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_StreamEventsSuccess_nextFromOffset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StreamEventsSuccess",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7745,6 +11145,88 @@ func (ec *executionContext) fieldContext_Subscription_taskboardStream(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Subscription_taskboardStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_projectEventsStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_projectEventsStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().ProjectEventsStream(ctx, fc.Args["projectID"].(string), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_projectEventsStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_projectEventsStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_pipelineEventsStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_pipelineEventsStream,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().PipelineEventsStream(ctx, fc.Args["correlation"].(models.CorrelationInput), fc.Args["fromOffset"].(*int32))
+		},
+		nil,
+		ec.marshalNStreamEventResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_pipelineEventsStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type StreamEventResult does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_pipelineEventsStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8218,6 +11700,10 @@ func (ec *executionContext) fieldContext_Taskboard_epics(_ context.Context, fiel
 				return ec.fieldContext_TaskboardEpic_title(ctx, field)
 			case "objective":
 				return ec.fieldContext_TaskboardEpic_objective(ctx, field)
+			case "repositoryIDs":
+				return ec.fieldContext_TaskboardEpic_repositoryIDs(ctx, field)
+			case "deliverables":
+				return ec.fieldContext_TaskboardEpic_deliverables(ctx, field)
 			case "state":
 				return ec.fieldContext_TaskboardEpic_state(ctx, field)
 			case "rank":
@@ -8489,6 +11975,64 @@ func (ec *executionContext) fieldContext_TaskboardEpic_objective(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _TaskboardEpic_repositoryIDs(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_repositoryIDs,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryIDs, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_repositoryIDs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardEpic_deliverables(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardEpic_deliverables,
+		func(ctx context.Context) (any, error) {
+			return obj.Deliverables, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardEpic_deliverables(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardEpic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TaskboardEpic_state(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardEpic) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8610,6 +12154,10 @@ func (ec *executionContext) fieldContext_TaskboardEpic_tasks(_ context.Context, 
 				return ec.fieldContext_TaskboardTask_title(ctx, field)
 			case "description":
 				return ec.fieldContext_TaskboardTask_description(ctx, field)
+			case "repositoryIDs":
+				return ec.fieldContext_TaskboardTask_repositoryIDs(ctx, field)
+			case "deliverables":
+				return ec.fieldContext_TaskboardTask_deliverables(ctx, field)
 			case "taskType":
 				return ec.fieldContext_TaskboardTask_taskType(ctx, field)
 			case "state":
@@ -8854,6 +12402,64 @@ func (ec *executionContext) _TaskboardTask_description(ctx context.Context, fiel
 }
 
 func (ec *executionContext) fieldContext_TaskboardTask_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_repositoryIDs(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_repositoryIDs,
+		func(ctx context.Context) (any, error) {
+			return obj.RepositoryIDs, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_repositoryIDs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardTask_deliverables(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardTask) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardTask_deliverables,
+		func(ctx context.Context) (any, error) {
+			return obj.Deliverables, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardTask_deliverables(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "TaskboardTask",
 		Field:      field,
@@ -11317,6 +14923,71 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputApplyManualInterventionInput(ctx context.Context, obj any) (models.ApplyManualInterventionInput, error) {
+	var it models.ApplyManualInterventionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["force"]; !present {
+		asMap["force"] = false
+	}
+
+	fieldsInOrder := [...]string{"projectID", "sessionID", "action", "reason", "actorID", "force"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "sessionID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "action":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("action"))
+			data, err := ec.unmarshalNManualInterventionAction2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐManualInterventionAction(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Action = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		case "actorID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("actorID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ActorID = data
+		case "force":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("force"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Force = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCorrelationInput(ctx context.Context, obj any) (models.CorrelationInput, error) {
 	var it models.CorrelationInput
 	asMap := map[string]any{}
@@ -11371,7 +15042,7 @@ func (ec *executionContext) unmarshalInputCreateTaskboardEpicInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "boardID", "title", "objective", "state", "rank", "dependsOnEpicIDs"}
+	fieldsInOrder := [...]string{"projectID", "boardID", "title", "objective", "repositoryIDs", "deliverables", "state", "rank", "dependsOnEpicIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -11406,6 +15077,20 @@ func (ec *executionContext) unmarshalInputCreateTaskboardEpicInput(ctx context.C
 				return it, err
 			}
 			it.Objective = data
+		case "repositoryIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryIDs = data
+		case "deliverables":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deliverables"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Deliverables = data
 		case "state":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -11472,7 +15157,7 @@ func (ec *executionContext) unmarshalInputCreateTaskboardTaskInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "boardID", "epicID", "title", "description", "taskType", "state", "rank", "dependsOnTaskIDs"}
+	fieldsInOrder := [...]string{"projectID", "boardID", "epicID", "title", "description", "repositoryIDs", "deliverables", "taskType", "state", "rank", "dependsOnTaskIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -11514,6 +15199,20 @@ func (ec *executionContext) unmarshalInputCreateTaskboardTaskInput(ctx context.C
 				return it, err
 			}
 			it.Description = data
+		case "repositoryIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryIDs = data
+		case "deliverables":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deliverables"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Deliverables = data
 		case "taskType":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskType"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -11714,6 +15413,60 @@ func (ec *executionContext) unmarshalInputDeleteTaskboardTaskInput(ctx context.C
 				return it, err
 			}
 			it.TaskID = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputLifecycleTreeFilterInput(ctx context.Context, obj any) (models.LifecycleTreeFilterInput, error) {
+	var it models.LifecycleTreeFilterInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"projectID", "pipelineType", "runID", "taskID", "jobID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "pipelineType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pipelineType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PipelineType = data
+		case "runID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("runID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RunID = data
+		case "taskID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TaskID = data
+		case "jobID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jobID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JobID = data
 		}
 	}
 	return it, nil
@@ -12060,7 +15813,7 @@ func (ec *executionContext) unmarshalInputUpdateTaskboardEpicInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "boardID", "epicID", "title", "objective", "state", "rank", "dependsOnEpicIDs"}
+	fieldsInOrder := [...]string{"projectID", "boardID", "epicID", "title", "objective", "repositoryIDs", "deliverables", "state", "rank", "dependsOnEpicIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12102,6 +15855,20 @@ func (ec *executionContext) unmarshalInputUpdateTaskboardEpicInput(ctx context.C
 				return it, err
 			}
 			it.Objective = data
+		case "repositoryIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryIDs = data
+		case "deliverables":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deliverables"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Deliverables = data
 		case "state":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -12182,7 +15949,7 @@ func (ec *executionContext) unmarshalInputUpdateTaskboardTaskInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "boardID", "taskID", "epicID", "title", "description", "taskType", "state", "rank", "dependsOnTaskIDs"}
+	fieldsInOrder := [...]string{"projectID", "boardID", "taskID", "epicID", "title", "description", "repositoryIDs", "deliverables", "taskType", "state", "rank", "dependsOnTaskIDs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -12231,6 +15998,20 @@ func (ec *executionContext) unmarshalInputUpdateTaskboardTaskInput(ctx context.C
 				return it, err
 			}
 			it.Description = data
+		case "repositoryIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("repositoryIDs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RepositoryIDs = data
+		case "deliverables":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deliverables"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Deliverables = data
 		case "taskType":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("taskType"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -12459,6 +16240,141 @@ func (ec *executionContext) _ExecutionHistoryResult(ctx context.Context, sel ast
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of ExecutionHistoryResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _InterventionMetricsResult(ctx context.Context, sel ast.SelectionSet, obj models.InterventionMetricsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.InterventionMetricsSuccess:
+		return ec._InterventionMetricsSuccess(ctx, sel, &obj)
+	case *models.InterventionMetricsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._InterventionMetricsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of InterventionMetricsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _LifecycleHistoryResult(ctx context.Context, sel ast.SelectionSet, obj models.LifecycleHistoryResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.LifecycleHistorySuccess:
+		return ec._LifecycleHistorySuccess(ctx, sel, &obj)
+	case *models.LifecycleHistorySuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._LifecycleHistorySuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of LifecycleHistoryResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _LifecycleSessionSnapshotsResult(ctx context.Context, sel ast.SelectionSet, obj models.LifecycleSessionSnapshotsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.LifecycleSessionSnapshotsSuccess:
+		return ec._LifecycleSessionSnapshotsSuccess(ctx, sel, &obj)
+	case *models.LifecycleSessionSnapshotsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._LifecycleSessionSnapshotsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of LifecycleSessionSnapshotsResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _LifecycleTreeNodesResult(ctx context.Context, sel ast.SelectionSet, obj models.LifecycleTreeNodesResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.LifecycleTreeNodesSuccess:
+		return ec._LifecycleTreeNodesSuccess(ctx, sel, &obj)
+	case *models.LifecycleTreeNodesSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._LifecycleTreeNodesSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of LifecycleTreeNodesResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _ManualInterventionResult(ctx context.Context, sel ast.SelectionSet, obj models.ManualInterventionResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.ManualInterventionSuccess:
+		return ec._ManualInterventionSuccess(ctx, sel, &obj)
+	case *models.ManualInterventionSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ManualInterventionSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of ManualInterventionResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -12810,6 +16726,33 @@ func (ec *executionContext) _StreamEventResult(ctx context.Context, sel ast.Sele
 			return typedObj
 		} else {
 			panic(fmt.Errorf("unexpected type %T; non-generated variants of StreamEventResult must implement graphql.Marshaler", obj))
+		}
+	}
+}
+
+func (ec *executionContext) _StreamEventsResult(ctx context.Context, sel ast.SelectionSet, obj models.StreamEventsResult) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case models.StreamEventsSuccess:
+		return ec._StreamEventsSuccess(ctx, sel, &obj)
+	case *models.StreamEventsSuccess:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._StreamEventsSuccess(ctx, sel, obj)
+	case models.GraphError:
+		return ec._GraphError(ctx, sel, &obj)
+	case *models.GraphError:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GraphError(ctx, sel, obj)
+	default:
+		if typedObj, ok := obj.(graphql.Marshaler); ok {
+			return typedObj
+		} else {
+			panic(fmt.Errorf("unexpected type %T; non-generated variants of StreamEventsResult must implement graphql.Marshaler", obj))
 		}
 	}
 }
@@ -13336,7 +17279,7 @@ func (ec *executionContext) _ExecutionHistorySuccess(ctx context.Context, sel as
 	return out
 }
 
-var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "RequeueDeadLetterResult", "TaskboardsResult", "TaskboardResult", "TaskboardMutationResult", "TaskboardDeleteResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "RefineIngestionPromptResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "WorkerSessionsResult", "WorkerSettingsResult", "ScmSupportedOperationsResult"}
+var graphErrorImplementors = []string{"GraphError", "SessionsResult", "SessionResult", "WorkflowJobsResult", "ExecutionHistoryResult", "DeadLetterHistoryResult", "RequeueDeadLetterResult", "TaskboardsResult", "TaskboardResult", "TaskboardMutationResult", "TaskboardDeleteResult", "ProjectSetupsResult", "ProjectSetupResult", "UpsertProjectSetupResult", "DeleteProjectSetupResult", "ProjectDocumentsResult", "ProjectDocumentPreviewResult", "RequestProjectDocumentUploadResult", "RunIngestionAgentResult", "RefineIngestionPromptResult", "ProjectRepositoryBranchesResult", "DeleteProjectDocumentResult", "StreamEventResult", "StreamEventsResult", "LifecycleSessionSnapshotsResult", "LifecycleHistoryResult", "LifecycleTreeNodesResult", "WorkerSessionsResult", "WorkerSettingsResult", "ManualInterventionResult", "InterventionMetricsResult", "ScmSupportedOperationsResult"}
 
 func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSet, obj *models.GraphError) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, graphErrorImplementors)
@@ -13359,6 +17302,559 @@ func (ec *executionContext) _GraphError(ctx context.Context, sel ast.SelectionSe
 			}
 		case "field":
 			out.Values[i] = ec._GraphError_field(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var interventionMetricsImplementors = []string{"InterventionMetrics"}
+
+func (ec *executionContext) _InterventionMetrics(ctx context.Context, sel ast.SelectionSet, obj *models.InterventionMetrics) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, interventionMetricsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InterventionMetrics")
+		case "projectID":
+			out.Values[i] = ec._InterventionMetrics_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "interventionCount":
+			out.Values[i] = ec._InterventionMetrics_interventionCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "successfulOutcomeCount":
+			out.Values[i] = ec._InterventionMetrics_successfulOutcomeCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failedOutcomeCount":
+			out.Values[i] = ec._InterventionMetrics_failedOutcomeCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "averageRecoverySeconds":
+			out.Values[i] = ec._InterventionMetrics_averageRecoverySeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var interventionMetricsSuccessImplementors = []string{"InterventionMetricsSuccess", "InterventionMetricsResult"}
+
+func (ec *executionContext) _InterventionMetricsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.InterventionMetricsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, interventionMetricsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InterventionMetricsSuccess")
+		case "metrics":
+			out.Values[i] = ec._InterventionMetricsSuccess_metrics(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lifecycleHistoryEventImplementors = []string{"LifecycleHistoryEvent"}
+
+func (ec *executionContext) _LifecycleHistoryEvent(ctx context.Context, sel ast.SelectionSet, obj *models.LifecycleHistoryEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lifecycleHistoryEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LifecycleHistoryEvent")
+		case "eventID":
+			out.Values[i] = ec._LifecycleHistoryEvent_eventID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectID":
+			out.Values[i] = ec._LifecycleHistoryEvent_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runID":
+			out.Values[i] = ec._LifecycleHistoryEvent_runID(ctx, field, obj)
+		case "taskID":
+			out.Values[i] = ec._LifecycleHistoryEvent_taskID(ctx, field, obj)
+		case "jobID":
+			out.Values[i] = ec._LifecycleHistoryEvent_jobID(ctx, field, obj)
+		case "sessionID":
+			out.Values[i] = ec._LifecycleHistoryEvent_sessionID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pipelineType":
+			out.Values[i] = ec._LifecycleHistoryEvent_pipelineType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceRuntime":
+			out.Values[i] = ec._LifecycleHistoryEvent_sourceRuntime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventType":
+			out.Values[i] = ec._LifecycleHistoryEvent_eventType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventSeq":
+			out.Values[i] = ec._LifecycleHistoryEvent_eventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectEventSeq":
+			out.Values[i] = ec._LifecycleHistoryEvent_projectEventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "occurredAt":
+			out.Values[i] = ec._LifecycleHistoryEvent_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payload":
+			out.Values[i] = ec._LifecycleHistoryEvent_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lifecycleHistorySuccessImplementors = []string{"LifecycleHistorySuccess", "LifecycleHistoryResult"}
+
+func (ec *executionContext) _LifecycleHistorySuccess(ctx context.Context, sel ast.SelectionSet, obj *models.LifecycleHistorySuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lifecycleHistorySuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LifecycleHistorySuccess")
+		case "events":
+			out.Values[i] = ec._LifecycleHistorySuccess_events(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextFromEventSeq":
+			out.Values[i] = ec._LifecycleHistorySuccess_nextFromEventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lifecycleSessionSnapshotImplementors = []string{"LifecycleSessionSnapshot"}
+
+func (ec *executionContext) _LifecycleSessionSnapshot(ctx context.Context, sel ast.SelectionSet, obj *models.LifecycleSessionSnapshot) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lifecycleSessionSnapshotImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LifecycleSessionSnapshot")
+		case "projectID":
+			out.Values[i] = ec._LifecycleSessionSnapshot_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runID":
+			out.Values[i] = ec._LifecycleSessionSnapshot_runID(ctx, field, obj)
+		case "taskID":
+			out.Values[i] = ec._LifecycleSessionSnapshot_taskID(ctx, field, obj)
+		case "jobID":
+			out.Values[i] = ec._LifecycleSessionSnapshot_jobID(ctx, field, obj)
+		case "sessionID":
+			out.Values[i] = ec._LifecycleSessionSnapshot_sessionID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pipelineType":
+			out.Values[i] = ec._LifecycleSessionSnapshot_pipelineType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceRuntime":
+			out.Values[i] = ec._LifecycleSessionSnapshot_sourceRuntime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "currentState":
+			out.Values[i] = ec._LifecycleSessionSnapshot_currentState(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "currentSeverity":
+			out.Values[i] = ec._LifecycleSessionSnapshot_currentSeverity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastReasonCode":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastReasonCode(ctx, field, obj)
+		case "lastReasonSummary":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastReasonSummary(ctx, field, obj)
+		case "lastEventSeq":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastEventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastProjectEventSeq":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastProjectEventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastLivenessAt":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastLivenessAt(ctx, field, obj)
+		case "lastActivityAt":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastActivityAt(ctx, field, obj)
+		case "lastCheckpointAt":
+			out.Values[i] = ec._LifecycleSessionSnapshot_lastCheckpointAt(ctx, field, obj)
+		case "startedAt":
+			out.Values[i] = ec._LifecycleSessionSnapshot_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endedAt":
+			out.Values[i] = ec._LifecycleSessionSnapshot_endedAt(ctx, field, obj)
+		case "updatedAt":
+			out.Values[i] = ec._LifecycleSessionSnapshot_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lifecycleSessionSnapshotsSuccessImplementors = []string{"LifecycleSessionSnapshotsSuccess", "LifecycleSessionSnapshotsResult"}
+
+func (ec *executionContext) _LifecycleSessionSnapshotsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.LifecycleSessionSnapshotsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lifecycleSessionSnapshotsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LifecycleSessionSnapshotsSuccess")
+		case "sessions":
+			out.Values[i] = ec._LifecycleSessionSnapshotsSuccess_sessions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lifecycleTreeNodeImplementors = []string{"LifecycleTreeNode"}
+
+func (ec *executionContext) _LifecycleTreeNode(ctx context.Context, sel ast.SelectionSet, obj *models.LifecycleTreeNode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lifecycleTreeNodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LifecycleTreeNode")
+		case "nodeID":
+			out.Values[i] = ec._LifecycleTreeNode_nodeID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentNodeID":
+			out.Values[i] = ec._LifecycleTreeNode_parentNodeID(ctx, field, obj)
+		case "nodeType":
+			out.Values[i] = ec._LifecycleTreeNode_nodeType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectID":
+			out.Values[i] = ec._LifecycleTreeNode_projectID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runID":
+			out.Values[i] = ec._LifecycleTreeNode_runID(ctx, field, obj)
+		case "taskID":
+			out.Values[i] = ec._LifecycleTreeNode_taskID(ctx, field, obj)
+		case "jobID":
+			out.Values[i] = ec._LifecycleTreeNode_jobID(ctx, field, obj)
+		case "sessionID":
+			out.Values[i] = ec._LifecycleTreeNode_sessionID(ctx, field, obj)
+		case "pipelineType":
+			out.Values[i] = ec._LifecycleTreeNode_pipelineType(ctx, field, obj)
+		case "sourceRuntime":
+			out.Values[i] = ec._LifecycleTreeNode_sourceRuntime(ctx, field, obj)
+		case "currentState":
+			out.Values[i] = ec._LifecycleTreeNode_currentState(ctx, field, obj)
+		case "currentSeverity":
+			out.Values[i] = ec._LifecycleTreeNode_currentSeverity(ctx, field, obj)
+		case "sessionCount":
+			out.Values[i] = ec._LifecycleTreeNode_sessionCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._LifecycleTreeNode_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var lifecycleTreeNodesSuccessImplementors = []string{"LifecycleTreeNodesSuccess", "LifecycleTreeNodesResult"}
+
+func (ec *executionContext) _LifecycleTreeNodesSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.LifecycleTreeNodesSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lifecycleTreeNodesSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LifecycleTreeNodesSuccess")
+		case "nodes":
+			out.Values[i] = ec._LifecycleTreeNodesSuccess_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var manualInterventionSuccessImplementors = []string{"ManualInterventionSuccess", "ManualInterventionResult"}
+
+func (ec *executionContext) _ManualInterventionSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.ManualInterventionSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, manualInterventionSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ManualInterventionSuccess")
+		case "ok":
+			out.Values[i] = ec._ManualInterventionSuccess_ok(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventID":
+			out.Values[i] = ec._ManualInterventionSuccess_eventID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventSeq":
+			out.Values[i] = ec._ManualInterventionSuccess_eventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "projectEventSeq":
+			out.Values[i] = ec._ManualInterventionSuccess_projectEventSeq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "action":
+			out.Values[i] = ec._ManualInterventionSuccess_action(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resultingState":
+			out.Values[i] = ec._ManualInterventionSuccess_resultingState(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13516,6 +18012,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateWorkerSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateWorkerSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "applyManualIntervention":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_applyManualIntervention(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14418,6 +18921,138 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "projectEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_projectEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pipelineEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pipelineEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lifecycleSessionSnapshots":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lifecycleSessionSnapshots(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lifecycleSessionHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lifecycleSessionHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lifecycleTreeNodes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lifecycleTreeNodes(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "interventionMetrics":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_interventionMetrics(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "scmSupportedOperations":
 			field := field
 
@@ -14914,6 +19549,20 @@ func (ec *executionContext) _StreamEvent(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "gapDetected":
+			out.Values[i] = ec._StreamEvent_gapDetected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gapReconciled":
+			out.Values[i] = ec._StreamEvent_gapReconciled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expectedEventSeq":
+			out.Values[i] = ec._StreamEvent_expectedEventSeq(ctx, field, obj)
+		case "observedEventSeq":
+			out.Values[i] = ec._StreamEvent_observedEventSeq(ctx, field, obj)
 		case "payload":
 			out.Values[i] = ec._StreamEvent_payload(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -14981,6 +19630,50 @@ func (ec *executionContext) _StreamEventSuccess(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var streamEventsSuccessImplementors = []string{"StreamEventsSuccess", "StreamEventsResult"}
+
+func (ec *executionContext) _StreamEventsSuccess(ctx context.Context, sel ast.SelectionSet, obj *models.StreamEventsSuccess) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, streamEventsSuccessImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StreamEventsSuccess")
+		case "events":
+			out.Values[i] = ec._StreamEventsSuccess_events(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextFromOffset":
+			out.Values[i] = ec._StreamEventsSuccess_nextFromOffset(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var subscriptionImplementors = []string{"Subscription"}
 
 func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
@@ -15004,6 +19697,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_agentOutputStream(ctx, fields[0])
 	case "taskboardStream":
 		return ec._Subscription_taskboardStream(ctx, fields[0])
+	case "projectEventsStream":
+		return ec._Subscription_projectEventsStream(ctx, fields[0])
+	case "pipelineEventsStream":
+		return ec._Subscription_pipelineEventsStream(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -15212,6 +19909,16 @@ func (ec *executionContext) _TaskboardEpic(ctx context.Context, sel ast.Selectio
 			}
 		case "objective":
 			out.Values[i] = ec._TaskboardEpic_objective(ctx, field, obj)
+		case "repositoryIDs":
+			out.Values[i] = ec._TaskboardEpic_repositoryIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deliverables":
+			out.Values[i] = ec._TaskboardEpic_deliverables(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "state":
 			out.Values[i] = ec._TaskboardEpic_state(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -15366,6 +20073,16 @@ func (ec *executionContext) _TaskboardTask(ctx context.Context, sel ast.Selectio
 			}
 		case "description":
 			out.Values[i] = ec._TaskboardTask_description(ctx, field, obj)
+		case "repositoryIDs":
+			out.Values[i] = ec._TaskboardTask_repositoryIDs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deliverables":
+			out.Values[i] = ec._TaskboardTask_deliverables(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "taskType":
 			out.Values[i] = ec._TaskboardTask_taskType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -16151,6 +20868,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNApplyManualInterventionInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐApplyManualInterventionInput(ctx context.Context, v any) (models.ApplyManualInterventionInput, error) {
+	res, err := ec.unmarshalInputApplyManualInterventionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -16346,6 +21068,26 @@ func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) marshalNInterventionMetrics2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐInterventionMetrics(ctx context.Context, sel ast.SelectionSet, v *models.InterventionMetrics) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InterventionMetrics(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInterventionMetricsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐInterventionMetricsResult(ctx context.Context, sel ast.SelectionSet, v models.InterventionMetricsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InterventionMetricsResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx context.Context, v any) (models.JobKind, error) {
 	var res models.JobKind
 	err := res.UnmarshalGQL(v)
@@ -16354,6 +21096,149 @@ func (ec *executionContext) unmarshalNJobKind2agenticᚑorchestratorᚋinternal�
 
 func (ec *executionContext) marshalNJobKind2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐJobKind(ctx context.Context, sel ast.SelectionSet, v models.JobKind) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNLifecycleHistoryEvent2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleHistoryEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.LifecycleHistoryEvent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLifecycleHistoryEvent2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleHistoryEvent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLifecycleHistoryEvent2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleHistoryEvent(ctx context.Context, sel ast.SelectionSet, v *models.LifecycleHistoryEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LifecycleHistoryEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLifecycleHistoryResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleHistoryResult(ctx context.Context, sel ast.SelectionSet, v models.LifecycleHistoryResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LifecycleHistoryResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLifecycleSessionSnapshot2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleSessionSnapshotᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.LifecycleSessionSnapshot) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLifecycleSessionSnapshot2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleSessionSnapshot(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLifecycleSessionSnapshot2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleSessionSnapshot(ctx context.Context, sel ast.SelectionSet, v *models.LifecycleSessionSnapshot) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LifecycleSessionSnapshot(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLifecycleSessionSnapshotsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleSessionSnapshotsResult(ctx context.Context, sel ast.SelectionSet, v models.LifecycleSessionSnapshotsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LifecycleSessionSnapshotsResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLifecycleTreeFilterInput2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeFilterInput(ctx context.Context, v any) (models.LifecycleTreeFilterInput, error) {
+	res, err := ec.unmarshalInputLifecycleTreeFilterInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLifecycleTreeNode2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.LifecycleTreeNode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLifecycleTreeNode2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLifecycleTreeNode2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNode(ctx context.Context, sel ast.SelectionSet, v *models.LifecycleTreeNode) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LifecycleTreeNode(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLifecycleTreeNodeType2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodeType(ctx context.Context, v any) (models.LifecycleTreeNodeType, error) {
+	var res models.LifecycleTreeNodeType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLifecycleTreeNodeType2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodeType(ctx context.Context, sel ast.SelectionSet, v models.LifecycleTreeNodeType) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNLifecycleTreeNodesResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐLifecycleTreeNodesResult(ctx context.Context, sel ast.SelectionSet, v models.LifecycleTreeNodesResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LifecycleTreeNodesResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNManualInterventionAction2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐManualInterventionAction(ctx context.Context, v any) (models.ManualInterventionAction, error) {
+	var res models.ManualInterventionAction
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNManualInterventionAction2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐManualInterventionAction(ctx context.Context, sel ast.SelectionSet, v models.ManualInterventionAction) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNManualInterventionResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐManualInterventionResult(ctx context.Context, sel ast.SelectionSet, v models.ManualInterventionResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ManualInterventionResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNProjectBoard2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐProjectBoardᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.ProjectBoard) graphql.Marshaler {
@@ -16794,6 +21679,22 @@ func (ec *executionContext) marshalNSessionsResult2agenticᚑorchestratorᚋinte
 	return ec._SessionsResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNStreamEvent2ᚕᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.StreamEvent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNStreamEvent2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEvent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNStreamEvent2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEvent(ctx context.Context, sel ast.SelectionSet, v *models.StreamEvent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -16822,6 +21723,16 @@ func (ec *executionContext) unmarshalNStreamEventSource2agenticᚑorchestrator�
 
 func (ec *executionContext) marshalNStreamEventSource2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventSource(ctx context.Context, sel ast.SelectionSet, v models.StreamEventSource) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNStreamEventsResult2agenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐStreamEventsResult(ctx context.Context, sel ast.SelectionSet, v models.StreamEventsResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StreamEventsResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {

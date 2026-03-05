@@ -57,6 +57,78 @@ type DeadLetterHistoryRecord struct {
 	OccurredAt time.Time
 }
 
+type LifecycleSessionSnapshot struct {
+	ProjectID           string
+	RunID               string
+	TaskID              string
+	JobID               string
+	SessionID           string
+	PipelineType        string
+	SourceRuntime       string
+	CurrentState        string
+	CurrentSeverity     string
+	LastReasonCode      string
+	LastReasonSummary   string
+	LastEventSeq        int64
+	LastProjectEventSeq int64
+	LastLivenessAt      *time.Time
+	LastActivityAt      *time.Time
+	LastCheckpointAt    *time.Time
+	StartedAt           time.Time
+	EndedAt             *time.Time
+	UpdatedAt           time.Time
+}
+
+type LifecycleHistoryEvent struct {
+	EventID         string
+	ProjectID       string
+	RunID           string
+	TaskID          string
+	JobID           string
+	SessionID       string
+	PipelineType    string
+	SourceRuntime   string
+	EventType       string
+	EventSeq        int64
+	ProjectEventSeq int64
+	OccurredAt      time.Time
+	PayloadJSON     string
+}
+
+type LifecycleTreeNodeType string
+
+const (
+	LifecycleTreeNodeTypeRun     LifecycleTreeNodeType = "run"
+	LifecycleTreeNodeTypeTask    LifecycleTreeNodeType = "task"
+	LifecycleTreeNodeTypeJob     LifecycleTreeNodeType = "job"
+	LifecycleTreeNodeTypeSession LifecycleTreeNodeType = "session"
+)
+
+type LifecycleTreeNode struct {
+	NodeID          string
+	ParentNodeID    string
+	NodeType        LifecycleTreeNodeType
+	ProjectID       string
+	RunID           string
+	TaskID          string
+	JobID           string
+	SessionID       string
+	PipelineType    string
+	SourceRuntime   string
+	CurrentState    string
+	CurrentSeverity string
+	SessionCount    int
+	UpdatedAt       time.Time
+}
+
+type LifecycleTreeFilter struct {
+	ProjectID    string
+	PipelineType string
+	RunID        string
+	TaskID       string
+	JobID        string
+}
+
 type ProjectRepository struct {
 	RepositoryID  string
 	SCMID         string
@@ -65,7 +137,7 @@ type ProjectRepository struct {
 }
 
 type ProjectSCM struct {
-	SCMID      string
+	SCMID       string
 	SCMProvider string
 	SCMToken    string
 }
@@ -192,6 +264,9 @@ type QueryRepository interface {
 	ListWorkflowJobs(ctx context.Context, runID string, taskID string, limit int) ([]WorkflowJob, error)
 	ListExecutionHistory(ctx context.Context, filter CorrelationFilter, limit int) ([]ExecutionHistoryRecord, error)
 	ListDeadLetterHistory(ctx context.Context, queue string, limit int) ([]DeadLetterHistoryRecord, error)
+	ListLifecycleSessionSnapshots(ctx context.Context, projectID string, pipelineType string, limit int) ([]LifecycleSessionSnapshot, error)
+	ListLifecycleSessionHistory(ctx context.Context, projectID string, sessionID string, fromEventSeq int64, limit int) ([]LifecycleHistoryEvent, error)
+	ListLifecycleTreeNodes(ctx context.Context, filter LifecycleTreeFilter, limit int) ([]LifecycleTreeNode, error)
 }
 
 type ProjectSetupRepository interface {
@@ -235,22 +310,23 @@ func (request ApproveIssueIntakeRequest) Validate() error {
 }
 
 type Service struct {
-	scheduler         *taskengine.Scheduler
-	queryRepository   QueryRepository
-	projectRepository ProjectSetupRepository
-	repositoryBranchCatalog ProjectRepositoryBranchCatalog
-	projectDocumentRepository ProjectDocumentRepository
-	projectFileStore          ProjectFileStore
-	projectCDNSigner          ProjectCDNSigner
-	promptRefinementRepository PromptRefinementRepository
-	promptRefiner              PromptRefiner
-	projectDocumentRootPrefix string
-	projectDocumentRemoteStorageType string
+	scheduler                                       *taskengine.Scheduler
+	queryRepository                                 QueryRepository
+	projectRepository                               ProjectSetupRepository
+	repositoryBranchCatalog                         ProjectRepositoryBranchCatalog
+	projectDocumentRepository                       ProjectDocumentRepository
+	projectFileStore                                ProjectFileStore
+	projectCDNSigner                                ProjectCDNSigner
+	promptRefinementRepository                      PromptRefinementRepository
+	promptRefiner                                   PromptRefiner
+	projectDocumentRootPrefix                       string
+	projectDocumentRemoteStorageType                string
 	projectDocumentGoogleApplicationCredentialsPath string
-	projectDocumentUploadWait time.Duration
-	promptRefinementWait time.Duration
-	deadLetterManager taskengine.DeadLetterManager
-	cleanupManager    ProjectCleanupManager
+	projectDocumentUploadWait                       time.Duration
+	promptRefinementWait                            time.Duration
+	deadLetterManager                               taskengine.DeadLetterManager
+	cleanupManager                                  ProjectCleanupManager
+	lifecycleService                                LifecycleEventService
 }
 
 func NewService(scheduler *taskengine.Scheduler, queryRepository QueryRepository, projectRepository ProjectSetupRepository, deadLetterManager taskengine.DeadLetterManager) (*Service, error) {
@@ -261,14 +337,14 @@ func NewService(scheduler *taskengine.Scheduler, queryRepository QueryRepository
 		return nil, fmt.Errorf("control-plane project repository is required")
 	}
 	return &Service{
-		scheduler:         scheduler,
-		queryRepository:   queryRepository,
-		projectRepository: projectRepository,
-		projectDocumentRootPrefix: "projects",
+		scheduler:                        scheduler,
+		queryRepository:                  queryRepository,
+		projectRepository:                projectRepository,
+		projectDocumentRootPrefix:        "projects",
 		projectDocumentRemoteStorageType: "gcs",
-		projectDocumentUploadWait: 5 * time.Second,
-		promptRefinementWait: 60 * time.Second,
-		deadLetterManager: deadLetterManager,
+		projectDocumentUploadWait:        5 * time.Second,
+		promptRefinementWait:             60 * time.Second,
+		deadLetterManager:                deadLetterManager,
 	}, nil
 }
 
@@ -284,6 +360,13 @@ func (service *Service) SetProjectRepositoryBranchCatalog(catalog ProjectReposit
 		return
 	}
 	service.repositoryBranchCatalog = catalog
+}
+
+func (service *Service) SetLifecycleService(lifecycleService LifecycleEventService) {
+	if service == nil {
+		return
+	}
+	service.lifecycleService = lifecycleService
 }
 
 func (service *Service) Sessions(ctx context.Context, limit int) ([]SessionSummary, error) {
@@ -318,6 +401,41 @@ func (service *Service) ExecutionHistory(ctx context.Context, filter Correlation
 
 func (service *Service) DeadLetterHistory(ctx context.Context, queue string, limit int) ([]DeadLetterHistoryRecord, error) {
 	return service.queryRepository.ListDeadLetterHistory(ctx, strings.TrimSpace(queue), normalizeLimit(limit, 100, 500))
+}
+
+func (service *Service) LifecycleSessionSnapshots(ctx context.Context, projectID string, pipelineType string, limit int) ([]LifecycleSessionSnapshot, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	return service.queryRepository.ListLifecycleSessionSnapshots(ctx, projectID, strings.TrimSpace(pipelineType), normalizeLimit(limit, 100, 500))
+}
+
+func (service *Service) LifecycleSessionHistory(ctx context.Context, projectID string, sessionID string, fromEventSeq int64, limit int) ([]LifecycleHistoryEvent, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, fmt.Errorf("session_id is required")
+	}
+	if fromEventSeq < 0 {
+		fromEventSeq = 0
+	}
+	return service.queryRepository.ListLifecycleSessionHistory(ctx, projectID, sessionID, fromEventSeq, normalizeLimit(limit, 100, 500))
+}
+
+func (service *Service) LifecycleTreeNodes(ctx context.Context, filter LifecycleTreeFilter, limit int) ([]LifecycleTreeNode, error) {
+	filter.ProjectID = strings.TrimSpace(filter.ProjectID)
+	filter.PipelineType = strings.TrimSpace(filter.PipelineType)
+	filter.RunID = strings.TrimSpace(filter.RunID)
+	filter.TaskID = strings.TrimSpace(filter.TaskID)
+	filter.JobID = strings.TrimSpace(filter.JobID)
+	if filter.ProjectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	return service.queryRepository.ListLifecycleTreeNodes(ctx, filter, normalizeLimit(limit, 200, 1000))
 }
 
 func (service *Service) ProjectSetups(ctx context.Context, limit int) ([]ProjectSetup, error) {

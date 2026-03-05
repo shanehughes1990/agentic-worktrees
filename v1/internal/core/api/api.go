@@ -2,6 +2,7 @@ package api
 
 import (
 	applicationcontrolplane "agentic-orchestrator/internal/application/controlplane"
+	applicationlifecycle "agentic-orchestrator/internal/application/lifecycle"
 	applicationrealtime "agentic-orchestrator/internal/application/realtime"
 	applicationstream "agentic-orchestrator/internal/application/stream"
 	"agentic-orchestrator/internal/application/taskengine"
@@ -14,6 +15,7 @@ import (
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
+	infralifecyclepostgres "agentic-orchestrator/internal/infrastructure/lifecycle/postgres"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
 	infrastructure_realtime "agentic-orchestrator/internal/infrastructure/realtime"
 	infrascm "agentic-orchestrator/internal/infrastructure/scm"
@@ -56,7 +58,9 @@ type APIApp struct {
 	sessionStateReader    *infraagent.SessionStateReader
 	acpClient             *infraagent.ACPClient
 	workerService         *applicationworker.Service
+	lifecycleService      *applicationlifecycle.Service
 	realtimeTransport     domainrealtime.WorkerLifecycleTransport
+	tableChangeWatcher    domainrealtime.TableChangeWatcher
 	pendingHeartbeats     map[string]domainrealtime.HeartbeatRequest
 	pendingHeartbeatsMu   sync.Mutex
 }
@@ -129,6 +133,20 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init postgres stream event store: %w", err)
 	}
+	lifecycleEventStore, err := infralifecyclepostgres.NewEventStore(databaseClient.DB())
+	if err != nil {
+		return nil, fmt.Errorf("init lifecycle event store: %w", err)
+	}
+	tableChangeWatcher, err := infrastructure_realtime.NewPGTableChangeWatcher(databaseClient.DB(), config.App.DatabaseDSN)
+	if err != nil {
+		return nil, fmt.Errorf("init table change watcher: %w", err)
+	}
+	streamEventStore.SetTableChangeWatcher(tableChangeWatcher)
+	lifecycleEventStore.SetTableChangeWatcher(tableChangeWatcher)
+	lifecycleService, err := applicationlifecycle.NewService(lifecycleEventStore)
+	if err != nil {
+		return nil, fmt.Errorf("init lifecycle service: %w", err)
+	}
 	streamService, err := applicationstream.NewService(streamEventStore)
 	if err != nil {
 		return nil, fmt.Errorf("init stream service: %w", err)
@@ -160,6 +178,7 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
+	controlPlaneService.SetLifecycleService(lifecycleService)
 	controlPlaneService.SetProjectRepositoryBranchCatalog(&apiProjectRepositoryBranchCatalog{repositoryRootPath: filepath.Join(os.TempDir(), "agentic-orchestrator")})
 	controlPlaneService.SetProjectDocumentRepository(projectDocumentRepository)
 	controlPlaneService.SetPromptRefinementRepository(promptRefinementRepository)
@@ -232,7 +251,9 @@ func New() (*APIApp, error) {
 		sessionStateReader:    sessionStateReader,
 		acpClient:             acpClient,
 		workerService:         workerService,
+		lifecycleService:      lifecycleService,
 		realtimeTransport:     realtimeTransport,
+		tableChangeWatcher:    tableChangeWatcher,
 		pendingHeartbeats:     map[string]domainrealtime.HeartbeatRequest{},
 	}, nil
 }
@@ -292,6 +313,8 @@ func (app *APIApp) Run() error {
 	go app.runHeartbeatResponseListener(signalCtx)
 	go app.runHeartbeatRequestLoop(signalCtx)
 	go app.runWorkerSessionStreamPublisher(signalCtx)
+	go app.runRuntimeActivityStreamListener(signalCtx)
+	go app.runStreamTableChangeListener(signalCtx)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -629,6 +652,257 @@ func (app *APIApp) runWorkerSessionStreamPublisher(ctx context.Context) {
 			previous = current
 		}
 	}
+}
+
+func (app *APIApp) runRuntimeActivityStreamListener(ctx context.Context) {
+	if app == nil || app.streamService == nil || app.realtimeTransport == nil {
+		return
+	}
+	_ = app.realtimeTransport.ListenRuntimeActivity(ctx, func(signal domainrealtime.RuntimeActivitySignal) error {
+		eventType := domainstream.EventSessionUpdated
+		normalizedEventType := strings.ToLower(strings.TrimSpace(signal.EventType))
+		switch normalizedEventType {
+		case "started":
+			eventType = domainstream.EventSessionStarted
+		case "completed", "failed", "terminated":
+			eventType = domainstream.EventSessionEnded
+		case "heartbeat":
+			eventType = domainstream.EventSessionHealth
+		}
+		event := domainstream.Event{
+			EventID:    strings.TrimSpace(signal.SignalID),
+			OccurredAt: signal.OccurredAt.UTC(),
+			Source:     domainstream.SourceWorker,
+			EventType:  eventType,
+			CorrelationIDs: domainstream.CorrelationIDs{
+				RunID:         strings.TrimSpace(signal.RunID),
+				TaskID:        strings.TrimSpace(signal.TaskID),
+				JobID:         strings.TrimSpace(signal.JobID),
+				ProjectID:     strings.TrimSpace(signal.ProjectID),
+				SessionID:     strings.TrimSpace(signal.SessionID),
+				CorrelationID: "session:" + strings.TrimSpace(signal.SessionID),
+			},
+			Payload: map[string]any{
+				"runtime_activity": true,
+				"runtime_event":    normalizedEventType,
+				"pipeline_type":    strings.TrimSpace(signal.PipelineType),
+				"worker_id":        strings.TrimSpace(signal.WorkerID),
+				"signal":           signal.Payload,
+			},
+		}
+		if err := event.Validate(); err != nil {
+			return nil
+		}
+		app.streamService.PublishLive(event)
+		return nil
+	})
+}
+
+func (app *APIApp) runStreamTableChangeListener(ctx context.Context) {
+	if app == nil || app.streamService == nil || app.tableChangeWatcher == nil {
+		return
+	}
+	go func() {
+		_ = app.tableChangeWatcher.Watch(ctx, "stream_events_live", func(event domainrealtime.TableChangeEvent) error {
+			liveEvent, ok := streamEventFromTableChangePayload(event)
+			if !ok {
+				return nil
+			}
+			app.streamService.PublishLive(liveEvent)
+			return nil
+		})
+	}()
+	go func() {
+		_ = app.tableChangeWatcher.Watch(ctx, "lifecycle_project_session_history", func(event domainrealtime.TableChangeEvent) error {
+			liveEvent, ok := lifecycleStreamEventFromTableChange(event)
+			if !ok {
+				return nil
+			}
+			app.streamService.PublishLive(liveEvent)
+			return nil
+		})
+	}()
+	_ = app.tableChangeWatcher.Watch(ctx, "stream_events_changed", func(_ domainrealtime.TableChangeEvent) error {
+		app.streamService.NotifyExternalChange()
+		return nil
+	})
+}
+
+func streamEventFromTableChangePayload(change domainrealtime.TableChangeEvent) (domainstream.Event, bool) {
+	payload := change.Payload
+	if payload == nil {
+		return domainstream.Event{}, false
+	}
+	eventID := strings.TrimSpace(stringMapValue(payload, "event_id"))
+	eventType := strings.TrimSpace(stringMapValue(payload, "event_type"))
+	source := strings.TrimSpace(stringMapValue(payload, "source"))
+	occurredAtRaw := strings.TrimSpace(stringMapValue(payload, "occurred_at"))
+	occurredAt, err := time.Parse(time.RFC3339Nano, occurredAtRaw)
+	if err != nil {
+		occurredAt = change.OccurredAt.UTC()
+	}
+	if eventID == "" || eventType == "" || source == "" {
+		return domainstream.Event{}, false
+	}
+	streamOffset := intMapValue(payload, "stream_offset")
+	rawEventPayload, _ := payload["payload"].(map[string]any)
+	event := domainstream.Event{
+		EventID:      eventID,
+		StreamOffset: uint64(streamOffset),
+		OccurredAt:   occurredAt.UTC(),
+		Source:       domainstream.Source(source),
+		EventType:    domainstream.EventType(eventType),
+		CorrelationIDs: domainstream.CorrelationIDs{
+			RunID:         strings.TrimSpace(stringMapValue(payload, "run_id")),
+			TaskID:        strings.TrimSpace(stringMapValue(payload, "task_id")),
+			JobID:         strings.TrimSpace(stringMapValue(payload, "job_id")),
+			ProjectID:     strings.TrimSpace(stringMapValue(payload, "project_id")),
+			SessionID:     strings.TrimSpace(stringMapValue(payload, "session_id")),
+			CorrelationID: strings.TrimSpace(stringMapValue(payload, "correlation_id")),
+		},
+		Payload: rawEventPayload,
+	}
+	if err := event.Validate(); err != nil {
+		return domainstream.Event{}, false
+	}
+	return event, true
+}
+
+func stringMapValue(source map[string]any, key string) string {
+	raw, exists := source[key]
+	if !exists || raw == nil {
+		return ""
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	return value
+}
+
+func intMapValue(source map[string]any, key string) int64 {
+	raw, exists := source[key]
+	if !exists || raw == nil {
+		return 0
+	}
+	switch value := raw.(type) {
+	case int:
+		return int64(value)
+	case int32:
+		return int64(value)
+	case int64:
+		return value
+	case float64:
+		return int64(value)
+	default:
+		return 0
+	}
+}
+
+func lifecycleStreamEventFromTableChange(change domainrealtime.TableChangeEvent) (domainstream.Event, bool) {
+	payload := change.Payload
+	if payload == nil {
+		return domainstream.Event{}, false
+	}
+	rawLifecycleEventType := strings.TrimSpace(stringMapValue(payload, "event_type"))
+	eventID := strings.TrimSpace(stringMapValue(payload, "event_id"))
+	if eventID == "" {
+		eventID = strings.TrimSpace(stringMapValue(payload, "lifecycle_event_id"))
+	}
+	if eventID == "" {
+		return domainstream.Event{}, false
+	}
+	occurredAtRaw := strings.TrimSpace(stringMapValue(payload, "occurred_at"))
+	occurredAt, err := time.Parse(time.RFC3339Nano, occurredAtRaw)
+	if err != nil {
+		occurredAt = change.OccurredAt.UTC()
+	}
+	streamOffset := uint64(change.ProjectEventSeq)
+	if streamOffset == 0 {
+		streamOffset = uint64(intMapValue(payload, "project_event_seq"))
+	}
+	correlationID := strings.TrimSpace(stringMapValue(payload, "correlation_id"))
+	if correlationID == "" {
+		sessionID := strings.TrimSpace(change.SessionID)
+		if sessionID == "" {
+			sessionID = strings.TrimSpace(stringMapValue(payload, "session_id"))
+		}
+		if sessionID != "" {
+			correlationID = "session:" + sessionID
+		} else {
+			projectID := strings.TrimSpace(change.ProjectID)
+			if projectID == "" {
+				projectID = strings.TrimSpace(stringMapValue(payload, "project_id"))
+			}
+			if projectID == "" {
+				projectID = "unknown"
+			}
+			correlationID = "project:" + projectID
+		}
+	}
+	eventPayload := map[string]any{}
+	if rawPayload, ok := payload["payload"].(map[string]any); ok {
+		for key, value := range rawPayload {
+			eventPayload[key] = value
+		}
+	}
+	eventPayload["lifecycle_event_type"] = rawLifecycleEventType
+	eventPayload["session_event_seq"] = change.SessionEventSeq
+	eventPayload["project_event_seq"] = change.ProjectEventSeq
+	eventPayload["project_id"] = strings.TrimSpace(fallbackString(change.ProjectID, stringMapValue(payload, "project_id")))
+	eventPayload["session_id"] = strings.TrimSpace(fallbackString(change.SessionID, stringMapValue(payload, "session_id")))
+
+	event := domainstream.Event{
+		EventID:      eventID,
+		StreamOffset: streamOffset,
+		OccurredAt:   occurredAt.UTC(),
+		Source:       streamSourceFromLifecycleRuntime(strings.TrimSpace(stringMapValue(payload, "source_runtime"))),
+		EventType:    domainstream.EventType(lifecycleEventTypeToStreamEventType(rawLifecycleEventType)),
+		CorrelationIDs: domainstream.CorrelationIDs{
+			RunID:         strings.TrimSpace(fallbackString(change.RunID, stringMapValue(payload, "run_id"))),
+			TaskID:        strings.TrimSpace(fallbackString(change.TaskID, stringMapValue(payload, "task_id"))),
+			JobID:         strings.TrimSpace(fallbackString(change.JobID, stringMapValue(payload, "job_id"))),
+			ProjectID:     strings.TrimSpace(fallbackString(change.ProjectID, stringMapValue(payload, "project_id"))),
+			SessionID:     strings.TrimSpace(fallbackString(change.SessionID, stringMapValue(payload, "session_id"))),
+			CorrelationID: correlationID,
+		},
+		Payload: eventPayload,
+	}
+	if err := event.Validate(); err != nil {
+		return domainstream.Event{}, false
+	}
+	return event, true
+}
+
+func lifecycleEventTypeToStreamEventType(eventType string) string {
+	normalized := strings.TrimSpace(strings.ToLower(eventType))
+	if normalized == "" {
+		return "stream.session.updated"
+	}
+	switch normalized {
+	case "started":
+		return string(domainstream.EventSessionStarted)
+	case "completed", "failed":
+		return string(domainstream.EventSessionEnded)
+	case "gap_detected", "gap_reconciled":
+		return string(domainstream.EventSessionHealth)
+	default:
+		return "lifecycle." + normalized
+	}
+}
+
+func streamSourceFromLifecycleRuntime(runtime string) domainstream.Source {
+	if strings.Contains(strings.ToLower(strings.TrimSpace(runtime)), "worker") {
+		return domainstream.SourceWorker
+	}
+	return domainstream.SourceACP
+}
+
+func fallbackString(primary string, fallback string) string {
+	if strings.TrimSpace(primary) != "" {
+		return primary
+	}
+	return fallback
 }
 
 func (app *APIApp) publishWorkerStreamEvent(ctx context.Context, eventType domainstream.EventType, correlationID string, payload map[string]any) error {

@@ -42,12 +42,12 @@ func (fetcher *fakeArtifactFetcher) FetchToPath(ctx context.Context, objectPath 
 }
 
 type fakeAgentRunner struct {
-	err          error
-	prompt       string
-	sandboxDir   string
-	outputPath   string
-	model        string
-	writtenBoard string
+	err           error
+	prompt        string
+	sandboxDir    string
+	outputPath    string
+	model         string
+	writtenBoard  string
 	writtenBoards []string
 	callCount     int
 }
@@ -78,6 +78,8 @@ func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir
 			"id": "epic-1",
 			"board_id": "temporary-board",
 			"title": "Epic one",
+			"repository_ids": ["repo-1"],
+			"deliverables": ["Epic one planning brief"],
 			"state": "planned",
 			"rank": 1,
 			"tasks": [{
@@ -85,6 +87,8 @@ func (runner *fakeAgentRunner) GenerateTaskboard(ctx context.Context, sandboxDir
 				"board_id": "temporary-board",
 				"epic_id": "epic-1",
 				"title": "Task one",
+				"repository_ids": ["repo-1"],
+				"deliverables": ["Task one implementation completed"],
 				"task_type": "implementation",
 				"state": "planned",
 				"rank": 1
@@ -217,6 +221,7 @@ func TestServiceExecuteClassifiesFetchFailuresAsTransient(t *testing.T) {
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
@@ -236,6 +241,7 @@ func TestServiceExecuteCleansTemporaryArtifacts(t *testing.T) {
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
@@ -264,6 +270,7 @@ func TestServiceExecuteClassifiesRunnerFailuresAsTransient(t *testing.T) {
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
@@ -304,7 +311,7 @@ func TestServiceExecuteRetriesUntilValidationPasses(t *testing.T) {
 	boardStore := &fakeBoardStore{}
 	artifactFetcher := &fakeArtifactFetcher{}
 	agentRunner := &fakeAgentRunner{writtenBoards: []string{
-		`{"board_id":"temporary-board","run_id":"temporary-run","state":"pending","epics":[{"id":"epic-1","board_id":"temporary-board","title":"Epic one","state":"planned","rank":1,"tasks":[{"id":"task-1","board_id":"temporary-board","epic_id":"epic-1","title":"Task one","state":"planned","rank":1}]}],"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}`,
+		`{"board_id":"temporary-board","run_id":"temporary-run","state":"unsupported","epics":[{"id":"epic-1","board_id":"temporary-board","title":"Epic one","state":"planned","rank":1,"tasks":[{"id":"task-1","board_id":"temporary-board","epic_id":"epic-1","title":"Task one","task_type":"implementation","state":"planned","rank":1}]}],"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}`,
 		`{"board_id":"temporary-board","run_id":"temporary-run","state":"pending","epics":[{"id":"epic-1","board_id":"temporary-board","title":"Epic one","state":"planned","rank":1,"tasks":[{"id":"task-1","board_id":"temporary-board","epic_id":"epic-1","title":"Task one","task_type":"implementation","state":"planned","rank":1}]}],"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}`,
 	}}
 	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
@@ -316,6 +323,7 @@ func TestServiceExecuteRetriesUntilValidationPasses(t *testing.T) {
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
 		SystemPrompt:              "You are an ingestion planner.",
 		UserPrompt:                "Create a delivery taskboard.",
 	})
@@ -361,8 +369,12 @@ func TestServiceExecuteAllowsPromptOnlyWithoutSelectedDocuments(t *testing.T) {
 	}
 
 	_, executeErr := service.Execute(context.Background(), Request{
-		RunID:        "run-1",
-		ProjectID:    "project-1",
+		RunID:     "run-1",
+		ProjectID: "project-1",
+		SourceRepositories: []SourceRepository{{
+			RepositoryID:  "repo-1",
+			RepositoryURL: "https://github.com/acme/source-repo.git",
+		}},
 		SystemPrompt: "You are an ingestion planner.",
 		UserPrompt:   "Build taskboard from repository context only.",
 	})
@@ -387,6 +399,7 @@ func TestServiceExecuteAllowsDocsOnlyWithoutUserPrompt(t *testing.T) {
 		RunID:                     "run-1",
 		ProjectID:                 "project-1",
 		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
 		PreferSelectedDocuments:   true,
 		SystemPrompt:              "You are an ingestion planner.",
 	})

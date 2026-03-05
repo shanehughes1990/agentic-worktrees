@@ -21,6 +21,18 @@ V1 is a ground-up rewrite contained in `v1/`.
 - Tracker-agnostic taskboard model with local JSON provider first.
 - Realtime streams for session activity, agent output, and orchestrator decisions.
 - Container-first runtime and deployment baseline.
+- Heartbeat-driven worker liveness as the primary execution health signal for long-running tasks.
+- Configurable queue timeout policy per job kind/workload profile, including support for effectively unbounded execution windows when heartbeat liveness is healthy.
+
+## Execution Timeout and Liveness Policy (V1)
+
+- Asynq task timeout is a transport/runtime safeguard, not the primary source of truth for task health.
+- Worker heartbeat and lifecycle state transitions are authoritative for whether work is considered alive, stalled, failed, or recoverable.
+- Timeout strategy must account for wide variance in agentic task duration and avoid one-size-fits-all limits.
+- Any timeout-triggered failure handling must emit lifecycle/session history events so restart, retry, and termination transitions are visible in inspection surfaces.
+- Any termination path must guarantee agent execution stops when termination is expected.
+- Termination must follow a two-phase stop policy: graceful shutdown first, then forceful stop if graceful termination does not complete within policy bounds.
+- This requirement applies to all worker task kill/terminate signals (manual intervention, timeout/expiry handling, runtime shutdown, and task-engine driven termination paths).
 
 ## Out of Scope / Non-Goals (V1)
 
@@ -29,6 +41,7 @@ V1 is a ground-up rewrite contained in `v1/`.
 - CLI-first end-user workflows.
 - Slot-first architecture rooted at `pkg/<slot>`.
 - Feature work that bypasses GraphQL as the control-plane contract.
+- Relying on fixed global Asynq timeout values as the sole task lifecycle controller for all workloads.
 
 Developer-only command-line tooling for setup and testing is allowed but is not product UX.
 

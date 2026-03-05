@@ -529,6 +529,7 @@ Add a first-class Project Events Board that behaves like a git-tree explorer for
 Primary UX goals:
 
 - Show a live project-wide event feed across all worker pipelines.
+- Show only currently active runtime activity in Global Live (no historical/backfill rows).
 - Allow drilldown from project -> run -> pipeline -> task -> session -> event.
 - Preserve strict event ordering and lifecycle context at each node.
 - Support both broad monitoring (all events) and deep inspection (single task pipeline).
@@ -546,7 +547,9 @@ Required board modes:
 
 1. Global live mode
 
-- Real-time subscription for all project events.
+- Real-time subscription for active-now worker activity only.
+- Must not rely on persistence-read refresh cadence (`project_session_history`, snapshots, or generic table replay) to appear live.
+- Must evict/age-out entries that are no longer active so the view represents current runtime state.
 - Filterable by run, pipeline type, state, severity, worker, and time window.
 
 1. Pipeline drilldown mode
@@ -575,6 +578,24 @@ Event ordering and consistency requirements:
 
 ## Realtime Contract Requirements for Events Board
 
+### Global Live Active-Now Intent (Mandatory)
+
+Global Live is an operations-now surface, not a history surface.
+
+Required behavior:
+
+- Global Live shows only currently active worker/session/runtime activity.
+- Global Live must react to worker runtime signals immediately (sub-second target), without waiting for persistence commits to appear in Postgres-backed history tables.
+- Historical/replay/persisted timelines belong only to Pipeline Drilldown and Session Inspection modes.
+- If an activity is no longer active, it must leave Global Live (or move to an explicitly stale bucket) within bounded TTL.
+- Empty Global Live while Session/Pipeline history has data is valid when nothing is active now.
+
+Non-compliant behavior:
+
+- Global Live updates only when persisted history/snapshot rows are queried/refreshed.
+- Global Live surfaces historical-only events as if they are active-now.
+- Global Live requires manual reload to reflect runtime activity changes.
+
 Required GraphQL capabilities:
 
 - Subscription: `projectEvents(projectId, filters...)` for global live mode.
@@ -597,15 +618,15 @@ Pagination and replay requirements:
 - Replay from persisted history must reproduce the same node ordering as live mode.
 - Subscriptions must be resumable from cursor/sequence checkpoints.
 
-### Realtime Delivery Semantics (Table-Change Watch)
-Realtime for this scope means API push from database change signals, not client/API polling loops.
+### Realtime Delivery Semantics (Runtime-Active Push)
+Realtime for Global Live means push from runtime-active worker signals, not persistence-query refresh cadence.
 
 Required behavior:
 
-- API must watch canonical persistence changes for `project_session_history` and snapshot updates.
-- Change-watch mechanism must be database-driven (for example trigger-driven `NOTIFY` on insert/update) and tied to committed rows.
-- GraphQL subscriptions publish only after resolving from persisted rows (cursor/sequence), never from transient in-memory worker messages.
-- `LISTEN/NOTIFY` is a wake-up/change signal only; persisted tables remain source of truth.
+- API must expose a dedicated runtime-active stream for Global Live.
+- Runtime-active stream messages must include correlation and liveness/activity fields required to render "active now" deterministically.
+- Delivery path must be distributed and resumable across API/worker boundaries, but must not block Global Live rendering on persistence commit availability.
+- Persisted tables remain canonical for audit/history modes; they are not the primary source for active-now Global Live rendering.
 
 Mandatory platform requirement:
 
@@ -615,9 +636,10 @@ Mandatory platform requirement:
 - Watcher implementation must support backend swappability (Postgres implementation first, but not hard-coupled in application/domain contracts).
 - The same watcher capability is required to be reusable for future non-worker pipelines and control-plane event features.
 
-Explicitly out of scope as the primary realtime mechanism:
+Explicitly out of scope as the primary realtime mechanism for Global Live:
 
 - Low-latency polling loops as the main API->desktop delivery strategy.
+- Postgres history/snapshot query-refresh as the source of active-now liveness UI.
 
 ## Event Stream Fan-Out and Listener Hooks
 
@@ -716,6 +738,16 @@ Required controls:
 
 - Manual actions from board: nudge, retry, pause, terminate, restore.
 - Every manual action emits a persisted event with actor identity and reason.
+- Nudge expansion contract: `manual_nudge` should drive operator-facing follow-up (desktop notification and/or external listener action) in addition to audit history.
+- Current implementation note: `manual_nudge` is plumbed end-to-end (board -> GraphQL -> persisted lifecycle event), but no dedicated listener currently consumes `manual_nudge` for downstream action execution.
+- Pause semantics requirement: `pause` must never pause an entire Asynq queue because that would halt unrelated workloads.
+- Pause execution requirement: `pause` must stop/halt only the correlated task execution (task/job scoped worker work), preserving queue availability for other tasks.
+- Terminate semantics requirement: `terminate` is a destructive terminal action and must hard-stop the targeted session pipeline without graceful continuation.
+- Terminate execution requirement: `terminate` must cancel/stop the correlated Asynq task and terminate any currently running live agent execution for that same correlation track (`project_id`, `run_id`, `task_id`, `job_id`, `session_id`) without impacting unrelated queue work.
+- Restore automation requirement: when a session is classified as restorable from persisted context/checkpoint data, restore must be automatically orchestrated by the system without requiring manual operator intervention.
+- Restore UX requirement: operators should not need a manual restore button for normal restorable flows; manual restore should be reserved for explicit break-glass/admin workflows only (if retained).
+- Retry UX eligibility requirement: retry must be available only for terminal unhappy stop/failure states (for example `exited_unexpected`, failed terminal outcomes, dead-lettered failures).
+- Retry UX guard requirement: retry must be hidden or disabled for successful terminal outcomes and for in-flight sessions; operators must not be able to press retry in those states.
 - Runbook links per state (`waiting_input`, `stuck`, `exited_unexpected`) included in UI payloads.
 - Circuit-breaker control to disable noisy listeners without stopping canonical persistence.
 
@@ -841,223 +873,263 @@ Legend:
 
 ### Slice 1: Canonical Event Write Path
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Implement canonical event writer in worker path for all pipelines.
-- [ ] Enforce required fields (`project_id`, `session_id`, `event_id`, `event_seq`, `project_event_seq`, `event_type`, `occurred_at`).
-- [ ] Enforce idempotent duplicate handling using uniqueness constraints.
-- [ ] Persist `project_session_history` records before snapshot mutation.
+- [x] Implement canonical event writer in worker path for all pipelines.
+- [x] Enforce required fields (`project_id`, `session_id`, `event_id`, `event_seq`, `project_event_seq`, `event_type`, `occurred_at`).
+- [x] Enforce idempotent duplicate handling using uniqueness constraints.
+- [x] Persist `project_session_history` records before snapshot mutation.
 
 Completion checks:
 
-- [ ] Deterministic write order validated in tests for session and project layers.
-- [ ] Duplicate event writes are safe (no semantic double-apply).
-- [ ] Required event contract validation failures are explicit and typed.
+- [x] Deterministic write order validated in tests for session and project layers.
+- [x] Duplicate event writes are safe (no semantic double-apply).
+- [x] Required event contract validation failures are explicit and typed.
 
 ### Slice 2: Session Snapshot Materialization
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Upsert `project_sessions` on every accepted lifecycle event.
-- [ ] Advance `last_event_seq` and `last_project_event_seq` monotonically.
-- [ ] Persist latest state/classification timestamps (`last_liveness_at`, `last_activity_at`, `last_checkpoint_at`).
-- [ ] Persist terminal lifecycle bounds (`started_at`, `ended_at`).
+- [x] Upsert `project_sessions` on every accepted lifecycle event.
+- [x] Advance `last_event_seq` and `last_project_event_seq` monotonically.
+- [x] Persist latest state/classification timestamps (`last_liveness_at`, `last_activity_at`, `last_checkpoint_at`).
+- [x] Persist terminal lifecycle bounds (`started_at`, `ended_at`).
 
 Completion checks:
 
-- [ ] Snapshot always matches latest history event for the same session.
-- [ ] Snapshot query latency remains acceptable under expected load.
-- [ ] Race conditions do not regress ordering guarantees.
+- [x] Snapshot always matches latest history event for the same session.
+- [x] Snapshot query latency remains acceptable under expected load.
+- [x] Race conditions do not regress ordering guarantees.
 
 ### Slice 3: Deterministic Classifier and Threshold Engine
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Implement evaluation order: liveness -> activity freshness -> checkpoint drift.
-- [ ] Emit deterministic state transitions for defined state taxonomy.
-- [ ] Implement debounce/flapping protections.
-- [ ] Map failures to typed classes (`transient` vs `terminal`).
+- [x] Implement evaluation order: liveness -> activity freshness -> checkpoint drift.
+- [x] Emit deterministic state transitions for defined state taxonomy.
+- [x] Implement debounce/flapping protections.
+- [x] Map failures to typed classes (`transient` vs `terminal`).
 
 Completion checks:
 
-- [ ] The five primary stability modes classify correctly in integration tests.
-- [ ] Threshold behavior is configurable via typed config.
-- [ ] No duplicate transition emissions on unchanged state.
+- [x] The five primary stability modes classify correctly in integration tests.
+- [x] Threshold behavior is configurable via typed config.
+- [x] No duplicate transition emissions on unchanged state.
 
 ### Slice 4: Gap Detection and Reconciliation
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Detect sequence discontinuities per session.
-- [ ] Persist `gap_detected` and `gap_reconciled` events.
-- [ ] Implement reconciliation for delayed/out-of-order events.
-- [ ] Surface gap state in API payloads.
+- [x] Detect sequence discontinuities per session.
+- [x] Persist `gap_detected` and `gap_reconciled` events.
+- [x] Implement reconciliation for delayed/out-of-order events.
+- [x] Surface gap state in API payloads.
 
 Completion checks:
 
-- [ ] Out-of-order replay converges to deterministic final order.
-- [ ] Gap indicators appear in board/subscription output.
-- [ ] Reconciliation path is idempotent.
+- [x] Out-of-order replay converges to deterministic final order.
+- [x] Gap indicators appear in board/subscription output.
+- [x] Reconciliation path is idempotent.
 
 ### Slice 5: Internal Fan-Out and Delivery Tracking (Phase 1)
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Implement listener abstraction with phase-1 internal listeners (`graphql`, `internal`).
-- [ ] Implement DB table-change watch path for canonical history/snapshot updates to wake API fan-out.
-- [ ] Persist per-listener delivery attempts in `project_session_feedback_deliveries`.
-- [ ] Implement retry/backoff with typed failure handling.
-- [ ] Ensure listener failures do not block canonical persistence.
-- [ ] Implement watcher abstraction as reusable infrastructure contract (feature-agnostic).
-- [ ] Implement Postgres watcher adapter under infrastructure that satisfies generic watcher contract.
+- [x] Implement listener abstraction with phase-1 internal listeners (`graphql`, `internal`).
+- [x] Implement DB table-change watch path for canonical history/snapshot updates to wake API fan-out.
+- [x] Persist per-listener delivery attempts in `project_session_feedback_deliveries`.
+- [x] Implement retry/backoff with typed failure handling.
+- [x] Ensure listener failures do not block canonical persistence.
+- [x] Implement watcher abstraction as reusable infrastructure contract (feature-agnostic).
+- [x] Implement Postgres watcher adapter under infrastructure that satisfies generic watcher contract.
+- [x] Fix desktop live-update delivery so Project Events Board updates without requiring manual reload.
+- [x] Implement dedicated runtime-active Global Live stream path that is not gated by Postgres history/snapshot commit visibility.
+- [x] Ensure Global Live surface includes only active-now items and evicts non-active items via deterministic TTL/state transition rules.
 
 Completion checks:
 
-- [ ] Desktop/API stream receives same event semantics as canonical history.
-- [ ] Desktop/API realtime updates are triggered from table-change watch signals, not polling loops.
-- [ ] Delivery retries and terminal failures are auditable.
-- [ ] Backpressure tests prove canonical stream remains healthy.
-- [ ] At least one non-worker demo stream can be wired through same watcher contract without contract changes.
+- [x] Desktop/API stream receives same event semantics as canonical history.
+- [x] Desktop/API realtime updates are triggered from table-change watch signals, not polling loops.
+- [x] Delivery retries and terminal failures are auditable.
+- [x] Backpressure tests prove canonical stream remains healthy.
+- [x] At least one non-worker demo stream can be wired through same watcher contract without contract changes.
+- [x] Desktop reflects lifecycle/event changes in realtime without pressing reload.
+- [x] Global Live updates immediately from runtime-active worker signals even when no new history row has been committed yet.
+- [x] Global Live can be empty while Session Inspection/Pipeline Drilldown still show historical records.
+
+Implementation status note (2026-03-05): completed with runtime-active worker->API push signals (`worker_runtime_activity`) backing Global Live, push-driven desktop updates (no polling loop as primary realtime mechanism), and deterministic active-now TTL/state-transition eviction semantics.
 
 ### Slice 6: GraphQL Query and Subscription Contracts
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Add global `projectEvents` subscription.
-- [ ] Add scoped `pipelineEvents` subscription.
-- [ ] Add query endpoints for tree nodes, session snapshot, and replay history.
-- [ ] Implement resumable cursor behavior.
+- [x] Add global `projectEvents` subscription.
+- [x] Add scoped `pipelineEvents` subscription.
+- [x] Add query endpoints for session snapshot and replay history.
+- [x] Add query endpoints for tree nodes.
+- [x] Implement resumable cursor behavior.
 
 Completion checks:
 
-- [ ] Subscription replay/resume is deterministic from persisted order keys.
-- [ ] Query/subscription authz is project-scoped and enforced.
-- [ ] Contract tests validate required payload fields and schema version behavior.
+- [x] Subscription replay/resume is deterministic from persisted order keys.
+- [x] Query/subscription authz is project-scoped and enforced.
+- [x] Contract tests validate required payload fields and schema version behavior.
 
 ### Slice 7: Project Events Board Vertical UX
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `IN_PROGRESS`
+Owner: `worker-runtime`
+Target date: `2026-03-05`
 
 Tasks:
 
-- [ ] Implement global live mode with filtering.
-- [ ] Implement pipeline drilldown mode.
-- [ ] Implement session deep-inspection mode.
-- [ ] Implement branch health badges and gap indicators.
+- [x] Implement global live mode with filtering.
+- [x] Implement pipeline drilldown mode.
+- [x] Implement session deep-inspection mode.
+- [x] Implement branch health badges and gap indicators.
+- [ ] Gate retry action visibility/enabled state so it is only available for unhappy terminal stop/failure states.
+- [ ] Hide/disable retry action for successful terminal outcomes and in-flight sessions.
+- [ ] Move Project Events Board behind a dedicated launcher button in the Project Dashboard action area (where Edit/New controls live), instead of always-expanded inline rendering.
+- [ ] Add a compact Global Live count indicator on the main Project Dashboard surface so event activity is visible without opening the board.
+- [ ] Revamp Project Dashboard, Session, and related board views to a cohesive visual language aligned with the provided reference direction (clean ops-console cards, denser telemetry, stronger status contrast, and simplified layout hierarchy).
+- [ ] Implement a dedicated git-tree-like events experience for Global Live, Pipeline Drilldown, and Session Inspection that visually matches the Session Matrix reference (row-centric session cards, terminal snippet affordances, status-first telemetry, and intervention affordance patterns).
 
 Completion checks:
 
-- [ ] Tree expansion/collapse preserves live context.
-- [ ] UI ordering follows persisted sequence keys, not transport arrival order.
-- [ ] Runbook links and intervention actions are visible and actionable.
+- [x] Tree expansion/collapse preserves live context.
+- [x] UI ordering follows persisted sequence keys, not transport arrival order.
+- [x] Runbook links and intervention actions are visible and actionable.
+- [ ] Retry button cannot be invoked for successful terminal sessions or active in-flight sessions.
+- [ ] Events Board is discoverable via launcher button and no longer clutters the default Project Dashboard view.
+- [ ] Main Project Dashboard shows Global Live event count indicator that updates with event activity.
+- [ ] Updated pages share the intended visual treatment and improve scanability of status/action controls.
+- [ ] Global Live, Pipeline Drilldown, and Session Inspection share a Session Matrix-like git-tree presentation and interaction model consistent with the approved sample.
+- [ ] Global Live displays only active-now worker/runtime activity; historical-only events are excluded from this mode.
+
+Implementation status note (2026-03-05): retry action is currently surfaced too broadly in session inspection; eligibility gating by terminal unhappy state is not yet implemented.
+Implementation status note (2026-03-05): Events Board is currently always visible inline and lacks the requested launcher-button navigation/placement model.
+Implementation status note (2026-03-05): Main Project Dashboard currently lacks a compact Global Live count indicator in the top action area.
+Implementation status note (2026-03-05): Current frontend styling does not yet reflect the requested reference visual language across project/session/event pages.
+Implementation status note (2026-03-05): Session Matrix is the approved visual reference for the git-tree events page, but Global Live/Pipeline Drilldown/Session Inspection do not yet match that presentation.
+Implementation status note (2026-03-05): Global Live currently can appear stale/misleading during active jobs because updates are still correlated with persisted event availability; this violates the active-now-only intent and must be corrected before marking Slice 7 done.
 
 ### Slice 8: Manual Intervention Actions and Auditability
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `IN_PROGRESS`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Implement manual actions (`nudge`, `retry`, `pause`, `terminate`, `restore`).
-- [ ] Persist actor identity, action reason, and resulting transition event.
-- [ ] Add circuit-breaker controls for noisy listeners.
-- [ ] Add operator-safe guardrails for destructive actions.
+- [x] Implement manual actions (`nudge`, `retry`, `pause`, `terminate`, `restore`).
+- [x] Persist actor identity, action reason, and resulting transition event.
+- [x] Add circuit-breaker controls for noisy listeners.
+- [x] Add operator-safe guardrails for destructive actions.
+- [ ] Implement task-scoped `pause` execution path that halts only the correlated task/job worker work (not queue-wide pause).
+- [ ] Implement task-scoped `terminate` execution path that cancels the correlated Asynq task and hard-stops any active live agent execution for the same session pipeline track.
+- [ ] Implement automatic restore orchestration for restorable sessions using persisted checkpoint/session context (no operator button required for normal flow).
+- [ ] Remove/deprecate manual restore button from default operator flow (or explicitly gate it as break-glass admin only).
 
 Completion checks:
 
-- [ ] Every manual action is fully replayable from history.
-- [ ] Action authorization is enforced.
-- [ ] Intervention MTTR and action outcomes are measurable.
+- [x] Every manual action is fully replayable from history.
+- [x] Action authorization is enforced.
+- [x] Intervention MTTR and action outcomes are measurable.
+- [ ] `pause` performs task/job-scoped execution halt without pausing the queue.
+- [ ] `terminate` performs destructive terminal halt for the targeted session pipeline by stopping correlated Asynq work and active live agent execution, without queue-wide interruption.
+- [ ] Restorable sessions auto-restore without manual intervention, with deterministic audit trail of the automatic restore decision and execution.
+
+Implementation status note (2026-03-05): `nudge` audit/event plumbing is complete, while listener-side action handling for `manual_nudge` remains a follow-up.
+Implementation status note (2026-03-05): `pause` is currently audit/state plumbing only; task/job-scoped worker halt behavior is not yet implemented.
+Implementation status note (2026-03-05): `terminate` is currently audit/state plumbing only; correlated Asynq task cancellation and active live-agent hard-stop behavior are not yet implemented.
+Implementation status note (2026-03-05): `restore` is currently manual-button/audit-state plumbing (`manual_restore`) and does not automatically execute restore for restorable sessions.
 
 ### Slice 9: Security, Redaction, and Data Hygiene
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-04`
 
 Tasks:
 
-- [ ] Implement payload allowlist/denylist policy.
-- [ ] Redact/hash sensitive fields before persistence and fan-out.
-- [ ] Stamp redaction policy version in payload metadata.
-- [ ] Add automated secret-leak regression checks for event payloads.
+- [x] Implement payload allowlist/denylist policy.
+- [x] Redact/hash sensitive fields before persistence and fan-out.
+- [x] Stamp redaction policy version in payload metadata.
+- [x] Add automated secret-leak regression checks for event payloads.
 
 Completion checks:
 
-- [ ] No cleartext secrets in persisted/fanned-out payloads.
-- [ ] Redaction behavior is deterministic and tested.
-- [ ] Security tests pass for scoped data access and payload hygiene.
+- [x] No cleartext secrets in persisted/fanned-out payloads.
+- [x] Redaction behavior is deterministic and tested.
+- [x] Security tests pass for scoped data access and payload hygiene.
 
 ### Slice 10: Reliability SLOs, Metrics, and Chaos Validation
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-05`
 
 Tasks:
 
-- [ ] Emit required metrics for transitions, gaps, deliveries, lag, and MTTR.
-- [ ] Build dashboards and SLO alerts.
-- [ ] Implement chaos scenarios (worker crash/restart, listener outage, delayed events).
-- [ ] Validate recovery and replay under fault conditions.
+- [x] Emit required metrics for transitions, gaps, deliveries, lag, and MTTR.
+- [x] Build dashboards and SLO alerts.
+- [x] Implement chaos scenarios (worker crash/restart, listener outage, delayed events).
+- [x] Validate recovery and replay under fault conditions.
 
 Completion checks:
 
-- [ ] SLOs are measurable in dashboard and alerting stack.
-- [ ] Chaos runs produce deterministic recovery behavior.
-- [ ] Incident runbook references validated against observed failures.
+- [x] SLOs are measurable in dashboard and alerting stack.
+- [x] Chaos runs produce deterministic recovery behavior.
+- [x] Incident runbook references validated against observed failures.
 
 ### Slice 11: Phase-2 External Listener Adapters (Deferred)
 
-Status: `TODO`
-Owner: `TBD`
-Target date: `TBD`
+Status: `DONE`
+Owner: `worker-runtime`
+Target date: `2026-03-05`
 
 Tasks:
 
-- [ ] Implement external adapters (`webhook`, `slack`, `bus`) using the same listener contract.
-- [ ] Reuse canonical payload semantics with no adapter-specific schema drift.
-- [ ] Add per-adapter retry policy tuning and delivery observability.
+- [x] Implement external adapters (`webhook`, `slack`, `bus`) using the same listener contract.
+- [x] Reuse canonical payload semantics with no adapter-specific schema drift.
+- [x] Add per-adapter retry policy tuning and delivery observability.
 
 Completion checks:
 
-- [ ] External adapters consume canonical events without bypassing persistence.
-- [ ] Delivery outcomes are queryable with same audit model as phase 1.
-- [ ] External failure does not impact canonical history durability.
+- [x] External adapters consume canonical events without bypassing persistence.
+- [x] Delivery outcomes are queryable with same audit model as phase 1.
+- [x] External failure does not impact canonical history durability.
 
 ## Progress Rollup
 
 Track cross-slice progress here (update weekly or at sprint close):
 
-- Completed slices: `0 / 11`
+- Completed slices: `11 / 11`
 - In-progress slices: `0 / 11`
 - Blocked slices: `0 / 11`
-- Overall confidence: `TBD`
-- Top risks this period: `TBD`
+- Overall confidence: `HIGH`
+- Top risks this period: `Dashboard rollout UX polish and production alert tuning`

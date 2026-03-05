@@ -166,6 +166,7 @@ func (intent InvalidationIntent) Validate() error {
 
 type WorkerLifecycleTransport interface {
 	HeartbeatTransport
+	RuntimeActivityTransport
 	PublishRegistrationSubmission(ctx context.Context, event RegistrationSubmissionEvent) error
 	PublishRegistrationDecision(ctx context.Context, event RegistrationDecisionEvent) error
 	ListenRegistrationSubmissions(ctx context.Context, handler func(RegistrationSubmissionEvent) error) error

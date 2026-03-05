@@ -145,3 +145,51 @@ func TestServiceDropsOldestEventOnBackpressure(t *testing.T) {
 	default:
 	}
 }
+
+func TestServiceNotifyExternalChangeSignalsSubscribers(t *testing.T) {
+	store := &fakeStore{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	_, changes, cancel := service.SubscribeChanges(1)
+	defer cancel()
+
+	service.NotifyExternalChange()
+
+	select {
+	case <-changes:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected external change signal")
+	}
+}
+
+func TestServicePublishLiveSignalsSubscribers(t *testing.T) {
+	store := &fakeStore{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	_, channel, cancel := service.Subscribe(1)
+	defer cancel()
+
+	service.PublishLive(domainstream.Event{
+		EventID:    "live-1",
+		OccurredAt: time.Now().UTC(),
+		Source:     domainstream.SourceWorker,
+		EventType:  domainstream.EventSessionUpdated,
+		CorrelationIDs: domainstream.CorrelationIDs{
+			CorrelationID: "corr-live-1",
+		},
+		Payload: map[string]any{"live": true},
+	})
+
+	select {
+	case received := <-channel:
+		if received.EventID != "live-1" {
+			t.Fatalf("expected live event id live-1, got %s", received.EventID)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatalf("expected live event on subscription")
+	}
+}

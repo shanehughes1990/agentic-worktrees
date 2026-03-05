@@ -130,6 +130,8 @@ type TaskboardTask {
   epicID: String!
   title: String!
   description: String
+  repositoryIDs: [String!]!
+  deliverables: [String!]!
   taskType: String!
   state: String!
   rank: Int!
@@ -142,6 +144,8 @@ type TaskboardEpic {
   boardID: String!
   title: String!
   objective: String
+  repositoryIDs: [String!]!
+  deliverables: [String!]!
   state: String!
   rank: Int!
   dependsOnEpicIDs: [String!]!
@@ -219,6 +223,8 @@ input CreateTaskboardEpicInput {
   boardID: String!
   title: String!
   objective: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   state: String!
   rank: Int!
   dependsOnEpicIDs: [String!]
@@ -230,6 +236,8 @@ input UpdateTaskboardEpicInput {
   epicID: String!
   title: String!
   objective: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   state: String!
   rank: Int!
   dependsOnEpicIDs: [String!]
@@ -247,6 +255,8 @@ input CreateTaskboardTaskInput {
   epicID: String!
   title: String!
   description: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   taskType: String!
   state: String!
   rank: Int!
@@ -260,6 +270,8 @@ input UpdateTaskboardTaskInput {
   epicID: String!
   title: String!
   description: String
+  repositoryIDs: [String!]
+  deliverables: [String!]
   taskType: String!
   state: String!
   rank: Int!
@@ -460,6 +472,10 @@ type StreamEvent {
   correlationID: String!
   source: StreamEventSource!
   eventType: String!
+  gapDetected: Boolean!
+  gapReconciled: Boolean!
+  expectedEventSeq: Int
+  observedEventSeq: Int
   payload: String!
 }
 
@@ -467,7 +483,102 @@ type StreamEventSuccess {
   event: StreamEvent!
 }
 
+type StreamEventsSuccess {
+  events: [StreamEvent!]!
+  nextFromOffset: Int!
+}
+
 union StreamEventResult = StreamEventSuccess | GraphError
+union StreamEventsResult = StreamEventsSuccess | GraphError
+
+type LifecycleSessionSnapshot {
+  projectID: String!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String!
+  pipelineType: String!
+  sourceRuntime: String!
+  currentState: String!
+  currentSeverity: String!
+  lastReasonCode: String
+  lastReasonSummary: String
+  lastEventSeq: Int!
+  lastProjectEventSeq: Int!
+  lastLivenessAt: Time
+  lastActivityAt: Time
+  lastCheckpointAt: Time
+  startedAt: Time!
+  endedAt: Time
+  updatedAt: Time!
+}
+
+type LifecycleSessionSnapshotsSuccess {
+  sessions: [LifecycleSessionSnapshot!]!
+}
+
+union LifecycleSessionSnapshotsResult = LifecycleSessionSnapshotsSuccess | GraphError
+
+type LifecycleHistoryEvent {
+  eventID: String!
+  projectID: String!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String!
+  pipelineType: String!
+  sourceRuntime: String!
+  eventType: String!
+  eventSeq: Int!
+  projectEventSeq: Int!
+  occurredAt: Time!
+  payload: String!
+}
+
+type LifecycleHistorySuccess {
+  events: [LifecycleHistoryEvent!]!
+  nextFromEventSeq: Int!
+}
+
+union LifecycleHistoryResult = LifecycleHistorySuccess | GraphError
+
+enum LifecycleTreeNodeType {
+  RUN
+  TASK
+  JOB
+  SESSION
+}
+
+type LifecycleTreeNode {
+  nodeID: String!
+  parentNodeID: String
+  nodeType: LifecycleTreeNodeType!
+  projectID: String!
+  runID: String
+  taskID: String
+  jobID: String
+  sessionID: String
+  pipelineType: String
+  sourceRuntime: String
+  currentState: String
+  currentSeverity: String
+  sessionCount: Int!
+  updatedAt: Time!
+}
+
+input LifecycleTreeFilterInput {
+  projectID: String!
+  pipelineType: String
+  runID: String
+  taskID: String
+  jobID: String
+}
+
+type LifecycleTreeNodesSuccess {
+  nodes: [LifecycleTreeNode!]!
+}
+
+union LifecycleTreeNodesResult = LifecycleTreeNodesSuccess | GraphError
 
 type WorkerSession {
   workerID: String!
@@ -496,6 +607,48 @@ type WorkerSettingsSuccess {
 
 union WorkerSettingsResult = WorkerSettingsSuccess | GraphError
 
+enum ManualInterventionAction {
+  NUDGE
+  RETRY
+  PAUSE
+  TERMINATE
+  RESTORE
+}
+
+input ApplyManualInterventionInput {
+  projectID: String!
+  sessionID: String!
+  action: ManualInterventionAction!
+  reason: String!
+  actorID: String!
+  force: Boolean = false
+}
+
+type ManualInterventionSuccess {
+  ok: Boolean!
+  eventID: String!
+  eventSeq: Int!
+  projectEventSeq: Int!
+  action: String!
+  resultingState: String!
+}
+
+union ManualInterventionResult = ManualInterventionSuccess | GraphError
+
+type InterventionMetrics {
+  projectID: String!
+  interventionCount: Int!
+  successfulOutcomeCount: Int!
+  failedOutcomeCount: Int!
+  averageRecoverySeconds: Int!
+}
+
+type InterventionMetricsSuccess {
+  metrics: InterventionMetrics!
+}
+
+union InterventionMetricsResult = InterventionMetricsSuccess | GraphError
+
 input UpdateWorkerSettingsInput {
   heartbeatIntervalSeconds: Int!
   responseDeadlineSeconds: Int!
@@ -516,6 +669,12 @@ extend type Query {
   taskboard(projectID: String!, boardID: String!): TaskboardResult!
   workerSessions(limit: Int = 100): WorkerSessionsResult!
   workerSettings: WorkerSettingsResult!
+  projectEvents(projectID: String!, fromOffset: Int = 0, limit: Int = 100): StreamEventsResult!
+  pipelineEvents(correlation: CorrelationInput!, fromOffset: Int = 0, limit: Int = 100): StreamEventsResult!
+  lifecycleSessionSnapshots(projectID: String!, pipelineType: String, limit: Int = 100): LifecycleSessionSnapshotsResult!
+  lifecycleSessionHistory(projectID: String!, sessionID: String!, fromEventSeq: Int = 0, limit: Int = 100): LifecycleHistoryResult!
+  lifecycleTreeNodes(filter: LifecycleTreeFilterInput!, limit: Int = 200): LifecycleTreeNodesResult!
+  interventionMetrics(projectID: String!, limit: Int = 100): InterventionMetricsResult!
 }
 
 extend type Mutation {
@@ -536,6 +695,7 @@ extend type Mutation {
   deleteTaskboardTask(input: DeleteTaskboardTaskInput!): TaskboardMutationResult!
   deleteProjectDocument(input: DeleteProjectDocumentInput!): DeleteProjectDocumentResult!
   updateWorkerSettings(input: UpdateWorkerSettingsInput!): WorkerSettingsResult!
+  applyManualIntervention(input: ApplyManualInterventionInput!): ManualInterventionResult!
 }
 
 extend type Subscription {
@@ -544,4 +704,6 @@ extend type Subscription {
    workflowExecutionStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
    agentOutputStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
    taskboardStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
+  projectEventsStream(projectID: String!, fromOffset: Int = 0): StreamEventResult!
+  pipelineEventsStream(correlation: CorrelationInput!, fromOffset: Int = 0): StreamEventResult!
 }

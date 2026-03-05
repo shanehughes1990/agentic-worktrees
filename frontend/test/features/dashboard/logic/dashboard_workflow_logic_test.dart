@@ -40,6 +40,7 @@ void main() {
         for (int i = 0; i < 3; i++)
           StreamEvent(
             eventID: 'old-$i',
+            streamOffset: i,
             eventType: 'TYPE',
             source: 'test',
             payload: '{}',
@@ -49,6 +50,7 @@ void main() {
 
       final newest = StreamEvent(
         eventID: 'new',
+        streamOffset: 999,
         eventType: 'TYPE',
         source: 'test',
         payload: '{}',

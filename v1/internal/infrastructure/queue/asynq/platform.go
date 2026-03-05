@@ -167,9 +167,13 @@ func (platform *WorkerPlatform) Register(kind taskengine.JobKind, handler tasken
 
 	platform.mux.HandleFunc(string(kind), func(ctx context.Context, task *asynq.Task) error {
 		queueTaskID, _ := asynq.GetTaskID(ctx)
+		retryCount, _ := asynq.GetRetryCount(ctx)
+		maxRetry, _ := asynq.GetMaxRetry(ctx)
 		return handler.Handle(ctx, taskengine.Job{
 			Kind:        kind,
 			QueueTaskID: strings.TrimSpace(queueTaskID),
+			RetryCount:  retryCount,
+			MaxRetry:    maxRetry,
 			Payload:     task.Payload(),
 		})
 	})

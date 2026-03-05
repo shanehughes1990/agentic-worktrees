@@ -12,6 +12,7 @@ class AgenticRepositoriesApp extends ConsumerWidget {
     final config = ref.watch(appConfigProvider);
     return MaterialApp(
       title: 'Agentic Repositories',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       ),

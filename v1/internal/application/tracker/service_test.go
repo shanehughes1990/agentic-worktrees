@@ -10,10 +10,10 @@ import (
 )
 
 type fakeBoardStore struct {
-	board     domaintracker.Board
-	task      domaintracker.Task
+	board      domaintracker.Board
+	task       domaintracker.Task
 	claimToken string
-	err       error
+	err        error
 }
 
 func (store *fakeBoardStore) UpsertBoard(ctx context.Context, board domaintracker.Board) error {
@@ -60,19 +60,23 @@ func sampleBoard() domaintracker.Board {
 		Name:    "Board",
 		State:   domaintracker.BoardStateActive,
 		Epics: []domaintracker.Epic{{
-			ID:      domaintracker.WorkItemID("epic-1"),
-			BoardID: "board-1",
-			Title:   "Epic",
-			State:   domaintracker.EpicStateInProgress,
-			Rank:    1,
+			ID:            domaintracker.WorkItemID("epic-1"),
+			BoardID:       "board-1",
+			Title:         "Epic",
+			RepositoryIDs: []string{"repo-1"},
+			Deliverables:  []string{"Epic brief finalized"},
+			State:         domaintracker.EpicStateInProgress,
+			Rank:          1,
 			Tasks: []domaintracker.Task{{
-				ID:       domaintracker.WorkItemID("task-1"),
-				BoardID:  "board-1",
-				EpicID:   domaintracker.WorkItemID("epic-1"),
-				Title:    "Task",
-				TaskType: "implementation",
-				State:    domaintracker.TaskStatePlanned,
-				Rank:     1,
+				ID:            domaintracker.WorkItemID("task-1"),
+				BoardID:       "board-1",
+				EpicID:        domaintracker.WorkItemID("epic-1"),
+				Title:         "Task",
+				RepositoryIDs: []string{"repo-1"},
+				Deliverables:  []string{"README section updated"},
+				TaskType:      "implementation",
+				State:         domaintracker.TaskStatePlanned,
+				Rank:          1,
 			}},
 		}},
 		CreatedAt: now,

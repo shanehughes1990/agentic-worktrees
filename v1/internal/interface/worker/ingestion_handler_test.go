@@ -50,6 +50,8 @@ func (runner *fakeIngestionAgentRunner) GenerateTaskboard(ctx context.Context, s
 			"id": "epic-1",
 			"board_id": "board-1",
 			"title": "Epic",
+			"repository_ids": ["repo-1"],
+			"deliverables": ["Epic planning brief"],
 			"state": "planned",
 			"rank": 1,
 			"tasks": [{
@@ -57,6 +59,8 @@ func (runner *fakeIngestionAgentRunner) GenerateTaskboard(ctx context.Context, s
 				"board_id": "board-1",
 				"epic_id": "epic-1",
 				"title": "Task",
+				"repository_ids": ["repo-1"],
+				"deliverables": ["Task implementation completed"],
 				"task_type": "implementation",
 				"state": "planned",
 				"rank": 1

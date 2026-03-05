@@ -258,11 +258,6 @@ func (service *Service) generateAndValidateBoard(
 			feedback = lastValidationErr.Error()
 			continue
 		}
-		if err := board.Validate(); err != nil {
-			lastValidationErr = err
-			feedback = err.Error()
-			continue
-		}
 
 		normalizeBoard(&board, request, boardID, now, runContext)
 		board.IngestionAudits = ingestionAudits
@@ -348,17 +343,19 @@ func composeIngestionPrompt(request Request, boardID string, outputPath string, 
 		"- Repository layout contract: local source cache is projects/{projectId}/repositories/{repository-name}, then copied into sandbox ./repos/{repository-name}.",
 		"- For multi-repository projects, decompose work by repository and ensure every task is clearly mapped to exactly one target repository.",
 		"- Include board metadata with repository scope and source branch: metadata.repositories[] and metadata.source_branch.",
-		"- For every epic and task, include metadata.repository_id to identify target repository.",
-		"- For each task, make repository ownership explicit in task title and description (or equivalent structured metadata if available).",
+		"- For every epic, include repository_ids as a non-empty string array of project repository IDs impacted by that epic.",
+		"- For every task, include repository_ids as a non-empty string array of project repository IDs impacted by that task.",
+		"- For every epic and task, include deliverables as a non-empty string array of concrete outputs.",
+		"- Keep repository_ids and deliverables explicit and deterministic; do not leave them blank.",
 		"- Output must be plain-text JSON only (no markdown, no prose, no code fences).",
 		"- Write valid JSON only to this exact output path: " + strings.TrimSpace(outputPath),
 		"- The JSON must match the exact schema below; do not add extra fields.",
-		"- Exact schema contract:\n{\n  \"board_id\": string,\n  \"run_id\": string,\n  \"name\"?: string,\n  \"state\": \"pending\" | \"active\" | \"completed\" | \"failed\",\n  \"epics\": [\n    {\n      \"id\": string,\n      \"board_id\": string,\n      \"title\": string,\n      \"objective\"?: string,\n      \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"blocked\" | \"failed\",\n      \"rank\": number,\n      \"depends_on_epic_ids\"?: string[],\n      \"tasks\": [\n        {\n          \"id\": string,\n          \"board_id\": string,\n          \"epic_id\": string,\n          \"title\": string,\n          \"description\"?: string,\n          \"task_type\": string,\n          \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"failed\" | \"no_work_needed\",\n          \"rank\": number,\n          \"depends_on_task_ids\"?: string[],\n          \"audits\"?: [\n            {\n              \"model_provider\": string,\n              \"model_name\": string,\n              \"model_version\"?: string,\n              \"model_run_id\"?: string,\n              \"agent_session_id\"?: string,\n              \"agent_stream_id\"?: string,\n              \"prompt_fingerprint\"?: string,\n              \"input_tokens\"?: number,\n              \"output_tokens\"?: number,\n              \"started_at\"?: RFC3339 timestamp,\n              \"completed_at\"?: RFC3339 timestamp\n            }\n          ],\n          \"outcome\"?: {\n            \"status\": \"success\" | \"partial\" | \"failed\",\n            \"summary\": string,\n            \"error_code\"?: string,\n            \"error_message\"?: string\n          }\n        }\n      ]\n    }\n  ],\n  \"ingestion_audits\"?: [\n    {\n      \"model_provider\": string,\n      \"model_name\": string,\n      \"model_version\"?: string,\n      \"model_run_id\"?: string,\n      \"agent_session_id\"?: string,\n      \"agent_stream_id\"?: string,\n      \"prompt_fingerprint\"?: string,\n      \"input_tokens\"?: number,\n      \"output_tokens\"?: number,\n      \"started_at\"?: RFC3339 timestamp,\n      \"completed_at\"?: RFC3339 timestamp\n    }\n  ],\n  \"created_at\": RFC3339 timestamp,\n  \"updated_at\": RFC3339 timestamp\n}",
+		"- Exact schema contract:\n{\n  \"board_id\": string,\n  \"run_id\": string,\n  \"name\"?: string,\n  \"state\": \"pending\" | \"active\" | \"completed\" | \"failed\",\n  \"epics\": [\n    {\n      \"id\": string,\n      \"board_id\": string,\n      \"title\": string,\n      \"objective\"?: string,\n      \"repository_ids\": string[],\n      \"deliverables\": string[],\n      \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"blocked\" | \"failed\",\n      \"rank\": number,\n      \"depends_on_epic_ids\"?: string[],\n      \"tasks\": [\n        {\n          \"id\": string,\n          \"board_id\": string,\n          \"epic_id\": string,\n          \"title\": string,\n          \"description\"?: string,\n          \"repository_ids\": string[],\n          \"deliverables\": string[],\n          \"task_type\": string,\n          \"state\": \"planned\" | \"in_progress\" | \"completed\" | \"failed\" | \"no_work_needed\",\n          \"rank\": number,\n          \"depends_on_task_ids\"?: string[],\n          \"audits\"?: [\n            {\n              \"model_provider\": string,\n              \"model_name\": string,\n              \"model_version\"?: string,\n              \"model_run_id\"?: string,\n              \"agent_session_id\"?: string,\n              \"agent_stream_id\"?: string,\n              \"prompt_fingerprint\"?: string,\n              \"input_tokens\"?: number,\n              \"output_tokens\"?: number,\n              \"started_at\"?: RFC3339 timestamp,\n              \"completed_at\"?: RFC3339 timestamp\n            }\n          ],\n          \"outcome\"?: {\n            \"status\": \"success\" | \"partial\" | \"failed\",\n            \"summary\": string,\n            \"error_code\"?: string,\n            \"error_message\"?: string\n          }\n        }\n      ]\n    }\n  ],\n  \"ingestion_audits\"?: [\n    {\n      \"model_provider\": string,\n      \"model_name\": string,\n      \"model_version\"?: string,\n      \"model_run_id\"?: string,\n      \"agent_session_id\"?: string,\n      \"agent_stream_id\"?: string,\n      \"prompt_fingerprint\"?: string,\n      \"input_tokens\"?: number,\n      \"output_tokens\"?: number,\n      \"started_at\"?: RFC3339 timestamp,\n      \"completed_at\"?: RFC3339 timestamp\n    }\n  ],\n  \"created_at\": RFC3339 timestamp,\n  \"updated_at\": RFC3339 timestamp\n}",
 		"- Ensure board_id is \"" + strings.TrimSpace(boardID) + "\" and run_id is \"" + strings.TrimSpace(request.RunID) + "\".",
 		"- Ensure all epic/task board_id values match board_id.",
 		"- Required board fields: board_id, run_id, state, epics, created_at, updated_at.",
-		"- Required epic fields: id, board_id, title, state, rank.",
-		"- Required task fields: id, board_id, epic_id, title, task_type, state, rank.",
+		"- Required epic fields: id, board_id, title, repository_ids, deliverables, state, rank.",
+		"- Required task fields: id, board_id, epic_id, title, repository_ids, deliverables, task_type, state, rank.",
 		"- Board state values: pending, active, completed, failed.",
 		"- Epic state values: planned, in_progress, completed, blocked, failed.",
 		"- Task state values: planned, in_progress, completed, failed, no_work_needed.",
@@ -493,6 +490,7 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 		board.CreatedAt = now
 	}
 	board.UpdatedAt = now
+	knownRepositoryIDs := sourceRepositoryIDs(request.SourceRepositories)
 
 	for epicIndex := range board.Epics {
 		epic := &board.Epics[epicIndex]
@@ -505,6 +503,14 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 		}
 		if epic.State == "" {
 			epic.State = domaintracker.EpicStatePlanned
+		}
+		epic.RepositoryIDs = normalizeStringValues(epic.RepositoryIDs)
+		if len(epic.RepositoryIDs) == 0 {
+			epic.RepositoryIDs = append([]string(nil), knownRepositoryIDs...)
+		}
+		epic.Deliverables = normalizeStringValues(epic.Deliverables)
+		if len(epic.Deliverables) == 0 {
+			epic.Deliverables = []string{fmt.Sprintf("Epic outcome: %s", strings.TrimSpace(epic.Title))}
 		}
 		epic.Rank = normalizeRank(epic.Rank, epicIndex)
 		if epic.CreatedAt.IsZero() {
@@ -524,6 +530,14 @@ func normalizeBoard(board *domaintracker.Board, request Request, boardID string,
 			}
 			if strings.TrimSpace(task.TaskType) == "" {
 				task.TaskType = "implementation"
+			}
+			task.RepositoryIDs = normalizeStringValues(task.RepositoryIDs)
+			if len(task.RepositoryIDs) == 0 {
+				task.RepositoryIDs = append([]string(nil), epic.RepositoryIDs...)
+			}
+			task.Deliverables = normalizeStringValues(task.Deliverables)
+			if len(task.Deliverables) == 0 {
+				task.Deliverables = []string{fmt.Sprintf("Task outcome: %s", strings.TrimSpace(task.Title))}
 			}
 			if task.State == "" {
 				task.State = domaintracker.TaskStatePlanned
@@ -597,9 +611,79 @@ func extractRepositoryID(metadata map[string]any) string {
 }
 
 func ensureRepositoryAssignments(board domaintracker.Board, sourceRepositories []SourceRepository) error {
-	_ = board
-	_ = sourceRepositories
+	validRepositoryIDs := map[string]struct{}{}
+	for _, repository := range sourceRepositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		if repositoryID == "" {
+			continue
+		}
+		validRepositoryIDs[repositoryID] = struct{}{}
+	}
+	for _, epic := range board.Epics {
+		if len(epic.RepositoryIDs) == 0 {
+			return failures.WrapTerminal(fmt.Errorf("epic %s must include repository_ids", strings.TrimSpace(string(epic.ID))))
+		}
+		if len(epic.Deliverables) == 0 {
+			return failures.WrapTerminal(fmt.Errorf("epic %s must include deliverables", strings.TrimSpace(string(epic.ID))))
+		}
+		for _, repositoryID := range normalizeStringValues(epic.RepositoryIDs) {
+			if len(validRepositoryIDs) > 0 {
+				if _, exists := validRepositoryIDs[repositoryID]; !exists {
+					return failures.WrapTerminal(fmt.Errorf("epic %s references unknown repository_id %q", strings.TrimSpace(string(epic.ID)), repositoryID))
+				}
+			}
+		}
+		for _, task := range epic.Tasks {
+			if len(task.RepositoryIDs) == 0 {
+				return failures.WrapTerminal(fmt.Errorf("task %s must include repository_ids", strings.TrimSpace(string(task.ID))))
+			}
+			if len(task.Deliverables) == 0 {
+				return failures.WrapTerminal(fmt.Errorf("task %s must include deliverables", strings.TrimSpace(string(task.ID))))
+			}
+			for _, repositoryID := range normalizeStringValues(task.RepositoryIDs) {
+				if len(validRepositoryIDs) > 0 {
+					if _, exists := validRepositoryIDs[repositoryID]; !exists {
+						return failures.WrapTerminal(fmt.Errorf("task %s references unknown repository_id %q", strings.TrimSpace(string(task.ID)), repositoryID))
+					}
+				}
+			}
+		}
+	}
 	return nil
+}
+
+func sourceRepositoryIDs(repositories []SourceRepository) []string {
+	ids := make([]string, 0, len(repositories))
+	seen := map[string]struct{}{}
+	for _, repository := range repositories {
+		repositoryID := strings.TrimSpace(repository.RepositoryID)
+		if repositoryID == "" {
+			continue
+		}
+		if _, exists := seen[repositoryID]; exists {
+			continue
+		}
+		seen[repositoryID] = struct{}{}
+		ids = append(ids, repositoryID)
+	}
+	return ids
+}
+
+func normalizeStringValues(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		clean := strings.TrimSpace(value)
+		if clean == "" {
+			continue
+		}
+		if _, exists := seen[clean]; exists {
+			continue
+		}
+		seen[clean] = struct{}{}
+		normalized = append(normalized, clean)
+	}
+	return normalized
 }
 
 func compactSourceLocation(locations []string) string {

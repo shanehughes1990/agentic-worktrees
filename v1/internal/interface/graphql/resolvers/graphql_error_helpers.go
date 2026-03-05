@@ -16,6 +16,10 @@ func graphErrorFromError(err error) models.GraphError {
 		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: message}
 	case strings.Contains(lower, "not found"):
 		return models.GraphError{Code: models.GraphErrorCodeNotFound, Message: message}
+	case strings.Contains(lower, "forbidden"):
+		return models.GraphError{Code: models.GraphErrorCodeForbidden, Message: message}
+	case strings.Contains(lower, "unauthorized"):
+		return models.GraphError{Code: models.GraphErrorCodeUnauthorized, Message: message}
 	case strings.Contains(lower, "duplicate"), strings.Contains(lower, "already"):
 		return models.GraphError{Code: models.GraphErrorCodeConflict, Message: message}
 	default:

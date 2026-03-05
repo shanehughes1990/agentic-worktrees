@@ -10,10 +10,10 @@ import (
 type JobKind string
 
 const (
-	JobKindIngestionAgent        JobKind = "ingestion.agent.run"
-	JobKindAgentWorkflow         JobKind = "agent.workflow.run"
-	JobKindPromptRefinementAgent JobKind = "prompt.refinement.agent.run"
-	JobKindSCMWorkflow           JobKind = "scm.workflow.run"
+	JobKindIngestionAgent               JobKind = "ingestion.agent.run"
+	JobKindAgentWorkflow                JobKind = "agent.workflow.run"
+	JobKindPromptRefinementAgent        JobKind = "prompt.refinement.agent.run"
+	JobKindSCMWorkflow                  JobKind = "scm.workflow.run"
 	JobKindProjectDocumentUploadPrepare JobKind = "project.document.upload.prepare"
 	JobKindProjectDocumentDelete        JobKind = "project.document.delete"
 )
@@ -53,6 +53,8 @@ type JobPolicy struct {
 type Job struct {
 	Kind        JobKind
 	QueueTaskID string
+	RetryCount  int
+	MaxRetry    int
 	Payload     []byte
 }
 

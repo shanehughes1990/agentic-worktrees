@@ -55,6 +55,8 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 				EpicID:           strings.TrimSpace(string(task.EpicID)),
 				Title:            strings.TrimSpace(task.Title),
 				Description:      nilIfEmpty(task.Description),
+				RepositoryIDs:    append([]string(nil), task.RepositoryIDs...),
+				Deliverables:     append([]string(nil), task.Deliverables...),
 				TaskType:         strings.TrimSpace(task.TaskType),
 				State:            strings.TrimSpace(string(task.State)),
 				Rank:             int32(task.Rank),
@@ -67,6 +69,8 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 			BoardID:          strings.TrimSpace(epic.BoardID),
 			Title:            strings.TrimSpace(epic.Title),
 			Objective:        nilIfEmpty(epic.Objective),
+			RepositoryIDs:    append([]string(nil), epic.RepositoryIDs...),
+			Deliverables:     append([]string(nil), epic.Deliverables...),
 			State:            strings.TrimSpace(string(epic.State)),
 			Rank:             int32(epic.Rank),
 			DependsOnEpicIDs: workItemIDsToStrings(epic.DependsOnEpicIDs),
@@ -196,4 +200,45 @@ func stringsToWorkItemIDs(values []string) []domaintracker.WorkItemID {
 
 func derefStrings(value []string) []string {
 	return value
+}
+
+func sanitizeStringList(values []string) []string {
+	items := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		clean := strings.TrimSpace(value)
+		if clean == "" {
+			continue
+		}
+		if _, exists := seen[clean]; exists {
+			continue
+		}
+		seen[clean] = struct{}{}
+		items = append(items, clean)
+	}
+	return items
+}
+
+func inferBoardRepositoryIDs(board domaintracker.Board) []string {
+	seen := map[string]struct{}{}
+	items := make([]string, 0)
+	for _, epic := range board.Epics {
+		for _, repositoryID := range sanitizeStringList(epic.RepositoryIDs) {
+			if _, exists := seen[repositoryID]; exists {
+				continue
+			}
+			seen[repositoryID] = struct{}{}
+			items = append(items, repositoryID)
+		}
+		for _, task := range epic.Tasks {
+			for _, repositoryID := range sanitizeStringList(task.RepositoryIDs) {
+				if _, exists := seen[repositoryID]; exists {
+					continue
+				}
+				seen[repositoryID] = struct{}{}
+				items = append(items, repositoryID)
+			}
+		}
+	}
+	return items
 }
