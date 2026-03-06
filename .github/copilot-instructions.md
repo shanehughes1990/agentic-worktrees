@@ -137,3 +137,46 @@
 - Correlation between `api` and `worker` must flow through distributed contracts and infrastructure only (for example: Postgres persistence, PG LISTEN/NOTIFY eventing, Asynq task queues, and other persisted message channels).
 - All cross-runtime workflow identity/correlation data (`run_id`, `task_id`, `job_id`, `project_id`, and related correlation metadata) must be propagated explicitly through these distributed boundaries.
 - Any change that bypasses distributed correlation semantics between `api` and `worker` is non-compliant.
+
+## ASYNQ WORKER LIFECYCLE PERSISTENCE MANDATE (FOUNDATIONAL)
+
+- This project treats worker lifecycle persistence as a core stability contract and highest-priority requirement.
+- For all Asynq-driven worker actions, the required contract is always:
+  - ingest event
+  - persist to Postgres lifecycle tables
+  - emit upstream through ordered stream transport
+- This ingest -> persist -> emit contract is mandatory for every state transition and every exit path with no exceptions.
+
+Required exit-path coverage for every Asynq attempt:
+
+- happy/success path -> persisted `completed` terminal event and upstream emit.
+- transient retryable failure -> persisted `failed` terminal event with retry metadata and upstream emit, followed by retry start path persistence.
+- non-retryable/terminal failure -> persisted `failed` terminal event (terminal class) and upstream emit.
+- explicit quit/cancel/terminate path -> persisted terminal lifecycle event (`terminated` or equivalent typed terminal event) and upstream emit.
+
+Mandatory metadata on all persisted lifecycle transitions:
+
+- `project_id`, `run_id`, `task_id`, `job_id`, `session_id`
+- `queue_task_id`, `retry_count`, `max_retry`
+- typed failure class (`transient` vs `terminal`) when failure occurs
+- deterministic attempt correlation and timestamps for replay/audit
+
+Prohibitions:
+
+- It is forbidden for any worker action to exit without a persisted terminal lifecycle transition for that attempt path.
+- It is forbidden to rely on heartbeat-only traces as a substitute for terminal transition persistence.
+- It is forbidden to emit upstream lifecycle signals that are not backed by persisted lifecycle state.
+
+Enforcement:
+
+- Any change that introduces or leaves an Asynq path without full ingest -> persist -> emit coverage is non-compliant and must be rejected.
+
+Cancellation and termination requirements (mandatory):
+
+- Every Asynq handler must honor `context.Context` cancellation (`ctx.Done()`) promptly and treat cancellation as a first-class lifecycle transition, not a best-effort hint.
+- On cancellation request, handlers must first attempt graceful shutdown in bounded time (stop new work, flush/persist required terminal lifecycle state, and release resources).
+- If graceful shutdown does not complete within the bounded window, handlers must escalate to forceful termination to prevent orphaned work.
+- Any spawned external CLI/tooling process must be tied to handler cancellation and must be explicitly terminated on cancel/timeout/exit; no detached or untracked child process is allowed.
+- Handler completion is not valid until worker-owned work and spawned external CLI/tooling processes are confirmed stopped.
+- Cancellation/termination paths must persist a terminal lifecycle event (`terminated` or typed equivalent) and emit upstream from persisted state.
+- Any implementation that can return while worker execution or external CLI tooling remains active is non-compliant and must be rejected.
