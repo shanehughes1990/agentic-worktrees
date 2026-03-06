@@ -11,6 +11,21 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/api ./cmd/api
 
+FROM golang:1.25.3-alpine AS api-dev-watch
+
+WORKDIR /src
+
+RUN apk add --no-cache git ca-certificates && \
+	go install github.com/air-verse/air@latest
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+EXPOSE 8080
+CMD ["air", "-c", "deploy/docker/air.api.toml"]
+
 FROM scratch
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt

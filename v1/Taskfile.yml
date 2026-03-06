@@ -8,6 +8,11 @@ vars:
   COPILOT_CLI_VERSION: '{{default "0.0.421" .COPILOT_CLI_VERSION}}'
 
 tasks:
+  default:
+    desc: Run full Docker Compose dev watch stack (base + override)
+    cmds:
+    - docker compose -f docker-compose.yml -f docker-compose.override.yml up --watch --build {{ .CLI_ARGS }}
+
   gqlgen:
     desc: Generate GraphQL client code
     cmds:

@@ -1,0 +1,46 @@
+services:
+  api:
+    build:
+      target: api-dev-watch
+    develop:
+      watch:
+        - action: sync
+          path: ./cmd
+          target: /src/cmd
+        - action: sync
+          path: ./internal
+          target: /src/internal
+        - action: sync
+          path: ./go.mod
+          target: /src/go.mod
+        - action: sync
+          path: ./go.sum
+          target: /src/go.sum
+        - action: sync
+          path: ./deploy/docker/air.api.toml
+          target: /src/deploy/docker/air.api.toml
+        - action: rebuild
+          path: ./deploy/docker/Dockerfile.api
+
+  worker:
+    build:
+      target: worker-dev-watch
+    develop:
+      watch:
+        - action: sync
+          path: ./cmd
+          target: /src/cmd
+        - action: sync
+          path: ./internal
+          target: /src/internal
+        - action: sync
+          path: ./go.mod
+          target: /src/go.mod
+        - action: sync
+          path: ./go.sum
+          target: /src/go.sum
+        - action: sync
+          path: ./deploy/docker/air.worker.toml
+          target: /src/deploy/docker/air.worker.toml
+        - action: rebuild
+          path: ./deploy/docker/Dockerfile.worker
