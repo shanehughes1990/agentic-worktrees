@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:agentic_repositories/features/projects/screens/project_setup_edit_screen.dart';
 import 'package:agentic_repositories/features/projects/screens/taskboard_management_screen.dart';
+import 'package:agentic_repositories/features/projects/widgets/taskboard_ingestion_dialog.dart';
 import 'package:agentic_repositories/features/workers/screens/worker_sessions_screen.dart';
 import 'package:agentic_repositories/features/workers/screens/worker_settings_screen.dart';
 import 'package:agentic_repositories/shared/graph/typed/control_plane.dart';
@@ -1160,260 +1161,15 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
       return;
     }
 
-    final selectedDocumentIDs = _projectDocuments
-        .map((ProjectDocument document) => document.documentID)
-        .toSet();
-    final branchOptionsByRepository = <String, ProjectRepositoryBranchOption>{
-      for (final option in branchOptionsResult.data!)
-        option.repositoryID: option,
-    };
-    final selectedBranches = <String, String>{
-      for (final option in branchOptionsResult.data!)
-        if (option.branches.isNotEmpty)
-          option.repositoryID: option.branches.contains(option.defaultBranch)
-              ? option.defaultBranch!
-              : option.branches.first,
-    };
-    final taskboardNameController = TextEditingController();
-    final promptController = TextEditingController();
-    var isGeneratingPrompt = false;
-    final draft = await showDialog<_NewTaskboardDraft>(
+    final draft = await showTaskboardIngestionDialog(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setDialogState) {
-            final isAllSelected =
-                selectedDocumentIDs.length == _projectDocuments.length;
-            return AlertDialog(
-              title: const Text('New Taskboard'),
-              content: SizedBox(
-                width: 520,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      TextField(
-                        controller: taskboardNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Taskboard name',
-                          hintText: 'Required',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      CheckboxListTile(
-                        value: isAllSelected,
-                        onChanged: (bool? value) {
-                          setDialogState(() {
-                            if (value == true) {
-                              selectedDocumentIDs
-                                ..clear()
-                                ..addAll(
-                                  _projectDocuments.map(
-                                    (ProjectDocument document) =>
-                                        document.documentID,
-                                  ),
-                                );
-                            } else {
-                              selectedDocumentIDs.clear();
-                            }
-                          });
-                        },
-                        title: const Text('Select all project documents'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: 8),
-                      ..._projectDocuments.map((ProjectDocument document) {
-                        return CheckboxListTile(
-                          value: selectedDocumentIDs.contains(
-                            document.documentID,
-                          ),
-                          onChanged: (bool? value) {
-                            setDialogState(() {
-                              if (value == true) {
-                                selectedDocumentIDs.add(document.documentID);
-                              } else {
-                                selectedDocumentIDs.remove(document.documentID);
-                              }
-                            });
-                          },
-                          title: Text(document.fileName),
-                          subtitle: Text('Status: ${document.status}'),
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      }),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: promptController,
-                        minLines: 3,
-                        maxLines: 6,
-                        decoration: const InputDecoration(
-                          labelText: 'User prompt',
-                          hintText:
-                              'Describe what you want in the new taskboard.',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton.icon(
-                          onPressed: isGeneratingPrompt
-                              ? null
-                              : () async {
-                                  final taskboardName = taskboardNameController
-                                      .text
-                                      .trim();
-                                  if (taskboardName.isEmpty) {
-                                    setDialogState(() {
-                                      isGeneratingPrompt = false;
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Enter a taskboard name before generating a prompt.',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  setDialogState(() {
-                                    isGeneratingPrompt = true;
-                                  });
-                                  final response = await _api
-                                      .refineIngestionPrompt(
-                                        projectID: _projectSetup.projectID,
-                                        taskboardName: taskboardName,
-                                        userPrompt: promptController.text,
-                                      );
-                                  if (!context.mounted) {
-                                    return;
-                                  }
-                                  if (response.isSuccess &&
-                                      response.data != null &&
-                                      response.data!.trim().isNotEmpty) {
-                                    final generatedPrompt = response.data!
-                                        .trim();
-                                    promptController.text = generatedPrompt;
-                                    promptController.selection =
-                                        TextSelection.collapsed(
-                                          offset: generatedPrompt.length,
-                                        );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Prompt generation failed: ${response.errorMessage ?? 'unknown error'}',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                  setDialogState(() {
-                                    isGeneratingPrompt = false;
-                                  });
-                                },
-                          icon: isGeneratingPrompt
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.auto_awesome),
-                          label: const Text('AI: Generate Prompt'),
-                        ),
-                      ),
-                      if (_projectSetup.repositories.isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Repository branches',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        ..._projectSetup.repositories.map((repository) {
-                          final option =
-                              branchOptionsByRepository[repository
-                                  .repositoryID];
-                          final branches = option?.branches ?? const <String>[];
-                          final selectedBranch =
-                              selectedBranches[repository.repositoryID];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: DropdownButtonFormField<String>(
-                              initialValue: selectedBranch,
-                              onChanged: branches.isEmpty
-                                  ? null
-                                  : (String? value) {
-                                      if (value == null) {
-                                        return;
-                                      }
-                                      setDialogState(() {
-                                        selectedBranches[repository
-                                                .repositoryID] =
-                                            value;
-                                      });
-                                    },
-                              decoration: InputDecoration(
-                                labelText: repository.repositoryURL,
-                                border: const OutlineInputBorder(),
-                              ),
-                              items: branches
-                                  .map(
-                                    (String branch) => DropdownMenuItem<String>(
-                                      value: branch,
-                                      child: Text(branch),
-                                    ),
-                                  )
-                                  .toList(growable: false),
-                            ),
-                          );
-                        }),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final taskboardName = taskboardNameController.text.trim();
-                    final selected = selectedDocumentIDs.toList(
-                      growable: false,
-                    );
-                    final prompt = promptController.text.trim();
-                    if (taskboardName.isEmpty) {
-                      return;
-                    }
-                    if (selected.isEmpty && prompt.isEmpty) {
-                      return;
-                    }
-                    Navigator.of(context).pop(
-                      _NewTaskboardDraft(
-                        taskboardName: taskboardName,
-                        selectedDocumentIDs: selected.isEmpty ? null : selected,
-                        userPrompt: prompt.isEmpty ? null : prompt,
-                        repositorySourceBranches: selectedBranches.isEmpty
-                            ? null
-                            : Map<String, String>.from(selectedBranches),
-                      ),
-                    );
-                  },
-                  child: const Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      api: _api,
+      projectID: _projectSetup.projectID,
+      projectDocuments: _projectDocuments,
+      repositoryBranchOptions: branchOptionsResult.data!,
+      title: 'New Taskboard',
+      submitLabel: 'Create',
     );
-    taskboardNameController.dispose();
-    promptController.dispose();
 
     if (!mounted || draft == null) {
       return;
@@ -1860,20 +1616,6 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
       ),
     );
   }
-}
-
-class _NewTaskboardDraft {
-  const _NewTaskboardDraft({
-    required this.taskboardName,
-    required this.selectedDocumentIDs,
-    required this.userPrompt,
-    required this.repositorySourceBranches,
-  });
-
-  final String taskboardName;
-  final List<String>? selectedDocumentIDs;
-  final String? userPrompt;
-  final Map<String, String>? repositorySourceBranches;
 }
 
 enum _LiveFeedSubStatus { connecting, live, degraded, disconnected }

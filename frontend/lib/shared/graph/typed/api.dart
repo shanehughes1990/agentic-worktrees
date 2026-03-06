@@ -809,7 +809,9 @@ class ControlPlaneApi {
   Future<ApiResult<IngestionRunTicket>> runIngestionAgent({
     required String projectID,
     required String taskboardName,
+    String? boardID,
     List<String>? selectedDocumentIDs,
+    List<String>? selectedDocumentLocations,
     String? userPrompt,
     Map<String, String>? repositorySourceBranches,
   }) async {
@@ -823,8 +825,14 @@ class ControlPlaneApi {
       'projectID': projectID,
       'taskboardName': cleanTaskboardName,
     };
+    if (boardID != null && boardID.trim().isNotEmpty) {
+      input['boardID'] = boardID.trim();
+    }
     if (selectedDocumentIDs != null) {
       input['selectedDocumentIDs'] = selectedDocumentIDs;
+    }
+    if (selectedDocumentLocations != null) {
+      input['selectedDocumentLocations'] = selectedDocumentLocations;
     }
     if (userPrompt != null && userPrompt.trim().isNotEmpty) {
       input['userPrompt'] = userPrompt.trim();
@@ -1069,6 +1077,10 @@ class ControlPlaneApi {
                     startedAt
                     completedAt
                   }
+                  ingestionDetails {
+                    filesAdded
+                    userPrompt
+                  }
                   epics {
                     id
                     boardID
@@ -1181,6 +1193,10 @@ class ControlPlaneApi {
                     outputTokens
                     startedAt
                     completedAt
+                  }
+                  ingestionDetails {
+                    filesAdded
+                    userPrompt
                   }
                   epics {
                     id
@@ -1295,6 +1311,10 @@ class ControlPlaneApi {
                 startedAt
                 completedAt
               }
+              ingestionDetails {
+                filesAdded
+                userPrompt
+              }
               epics {
                 id
                 boardID
@@ -1378,6 +1398,10 @@ class ControlPlaneApi {
                 outputTokens
                 startedAt
                 completedAt
+              }
+              ingestionDetails {
+                filesAdded
+                userPrompt
               }
               epics {
                 id
@@ -1683,6 +1707,7 @@ class ControlPlaneApi {
   }
 
   TaskboardModel _parseTaskboard(Map<String, dynamic> board) {
+    final ingestionDetails = board['ingestionDetails'] as Map<String, dynamic>?;
     final epics = (board['epics'] as List<dynamic>? ?? const <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .map((Map<String, dynamic> epic) {
@@ -1801,6 +1826,12 @@ class ControlPlaneApi {
                 ),
               )
               .toList(growable: false),
+      ingestionFilesAdded:
+          (ingestionDetails?['filesAdded'] as List<dynamic>? ??
+                  const <dynamic>[])
+              .whereType<String>()
+              .toList(growable: false),
+      ingestionUserPrompt: ingestionDetails?['userPrompt'] as String?,
       createdAt: DateTime.parse(board['createdAt'] as String).toLocal(),
       updatedAt: DateTime.parse(board['updatedAt'] as String).toLocal(),
       epics: epics,
@@ -1838,6 +1869,10 @@ class ControlPlaneApi {
                 outputTokens
                 startedAt
                 completedAt
+              }
+              ingestionDetails {
+                filesAdded
+                userPrompt
               }
               epics {
                 id
@@ -1913,6 +1948,10 @@ class ControlPlaneApi {
                 outputTokens
                 startedAt
                 completedAt
+              }
+              ingestionDetails {
+                filesAdded
+                userPrompt
               }
               epics {
                 id

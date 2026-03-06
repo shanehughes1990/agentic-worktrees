@@ -108,6 +108,13 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 	if name == "" {
 		name = strings.TrimSpace(board.BoardID)
 	}
+	var ingestionDetails *models.TaskboardIngestionDetails
+	if board.IngestionDetails != nil {
+		ingestionDetails = &models.TaskboardIngestionDetails{
+			FilesAdded: append([]string(nil), sanitizeStringList(board.IngestionDetails.FilesAdded)...),
+			UserPrompt: strings.TrimSpace(board.IngestionDetails.UserPrompt),
+		}
+	}
 	return &models.Taskboard{
 		BoardID:         strings.TrimSpace(board.BoardID),
 		ProjectID:       strings.TrimSpace(board.ProjectID),
@@ -115,6 +122,7 @@ func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 		State:           strings.TrimSpace(string(board.State)),
 		Epics:           epics,
 		IngestionAudits: ingestionAudits,
+		IngestionDetails: ingestionDetails,
 		CreatedAt:       board.CreatedAt.UTC(),
 		UpdatedAt:       board.UpdatedAt.UTC(),
 	}

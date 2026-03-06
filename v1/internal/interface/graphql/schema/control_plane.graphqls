@@ -166,6 +166,11 @@ type TaskModelAudit {
   completedAt: Time
 }
 
+type TaskboardIngestionDetails {
+  filesAdded: [String!]!
+  userPrompt: String!
+}
+
 type Taskboard {
   boardID: String!
   projectID: String!
@@ -173,6 +178,7 @@ type Taskboard {
   state: String!
   epics: [TaskboardEpic!]!
   ingestionAudits: [TaskModelAudit!]!
+  ingestionDetails: TaskboardIngestionDetails
   createdAt: Time!
   updatedAt: Time!
 }
@@ -398,7 +404,9 @@ union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess |
 input RunIngestionAgentInput {
   projectID: String!
   taskboardName: String!
+  boardID: String
   selectedDocumentIDs: [String!]
+  selectedDocumentLocations: [String!]
   userPrompt: String
   repositorySourceBranches: [RepositorySourceBranchInput!]
 }

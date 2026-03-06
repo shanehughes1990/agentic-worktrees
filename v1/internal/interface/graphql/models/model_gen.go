@@ -585,11 +585,13 @@ type RequeueDeadLetterSuccess struct {
 func (RequeueDeadLetterSuccess) IsRequeueDeadLetterResult() {}
 
 type RunIngestionAgentInput struct {
-	ProjectID                string                         `json:"projectID"`
-	TaskboardName            string                         `json:"taskboardName"`
-	SelectedDocumentIDs      []string                       `json:"selectedDocumentIDs,omitempty"`
-	UserPrompt               *string                        `json:"userPrompt,omitempty"`
-	RepositorySourceBranches []*RepositorySourceBranchInput `json:"repositorySourceBranches,omitempty"`
+	ProjectID                 string                         `json:"projectID"`
+	TaskboardName             string                         `json:"taskboardName"`
+	BoardID                   *string                        `json:"boardID,omitempty"`
+	SelectedDocumentIDs       []string                       `json:"selectedDocumentIDs,omitempty"`
+	SelectedDocumentLocations []string                       `json:"selectedDocumentLocations,omitempty"`
+	UserPrompt                *string                        `json:"userPrompt,omitempty"`
+	RepositorySourceBranches  []*RepositorySourceBranchInput `json:"repositorySourceBranches,omitempty"`
 }
 
 type RunIngestionAgentSuccess struct {
@@ -677,14 +679,15 @@ type TaskModelAudit struct {
 }
 
 type Taskboard struct {
-	BoardID         string            `json:"boardID"`
-	ProjectID       string            `json:"projectID"`
-	Name            string            `json:"name"`
-	State           string            `json:"state"`
-	Epics           []*TaskboardEpic  `json:"epics"`
-	IngestionAudits []*TaskModelAudit `json:"ingestionAudits"`
-	CreatedAt       time.Time         `json:"createdAt"`
-	UpdatedAt       time.Time         `json:"updatedAt"`
+	BoardID          string                     `json:"boardID"`
+	ProjectID        string                     `json:"projectID"`
+	Name             string                     `json:"name"`
+	State            string                     `json:"state"`
+	Epics            []*TaskboardEpic           `json:"epics"`
+	IngestionAudits  []*TaskModelAudit          `json:"ingestionAudits"`
+	IngestionDetails *TaskboardIngestionDetails `json:"ingestionDetails,omitempty"`
+	CreatedAt        time.Time                  `json:"createdAt"`
+	UpdatedAt        time.Time                  `json:"updatedAt"`
 }
 
 type TaskboardDeleteSuccess struct {
@@ -704,6 +707,11 @@ type TaskboardEpic struct {
 	Rank             int32            `json:"rank"`
 	DependsOnEpicIDs []string         `json:"dependsOnEpicIDs"`
 	Tasks            []*TaskboardTask `json:"tasks"`
+}
+
+type TaskboardIngestionDetails struct {
+	FilesAdded []string `json:"filesAdded"`
+	UserPrompt string   `json:"userPrompt"`
 }
 
 type TaskboardMutationSuccess struct {

@@ -399,6 +399,8 @@ class TaskboardModel {
     required this.state,
     required this.epics,
     required this.ingestionAudits,
+    required this.ingestionFilesAdded,
+    required this.ingestionUserPrompt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -409,6 +411,8 @@ class TaskboardModel {
   final String state;
   final List<TaskboardEpicModel> epics;
   final List<TaskModelAuditModel> ingestionAudits;
+  final List<String> ingestionFilesAdded;
+  final String? ingestionUserPrompt;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

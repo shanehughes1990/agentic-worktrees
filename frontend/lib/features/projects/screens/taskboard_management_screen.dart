@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:agentic_repositories/features/projects/widgets/taskboard_ingestion_dialog.dart';
 import 'package:agentic_repositories/shared/graph/typed/api.dart';
 import 'package:agentic_repositories/shared/graph/typed/models.dart';
 import 'package:flutter/material.dart';
@@ -77,6 +78,120 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
       }
       _board = result.data;
     });
+  }
+
+  Future<void> _runTaskboardAgain() async {
+    final board = _board;
+    if (board == null || _isMutating) {
+      return;
+    }
+    if (!_canRunAgain(board)) {
+      setState(() {
+        _statusMessage =
+            'Run Again is only available for taskboards that have not started yet.';
+      });
+      return;
+    }
+
+    final documentsResult = await widget.api.projectDocuments(
+      projectID: widget.projectID,
+      limit: 100,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!documentsResult.isSuccess || documentsResult.data == null) {
+      setState(() {
+        _statusMessage =
+            'Failed loading project documents: ${documentsResult.errorMessage ?? 'unknown error'}';
+      });
+      return;
+    }
+
+    final branchOptionsResult = await widget.api.projectRepositoryBranches(
+      projectID: widget.projectID,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!branchOptionsResult.isSuccess || branchOptionsResult.data == null) {
+      setState(() {
+        _statusMessage =
+            'Failed loading repository branches: ${branchOptionsResult.errorMessage ?? 'unknown error'}';
+      });
+      return;
+    }
+
+    final preselectedIDs = _matchDocumentIDsFromLocations(
+      documentsResult.data!,
+      board.ingestionFilesAdded,
+    );
+    final draft = await showTaskboardIngestionDialog(
+      context: context,
+      api: widget.api,
+      projectID: widget.projectID,
+      projectDocuments: documentsResult.data!,
+      repositoryBranchOptions: branchOptionsResult.data!,
+      title: 'Run Taskboard Again',
+      submitLabel: 'Run Again',
+      initialTaskboardName: board.name,
+      initialUserPrompt: board.ingestionUserPrompt,
+      initialSelectedDocumentIDs: preselectedIDs,
+    );
+
+    if (!mounted || draft == null) {
+      return;
+    }
+
+    setState(() => _isMutating = true);
+    final result = await widget.api.runIngestionAgent(
+      projectID: widget.projectID,
+      taskboardName: draft.taskboardName,
+      boardID: board.boardID,
+      selectedDocumentIDs: draft.selectedDocumentIDs,
+      userPrompt: draft.userPrompt,
+      repositorySourceBranches: draft.repositorySourceBranches,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isMutating = false;
+      if (!result.isSuccess || result.data == null) {
+        _statusMessage =
+            'Failed to run taskboard again: ${result.errorMessage ?? 'unknown error'}';
+        return;
+      }
+      _statusMessage =
+          'Taskboard rerun enqueued (run=${result.data!.runID}, task=${result.data!.taskID}).';
+    });
+  }
+
+  bool _canRunAgain(TaskboardModel board) {
+    return board.state.trim().toLowerCase() == 'pending';
+  }
+
+  Set<String> _matchDocumentIDsFromLocations(
+    List<ProjectDocument> documents,
+    List<String> locations,
+  ) {
+    final normalizedLocations = locations
+        .map((String value) => value.trim().toLowerCase())
+        .where((String value) => value.isNotEmpty)
+        .toSet();
+    final selected = <String>{};
+    for (final document in documents) {
+      final candidates = <String>{
+        document.documentID.trim().toLowerCase(),
+        document.fileName.trim().toLowerCase(),
+        document.objectPath.trim().toLowerCase(),
+        document.cdnURL.trim().toLowerCase(),
+      };
+      if (candidates.any(normalizedLocations.contains)) {
+        selected.add(document.documentID);
+      }
+    }
+    return selected;
   }
 
   Future<void> _editBoard() async {
@@ -808,10 +923,17 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     final board = _board;
     final isReadOnly = board != null && _isBoardEnded(board);
     final mutationControlsDisabled = _isMutating || board == null || isReadOnly;
+    final runAgainDisabled =
+        _isMutating || board == null || !_canRunAgain(board);
     return Scaffold(
       appBar: AppBar(
         title: Text(board?.name ?? widget.boardID),
         actions: <Widget>[
+          IconButton(
+            onPressed: runAgainDisabled ? null : _runTaskboardAgain,
+            icon: const Icon(Icons.play_circle_outline),
+            tooltip: 'Run Again',
+          ),
           IconButton(
             onPressed: mutationControlsDisabled ? null : _editBoard,
             icon: const Icon(Icons.edit_outlined),

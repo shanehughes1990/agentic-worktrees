@@ -15,7 +15,9 @@ import (
 type RunIngestionAgentInput struct {
 	ProjectID           string
 	TaskboardName       string
+	BoardID             string
 	SelectedDocumentIDs []string
+	SelectedDocumentLocations []string
 	RepositorySourceBranches []RepositorySourceBranch
 	UserPrompt          string
 	Model               string
@@ -36,8 +38,9 @@ func (input RunIngestionAgentInput) Validate() error {
 	}
 	hasPrompt := strings.TrimSpace(input.UserPrompt) != ""
 	hasSelectedDocuments := hasNonEmptyValues(input.SelectedDocumentIDs)
-	if !hasPrompt && !hasSelectedDocuments {
-		return fmt.Errorf("user_prompt or selected_document_ids is required")
+	hasSelectedDocumentLocations := hasNonEmptyValues(input.SelectedDocumentLocations)
+	if !hasPrompt && !hasSelectedDocuments && !hasSelectedDocumentLocations {
+		return fmt.Errorf("user_prompt or selected_document_ids or selected_document_locations is required")
 	}
 	for index, repositorySourceBranch := range input.RepositorySourceBranches {
 		if strings.TrimSpace(repositorySourceBranch.RepositoryID) == "" {
@@ -127,8 +130,18 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		}
 	}
 	runID := fmt.Sprintf("ingest-%d", time.Now().UTC().UnixNano())
-	boardID := ingestionBoardID(taskboardName, runID)
-	normalizedDocumentLocations := make([]string, 0, len(input.SelectedDocumentIDs))
+	boardID := strings.TrimSpace(input.BoardID)
+	if boardID == "" {
+		boardID = ingestionBoardID(taskboardName, runID)
+	}
+	normalizedDocumentLocations := make([]string, 0, len(input.SelectedDocumentLocations)+len(input.SelectedDocumentIDs))
+	for _, rawDocumentLocation := range input.SelectedDocumentLocations {
+		documentLocation := strings.TrimSpace(rawDocumentLocation)
+		if documentLocation == "" {
+			continue
+		}
+		normalizedDocumentLocations = append(normalizedDocumentLocations, documentLocation)
+	}
 	for _, rawDocumentID := range input.SelectedDocumentIDs {
 		documentID := strings.TrimSpace(rawDocumentID)
 		if documentID == "" {
@@ -151,6 +164,7 @@ func (service *Service) RunIngestionAgent(ctx context.Context, input RunIngestio
 		}
 		normalizedDocumentLocations = append(normalizedDocumentLocations, documentID)
 	}
+	normalizedDocumentLocations = normalizeUniqueStringValues(normalizedDocumentLocations)
 	preferSelectedDocuments := len(normalizedDocumentLocations) > 0
 	taskID := "ingestion"
 	jobID := fmt.Sprintf("ingestion-agent-%d", time.Now().UTC().UnixNano())
@@ -266,4 +280,21 @@ func hasNonEmptyValues(values []string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeUniqueStringValues(values []string) []string {
+	items := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		clean := strings.TrimSpace(value)
+		if clean == "" {
+			continue
+		}
+		if _, exists := seen[clean]; exists {
+			continue
+		}
+		seen[clean] = struct{}{}
+		items = append(items, clean)
+	}
+	return items
 }

@@ -387,14 +387,15 @@ type ComplexityRoot struct {
 	}
 
 	Taskboard struct {
-		BoardID         func(childComplexity int) int
-		CreatedAt       func(childComplexity int) int
-		Epics           func(childComplexity int) int
-		IngestionAudits func(childComplexity int) int
-		Name            func(childComplexity int) int
-		ProjectID       func(childComplexity int) int
-		State           func(childComplexity int) int
-		UpdatedAt       func(childComplexity int) int
+		BoardID          func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		Epics            func(childComplexity int) int
+		IngestionAudits  func(childComplexity int) int
+		IngestionDetails func(childComplexity int) int
+		Name             func(childComplexity int) int
+		ProjectID        func(childComplexity int) int
+		State            func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
 	}
 
 	TaskboardDeleteSuccess struct {
@@ -412,6 +413,11 @@ type ComplexityRoot struct {
 		State            func(childComplexity int) int
 		Tasks            func(childComplexity int) int
 		Title            func(childComplexity int) int
+	}
+
+	TaskboardIngestionDetails struct {
+		FilesAdded func(childComplexity int) int
+		UserPrompt func(childComplexity int) int
 	}
 
 	TaskboardMutationSuccess struct {
@@ -2180,6 +2186,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Taskboard.IngestionAudits(childComplexity), true
+	case "Taskboard.ingestionDetails":
+		if e.ComplexityRoot.Taskboard.IngestionDetails == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Taskboard.IngestionDetails(childComplexity), true
 	case "Taskboard.name":
 		if e.ComplexityRoot.Taskboard.Name == nil {
 			break
@@ -2272,6 +2284,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TaskboardEpic.Title(childComplexity), true
+
+	case "TaskboardIngestionDetails.filesAdded":
+		if e.ComplexityRoot.TaskboardIngestionDetails.FilesAdded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardIngestionDetails.FilesAdded(childComplexity), true
+	case "TaskboardIngestionDetails.userPrompt":
+		if e.ComplexityRoot.TaskboardIngestionDetails.UserPrompt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskboardIngestionDetails.UserPrompt(childComplexity), true
 
 	case "TaskboardMutationSuccess.board":
 		if e.ComplexityRoot.TaskboardMutationSuccess.Board == nil {
@@ -2816,6 +2841,11 @@ type TaskModelAudit {
   completedAt: Time
 }
 
+type TaskboardIngestionDetails {
+  filesAdded: [String!]!
+  userPrompt: String!
+}
+
 type Taskboard {
   boardID: String!
   projectID: String!
@@ -2823,6 +2853,7 @@ type Taskboard {
   state: String!
   epics: [TaskboardEpic!]!
   ingestionAudits: [TaskModelAudit!]!
+  ingestionDetails: TaskboardIngestionDetails
   createdAt: Time!
   updatedAt: Time!
 }
@@ -3048,7 +3079,9 @@ union RequestProjectDocumentUploadResult = RequestProjectDocumentUploadSuccess |
 input RunIngestionAgentInput {
   projectID: String!
   taskboardName: String!
+  boardID: String
   selectedDocumentIDs: [String!]
+  selectedDocumentLocations: [String!]
   userPrompt: String
   repositorySourceBranches: [RepositorySourceBranchInput!]
 }
@@ -11772,6 +11805,41 @@ func (ec *executionContext) fieldContext_Taskboard_ingestionAudits(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Taskboard_ingestionDetails(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Taskboard_ingestionDetails,
+		func(ctx context.Context) (any, error) {
+			return obj.IngestionDetails, nil
+		},
+		nil,
+		ec.marshalOTaskboardIngestionDetails2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardIngestionDetails,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Taskboard_ingestionDetails(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Taskboard",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "filesAdded":
+				return ec.fieldContext_TaskboardIngestionDetails_filesAdded(ctx, field)
+			case "userPrompt":
+				return ec.fieldContext_TaskboardIngestionDetails_userPrompt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TaskboardIngestionDetails", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Taskboard_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.Taskboard) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -12175,6 +12243,64 @@ func (ec *executionContext) fieldContext_TaskboardEpic_tasks(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _TaskboardIngestionDetails_filesAdded(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardIngestionDetails) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardIngestionDetails_filesAdded,
+		func(ctx context.Context) (any, error) {
+			return obj.FilesAdded, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardIngestionDetails_filesAdded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardIngestionDetails",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskboardIngestionDetails_userPrompt(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardIngestionDetails) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TaskboardIngestionDetails_userPrompt,
+		func(ctx context.Context) (any, error) {
+			return obj.UserPrompt, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TaskboardIngestionDetails_userPrompt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskboardIngestionDetails",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TaskboardMutationSuccess_board(ctx context.Context, field graphql.CollectedField, obj *models.TaskboardMutationSuccess) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -12211,6 +12337,8 @@ func (ec *executionContext) fieldContext_TaskboardMutationSuccess_board(_ contex
 				return ec.fieldContext_Taskboard_epics(ctx, field)
 			case "ingestionAudits":
 				return ec.fieldContext_Taskboard_ingestionAudits(ctx, field)
+			case "ingestionDetails":
+				return ec.fieldContext_Taskboard_ingestionDetails(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Taskboard_createdAt(ctx, field)
 			case "updatedAt":
@@ -12258,6 +12386,8 @@ func (ec *executionContext) fieldContext_TaskboardSuccess_board(_ context.Contex
 				return ec.fieldContext_Taskboard_epics(ctx, field)
 			case "ingestionAudits":
 				return ec.fieldContext_Taskboard_ingestionAudits(ctx, field)
+			case "ingestionDetails":
+				return ec.fieldContext_Taskboard_ingestionDetails(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Taskboard_createdAt(ctx, field)
 			case "updatedAt":
@@ -12677,6 +12807,8 @@ func (ec *executionContext) fieldContext_TaskboardsSuccess_boards(_ context.Cont
 				return ec.fieldContext_Taskboard_epics(ctx, field)
 			case "ingestionAudits":
 				return ec.fieldContext_Taskboard_ingestionAudits(ctx, field)
+			case "ingestionDetails":
+				return ec.fieldContext_Taskboard_ingestionDetails(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Taskboard_createdAt(ctx, field)
 			case "updatedAt":
@@ -15759,7 +15891,7 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"projectID", "taskboardName", "selectedDocumentIDs", "userPrompt", "repositorySourceBranches"}
+	fieldsInOrder := [...]string{"projectID", "taskboardName", "boardID", "selectedDocumentIDs", "selectedDocumentLocations", "userPrompt", "repositorySourceBranches"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -15780,6 +15912,13 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 				return it, err
 			}
 			it.TaskboardName = data
+		case "boardID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("boardID"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BoardID = data
 		case "selectedDocumentIDs":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectedDocumentIDs"))
 			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
@@ -15787,6 +15926,13 @@ func (ec *executionContext) unmarshalInputRunIngestionAgentInput(ctx context.Con
 				return it, err
 			}
 			it.SelectedDocumentIDs = data
+		case "selectedDocumentLocations":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selectedDocumentLocations"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SelectedDocumentLocations = data
 		case "userPrompt":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userPrompt"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -19809,6 +19955,8 @@ func (ec *executionContext) _Taskboard(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "ingestionDetails":
+			out.Values[i] = ec._Taskboard_ingestionDetails(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._Taskboard_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -19936,6 +20084,50 @@ func (ec *executionContext) _TaskboardEpic(ctx context.Context, sel ast.Selectio
 			}
 		case "tasks":
 			out.Values[i] = ec._TaskboardEpic_tasks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskboardIngestionDetailsImplementors = []string{"TaskboardIngestionDetails"}
+
+func (ec *executionContext) _TaskboardIngestionDetails(ctx context.Context, sel ast.SelectionSet, obj *models.TaskboardIngestionDetails) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskboardIngestionDetailsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskboardIngestionDetails")
+		case "filesAdded":
+			out.Values[i] = ec._TaskboardIngestionDetails_filesAdded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userPrompt":
+			out.Values[i] = ec._TaskboardIngestionDetails_userPrompt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -22337,6 +22529,13 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTaskboardIngestionDetails2ᚖagenticᚑorchestratorᚋinternalᚋinterfaceᚋgraphqlᚋmodelsᚐTaskboardIngestionDetails(ctx context.Context, sel ast.SelectionSet, v *models.TaskboardIngestionDetails) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TaskboardIngestionDetails(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
