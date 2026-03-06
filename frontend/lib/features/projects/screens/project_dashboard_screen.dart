@@ -2373,7 +2373,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
       return false;
     }
     if (_isSessionSnapshotLive(snapshot)) {
-      return true;
+      return false;
     }
 
     final state = snapshot.currentState.trim().toLowerCase();
