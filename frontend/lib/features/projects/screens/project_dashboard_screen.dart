@@ -42,6 +42,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   StreamSubscription<ApiResult<StreamEvent>>? _taskboardSubscription;
   StreamSubscription<ApiResult<StreamEvent>>? _projectEventsSubscription;
   Timer? _projectEventsReconnectTimer;
+  Timer? _dashboardActivePruneTimer;
   int _nextProjectEventsOffset = 0;
   List<ProjectDocument> _projectDocuments = const <ProjectDocument>[];
   List<TaskboardModel> _taskboards = const <TaskboardModel>[];
@@ -49,8 +50,9 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   final List<_RealtimeSummaryEntry> _realtimeSummaryFeed =
       <_RealtimeSummaryEntry>[];
   int _realtimeSummaryUnread = 0;
-  List<LifecycleSessionSnapshotModel> _lifecycleSnapshots =
-      const <LifecycleSessionSnapshotModel>[];
+  static const Duration _dashboardActiveEntryTtl = Duration(seconds: 45);
+  final Map<String, _LiveActiveEntry> _dashboardActiveEntriesByKey =
+      <String, _LiveActiveEntry>{};
   final TextEditingController _eventsFilterController = TextEditingController();
   final TextEditingController _pipelineRunIDController =
       TextEditingController();
@@ -71,6 +73,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     _projectSetup = widget.projectSetup;
     _startTaskboardSubscription();
     _startProjectEventsSubscription();
+    _startDashboardActivePruneTicker();
     unawaited(_refreshProjectSetup(silent: true));
     unawaited(_loadProjectDocuments());
     unawaited(_loadTaskboards());
@@ -82,6 +85,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     _taskboardSubscription?.cancel();
     _projectEventsSubscription?.cancel();
     _projectEventsReconnectTimer?.cancel();
+    _dashboardActivePruneTimer?.cancel();
     _eventsFilterController.dispose();
     _pipelineRunIDController.dispose();
     _pipelineTaskIDController.dispose();
@@ -150,6 +154,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
               }
               merged.sort((a, b) => b.streamOffset.compareTo(a.streamOffset));
               _projectEvents = merged.take(300).toList(growable: false);
+              _applyDashboardActiveEvent(incoming);
 
               final now = DateTime.now().toUtc();
               final summaryKey = _summaryKeyForEvent(incoming);
@@ -161,8 +166,21 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                 receivedAt: now,
               );
               if (existingIndex >= 0) {
+                final previousEntry = _realtimeSummaryFeed[existingIndex];
+                final previousStatus = _summaryStatusForEvent(
+                  previousEntry.event,
+                );
+                final nextStatus = _summaryStatusForEvent(incoming);
                 _realtimeSummaryFeed.removeAt(existingIndex);
                 _realtimeSummaryFeed.insert(0, summaryEntry);
+                if (_shouldRenotifyOnStatusTransition(
+                  previousStatus: previousStatus,
+                  nextStatus: nextStatus,
+                )) {
+                  if (_realtimeSummaryUnread < 999) {
+                    _realtimeSummaryUnread += 1;
+                  }
+                }
               } else {
                 _realtimeSummaryFeed.insert(0, summaryEntry);
                 if (_realtimeSummaryUnread < 999) {
@@ -193,6 +211,69 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
             _scheduleProjectEventsReconnect();
           },
         );
+  }
+
+  void _startDashboardActivePruneTicker() {
+    _dashboardActivePruneTimer?.cancel();
+    _dashboardActivePruneTimer = Timer.periodic(const Duration(seconds: 5), (
+      _,
+    ) {
+      if (!mounted || _dashboardActiveEntriesByKey.isEmpty) {
+        return;
+      }
+      final now = DateTime.now();
+      final staleKeys = _dashboardActiveEntriesByKey.entries
+          .where(
+            (entry) =>
+                now.difference(entry.value.lastSeenAt) >
+                _dashboardActiveEntryTtl,
+          )
+          .map((entry) => entry.key)
+          .toList(growable: false);
+      if (staleKeys.isEmpty) {
+        return;
+      }
+      setState(() {
+        for (final key in staleKeys) {
+          _dashboardActiveEntriesByKey.remove(key);
+        }
+      });
+    });
+  }
+
+  String _dashboardLiveActivityKey(StreamEvent event) {
+    final projectID = event.projectID?.trim() ?? '';
+    final runID = event.runID?.trim() ?? '';
+    final taskID = event.taskID?.trim() ?? '';
+    final jobID = event.jobID?.trim() ?? '';
+    if (runID.isNotEmpty || taskID.isNotEmpty || jobID.isNotEmpty) {
+      return 'corr:$projectID|$runID|$taskID|$jobID';
+    }
+    final sessionID = event.sessionID?.trim();
+    if (sessionID != null && sessionID.isNotEmpty) {
+      return 'session:$sessionID';
+    }
+    if (event.eventID.trim().isNotEmpty) {
+      return 'event:${event.eventID.trim()}';
+    }
+    return 'offset:${event.streamOffset}';
+  }
+
+  void _applyDashboardActiveEvent(StreamEvent incoming) {
+    final key = _dashboardLiveActivityKey(incoming);
+    final type = incoming.eventType.trim().toLowerCase();
+    final terminalEvent =
+        type == 'stream.session.ended' ||
+        type == 'stream.session.completed' ||
+        type == 'stream.session.failed';
+    if (terminalEvent) {
+      _dashboardActiveEntriesByKey.remove(key);
+      return;
+    }
+    _dashboardActiveEntriesByKey[key] = _LiveActiveEntry(
+      event: incoming,
+      lastSeenAt: DateTime.now(),
+    );
   }
 
   String _summaryKeyForEvent(StreamEvent event) {
@@ -295,7 +376,10 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                 final event = entry.event;
                 final status = _summaryStatusForEvent(event);
                 final statusColor = _summaryStatusColor(status, context);
-                final relative = _relativeTime(entry.receivedAt);
+                final activityLabel = _summaryActivityLabel(
+                  entry: entry,
+                  status: status,
+                );
                 return ListTile(
                   minVerticalPadding: 6,
                   contentPadding: const EdgeInsets.symmetric(
@@ -341,7 +425,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        relative,
+                        activityLabel,
                         style: Theme.of(context).textTheme.labelSmall,
                       ),
                     ],
@@ -366,7 +450,8 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     final eventType = event.eventType.toLowerCase();
     if (eventType.contains('failed') ||
         eventType.contains('error') ||
-        eventType.contains('terminate')) {
+        eventType.contains('terminate') ||
+        eventType.contains('cancel')) {
       return 'failed';
     }
     if (eventType.contains('completed')) {
@@ -381,6 +466,28 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
       return 'running';
     }
     return 'updated';
+  }
+
+  bool _isTerminalSummaryStatus(String status) {
+    return status == 'completed' || status == 'failed';
+  }
+
+  bool _shouldRenotifyOnStatusTransition({
+    required String previousStatus,
+    required String nextStatus,
+  }) {
+    return !_isTerminalSummaryStatus(previousStatus) &&
+        _isTerminalSummaryStatus(nextStatus);
+  }
+
+  String _summaryActivityLabel({
+    required _RealtimeSummaryEntry entry,
+    required String status,
+  }) {
+    if (_isTerminalSummaryStatus(status)) {
+      return 'exited ${_relativeTime(entry.event.occurredAt)}';
+    }
+    return 'updated ${_relativeTime(entry.receivedAt)}';
   }
 
   Color _summaryStatusColor(String status, BuildContext context) {
@@ -437,9 +544,6 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     }
 
     setState(() {
-      if (snapshotsResult.isSuccess && snapshotsResult.data != null) {
-        _lifecycleSnapshots = snapshotsResult.data!;
-      }
       if (projectEventsResult.isSuccess && projectEventsResult.data != null) {
         _projectEvents = projectEventsResult.data!;
       }
@@ -1236,6 +1340,31 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
         automaticallyImplyLeading: true,
         title: Text(_projectSetup.projectName),
         actions: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Active ${_dashboardActiveEntriesByKey.length}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
           IconButton(
             onPressed: _openRealtimeSummaryFeed,
             tooltip: 'Realtime Summary Feed',
@@ -1321,28 +1450,6 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text('Repositories: ${repositories.length}'),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: <Widget>[
-                              Chip(
-                                avatar: const Icon(Icons.bolt, size: 16),
-                                label: Text(
-                                  'Global Live: ${_projectEvents.length}',
-                                ),
-                              ),
-                              Chip(
-                                avatar: const Icon(
-                                  Icons.hub_outlined,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  'Sessions: ${_lifecycleSnapshots.length}',
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
