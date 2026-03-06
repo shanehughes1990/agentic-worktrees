@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -19,10 +20,10 @@ import (
 const lifecycleSchemaVersion = 1
 
 type jobLifecycleMiddleware struct {
-	workerID string
-	service  *applicationlifecycle.Service
+	workerID  string
+	service   *applicationlifecycle.Service
 	transport domainrealtime.WorkerLifecycleTransport
-	handler  taskengine.Handler
+	handler   taskengine.Handler
 }
 
 func newJobLifecycleMiddleware(workerID string, service *applicationlifecycle.Service, transport domainrealtime.WorkerLifecycleTransport, handler taskengine.Handler) taskengine.Handler {
@@ -257,10 +258,74 @@ func (middleware *jobLifecycleMiddleware) publishRuntimeSignal(ctx context.Conte
 		WorkerID:      strings.TrimSpace(middleware.workerID),
 		SourceRuntime: "worker",
 		PipelineType:  strings.TrimSpace(meta.PipelineType),
-		EventType:     domainlifecycle.EventType("heartbeat"),
+		EventType:     domainlifecycle.EventHeartbeat,
 		OccurredAt:    now,
 		Payload:       payload,
 	}); err != nil {
 		return
 	}
+	middleware.appendLayeredHeartbeatEvents(ctx, meta, payload, resolvedSignalID, now)
+}
+
+func (middleware *jobLifecycleMiddleware) appendLayeredHeartbeatEvents(ctx context.Context, meta lifecycleMetadata, basePayload map[string]any, baseEventID string, now time.Time) {
+	if middleware == nil || middleware.service == nil {
+		return
+	}
+	pid := os.Getpid()
+	runtimePayload := cloneMap(basePayload)
+	runtimePayload["heartbeat_layer"] = "runtime"
+	runtimePayload["heartbeat_source"] = "worker_runtime_signal"
+	runtimePayload["last_runtime_heartbeat_at"] = now.UTC().Format(time.RFC3339)
+	runtimePayload["last_liveness_at"] = now.UTC().Format(time.RFC3339)
+	runtimePayload["heartbeat_confidence_score"] = 55
+
+	processPayload := cloneMap(basePayload)
+	processPayload["heartbeat_layer"] = "process"
+	processPayload["heartbeat_source"] = "worker_process_probe"
+	processPayload["last_process_heartbeat_at"] = now.UTC().Format(time.RFC3339)
+	processPayload["process_pid"] = pid
+	processPayload["heartbeat_confidence_score"] = 70
+
+	activityPayload := cloneMap(basePayload)
+	activityPayload["heartbeat_layer"] = "activity"
+	activityPayload["heartbeat_source"] = "worker_job_lifecycle"
+	activityPayload["last_activity_heartbeat_at"] = now.UTC().Format(time.RFC3339)
+	activityPayload["heartbeat_confidence_score"] = 90
+	activityPayload["heartbeat_quorum_state"] = "running_confident"
+
+	middleware.appendLifecycleEventBestEffort(ctx, meta, baseEventID+":runtime", domainlifecycle.EventRuntimeHeartbeat, now, runtimePayload)
+	middleware.appendLifecycleEventBestEffort(ctx, meta, baseEventID+":process", domainlifecycle.EventProcessHeartbeat, now, processPayload)
+	middleware.appendLifecycleEventBestEffort(ctx, meta, baseEventID+":activity", domainlifecycle.EventActivityHeartbeat, now, activityPayload)
+}
+
+func (middleware *jobLifecycleMiddleware) appendLifecycleEventBestEffort(ctx context.Context, meta lifecycleMetadata, eventID string, eventType domainlifecycle.EventType, occurredAt time.Time, payload map[string]any) {
+	if middleware == nil || middleware.service == nil {
+		return
+	}
+	_, _ = middleware.service.AppendEvent(ctx, domainlifecycle.Event{
+		EventID:       strings.TrimSpace(eventID),
+		SchemaVersion: lifecycleSchemaVersion,
+		ProjectID:     strings.TrimSpace(meta.ProjectID),
+		RunID:         strings.TrimSpace(meta.RunID),
+		TaskID:        strings.TrimSpace(meta.TaskID),
+		JobID:         strings.TrimSpace(meta.JobID),
+		SessionID:     strings.TrimSpace(meta.SessionID),
+		WorkerID:      strings.TrimSpace(middleware.workerID),
+		SourceRuntime: "worker",
+		PipelineType:  strings.TrimSpace(meta.PipelineType),
+		EventType:     eventType,
+		OccurredAt:    occurredAt.UTC(),
+		Payload:       cloneMap(payload),
+	})
+}
+
+func cloneMap(source map[string]any) map[string]any {
+	if source == nil {
+		return map[string]any{}
+	}
+	copy := make(map[string]any, len(source))
+	for key, value := range source {
+		copy[key] = value
+	}
+	return copy
 }

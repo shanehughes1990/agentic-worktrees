@@ -306,6 +306,243 @@ func TestEventStoreAppendEmitsGapDetectedAndGapReconciled(t *testing.T) {
 	}
 }
 
+func TestEventStoreAppendEmitsHeartbeatQuorumTransitions(t *testing.T) {
+	store, err := NewEventStore(newLifecycleTestDB(t))
+	if err != nil {
+		t.Fatalf("new event store: %v", err)
+	}
+	now := time.Now().UTC()
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-quorum-seed",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-quorum",
+		RunID:         "run-heartbeat-quorum",
+		TaskID:        "task-heartbeat-quorum",
+		JobID:         "job-heartbeat-quorum",
+		SessionID:     "session-heartbeat-quorum",
+		WorkerID:      "worker-heartbeat-quorum",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventHeartbeat,
+		OccurredAt:    now,
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_ok",
+			"heartbeat_confidence_score": 90,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append quorum seed: %v", err)
+	}
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-quorum-degrade",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-quorum",
+		RunID:         "run-heartbeat-quorum",
+		TaskID:        "task-heartbeat-quorum",
+		JobID:         "job-heartbeat-quorum",
+		SessionID:     "session-heartbeat-quorum",
+		WorkerID:      "worker-heartbeat-quorum",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventActivityHeartbeat,
+		OccurredAt:    now.Add(10 * time.Second),
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_degraded",
+			"heartbeat_confidence_score": 55,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append quorum degrade: %v", err)
+	}
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-quorum-recover",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-quorum",
+		RunID:         "run-heartbeat-quorum",
+		TaskID:        "task-heartbeat-quorum",
+		JobID:         "job-heartbeat-quorum",
+		SessionID:     "session-heartbeat-quorum",
+		WorkerID:      "worker-heartbeat-quorum",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventHeartbeat,
+		OccurredAt:    now.Add(20 * time.Second),
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_ok",
+			"heartbeat_confidence_score": 88,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append quorum recover: %v", err)
+	}
+
+	history, err := loadHistoryBySessionID(store, "session-heartbeat-quorum")
+	if err != nil {
+		t.Fatalf("load history: %v", err)
+	}
+
+	var hasDegraded bool
+	var hasRecovered bool
+	for _, record := range history {
+		if strings.TrimSpace(record.EventType) == string(domainlifecycle.EventHeartbeatQuorumDegraded) {
+			hasDegraded = true
+		}
+		if strings.TrimSpace(record.EventType) == string(domainlifecycle.EventHeartbeatQuorumRecovered) {
+			hasRecovered = true
+		}
+	}
+	if !hasDegraded {
+		t.Fatalf("expected synthetic heartbeat_quorum_degraded history event")
+	}
+	if !hasRecovered {
+		t.Fatalf("expected synthetic heartbeat_quorum_recovered history event")
+	}
+}
+
+func TestEventStoreAppendDebouncesHeartbeatQuorumTransitions(t *testing.T) {
+	store, err := NewEventStore(newLifecycleTestDB(t))
+	if err != nil {
+		t.Fatalf("new event store: %v", err)
+	}
+	now := time.Now().UTC()
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-quorum-debounce-seed",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-debounce",
+		RunID:         "run-heartbeat-debounce",
+		TaskID:        "task-heartbeat-debounce",
+		JobID:         "job-heartbeat-debounce",
+		SessionID:     "session-heartbeat-debounce",
+		WorkerID:      "worker-heartbeat-debounce",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventHeartbeat,
+		OccurredAt:    now,
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_ok",
+			"heartbeat_confidence_score": 90,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append debounce seed: %v", err)
+	}
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-quorum-debounce-fast",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-debounce",
+		RunID:         "run-heartbeat-debounce",
+		TaskID:        "task-heartbeat-debounce",
+		JobID:         "job-heartbeat-debounce",
+		SessionID:     "session-heartbeat-debounce",
+		WorkerID:      "worker-heartbeat-debounce",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventActivityHeartbeat,
+		OccurredAt:    now.Add(1 * time.Second),
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_degraded",
+			"heartbeat_confidence_score": 55,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append debounce fast transition: %v", err)
+	}
+
+	history, err := loadHistoryBySessionID(store, "session-heartbeat-debounce")
+	if err != nil {
+		t.Fatalf("load history: %v", err)
+	}
+
+	for _, record := range history {
+		if strings.TrimSpace(record.EventType) == string(domainlifecycle.EventHeartbeatQuorumDegraded) {
+			t.Fatalf("did not expect heartbeat_quorum_degraded transition within debounce window")
+		}
+		if strings.TrimSpace(record.EventType) == string(domainlifecycle.EventHeartbeatQuorumRecovered) {
+			t.Fatalf("did not expect heartbeat_quorum_recovered transition within debounce window")
+		}
+	}
+}
+
+func TestEventStoreAppendPublishesSyntheticQuorumTransitionSignals(t *testing.T) {
+	store, err := NewEventStore(newLifecycleTestDB(t))
+	if err != nil {
+		t.Fatalf("new event store: %v", err)
+	}
+	watcher := &fakeTableChangeWatcher{}
+	store.SetTableChangeWatcher(watcher)
+	now := time.Now().UTC()
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-watch-seed",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-watch",
+		RunID:         "run-heartbeat-watch",
+		TaskID:        "task-heartbeat-watch",
+		JobID:         "job-heartbeat-watch",
+		SessionID:     "session-heartbeat-watch",
+		WorkerID:      "worker-heartbeat-watch",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventHeartbeat,
+		OccurredAt:    now,
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_ok",
+			"heartbeat_confidence_score": 90,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append seed event: %v", err)
+	}
+
+	_, err = store.Append(context.Background(), domainlifecycle.Event{
+		EventID:       "heartbeat-watch-degrade",
+		SchemaVersion: 1,
+		ProjectID:     "project-heartbeat-watch",
+		RunID:         "run-heartbeat-watch",
+		TaskID:        "task-heartbeat-watch",
+		JobID:         "job-heartbeat-watch",
+		SessionID:     "session-heartbeat-watch",
+		WorkerID:      "worker-heartbeat-watch",
+		SourceRuntime: "worker",
+		PipelineType:  "agent.workflow.run",
+		EventType:     domainlifecycle.EventActivityHeartbeat,
+		OccurredAt:    now.Add(10 * time.Second),
+		Payload: map[string]any{
+			"heartbeat_quorum_state":     "running_degraded",
+			"heartbeat_confidence_score": 55,
+		},
+	})
+	if err != nil {
+		t.Fatalf("append degraded event: %v", err)
+	}
+
+	var hasPrimaryActivityHistorySignal bool
+	var hasSyntheticQuorumHistorySignal bool
+	for _, published := range watcher.published {
+		if published.Topic != "lifecycle_project_session_history" || published.Payload == nil {
+			continue
+		}
+		typeName, _ := published.Payload["event_type"].(string)
+		if typeName == string(domainlifecycle.EventActivityHeartbeat) {
+			hasPrimaryActivityHistorySignal = true
+		}
+		if typeName == string(domainlifecycle.EventHeartbeatQuorumDegraded) {
+			hasSyntheticQuorumHistorySignal = true
+		}
+	}
+	if !hasPrimaryActivityHistorySignal {
+		t.Fatalf("expected history watcher signal for primary activity heartbeat")
+	}
+	if !hasSyntheticQuorumHistorySignal {
+		t.Fatalf("expected history watcher signal for synthetic heartbeat_quorum_degraded event")
+	}
+}
+
 func TestEventStoreAppendPublishesTableChangeSignalsWhenWatcherConfigured(t *testing.T) {
 	store, err := NewEventStore(newLifecycleTestDB(t))
 	if err != nil {

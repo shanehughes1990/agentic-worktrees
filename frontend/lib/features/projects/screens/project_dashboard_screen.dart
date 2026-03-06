@@ -15,6 +15,13 @@ import 'package:mime/mime.dart';
 
 enum _EventsBoardMode { globalLive, pipelineDrilldown, sessionInspection }
 
+class _RealtimeSummaryEntry {
+  const _RealtimeSummaryEntry({required this.event, required this.receivedAt});
+
+  final StreamEvent event;
+  final DateTime receivedAt;
+}
+
 class ProjectDashboardScreen extends StatefulWidget {
   const ProjectDashboardScreen({
     required this.projectSetup,
@@ -34,9 +41,14 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   late ProjectSetupConfig _projectSetup;
   StreamSubscription<ApiResult<StreamEvent>>? _taskboardSubscription;
   StreamSubscription<ApiResult<StreamEvent>>? _projectEventsSubscription;
+  Timer? _projectEventsReconnectTimer;
+  int _nextProjectEventsOffset = 0;
   List<ProjectDocument> _projectDocuments = const <ProjectDocument>[];
   List<TaskboardModel> _taskboards = const <TaskboardModel>[];
   List<StreamEvent> _projectEvents = const <StreamEvent>[];
+  final List<_RealtimeSummaryEntry> _realtimeSummaryFeed =
+      <_RealtimeSummaryEntry>[];
+  int _realtimeSummaryUnread = 0;
   List<LifecycleSessionSnapshotModel> _lifecycleSnapshots =
       const <LifecycleSessionSnapshotModel>[];
   final TextEditingController _eventsFilterController = TextEditingController();
@@ -69,6 +81,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   void dispose() {
     _taskboardSubscription?.cancel();
     _projectEventsSubscription?.cancel();
+    _projectEventsReconnectTimer?.cancel();
     _eventsFilterController.dispose();
     _pipelineRunIDController.dispose();
     _pipelineTaskIDController.dispose();
@@ -101,27 +114,302 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
   void _startProjectEventsSubscription() {
     _projectEventsSubscription?.cancel();
+    _projectEventsReconnectTimer?.cancel();
     _projectEventsSubscription = _api
-        .projectEventsStream(projectID: _projectSetup.projectID)
-        .listen((ApiResult<StreamEvent> eventResult) {
-          if (!mounted || !eventResult.isSuccess || eventResult.data == null) {
-            return;
-          }
-          final incoming = eventResult.data!;
-          setState(() {
-            final deduped = <String>{incoming.eventID};
-            final merged = <StreamEvent>[incoming];
-            for (final existing in _projectEvents) {
-              if (deduped.contains(existing.eventID)) {
-                continue;
-              }
-              deduped.add(existing.eventID);
-              merged.add(existing);
+        .projectEventsStream(
+          projectID: _projectSetup.projectID,
+          fromOffset: _nextProjectEventsOffset,
+        )
+        .listen(
+          (ApiResult<StreamEvent> eventResult) {
+            if (!mounted) {
+              return;
             }
-            merged.sort((a, b) => b.streamOffset.compareTo(a.streamOffset));
-            _projectEvents = merged.take(300).toList(growable: false);
-          });
-        });
+            if (!eventResult.isSuccess || eventResult.data == null) {
+              setState(() {
+                _statusMessage =
+                    eventResult.errorMessage ??
+                    'Project events stream degraded';
+              });
+              _scheduleProjectEventsReconnect();
+              return;
+            }
+            final incoming = eventResult.data!;
+            setState(() {
+              if (incoming.streamOffset >= _nextProjectEventsOffset) {
+                _nextProjectEventsOffset = incoming.streamOffset + 1;
+              }
+              final deduped = <String>{incoming.eventID};
+              final merged = <StreamEvent>[incoming];
+              for (final existing in _projectEvents) {
+                if (deduped.contains(existing.eventID)) {
+                  continue;
+                }
+                deduped.add(existing.eventID);
+                merged.add(existing);
+              }
+              merged.sort((a, b) => b.streamOffset.compareTo(a.streamOffset));
+              _projectEvents = merged.take(300).toList(growable: false);
+
+              final now = DateTime.now().toUtc();
+              final summaryKey = _summaryKeyForEvent(incoming);
+              final existingIndex = _realtimeSummaryFeed.indexWhere(
+                (entry) => _summaryKeyForEvent(entry.event) == summaryKey,
+              );
+              final summaryEntry = _RealtimeSummaryEntry(
+                event: incoming,
+                receivedAt: now,
+              );
+              if (existingIndex >= 0) {
+                _realtimeSummaryFeed.removeAt(existingIndex);
+                _realtimeSummaryFeed.insert(0, summaryEntry);
+              } else {
+                _realtimeSummaryFeed.insert(0, summaryEntry);
+                if (_realtimeSummaryUnread < 999) {
+                  _realtimeSummaryUnread += 1;
+                }
+              }
+              if (_realtimeSummaryFeed.length > 80) {
+                _realtimeSummaryFeed.removeRange(
+                  80,
+                  _realtimeSummaryFeed.length,
+                );
+              }
+            });
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _statusMessage = 'Project events stream disconnected: $error';
+            });
+            _scheduleProjectEventsReconnect();
+          },
+          onDone: () {
+            if (!mounted) {
+              return;
+            }
+            _scheduleProjectEventsReconnect();
+          },
+        );
+  }
+
+  String _summaryKeyForEvent(StreamEvent event) {
+    final sessionID = event.sessionID?.trim();
+    if (sessionID != null && sessionID.isNotEmpty) {
+      return 'session:$sessionID';
+    }
+    final runID = event.runID?.trim() ?? '';
+    final taskID = event.taskID?.trim() ?? '';
+    final jobID = event.jobID?.trim() ?? '';
+    if (runID.isNotEmpty || taskID.isNotEmpty || jobID.isNotEmpty) {
+      return 'corr:$runID|$taskID|$jobID';
+    }
+    return 'event:${event.eventID.trim()}';
+  }
+
+  void _scheduleProjectEventsReconnect() {
+    _projectEventsReconnectTimer?.cancel();
+    _projectEventsReconnectTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) {
+        return;
+      }
+      _startProjectEventsSubscription();
+    });
+  }
+
+  Future<void> _openRealtimeSummaryFeed() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _realtimeSummaryUnread = 0;
+    });
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Realtime summary feed',
+      barrierColor: Colors.black38,
+      pageBuilder: (BuildContext context, _, __) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 70, right: 12, left: 12),
+              child: Material(
+                elevation: 10,
+                borderRadius: BorderRadius.circular(12),
+                color: Theme.of(context).colorScheme.surface,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 460,
+                    maxHeight: 560,
+                    minWidth: 320,
+                  ),
+                  child: _buildRealtimeSummaryPanel(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRealtimeSummaryPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  'Realtime Summary',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                'Since app load',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        if (_realtimeSummaryFeed.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('No realtime events received yet.'),
+          )
+        else
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              itemCount: _realtimeSummaryFeed.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (BuildContext context, int index) {
+                final entry = _realtimeSummaryFeed[index];
+                final event = entry.event;
+                final status = _summaryStatusForEvent(event);
+                final statusColor = _summaryStatusColor(status, context);
+                final relative = _relativeTime(entry.receivedAt);
+                return ListTile(
+                  minVerticalPadding: 6,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  onTap: () => _openSummarySessionInspection(event.sessionID),
+                  title: Text(
+                    _summaryTitleForEvent(event),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    'session=${event.sessionID ?? '-'} • $status',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        relative,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _summaryTitleForEvent(StreamEvent event) {
+    final normalizedType = event.eventType.trim();
+    if (normalizedType.isEmpty) {
+      return 'Event update';
+    }
+    return normalizedType;
+  }
+
+  String _summaryStatusForEvent(StreamEvent event) {
+    final eventType = event.eventType.toLowerCase();
+    if (eventType.contains('failed') ||
+        eventType.contains('error') ||
+        eventType.contains('terminate')) {
+      return 'failed';
+    }
+    if (eventType.contains('completed')) {
+      return 'completed';
+    }
+    if (eventType.contains('degraded') ||
+        eventType.contains('gap') ||
+        eventType.contains('pause')) {
+      return 'degraded';
+    }
+    if (eventType.contains('started') || eventType.contains('heartbeat')) {
+      return 'running';
+    }
+    return 'updated';
+  }
+
+  Color _summaryStatusColor(String status, BuildContext context) {
+    switch (status) {
+      case 'failed':
+        return Theme.of(context).colorScheme.error;
+      case 'completed':
+        return Colors.green.shade700;
+      case 'degraded':
+        return Colors.amber.shade800;
+      case 'running':
+        return Colors.blue.shade700;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
+  }
+
+  String _relativeTime(DateTime timestamp) {
+    final delta = DateTime.now().toUtc().difference(timestamp.toUtc());
+    if (delta.inSeconds < 5) {
+      return 'now';
+    }
+    if (delta.inMinutes < 1) {
+      return '${delta.inSeconds}s';
+    }
+    if (delta.inHours < 1) {
+      return '${delta.inMinutes}m';
+    }
+    return '${delta.inHours}h';
   }
 
   Future<void> _refreshEventsBoard({bool silent = false}) async {
@@ -245,16 +533,30 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     );
   }
 
-  Future<void> _openEventsMatrixPage() async {
+  Future<void> _openEventsMatrixPage({String? sessionID}) async {
+    final normalizedSessionID = sessionID?.trim();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => ProjectEventsMatrixPage(
           api: _api,
           projectID: _projectSetup.projectID,
           projectName: _projectSetup.projectName,
+          initialMode:
+              normalizedSessionID != null && normalizedSessionID.isNotEmpty
+              ? _EventsBoardMode.sessionInspection
+              : _EventsBoardMode.globalLive,
+          initialSessionID: normalizedSessionID,
         ),
       ),
     );
+  }
+
+  Future<void> _openSummarySessionInspection(String? sessionID) async {
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop();
+    await _openEventsMatrixPage(sessionID: sessionID);
   }
 
   void _goToDashboardHome() {
@@ -395,29 +697,45 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
             error: {
               'projectID': request.data!.projectID,
               'documentID': request.data!.documentID,
-              'cleanupError': cleanup.errorMessage,
             },
           );
         }
-        failures.add('${file.name}: ${upload.errorMessage ?? 'upload failed'}');
+        failures.add(
+          '${file.name}: ${upload.errorMessage ?? 'failed uploading document'}',
+        );
         continue;
       }
-      uploadedCount++;
+
+      uploadedCount += 1;
     }
 
-    await _loadProjectDocuments();
     if (!mounted) {
       return;
     }
+
     setState(() {
       _isUploadingFiles = false;
       if (failures.isEmpty) {
         _statusMessage = 'Uploaded $uploadedCount file(s).';
       } else {
         _statusMessage =
-            'Uploaded $uploadedCount file(s); ${failures.length} failed: ${failures.first}';
+            'Uploaded $uploadedCount file(s), ${failures.length} failed.';
       }
     });
+
+    await _loadProjectDocuments();
+
+    if (failures.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failures.take(3).join(' | '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteProjectDocument(ProjectDocument document) async {
@@ -919,6 +1237,19 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
         title: Text(_projectSetup.projectName),
         actions: <Widget>[
           IconButton(
+            onPressed: _openRealtimeSummaryFeed,
+            tooltip: 'Realtime Summary Feed',
+            icon: Badge(
+              isLabelVisible: _realtimeSummaryUnread > 0,
+              label: Text(
+                _realtimeSummaryUnread > 99
+                    ? '99+'
+                    : _realtimeSummaryUnread.toString(),
+              ),
+              child: const Icon(Icons.notifications_none_outlined),
+            ),
+          ),
+          IconButton(
             onPressed: _isUploadingFiles ? null : _uploadFiles,
             icon: const Icon(Icons.upload_file_outlined),
             tooltip: 'Upload Files',
@@ -1233,12 +1564,16 @@ class ProjectEventsMatrixPage extends StatefulWidget {
     required this.api,
     required this.projectID,
     required this.projectName,
+    this.initialMode = _EventsBoardMode.globalLive,
+    this.initialSessionID,
     super.key,
   });
 
   final ControlPlaneApi api;
   final String projectID;
   final String projectName;
+  final _EventsBoardMode initialMode;
+  final String? initialSessionID;
 
   @override
   State<ProjectEventsMatrixPage> createState() =>
@@ -1258,6 +1593,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   final TextEditingController _runIDController = TextEditingController();
   final TextEditingController _taskIDController = TextEditingController();
   final TextEditingController _jobIDController = TextEditingController();
+  final Set<String> _expandedEventIDs = <String>{};
 
   _EventsBoardMode _mode = _EventsBoardMode.globalLive;
   _LiveFeedSubStatus _liveFeedStatus = _LiveFeedSubStatus.connecting;
@@ -1277,6 +1613,8 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   @override
   void initState() {
     super.initState();
+    _mode = widget.initialMode;
+    _selectedSessionID = widget.initialSessionID?.trim();
     _startActiveLivePruneTicker();
     _startProjectSubscription();
     unawaited(_refresh(silent: true));
@@ -2070,13 +2408,18 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   Widget _buildEventCard(
     StreamEvent event, {
     bool showOffset = true,
-    bool showFullPayload = false,
     bool forceErrorAccent = false,
   }) {
+    final eventID = event.eventID.trim();
+    final isExpanded = _expandedEventIDs.contains(eventID);
     final accent = forceErrorAccent
         ? Theme.of(context).colorScheme.error
         : _eventAccentColor(context, event);
     final reason = _eventFailureReason(event);
+    final rawPayload = event.payload.trim();
+    final prettyPayload = _prettyEventPayload(event.payload);
+    final hasPayload = rawPayload.isNotEmpty;
+    final payloadToDisplay = isExpanded ? prettyPayload : rawPayload;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -2089,29 +2432,55 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                if (showOffset) ...<Widget>[
-                  Text(
-                    '#${event.streamOffset}',
-                    style: TextStyle(
-                      color: accent,
-                      fontWeight: FontWeight.w700,
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () {
+                if (!hasPayload) {
+                  return;
+                }
+                setState(() {
+                  if (isExpanded) {
+                    _expandedEventIDs.remove(eventID);
+                  } else {
+                    _expandedEventIDs.add(eventID);
+                  }
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: <Widget>[
+                    if (showOffset) ...<Widget>[
+                      Text(
+                        '#${event.streamOffset}',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: Text(
+                        event.eventType,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: Text(
-                    event.eventType,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                    if (hasPayload) ...<Widget>[
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      event.occurredAt.toIso8601String(),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
                 ),
-                Text(
-                  event.occurredAt.toIso8601String(),
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -2128,7 +2497,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
                 ),
               ),
             ],
-            if (event.payload.trim().isNotEmpty) ...<Widget>[
+            if (hasPayload) ...<Widget>[
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -2138,9 +2507,9 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  event.payload,
-                  maxLines: showFullPayload ? null : 2,
-                  overflow: showFullPayload
+                  payloadToDisplay,
+                  maxLines: isExpanded ? null : 2,
+                  overflow: isExpanded
                       ? TextOverflow.visible
                       : TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -2155,6 +2524,20 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         ),
       ),
     );
+  }
+
+  String _prettyEventPayload(String rawPayload) {
+    final payloadText = rawPayload.trim();
+    if (payloadText.isEmpty) {
+      return '';
+    }
+    try {
+      final decoded = jsonDecode(payloadText);
+      const encoder = JsonEncoder.withIndent('  ');
+      return encoder.convert(decoded);
+    } catch (_) {
+      return payloadText;
+    }
   }
 
   Widget _buildGlobalPanel() {
@@ -2309,7 +2692,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         if (_shouldShowSessionRealtimeBlock(selected)) ...<Widget>[
           Text('Realtime', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
-          _buildEventCard(_latestSessionLiveEvent!, showFullPayload: true),
+          _buildEventCard(_latestSessionLiveEvent!),
           const SizedBox(height: 12),
         ],
         if (_sessionHistory.isEmpty)
@@ -2317,9 +2700,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         else ...<Widget>[
           Text('History', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
-          ..._sessionHistory.map(
-            (event) => _buildEventCard(event, showFullPayload: true),
-          ),
+          ..._sessionHistory.map(_buildEventCard),
         ],
       ],
     );
@@ -2404,6 +2785,16 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
                 ),
               ),
             ),
+          TextButton(
+            onPressed: _expandedEventIDs.isEmpty
+                ? null
+                : () {
+                    setState(() {
+                      _expandedEventIDs.clear();
+                    });
+                  },
+            child: const Text('Collapse All'),
+          ),
           IconButton(
             onPressed: _refresh,
             tooltip: 'Reload',

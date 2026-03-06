@@ -298,11 +298,27 @@ func TestJobLifecycleMiddlewarePersistsHeartbeatRuntimeSignals(t *testing.T) {
 	if len(transport.runtimeSignals) != 1 {
 		t.Fatalf("expected one heartbeat runtime signal, got %d", len(transport.runtimeSignals))
 	}
-	if len(store.events) != 1 {
-		t.Fatalf("expected one persisted heartbeat lifecycle event, got %d", len(store.events))
+	if len(store.events) != 4 {
+		t.Fatalf("expected layered heartbeat lifecycle events to be persisted, got %d", len(store.events))
 	}
-	if store.events[0].EventType != domainlifecycle.EventType("heartbeat") {
+	if store.events[0].EventType != domainlifecycle.EventHeartbeat {
 		t.Fatalf("expected persisted heartbeat event type, got %q", store.events[0].EventType)
+	}
+	hasRuntime := false
+	hasProcess := false
+	hasActivity := false
+	for _, event := range store.events {
+		switch event.EventType {
+		case domainlifecycle.EventRuntimeHeartbeat:
+			hasRuntime = true
+		case domainlifecycle.EventProcessHeartbeat:
+			hasProcess = true
+		case domainlifecycle.EventActivityHeartbeat:
+			hasActivity = true
+		}
+	}
+	if !hasRuntime || !hasProcess || !hasActivity {
+		t.Fatalf("expected runtime/process/activity layered heartbeat events, got runtime=%t process=%t activity=%t", hasRuntime, hasProcess, hasActivity)
 	}
 	if store.events[0].SessionID != "session-1" {
 		t.Fatalf("expected persisted session_id session-1, got %q", store.events[0].SessionID)

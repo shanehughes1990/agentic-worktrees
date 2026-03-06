@@ -26,6 +26,12 @@ This scope is based on:
   - `session.db` is durable context/history.
   - `workspace.yaml` provides context binding but weak liveness value.
   - `checkpoints/index.md` and `plan.md` are useful for human intervention context.
+- Live worker investigation findings (non-`events.jsonl` probes):
+  - Process liveness via `ps` (PID, elapsed time, process state, CPU) is a strong runtime-active signal.
+  - Copilot process log growth (`~/.copilot/logs/process-*.log` mtime/size) is a strong progress signal.
+  - Copilot JSON stdout lifecycle (`assistant.turn_start`, `tool.execution_start`, `tool.execution_complete`, `assistant.turn_end`) is a strong session activity signal when available.
+  - `workspace.yaml`, `checkpoints/index.md`, and `plan.md` are useful context signals, but weak as sole liveness proof.
+  - `session.db` existence/size may be inconsistent during active execution and must not be the primary runtime liveness signal.
 - Reference architecture findings from `.docs/agent-orchestrator`:
   - Runtime liveness is treated as authoritative first.
   - Session metadata is control-plane truth.
@@ -72,6 +78,85 @@ Primary signals:
 
 - `session.db` and persisted run/session metadata used for recovery context and post-mortem mapping.
 
+### Heartbeat Coverage and Gaps (Current)
+
+Current heartbeat coverage already implemented:
+
+- Worker registry heartbeat request/response flow validates worker lease and epoch health.
+- Deadline miss invalidates/deregisters unhealthy worker leases.
+
+What this covers well:
+
+- API <-> worker runtime reachability.
+- Worker process-level health and lease continuity.
+
+What this does not guarantee:
+
+- Copilot CLI session progress for a specific `session_id`.
+- Whether agent is actively running tools/model turns versus idle/waiting.
+- Whether task-level execution is stuck while worker process remains healthy.
+
+### Layered Session Heartbeats (Required Additions)
+
+Add session-scoped heartbeat layers for session inspection ingestion, persistence, and upstream fan-out.
+
+Layer 0: runtime lease heartbeat (existing)
+
+- Source: worker registry heartbeat request/response.
+- Scope: worker-level (`worker_id`, `epoch`).
+- Purpose: runtime transport/lease health baseline.
+
+Layer 1: session process heartbeat
+
+- Source: worker-side process probe for correlated Copilot process (`pid`, `stat`, `%cpu`, `etime`).
+- Scope: `session_id` correlation track.
+- Purpose: prove session process exists and is not exited.
+
+Layer 2: session activity heartbeat
+
+- Source: session activity freshness from parsed session lifecycle signals (including `events.jsonl`-derived events).
+- Scope: `session_id`.
+- Purpose: prove recent assistant/tool/session event activity.
+
+Layer 3: tool/turn heartbeat
+
+- Source: Copilot tool/turn lifecycle (`tool.execution_start`, `tool.execution_complete`, `assistant.turn_start`, `assistant.turn_end`) from session stream and/or JSON stdout capture when present.
+- Scope: `session_id`.
+- Purpose: distinguish active execution from passive runtime survival.
+
+Layer 4: log-progress heartbeat
+
+- Source: process log growth (`process-*.log` mtime/size deltas) and model-request group cadence.
+- Scope: `session_id` to process-log correlation.
+- Purpose: independent progress signal outside session-state events.
+
+Layer 5: context/progress heartbeat (weak signal)
+
+- Source: `checkpoints/index.md`, `plan.md`, and other session companion artifact updates.
+- Scope: `session_id`.
+- Purpose: context drift/progress hints, not primary liveness.
+
+### Heartbeat Quorum Rule for Running Confidence
+
+Session status confidence must be derived from quorum, not one source.
+
+Required confidence model:
+
+- `running_confident` when:
+  - runtime lease heartbeat is fresh
+  - session process heartbeat is fresh
+  - and at least one of {session activity heartbeat, tool/turn heartbeat, log-progress heartbeat} is fresh
+- `running_degraded` when runtime+process are fresh but no progress heartbeat is fresh in grace window.
+- `idle_suspected` when process is alive but progress heartbeats are stale for threshold window.
+- `done_or_exited` when process heartbeat is absent or explicit terminal signal is observed.
+
+Freshness windows (initial defaults):
+
+- runtime lease heartbeat: <= 30s
+- session process heartbeat: <= 15s
+- activity/tool/log progress heartbeat: <= 20s
+- idle suspicion promotion: >= 2 consecutive stale windows
+
 ## Stability State Contract
 
 Define explicit health/intervention states:
@@ -103,12 +188,16 @@ Initial policy defaults (configurable via typed config, not ad-hoc flags):
 - Stuck threshold: 5 minutes without event/checkpoint progress while runtime alive.
 - Unexpected exit: immediate critical intervention event.
 - Flapping guard: debounce transitions to avoid noisy oscillation.
+- Heartbeat quorum degraded threshold: 45 seconds.
+- Idle suspected threshold (process alive, no progress heartbeats): 2 minutes.
 
 Policy requirements:
 
 - Deterministic evaluation order: liveness -> activity freshness -> checkpoint drift.
 - Typed failure class mapping (`transient` vs `terminal`) for queue policy compatibility.
 - Idempotent transition writes.
+- Deterministic heartbeat evaluation order: runtime lease -> session process -> activity/tool/log progress -> weak context signals.
+- Stuck classification must require quorum-aware evidence (not a single stale signal).
 
 ## Intervention Feedback Channels
 
@@ -135,6 +224,22 @@ Persist stability snapshots/events with enough fidelity for replay and audit:
 - Last checkpoint/progress timestamp.
 - Current stability state.
 - Transition history with reason codes.
+- Heartbeat layer freshness and confidence (`running_confident`, `running_degraded`, `idle_suspected`).
+
+Mandatory heartbeat snapshot fields (minimum):
+
+- `last_runtime_heartbeat_at`
+- `last_process_heartbeat_at`
+- `last_activity_heartbeat_at`
+- `last_tool_heartbeat_at`
+- `last_log_heartbeat_at`
+- `heartbeat_quorum_state`
+- `heartbeat_confidence_score` (normalized 0-100)
+
+Heartbeat ingestion requirement:
+
+- Each heartbeat layer is an ingestion point into session inspection, persisted into lifecycle history, then fanned out upstream through existing ordered event transport.
+- Heartbeat-derived transitions must be emitted only when materially changed (idempotent transition policy).
 
 Mandatory persistence targets:
 
@@ -204,6 +309,16 @@ Required columns:
 - `created_at` (timestamptz, not null)
 - `updated_at` (timestamptz, not null)
 
+Required extension columns for layered heartbeats:
+
+- `last_runtime_heartbeat_at` (timestamptz, nullable)
+- `last_process_heartbeat_at` (timestamptz, nullable)
+- `last_activity_heartbeat_at` (timestamptz, nullable)
+- `last_tool_heartbeat_at` (timestamptz, nullable)
+- `last_log_heartbeat_at` (timestamptz, nullable)
+- `heartbeat_quorum_state` (text, nullable)
+- `heartbeat_confidence_score` (int, nullable)
+
 Required constraints:
 
 - unique (`session_id`)
@@ -258,6 +373,14 @@ Required columns:
 - `actor_type` (text, nullable)  # system|worker|user|automation
 - `actor_id` (text, nullable)
 - `created_at` (timestamptz, not null)
+
+Required heartbeat metadata in `payload_json` (minimum):
+
+- `heartbeat_layer`
+- `heartbeat_source`
+- `heartbeat_freshness_ms`
+- `heartbeat_quorum_state`
+- `heartbeat_confidence_score`
 
 Required constraints:
 
@@ -320,6 +443,13 @@ Minimum event types that must be persisted in `project_session_history`:
 - `enqueued`
 - `started`
 - `heartbeat`
+- `runtime_heartbeat`
+- `process_heartbeat`
+- `activity_heartbeat`
+- `tool_heartbeat`
+- `log_heartbeat`
+- `heartbeat_quorum_degraded`
+- `heartbeat_quorum_recovered`
 - `activity_classified`
 - `waiting_input`
 - `stuck_detected`
@@ -787,6 +917,9 @@ Required metrics:
 20. Manual intervention actions are persisted with actor and reason, and replayable in audit trail.
 21. Backpressure in listener pipelines does not block canonical event persistence.
 22. Table-change watch infrastructure is reusable/agnostic and can onboard new table streams without architecture changes.
+23. Existing worker lease heartbeat coverage is preserved and explicitly mapped as layer-0 heartbeat in session inspection.
+24. Session inspection persists and streams layered heartbeat evidence (`runtime`, `process`, `activity`, `tool`, `log`) with deterministic ordering.
+25. Running-confidence classification is quorum-based and prevents false "running" status from worker-lease heartbeat alone.
 
 ## Test Strategy
 
@@ -819,6 +952,12 @@ Required test coverage:
   - runtime alive + no progress
   - waiting input
   - blocked/error
+- Layered heartbeat tests:
+  - worker lease heartbeat fresh + no process heartbeat -> must not classify `running_confident`
+  - process heartbeat fresh + stale activity/tool/log heartbeats -> classify `running_degraded` then `idle_suspected`
+  - process missing + terminal/liveness failure -> classify `done_or_exited` / `exited_unexpected`
+  - heartbeat quorum degradation/recovery emits ordered transition events exactly once per transition
+  - heartbeat payload persistence includes layer/source/freshness/quorum/confidence metadata
 
 Testing ethics:
 

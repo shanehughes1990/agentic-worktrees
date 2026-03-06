@@ -109,3 +109,92 @@ stat -c '%y %n' \
 # Inspect sandbox root used by this cycle
 find /tmp/ingestion-sandbox-2107252471/sandbox -maxdepth 3 -type d | head -n 50
 ```
+
+## Idle Detection Research (Outside `events.jsonl`)
+
+This section documents probes run directly in the worker container to detect `working` vs `done` vs `idle` without relying on `events.jsonl` parsing.
+
+### Controlled Long-Run Trigger Used
+
+Executed Copilot CLI non-interactive prompts that force a long shell step (`sleep 60` / `sleep 90`) so the process remains active long enough for probing.
+
+Example:
+
+```bash
+copilot --allow-all --output-format json -p "Run exactly this shell command first: echo start && date -u && sleep 60 && date -u && echo end. After it completes, summarize in one sentence."
+```
+
+### Probe 1: Process Liveness and CPU (Best Immediate Signal)
+
+Observed during the forced long run:
+
+- parent shell process (`sh -lc ...`) remains present
+- child `copilot` process remains present with elapsed time and non-zero CPU at times
+
+Sample observed output (sanitized):
+
+```text
+pid=... stat=Ss etime=00:59 args=sh -lc copilot --allow-all --output-format json -p ...
+pid=... stat=Sl %cpu=7.4 etime=00:59 args=copilot --allow-all --output-format json -p ...
+```
+
+Interpretation:
+
+- `working`: matching `copilot` process exists for active run
+- `done`: matching `copilot` process disappears
+- `idle`: process exists but no companion activity signals change for a grace window
+
+### Probe 2: Copilot Process Logs (`~/.copilot/logs/process-*.log`)
+
+Observed log markers include:
+
+- startup + workspace init
+- repeated `Sending request to the AI model` groups with `Start`/`End`
+- transport close near process shutdown (`MCP transport ... closed`)
+
+Useful signals outside `events.jsonl`:
+
+- latest log file `mtime` and `size` increasing -> active work
+- no growth for sustained window while process still alive -> likely idle/waiting
+- final close markers + process exit -> done
+
+### Probe 3: CLI Stdout JSON Event Stream (When Running With `--output-format json`)
+
+Observed lifecycle in terminal output:
+
+- `assistant.turn_start`
+- `tool.execution_start`
+- `tool.execution_partial_result`
+- `tool.execution_complete`
+- `assistant.turn_end`
+
+This stream is distinct from session-state file tailing and can be consumed directly from the running command output.
+
+### Probe 4: Session Companion Artifacts (Non-`events.jsonl`)
+
+Observed in newest session directory:
+
+- `workspace.yaml`: created early and stable
+- `checkpoints/index.md`: present, may remain unchanged for short runs
+- `plan.md`: not guaranteed to exist
+- `session.db`: inconsistent as activity signal in this run set (absent initially, later created as 0 bytes in one session)
+
+Conclusion: these are secondary hints, not primary liveness indicators.
+
+### Practical Status Classification (Recommended)
+
+For a single active Copilot run, combine probes in this order:
+
+1. `done`
+  - no matching `copilot` process for the tracked run
+  - and log file no longer growing
+2. `working`
+  - matching `copilot` process exists
+  - and at least one of: CPU activity, log growth, stdout JSON tool/turn events
+3. `idle`
+  - matching `copilot` process exists
+  - but no log growth and no stdout lifecycle deltas for N seconds (suggest 20-30s)
+
+### Why This Matters
+
+This gives reliable run-state detection even if `events.jsonl` ingestion is delayed, temporarily unavailable, or intentionally excluded from a detection path.

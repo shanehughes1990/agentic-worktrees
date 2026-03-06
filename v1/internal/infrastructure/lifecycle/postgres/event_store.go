@@ -17,7 +17,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const listenerCircuitOpenThreshold = 3
+const (
+	listenerCircuitOpenThreshold = 3
+	quorumTransitionMinGap       = 5 * time.Second
+)
 
 type eventHistoryRecord struct {
 	gorm.Model
@@ -47,28 +50,35 @@ func (eventHistoryRecord) TableName() string {
 
 type projectSessionRecord struct {
 	gorm.Model
-	ID                  uint64     `gorm:"primaryKey;autoIncrement"`
-	ProjectID           string     `gorm:"column:project_id;size:255;not null;index:idx_project_sessions_project_updated,priority:1;index:idx_project_sessions_project_state,priority:1"`
-	RunID               string     `gorm:"column:run_id;size:255;index"`
-	PipelineType        string     `gorm:"column:pipeline_type;size:128;not null;index:idx_project_sessions_project_pipeline,priority:2"`
-	TaskID              string     `gorm:"column:task_id;size:255;index"`
-	JobID               string     `gorm:"column:job_id;size:255;index"`
-	SessionID           string     `gorm:"column:session_id;size:255;not null;uniqueIndex"`
-	WorkerID            string     `gorm:"column:worker_id;size:255"`
-	SourceRuntime       string     `gorm:"column:source_runtime;size:128;not null"`
-	CurrentState        string     `gorm:"column:current_state;size:64;not null;index:idx_project_sessions_project_state,priority:2"`
-	CurrentSeverity     string     `gorm:"column:current_severity;size:32;not null"`
-	LastReasonCode      string     `gorm:"column:last_reason_code;size:128"`
-	LastReasonSummary   string     `gorm:"column:last_reason_summary;size:1024"`
-	LastLivenessAt      *time.Time `gorm:"column:last_liveness_at"`
-	LastActivityAt      *time.Time `gorm:"column:last_activity_at"`
-	LastCheckpointAt    *time.Time `gorm:"column:last_checkpoint_at"`
-	LastEventSeq        int64      `gorm:"column:last_event_seq;not null"`
-	LastProjectEventSeq int64      `gorm:"column:last_project_event_seq;not null"`
-	StartedAt           time.Time  `gorm:"column:started_at;not null"`
-	EndedAt             *time.Time `gorm:"column:ended_at"`
-	CreatedAt           time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
-	UpdatedAt           time.Time  `gorm:"column:updated_at;not null;autoUpdateTime;index:idx_project_sessions_project_updated,priority:2"`
+	ID                       uint64     `gorm:"primaryKey;autoIncrement"`
+	ProjectID                string     `gorm:"column:project_id;size:255;not null;index:idx_project_sessions_project_updated,priority:1;index:idx_project_sessions_project_state,priority:1"`
+	RunID                    string     `gorm:"column:run_id;size:255;index"`
+	PipelineType             string     `gorm:"column:pipeline_type;size:128;not null;index:idx_project_sessions_project_pipeline,priority:2"`
+	TaskID                   string     `gorm:"column:task_id;size:255;index"`
+	JobID                    string     `gorm:"column:job_id;size:255;index"`
+	SessionID                string     `gorm:"column:session_id;size:255;not null;uniqueIndex"`
+	WorkerID                 string     `gorm:"column:worker_id;size:255"`
+	SourceRuntime            string     `gorm:"column:source_runtime;size:128;not null"`
+	CurrentState             string     `gorm:"column:current_state;size:64;not null;index:idx_project_sessions_project_state,priority:2"`
+	CurrentSeverity          string     `gorm:"column:current_severity;size:32;not null"`
+	LastReasonCode           string     `gorm:"column:last_reason_code;size:128"`
+	LastReasonSummary        string     `gorm:"column:last_reason_summary;size:1024"`
+	LastLivenessAt           *time.Time `gorm:"column:last_liveness_at"`
+	LastActivityAt           *time.Time `gorm:"column:last_activity_at"`
+	LastCheckpointAt         *time.Time `gorm:"column:last_checkpoint_at"`
+	LastRuntimeHeartbeatAt   *time.Time `gorm:"column:last_runtime_heartbeat_at"`
+	LastProcessHeartbeatAt   *time.Time `gorm:"column:last_process_heartbeat_at"`
+	LastActivityHeartbeatAt  *time.Time `gorm:"column:last_activity_heartbeat_at"`
+	LastToolHeartbeatAt      *time.Time `gorm:"column:last_tool_heartbeat_at"`
+	LastLogHeartbeatAt       *time.Time `gorm:"column:last_log_heartbeat_at"`
+	HeartbeatQuorumState     string     `gorm:"column:heartbeat_quorum_state;size:64"`
+	HeartbeatConfidenceScore int        `gorm:"column:heartbeat_confidence_score"`
+	LastEventSeq             int64      `gorm:"column:last_event_seq;not null"`
+	LastProjectEventSeq      int64      `gorm:"column:last_project_event_seq;not null"`
+	StartedAt                time.Time  `gorm:"column:started_at;not null"`
+	EndedAt                  *time.Time `gorm:"column:ended_at"`
+	CreatedAt                time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
+	UpdatedAt                time.Time  `gorm:"column:updated_at;not null;autoUpdateTime;index:idx_project_sessions_project_updated,priority:2"`
 }
 
 func (projectSessionRecord) TableName() string {
@@ -172,9 +182,11 @@ func (store *EventStore) Append(ctx context.Context, event domainlifecycle.Event
 	}
 
 	for attempt := 0; attempt < 3; attempt++ {
-		persisted, appendErr := store.appendOnce(ctx, event)
+		persisted, emitted, appendErr := store.appendOnce(ctx, event)
 		if appendErr == nil {
-			store.publishTableChangeSignals(ctx, persisted)
+			for _, published := range emitted {
+				store.publishTableChangeSignals(ctx, published)
+			}
 			return persisted, nil
 		}
 		if isDuplicateEventIDError(appendErr) {
@@ -293,15 +305,23 @@ func mergeTableEvent(base domainrealtime.TableChangeEvent, topic string, table s
 	return base
 }
 
-func (store *EventStore) appendOnce(ctx context.Context, event domainlifecycle.Event) (domainlifecycle.Event, error) {
+func (store *EventStore) appendOnce(ctx context.Context, event domainlifecycle.Event) (domainlifecycle.Event, []domainlifecycle.Event, error) {
 	payload := clonePayload(event.Payload)
 	payload, _ = domainsecurity.RedactPayload(payload)
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return domainlifecycle.Event{}, fmt.Errorf("lifecycle event store: marshal payload: %w", err)
+		return domainlifecycle.Event{}, nil, fmt.Errorf("lifecycle event store: marshal payload: %w", err)
 	}
 	var persisted domainlifecycle.Event
+	emitted := make([]domainlifecycle.Event, 0, 4)
 	txErr := store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var snapshotBefore *projectSessionRecord
+		if existing, loadErr := loadSnapshotRecord(tx, strings.TrimSpace(event.SessionID)); loadErr != nil {
+			return loadErr
+		} else {
+			snapshotBefore = existing
+		}
+
 		var maxSessionSeq int64
 		if err := tx.Model(&eventHistoryRecord{}).
 			Where("session_id = ?", strings.TrimSpace(event.SessionID)).
@@ -374,6 +394,7 @@ func (store *EventStore) appendOnce(ctx context.Context, event domainlifecycle.E
 			if err := upsertSessionSnapshot(tx, gapEvent, syntheticGapPayload(gapEvent), store.policy); err != nil {
 				return err
 			}
+			emitted = append(emitted, mapRecordToEvent(gapEvent))
 		}
 		if gapReconciled {
 			nextSessionSeq++
@@ -389,19 +410,32 @@ func (store *EventStore) appendOnce(ctx context.Context, event domainlifecycle.E
 			if err := upsertSessionSnapshot(tx, gapEvent, syntheticGapPayload(gapEvent), store.policy); err != nil {
 				return err
 			}
+			emitted = append(emitted, mapRecordToEvent(gapEvent))
 		}
 
 		if err := upsertSessionSnapshot(tx, record, payload, store.policy); err != nil {
 			return err
 		}
+
+		if synthetic := buildHeartbeatQuorumTransitionRecord(tx, record, payload, snapshotBefore); synthetic != nil {
+			if err := tx.Create(synthetic).Error; err != nil {
+				return fmt.Errorf("lifecycle event store: append synthetic heartbeat quorum transition: %w", err)
+			}
+			store.persistDeliveryRowsBestEffort(tx, *synthetic)
+			if err := upsertSessionSnapshot(tx, *synthetic, syntheticTransitionPayload(*synthetic), store.policy); err != nil {
+				return err
+			}
+			emitted = append(emitted, mapRecordToEvent(*synthetic))
+		}
 		persisted = mapRecordToEvent(record)
 		persisted.Payload = payload
+		emitted = append([]domainlifecycle.Event{persisted}, emitted...)
 		return nil
 	})
 	if txErr != nil {
-		return domainlifecycle.Event{}, txErr
+		return domainlifecycle.Event{}, nil, txErr
 	}
-	return persisted, nil
+	return persisted, emitted, nil
 }
 
 func (store *EventStore) persistDeliveryRowsBestEffort(tx *gorm.DB, history eventHistoryRecord) {
@@ -538,6 +572,28 @@ func upsertSessionSnapshot(tx *gorm.DB, history eventHistoryRecord, payload map[
 	if livenessAt == nil {
 		livenessAt = &activityAt
 	}
+	runtimeHeartbeatAt := payloadTime(payload, "last_runtime_heartbeat_at")
+	if runtimeHeartbeatAt == nil && strings.TrimSpace(history.EventType) == string(domainlifecycle.EventRuntimeHeartbeat) {
+		runtimeHeartbeatAt = &activityAt
+	}
+	processHeartbeatAt := payloadTime(payload, "last_process_heartbeat_at")
+	if processHeartbeatAt == nil && strings.TrimSpace(history.EventType) == string(domainlifecycle.EventProcessHeartbeat) {
+		processHeartbeatAt = &activityAt
+	}
+	activityHeartbeatAt := payloadTime(payload, "last_activity_heartbeat_at")
+	if activityHeartbeatAt == nil && strings.TrimSpace(history.EventType) == string(domainlifecycle.EventActivityHeartbeat) {
+		activityHeartbeatAt = &activityAt
+	}
+	toolHeartbeatAt := payloadTime(payload, "last_tool_heartbeat_at")
+	if toolHeartbeatAt == nil && strings.TrimSpace(history.EventType) == string(domainlifecycle.EventToolHeartbeat) {
+		toolHeartbeatAt = &activityAt
+	}
+	logHeartbeatAt := payloadTime(payload, "last_log_heartbeat_at")
+	if logHeartbeatAt == nil && strings.TrimSpace(history.EventType) == string(domainlifecycle.EventLogHeartbeat) {
+		logHeartbeatAt = &activityAt
+	}
+	heartbeatQuorumState := strings.TrimSpace(readString(payload, "heartbeat_quorum_state"))
+	heartbeatConfidenceScore := payloadInt(payload, "heartbeat_confidence_score")
 	checkpointAt := payloadTime(payload, "last_checkpoint_at")
 	if checkpointAt == nil && history.EventType == string(domainlifecycle.EventCompleted) {
 		checkpointAt = &activityAt
@@ -545,24 +601,31 @@ func upsertSessionSnapshot(tx *gorm.DB, history eventHistoryRecord, payload map[
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		newSnapshot := projectSessionRecord{
-			ProjectID:           strings.TrimSpace(history.ProjectID),
-			RunID:               strings.TrimSpace(history.RunID),
-			PipelineType:        strings.TrimSpace(history.PipelineType),
-			TaskID:              strings.TrimSpace(history.TaskID),
-			JobID:               strings.TrimSpace(history.JobID),
-			SessionID:           strings.TrimSpace(history.SessionID),
-			WorkerID:            strings.TrimSpace(history.WorkerID),
-			SourceRuntime:       strings.TrimSpace(history.SourceRuntime),
-			CurrentState:        state,
-			CurrentSeverity:     severity,
-			LastReasonCode:      lastReasonCode,
-			LastReasonSummary:   lastReasonSummary,
-			LastLivenessAt:      livenessAt,
-			LastActivityAt:      &activityAt,
-			LastCheckpointAt:    checkpointAt,
-			LastEventSeq:        history.EventSeq,
-			LastProjectEventSeq: history.ProjectEventSeq,
-			StartedAt:           history.OccurredAt,
+			ProjectID:                strings.TrimSpace(history.ProjectID),
+			RunID:                    strings.TrimSpace(history.RunID),
+			PipelineType:             strings.TrimSpace(history.PipelineType),
+			TaskID:                   strings.TrimSpace(history.TaskID),
+			JobID:                    strings.TrimSpace(history.JobID),
+			SessionID:                strings.TrimSpace(history.SessionID),
+			WorkerID:                 strings.TrimSpace(history.WorkerID),
+			SourceRuntime:            strings.TrimSpace(history.SourceRuntime),
+			CurrentState:             state,
+			CurrentSeverity:          severity,
+			LastReasonCode:           lastReasonCode,
+			LastReasonSummary:        lastReasonSummary,
+			LastLivenessAt:           livenessAt,
+			LastActivityAt:           &activityAt,
+			LastCheckpointAt:         checkpointAt,
+			LastRuntimeHeartbeatAt:   runtimeHeartbeatAt,
+			LastProcessHeartbeatAt:   processHeartbeatAt,
+			LastActivityHeartbeatAt:  activityHeartbeatAt,
+			LastToolHeartbeatAt:      toolHeartbeatAt,
+			LastLogHeartbeatAt:       logHeartbeatAt,
+			HeartbeatQuorumState:     heartbeatQuorumState,
+			HeartbeatConfidenceScore: heartbeatConfidenceScore,
+			LastEventSeq:             history.EventSeq,
+			LastProjectEventSeq:      history.ProjectEventSeq,
+			StartedAt:                history.OccurredAt,
 		}
 		if isTerminalEvent(history.EventType) {
 			endedAt := history.OccurredAt
@@ -594,6 +657,17 @@ func upsertSessionSnapshot(tx *gorm.DB, history eventHistoryRecord, payload map[
 	snapshot.LastActivityAt = maxTimePtr(snapshot.LastActivityAt, &activityAt)
 	snapshot.LastLivenessAt = maxTimePtr(snapshot.LastLivenessAt, livenessAt)
 	snapshot.LastCheckpointAt = maxTimePtr(snapshot.LastCheckpointAt, checkpointAt)
+	snapshot.LastRuntimeHeartbeatAt = maxTimePtr(snapshot.LastRuntimeHeartbeatAt, runtimeHeartbeatAt)
+	snapshot.LastProcessHeartbeatAt = maxTimePtr(snapshot.LastProcessHeartbeatAt, processHeartbeatAt)
+	snapshot.LastActivityHeartbeatAt = maxTimePtr(snapshot.LastActivityHeartbeatAt, activityHeartbeatAt)
+	snapshot.LastToolHeartbeatAt = maxTimePtr(snapshot.LastToolHeartbeatAt, toolHeartbeatAt)
+	snapshot.LastLogHeartbeatAt = maxTimePtr(snapshot.LastLogHeartbeatAt, logHeartbeatAt)
+	if heartbeatQuorumState != "" {
+		snapshot.HeartbeatQuorumState = heartbeatQuorumState
+	}
+	if heartbeatConfidenceScore > 0 {
+		snapshot.HeartbeatConfidenceScore = heartbeatConfidenceScore
+	}
 	snapshot.StartedAt = minTime(snapshot.StartedAt, history.OccurredAt)
 	if isTerminalEvent(history.EventType) {
 		endedAt := history.OccurredAt
@@ -604,6 +678,125 @@ func upsertSessionSnapshot(tx *gorm.DB, history eventHistoryRecord, payload map[
 		return fmt.Errorf("lifecycle event store: update project session snapshot: %w", err)
 	}
 	return nil
+}
+
+func loadSnapshotRecord(tx *gorm.DB, sessionID string) (*projectSessionRecord, error) {
+	if tx == nil {
+		return nil, fmt.Errorf("lifecycle event store: tx is required")
+	}
+	trimmed := strings.TrimSpace(sessionID)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var snapshot projectSessionRecord
+	err := tx.Where("session_id = ?", trimmed).Take(&snapshot).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lifecycle event store: load project session snapshot: %w", err)
+	}
+	clone := snapshot
+	return &clone, nil
+}
+
+func buildHeartbeatQuorumTransitionRecord(tx *gorm.DB, source eventHistoryRecord, payload map[string]any, previous *projectSessionRecord) *eventHistoryRecord {
+	if previous == nil {
+		return nil
+	}
+	current, err := loadSnapshotRecord(tx, source.SessionID)
+	if err != nil || current == nil {
+		return nil
+	}
+
+	fromState := strings.TrimSpace(strings.ToLower(previous.HeartbeatQuorumState))
+	toState := strings.TrimSpace(strings.ToLower(current.HeartbeatQuorumState))
+	if fromState == "" || toState == "" || fromState == toState {
+		return nil
+	}
+	if !isHeartbeatQuorumTransition(fromState, toState) {
+		return nil
+	}
+
+	transitionAt := source.OccurredAt.UTC()
+	if current.LastActivityAt != nil && !current.LastActivityAt.IsZero() {
+		transitionAt = current.LastActivityAt.UTC()
+	}
+	if previous.UpdatedAt.After(time.Time{}) {
+		if transitionAt.Sub(previous.UpdatedAt.UTC()) < quorumTransitionMinGap {
+			return nil
+		}
+	}
+
+	nextSessionSeq := source.EventSeq + 1
+	nextProjectSeq := source.ProjectEventSeq + 1
+	transitionType := domainlifecycle.EventHeartbeatQuorumRecovered
+	if fromState == "running_ok" && toState == "running_degraded" {
+		transitionType = domainlifecycle.EventHeartbeatQuorumDegraded
+	}
+
+	transitionPayload, marshalErr := json.Marshal(map[string]any{
+		"heartbeat_layer":            "quorum",
+		"heartbeat_source":           "derived",
+		"trigger_event_type":         strings.TrimSpace(source.EventType),
+		"from_heartbeat_quorum":      fromState,
+		"to_heartbeat_quorum":        toState,
+		"heartbeat_confidence_score": current.HeartbeatConfidenceScore,
+		"last_runtime_heartbeat_at":  formatNullableTime(current.LastRuntimeHeartbeatAt),
+		"last_process_heartbeat_at":  formatNullableTime(current.LastProcessHeartbeatAt),
+		"last_activity_heartbeat_at": formatNullableTime(current.LastActivityHeartbeatAt),
+		"last_tool_heartbeat_at":     formatNullableTime(current.LastToolHeartbeatAt),
+		"last_log_heartbeat_at":      formatNullableTime(current.LastLogHeartbeatAt),
+	})
+	if marshalErr != nil {
+		return nil
+	}
+
+	return &eventHistoryRecord{
+		EventID:         fmt.Sprintf("lifecycle:heartbeat-quorum:%s:%s:%d", strings.TrimSpace(source.SessionID), strings.TrimSpace(string(transitionType)), nextSessionSeq),
+		SchemaVersion:   source.SchemaVersion,
+		ProjectID:       strings.TrimSpace(source.ProjectID),
+		RunID:           strings.TrimSpace(source.RunID),
+		TaskID:          strings.TrimSpace(source.TaskID),
+		JobID:           strings.TrimSpace(source.JobID),
+		SessionID:       strings.TrimSpace(source.SessionID),
+		WorkerID:        strings.TrimSpace(source.WorkerID),
+		SourceRuntime:   strings.TrimSpace(source.SourceRuntime),
+		PipelineType:    strings.TrimSpace(source.PipelineType),
+		ProjectEventSeq: nextProjectSeq,
+		EventSeq:        nextSessionSeq,
+		OccurredAt:      transitionAt,
+		IngestedAt:      source.IngestedAt.UTC(),
+		EventType:       string(transitionType),
+		PayloadJSON:     string(transitionPayload),
+		CreatedAt:       source.CreatedAt.UTC(),
+	}
+}
+
+func syntheticTransitionPayload(record eventHistoryRecord) map[string]any {
+	result := map[string]any{}
+	if strings.TrimSpace(record.PayloadJSON) == "" {
+		return result
+	}
+	_ = json.Unmarshal([]byte(record.PayloadJSON), &result)
+	return result
+}
+
+func isHeartbeatQuorumTransition(fromState string, toState string) bool {
+	if fromState == "running_ok" && toState == "running_degraded" {
+		return true
+	}
+	if fromState == "running_degraded" && toState == "running_ok" {
+		return true
+	}
+	return false
+}
+
+func formatNullableTime(value *time.Time) string {
+	if value == nil || value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339)
 }
 
 func isTerminalEvent(eventType string) bool {
@@ -640,6 +833,26 @@ func payloadInt64(payload map[string]any, key string) int64 {
 		return int64(value)
 	}
 	return 0
+}
+
+func payloadInt(payload map[string]any, key string) int {
+	if payload == nil {
+		return 0
+	}
+	rawValue, exists := payload[key]
+	if !exists || rawValue == nil {
+		return 0
+	}
+	switch value := rawValue.(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	default:
+		return 0
+	}
 }
 
 func buildSyntheticGapHistoryRecord(base eventHistoryRecord, eventType domainlifecycle.EventType, expectedSeq int64, eventSeq int64, projectSeq int64, ingestedAt time.Time) (eventHistoryRecord, error) {

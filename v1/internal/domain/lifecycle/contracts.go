@@ -10,12 +10,20 @@ import (
 type EventType string
 
 const (
-	EventEnqueued      EventType = "enqueued"
-	EventStarted       EventType = "started"
-	EventCompleted     EventType = "completed"
-	EventFailed        EventType = "failed"
-	EventGapDetected   EventType = "gap_detected"
-	EventGapReconciled EventType = "gap_reconciled"
+	EventEnqueued                 EventType = "enqueued"
+	EventStarted                  EventType = "started"
+	EventHeartbeat                EventType = "heartbeat"
+	EventRuntimeHeartbeat         EventType = "runtime_heartbeat"
+	EventProcessHeartbeat         EventType = "process_heartbeat"
+	EventActivityHeartbeat        EventType = "activity_heartbeat"
+	EventToolHeartbeat            EventType = "tool_heartbeat"
+	EventLogHeartbeat             EventType = "log_heartbeat"
+	EventHeartbeatQuorumDegraded  EventType = "heartbeat_quorum_degraded"
+	EventHeartbeatQuorumRecovered EventType = "heartbeat_quorum_recovered"
+	EventCompleted                EventType = "completed"
+	EventFailed                   EventType = "failed"
+	EventGapDetected              EventType = "gap_detected"
+	EventGapReconciled            EventType = "gap_reconciled"
 )
 
 type Event struct {

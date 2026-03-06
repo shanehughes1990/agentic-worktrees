@@ -1285,7 +1285,7 @@ func lifecycleHistoryEventTypeToStreamEventType(eventType string) domainstream.E
 		return domainstream.EventSessionStarted
 	case "completed", "failed":
 		return domainstream.EventSessionEnded
-	case "heartbeat", "gap_detected", "gap_reconciled":
+	case "heartbeat", "runtime_heartbeat", "process_heartbeat", "activity_heartbeat", "tool_heartbeat", "log_heartbeat", "heartbeat_quorum_degraded", "heartbeat_quorum_recovered", "gap_detected", "gap_reconciled":
 		return domainstream.EventSessionHealth
 	default:
 		return domainstream.EventSessionUpdated

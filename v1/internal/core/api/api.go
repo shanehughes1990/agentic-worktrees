@@ -57,6 +57,7 @@ type APIApp struct {
 	databaseClient        *postgresdb.Client
 	streamService         *applicationstream.Service
 	sessionStateReader    *infraagent.SessionStateReader
+	sessionStateStreamer  *infraagent.SessionStateStreamer
 	acpClient             *infraagent.ACPClient
 	workerService         *applicationworker.Service
 	lifecycleService      *applicationlifecycle.Service
@@ -219,9 +220,14 @@ func New() (*APIApp, error) {
 	if _, err := workerService.EnsureBaseSettings(context.Background(), applicationworker.DefaultSettings(time.Now().UTC())); err != nil {
 		return nil, fmt.Errorf("ensure base worker settings: %w", err)
 	}
-	sessionStateReader, err := infraagent.NewSessionStateReader(strings.TrimSpace(os.Getenv("API_COPILOT_SESSION_STATE_DIR")))
+	// Resolve Copilot session-state path internally for now; do not require user boot configuration.
+	sessionStateReader, err := infraagent.NewSessionStateReader("")
 	if err != nil {
 		return nil, fmt.Errorf("init session state reader: %w", err)
+	}
+	sessionStateStreamer, err := infraagent.NewSessionStateStreamer("")
+	if err != nil {
+		return nil, fmt.Errorf("init session state streamer: %w", err)
 	}
 	var acpClient *infraagent.ACPClient
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("API_COPILOT_ACP_ENABLED")), "true") {
@@ -260,6 +266,7 @@ func New() (*APIApp, error) {
 		databaseClient:        databaseClient,
 		streamService:         streamService,
 		sessionStateReader:    sessionStateReader,
+		sessionStateStreamer:  sessionStateStreamer,
 		acpClient:             acpClient,
 		workerService:         workerService,
 		lifecycleService:      lifecycleService,
@@ -334,6 +341,7 @@ func (app *APIApp) Run() error {
 	go app.runWorkerSessionStreamPublisher(signalCtx)
 	go app.runRuntimeActivityStreamListener(signalCtx)
 	go app.runStreamTableChangeListener(signalCtx)
+	go app.runSessionStateStreamListener(signalCtx)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -695,6 +703,10 @@ func (app *APIApp) runRuntimeActivityStreamListener(ctx context.Context) {
 			"worker_id":        strings.TrimSpace(signal.WorkerID),
 			"signal":           signal.Payload,
 		}
+		if normalizedEventType == "heartbeat" {
+			eventPayload["heartbeat_layer"] = "runtime"
+			eventPayload["heartbeat_source"] = "worker_runtime_signal"
+		}
 		if normalizedEventType == "failed" || normalizedEventType == "terminated" || payloadHasErrorMarker(signal.Payload) {
 			eventPayload["error_event"] = true
 		}
@@ -749,6 +761,30 @@ func (app *APIApp) runStreamTableChangeListener(ctx context.Context) {
 		app.streamService.NotifyExternalChange()
 		return nil
 	})
+}
+
+func (app *APIApp) runSessionStateStreamListener(ctx context.Context) {
+	if app == nil || app.sessionStateStreamer == nil || app.streamService == nil {
+		return
+	}
+	_ = app.sessionStateStreamer.Run(ctx, func(eventCtx context.Context, event domainstream.Event) error {
+		_, err := app.streamService.AppendAndPublish(eventCtx, event)
+		if isDuplicateStreamEventError(err) {
+			return nil
+		}
+		return err
+	})
+}
+
+func isDuplicateStreamEventError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	if message == "" {
+		return false
+	}
+	return strings.Contains(message, "duplicate key") && strings.Contains(message, "stream_events")
 }
 
 func streamEventFromTableChangePayload(change domainrealtime.TableChangeEvent) (domainstream.Event, bool) {
@@ -914,7 +950,7 @@ func lifecycleEventTypeToStreamEventType(eventType string) string {
 	switch normalized {
 	case "started":
 		return string(domainstream.EventSessionStarted)
-	case "heartbeat":
+	case "heartbeat", "runtime_heartbeat", "process_heartbeat", "activity_heartbeat", "tool_heartbeat", "log_heartbeat", "heartbeat_quorum_degraded", "heartbeat_quorum_recovered":
 		return string(domainstream.EventSessionHealth)
 	case "completed", "failed":
 		return string(domainstream.EventSessionEnded)
