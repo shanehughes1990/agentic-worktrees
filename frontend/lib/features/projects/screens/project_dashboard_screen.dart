@@ -3088,11 +3088,58 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
     );
   }
 
+  Set<String> _visibleExpandableEventIDs() {
+    final ids = <String>{};
+    if (_mode == _EventsBoardMode.globalLive) {
+      final activeEvents =
+          _activeLiveEntriesByKey.values
+              .map((entry) => entry.event)
+              .toList(growable: false)
+            ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+      for (final event in activeEvents.take(120)) {
+        if (event.payload.trim().isEmpty) {
+          continue;
+        }
+        ids.add(event.eventID.trim());
+      }
+      return ids;
+    }
+
+    if (_mode == _EventsBoardMode.pipelineDrilldown) {
+      final nodes = _buildPipelineDrilldownNodes();
+      for (final node in nodes) {
+        for (final event in node.events.take(30)) {
+          if (event.payload.trim().isEmpty) {
+            continue;
+          }
+          ids.add(event.eventID.trim());
+        }
+      }
+      return ids;
+    }
+
+    for (final event in _sessionHistory) {
+      if (event.payload.trim().isEmpty) {
+        continue;
+      }
+      ids.add(event.eventID.trim());
+    }
+    return ids;
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeNowCount = _activeLiveEntriesByKey.length;
     final showGlobalEmptyState =
         _mode == _EventsBoardMode.globalLive && activeNowCount == 0;
+    final expandableEventIDs = _visibleExpandableEventIDs();
+    final hasExpandableEvents = expandableEventIDs.isNotEmpty;
+    final hasVisibleExpandedEvents = expandableEventIDs.any(
+      _expandedEventIDs.contains,
+    );
+    final expandCollapseTooltip = hasVisibleExpandedEvents
+        ? 'Collapse All'
+        : 'Expand All';
     return Scaffold(
       appBar: AppBar(
         leadingWidth: 260,
@@ -3167,15 +3214,24 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
                 ),
               ),
             ),
-          TextButton(
-            onPressed: _expandedEventIDs.isEmpty
+          IconButton(
+            onPressed: !hasExpandableEvents
                 ? null
                 : () {
                     setState(() {
-                      _expandedEventIDs.clear();
+                      if (hasVisibleExpandedEvents) {
+                        _expandedEventIDs.removeAll(expandableEventIDs);
+                      } else {
+                        _expandedEventIDs.addAll(expandableEventIDs);
+                      }
                     });
                   },
-            child: const Text('Collapse All'),
+            icon: Icon(
+              hasVisibleExpandedEvents
+                  ? Icons.unfold_less_outlined
+                  : Icons.unfold_more_outlined,
+            ),
+            tooltip: expandCollapseTooltip,
           ),
           IconButton(
             onPressed: _refresh,

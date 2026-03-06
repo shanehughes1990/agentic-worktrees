@@ -24,6 +24,7 @@ class TaskboardManagementScreen extends StatefulWidget {
 
 class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   TaskboardModel? _board;
+  final Set<String> _expandedEpicIDs = <String>{};
   bool _isLoading = true;
   bool _isMutating = false;
   String? _statusMessage;
@@ -909,12 +910,248 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     return state == 'completed' || state == 'failed';
   }
 
+  int _taskCount(TaskboardModel board) {
+    var count = 0;
+    for (final epic in board.epics) {
+      count += epic.tasks.length;
+    }
+    return count;
+  }
+
+  Color _stateAccentColor(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'failed' ||
+        normalized == 'blocked' ||
+        normalized == 'cancelled') {
+      return Theme.of(context).colorScheme.error;
+    }
+    if (normalized == 'completed' || normalized == 'done') {
+      return Colors.green.shade600;
+    }
+    if (normalized == 'active' || normalized == 'in_progress') {
+      return Colors.amber.shade700;
+    }
+    return Theme.of(context).colorScheme.primary;
+  }
+
+  Widget _buildStatusPill({
+    required String label,
+    required String value,
+    Color? accent,
+  }) {
+    final color = accent ?? Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$label $value',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPanel({
+    required Widget child,
+    Color? accent,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(12),
+  }) {
+    final borderColor = (accent ?? Theme.of(context).colorScheme.outline)
+        .withValues(alpha: 0.35);
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildEpicCard(
+    TaskboardEpicModel epic,
+    bool mutationControlsDisabled,
+  ) {
+    final accent = _stateAccentColor(epic.state);
+    final isExpanded = _expandedEpicIDs.contains(epic.id);
+    return _buildPanel(
+      accent: accent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  epic.title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              _buildStatusPill(
+                label: 'STATE',
+                value: epic.state,
+                accent: accent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            epic.objective?.trim().isNotEmpty == true
+                ? epic.objective!
+                : 'No objective set.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _buildStatusPill(
+                label: 'RANK',
+                value: '${epic.rank}',
+                accent: accent,
+              ),
+              _buildStatusPill(
+                label: 'TASKS',
+                value: '${epic.tasks.length}',
+                accent: Theme.of(context).colorScheme.primary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              if (epic.tasks.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      if (isExpanded) {
+                        _expandedEpicIDs.remove(epic.id);
+                      } else {
+                        _expandedEpicIDs.add(epic.id);
+                      }
+                    });
+                  },
+                  icon: Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                  ),
+                  label: Text(isExpanded ? 'Hide Tasks' : 'Show Tasks'),
+                ),
+              OutlinedButton(
+                onPressed: mutationControlsDisabled
+                    ? null
+                    : () => _editEpic(epic),
+                child: const Text('Edit Epic'),
+              ),
+              OutlinedButton(
+                onPressed: mutationControlsDisabled
+                    ? null
+                    : () => _deleteEpic(epic),
+                child: const Text('Delete Epic'),
+              ),
+              OutlinedButton(
+                onPressed: mutationControlsDisabled
+                    ? null
+                    : () => _createTask(epic),
+                child: const Text('Add Task'),
+              ),
+            ],
+          ),
+          if (isExpanded) ...<Widget>[
+            const SizedBox(height: 10),
+            ...epic.tasks.map((TaskboardTaskModel task) {
+              final taskAccent = _stateAccentColor(task.state);
+              return Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: taskAccent.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            task.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Type: ${task.taskType} • State: ${task.state} • Rank: ${task.rank}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Wrap(
+                      spacing: 2,
+                      children: <Widget>[
+                        IconButton(
+                          onPressed: mutationControlsDisabled
+                              ? null
+                              : () => _editTask(epic, task),
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: 'Edit Task',
+                        ),
+                        IconButton(
+                          onPressed: mutationControlsDisabled
+                              ? null
+                              : () => _deleteTask(task),
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: 'Delete Task',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
   void _setReadOnlyStatus() {
     if (!mounted) {
       return;
     }
     setState(() {
       _statusMessage = _readOnlyMessage;
+    });
+  }
+
+  void _expandAllEpics(TaskboardModel board) {
+    setState(() {
+      _expandedEpicIDs
+        ..clear()
+        ..addAll(
+          board.epics
+              .where((TaskboardEpicModel epic) => epic.tasks.isNotEmpty)
+              .map((TaskboardEpicModel epic) => epic.id),
+        );
+    });
+  }
+
+  void _collapseAllEpics() {
+    setState(() {
+      _expandedEpicIDs.clear();
     });
   }
 
@@ -925,10 +1162,87 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     final mutationControlsDisabled = _isMutating || board == null || isReadOnly;
     final runAgainDisabled =
         _isMutating || board == null || !_canRunAgain(board);
+    final hasAnyTasks =
+        board?.epics.any((TaskboardEpicModel epic) => epic.tasks.isNotEmpty) ??
+        false;
+    final hasExpandedEpics = _expandedEpicIDs.isNotEmpty;
+    final expandCollapseTooltip = hasExpandedEpics
+        ? 'Collapse All Tasks'
+        : 'Expand All Tasks';
+
+    final appBarStateColor = board == null
+        ? Theme.of(context).colorScheme.primary
+        : _stateAccentColor(board.state);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(board?.name ?? widget.boardID),
+        leadingWidth: 230,
+        leading: Row(
+          children: <Widget>[
+            const BackButton(),
+            if (board != null)
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: <Widget>[
+                      _buildStatusPill(
+                        label: 'STATE',
+                        value: board.state,
+                        accent: appBarStateColor,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildStatusPill(
+                        label: 'EPICS',
+                        value: '${board.epics.length}',
+                        accent: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        centerTitle: true,
+        title: const Text('Taskboard Details'),
         actions: <Widget>[
+          if (_isMutating)
+            const Padding(
+              padding: EdgeInsets.only(right: 6),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          IconButton(
+            onPressed: !hasAnyTasks
+                ? null
+                : () {
+                    final currentBoard = _board;
+                    if (currentBoard == null) {
+                      return;
+                    }
+                    if (hasExpandedEpics) {
+                      _collapseAllEpics();
+                      return;
+                    }
+                    _expandAllEpics(currentBoard);
+                  },
+            icon: Icon(
+              hasExpandedEpics
+                  ? Icons.unfold_less_outlined
+                  : Icons.unfold_more_outlined,
+            ),
+            tooltip: expandCollapseTooltip,
+          ),
+          IconButton(
+            onPressed: _loadBoard,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Reload',
+          ),
           IconButton(
             onPressed: runAgainDisabled ? null : _runTaskboardAgain,
             icon: const Icon(Icons.play_circle_outline),
@@ -950,145 +1264,112 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
           ? const Center(child: CircularProgressIndicator())
           : board == null
           ? Center(child: Text(_statusMessage ?? 'Taskboard unavailable'))
-          : RefreshIndicator(
-              onRefresh: _loadBoard,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: <Widget>[
-                  if (_isMutating)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 12),
-                      child: LinearProgressIndicator(),
-                    ),
-                  Row(
+          : SafeArea(
+              child: RefreshIndicator(
+                onRefresh: _loadBoard,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          'Taskboard: ${board.name}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: mutationControlsDisabled
-                            ? null
-                            : _createEpic,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Epic'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text('State: ${board.state}'),
-                  if (isReadOnly)
-                    const Text(
-                      _readOnlyMessage,
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  Text('Board ID: ${board.boardID}'),
-                  const SizedBox(height: 12),
-                  if (board.epics.isEmpty)
-                    const Text(
-                      'No epics yet. Create one to begin managing tasks.',
-                    )
-                  else
-                    ...board.epics.map((TaskboardEpicModel epic) {
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        child: ExpansionTile(
-                          tilePadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                          title: Text(epic.title),
-                          subtitle: Text(
-                            'State: ${epic.state} • Rank: ${epic.rank}',
-                          ),
-                          childrenPadding: const EdgeInsets.fromLTRB(
-                            12,
-                            0,
-                            12,
-                            12,
-                          ),
+                      _buildPanel(
+                        accent: appBarStateColor,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Row(
                               children: <Widget>[
                                 Expanded(
                                   child: Text(
-                                    epic.objective?.trim().isNotEmpty == true
-                                        ? epic.objective!
-                                        : 'No objective',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
+                                    board.name,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
-                                TextButton(
+                                FilledButton.icon(
                                   onPressed: mutationControlsDisabled
                                       ? null
-                                      : () => _editEpic(epic),
-                                  child: const Text('Edit'),
-                                ),
-                                TextButton(
-                                  onPressed: mutationControlsDisabled
-                                      ? null
-                                      : () => _deleteEpic(epic),
-                                  child: const Text('Delete'),
-                                ),
-                                TextButton(
-                                  onPressed: mutationControlsDisabled
-                                      ? null
-                                      : () => _createTask(epic),
-                                  child: const Text('Add Task'),
+                                      : _createEpic,
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Add Epic'),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
-                            if (epic.tasks.isEmpty)
-                              const Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text('No tasks in this epic.'),
-                              )
-                            else
-                              ...epic.tasks.map((TaskboardTaskModel task) {
-                                return ListTile(
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(task.title),
-                                  subtitle: Text(
-                                    'Type: ${task.taskType} • State: ${task.state} • Rank: ${task.rank}',
-                                  ),
-                                  trailing: Wrap(
-                                    spacing: 4,
-                                    children: <Widget>[
-                                      IconButton(
-                                        onPressed: mutationControlsDisabled
-                                            ? null
-                                            : () => _editTask(epic, task),
-                                        icon: const Icon(Icons.edit_outlined),
-                                        tooltip: 'Edit Task',
-                                      ),
-                                      IconButton(
-                                        onPressed: mutationControlsDisabled
-                                            ? null
-                                            : () => _deleteTask(task),
-                                        icon: const Icon(Icons.delete_outline),
-                                        tooltip: 'Delete Task',
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
+                            Text(
+                              'Board ID: ${board.boardID}',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                _buildStatusPill(
+                                  label: 'STATE',
+                                  value: board.state,
+                                  accent: appBarStateColor,
+                                ),
+                                _buildStatusPill(
+                                  label: 'EPICS',
+                                  value: '${board.epics.length}',
+                                  accent: Theme.of(context).colorScheme.primary,
+                                ),
+                                _buildStatusPill(
+                                  label: 'TASKS',
+                                  value: '${_taskCount(board)}',
+                                  accent: Theme.of(context).colorScheme.primary,
+                                ),
+                                _buildStatusPill(
+                                  label: 'UPDATED',
+                                  value: board.updatedAt.toIso8601String(),
+                                  accent: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary,
+                                ),
+                              ],
+                            ),
+                            if (isReadOnly) ...<Widget>[
+                              const SizedBox(height: 10),
+                              Text(
+                                _readOnlyMessage,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                      );
-                    }),
-                  if (_statusMessage != null) ...<Widget>[
-                    const SizedBox(height: 12),
-                    Text(_statusMessage!),
-                  ],
-                ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (board.epics.isEmpty)
+                        _buildPanel(
+                          child: const Text(
+                            'No epics yet. Create one to begin managing tasks.',
+                          ),
+                        )
+                      else
+                        ...board.epics.map((TaskboardEpicModel epic) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _buildEpicCard(
+                              epic,
+                              mutationControlsDisabled,
+                            ),
+                          );
+                        }),
+                      if (_statusMessage != null) ...<Widget>[
+                        _buildPanel(
+                          accent: Theme.of(context).colorScheme.primary,
+                          child: Text(_statusMessage!),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
     );
