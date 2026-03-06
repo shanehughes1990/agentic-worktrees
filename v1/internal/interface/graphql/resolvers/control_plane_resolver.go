@@ -219,6 +219,9 @@ func (r *mutationResolver) UpdateTaskboard(ctx context.Context, input models.Upd
 	if err != nil {
 		return graphErrorFromError(err), nil
 	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
+	}
 	board.Name = strings.TrimSpace(input.Name)
 	if board.Name == "" {
 		return models.GraphError{Code: models.GraphErrorCodeValidation, Message: "name is required"}, nil
@@ -242,11 +245,14 @@ func (r *mutationResolver) UpdateTaskboard(ctx context.Context, input models.Upd
 
 // DeleteTaskboard is the resolver for the deleteTaskboard field.
 func (r *mutationResolver) DeleteTaskboard(ctx context.Context, input models.DeleteTaskboardInput) (models.TaskboardDeleteResult, error) {
-	if r == nil || r.Resolver == nil || r.Resolver.TrackerService == nil {
-		return models.GraphError{Code: models.GraphErrorCodeUnavailable, Message: "tracker service is not configured"}, nil
+	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
+	if err != nil {
+		return graphErrorFromError(err), nil
 	}
-	projectID := strings.TrimSpace(input.ProjectID)
-	boardID := strings.TrimSpace(input.BoardID)
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
+	}
+	boardID := strings.TrimSpace(board.BoardID)
 	if err := r.Resolver.TrackerService.DeleteBoard(ctx, projectID, boardID); err != nil {
 		return graphErrorFromError(fmt.Errorf("delete taskboard: %w", err)), nil
 	}
@@ -259,6 +265,9 @@ func (r *mutationResolver) CreateTaskboardEpic(ctx context.Context, input models
 	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
 	if err != nil {
 		return graphErrorFromError(err), nil
+	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
 	}
 	epicState, parseErr := parseEpicState(input.State)
 	if parseErr != nil {
@@ -308,6 +317,9 @@ func (r *mutationResolver) UpdateTaskboardEpic(ctx context.Context, input models
 	if err != nil {
 		return graphErrorFromError(err), nil
 	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
+	}
 	epicState, parseErr := parseEpicState(input.State)
 	if parseErr != nil {
 		return graphErrorFromError(parseErr), nil
@@ -356,6 +368,9 @@ func (r *mutationResolver) DeleteTaskboardEpic(ctx context.Context, input models
 	if err != nil {
 		return graphErrorFromError(err), nil
 	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
+	}
 	nextEpics := make([]domaintracker.Epic, 0, len(board.Epics))
 	deleted := false
 	for _, epic := range board.Epics {
@@ -386,6 +401,9 @@ func (r *mutationResolver) CreateTaskboardTask(ctx context.Context, input models
 	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
 	if err != nil {
 		return graphErrorFromError(err), nil
+	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
 	}
 	taskState, parseErr := parseTaskState(input.State)
 	if parseErr != nil {
@@ -447,6 +465,9 @@ func (r *mutationResolver) UpdateTaskboardTask(ctx context.Context, input models
 	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
 	if err != nil {
 		return graphErrorFromError(err), nil
+	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
 	}
 	taskState, parseErr := parseTaskState(input.State)
 	if parseErr != nil {
@@ -518,6 +539,9 @@ func (r *mutationResolver) DeleteTaskboardTask(ctx context.Context, input models
 	board, projectID, err := r.loadBoardForMutation(ctx, input.ProjectID, input.BoardID)
 	if err != nil {
 		return graphErrorFromError(err), nil
+	}
+	if isBoardEnded(board.State) {
+		return taskboardReadOnlyError(board), nil
 	}
 	deleted := false
 	for epicIndex := range board.Epics {

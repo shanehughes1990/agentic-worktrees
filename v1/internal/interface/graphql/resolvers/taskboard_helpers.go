@@ -28,6 +28,17 @@ func (r *mutationResolver) loadBoardForMutation(ctx context.Context, projectID s
 	return board, cleanProjectID, nil
 }
 
+func isBoardEnded(state domaintracker.BoardState) bool {
+	return state == domaintracker.BoardStateCompleted || state == domaintracker.BoardStateFailed
+}
+
+func taskboardReadOnlyError(board domaintracker.Board) models.GraphError {
+	return models.GraphError{
+		Code:    models.GraphErrorCodeConflict,
+		Message: fmt.Sprintf("taskboard %q is ended and read-only", strings.TrimSpace(board.BoardID)),
+	}
+}
+
 func toGraphTaskboard(board domaintracker.Board) *models.Taskboard {
 	epics := make([]*models.TaskboardEpic, 0, len(board.Epics))
 	for _, epic := range board.Epics {

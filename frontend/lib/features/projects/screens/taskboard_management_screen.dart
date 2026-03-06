@@ -27,6 +27,9 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   bool _isMutating = false;
   String? _statusMessage;
 
+  static const String _readOnlyMessage =
+      'This taskboard is ended and read-only.';
+
   static const List<String> _boardStates = <String>[
     'PENDING',
     'ACTIVE',
@@ -79,6 +82,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   Future<void> _editBoard() async {
     final board = _board;
     if (board == null || _isMutating) {
+      return;
+    }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
       return;
     }
     final nameController = TextEditingController(text: board.name);
@@ -165,6 +172,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     if (board == null || _isMutating) {
       return;
     }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -212,6 +223,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   Future<void> _createEpic() async {
     final board = _board;
     if (board == null || _isMutating) {
+      return;
+    }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
       return;
     }
     final titleController = TextEditingController();
@@ -315,6 +330,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   Future<void> _editEpic(TaskboardEpicModel epic) async {
     final board = _board;
     if (board == null || _isMutating) {
+      return;
+    }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
       return;
     }
     final titleController = TextEditingController(text: epic.title);
@@ -426,6 +445,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     if (board == null || _isMutating) {
       return;
     }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -473,6 +496,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   Future<void> _createTask(TaskboardEpicModel epic) async {
     final board = _board;
     if (board == null || _isMutating) {
+      return;
+    }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
       return;
     }
     final titleController = TextEditingController();
@@ -589,6 +616,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
   ) async {
     final board = _board;
     if (board == null || _isMutating) {
+      return;
+    }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
       return;
     }
     final titleController = TextEditingController(text: task.title);
@@ -710,6 +741,10 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     if (board == null || _isMutating) {
       return;
     }
+    if (_isBoardEnded(board)) {
+      _setReadOnlyStatus();
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -754,20 +789,36 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
     });
   }
 
+  bool _isBoardEnded(TaskboardModel board) {
+    final state = board.state.trim().toLowerCase();
+    return state == 'completed' || state == 'failed';
+  }
+
+  void _setReadOnlyStatus() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _statusMessage = _readOnlyMessage;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final board = _board;
+    final isReadOnly = board != null && _isBoardEnded(board);
+    final mutationControlsDisabled = _isMutating || board == null || isReadOnly;
     return Scaffold(
       appBar: AppBar(
         title: Text(board?.name ?? widget.boardID),
         actions: <Widget>[
           IconButton(
-            onPressed: _isMutating || board == null ? null : _editBoard,
+            onPressed: mutationControlsDisabled ? null : _editBoard,
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit Taskboard',
           ),
           IconButton(
-            onPressed: _isMutating || board == null ? null : _deleteBoard,
+            onPressed: mutationControlsDisabled ? null : _deleteBoard,
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Delete Taskboard',
           ),
@@ -799,7 +850,9 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
                         ),
                       ),
                       FilledButton.icon(
-                        onPressed: _isMutating ? null : _createEpic,
+                        onPressed: mutationControlsDisabled
+                            ? null
+                            : _createEpic,
                         icon: const Icon(Icons.add),
                         label: const Text('Add Epic'),
                       ),
@@ -807,6 +860,11 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text('State: ${board.state}'),
+                  if (isReadOnly)
+                    const Text(
+                      _readOnlyMessage,
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   Text('Board ID: ${board.boardID}'),
                   const SizedBox(height: 12),
                   if (board.epics.isEmpty)
@@ -845,19 +903,19 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
                                   ),
                                 ),
                                 TextButton(
-                                  onPressed: _isMutating
+                                  onPressed: mutationControlsDisabled
                                       ? null
                                       : () => _editEpic(epic),
                                   child: const Text('Edit'),
                                 ),
                                 TextButton(
-                                  onPressed: _isMutating
+                                  onPressed: mutationControlsDisabled
                                       ? null
                                       : () => _deleteEpic(epic),
                                   child: const Text('Delete'),
                                 ),
                                 TextButton(
-                                  onPressed: _isMutating
+                                  onPressed: mutationControlsDisabled
                                       ? null
                                       : () => _createTask(epic),
                                   child: const Text('Add Task'),
@@ -883,14 +941,14 @@ class _TaskboardManagementScreenState extends State<TaskboardManagementScreen> {
                                     spacing: 4,
                                     children: <Widget>[
                                       IconButton(
-                                        onPressed: _isMutating
+                                        onPressed: mutationControlsDisabled
                                             ? null
                                             : () => _editTask(epic, task),
                                         icon: const Icon(Icons.edit_outlined),
                                         tooltip: 'Edit Task',
                                       ),
                                       IconButton(
-                                        onPressed: _isMutating
+                                        onPressed: mutationControlsDisabled
                                             ? null
                                             : () => _deleteTask(task),
                                         icon: const Icon(Icons.delete_outline),

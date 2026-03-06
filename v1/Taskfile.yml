@@ -26,7 +26,7 @@ tasks:
   compose-up:
     desc: Start the application using Docker Compose
     cmds:
-    - docker-compose -f docker-compose.yml up -d --build
+    - docker-compose -f docker-compose.yml up -d --build {{ .CLI_ARGS }}
 
   destroy:
     desc: Stop and remove all containers, networks, with optional additional arguments

@@ -15,9 +15,9 @@ type projectSetupRecord struct {
 	gorm.Model
 	ProjectID    string                      `gorm:"column:project_id;size:255;not null;uniqueIndex"`
 	ProjectName  string                      `gorm:"column:project_name;size:255;not null"`
-	SCMs         []projectSCMRecord          `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	Repositories []projectRepositoryRecord   `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	Boards       []trackerProjectBoardRecord `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	SCMs         []projectSCMRecord          `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;-:migration"`
+	Repositories []projectRepositoryRecord   `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;-:migration"`
+	Boards       []trackerProjectBoardRecord `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;-:migration"`
 }
 
 func (projectSetupRecord) TableName() string {
@@ -31,7 +31,7 @@ type projectRepositoryRecord struct {
 	SCMID         string             `gorm:"column:scm_id;size:255;not null"`
 	RepositoryURL string             `gorm:"column:repository_url;size:1024;not null"`
 	IsPrimary     bool               `gorm:"column:is_primary;not null;default:false"`
-	Project       projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID"`
+	Project       projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID;-:migration"`
 }
 
 func (projectRepositoryRecord) TableName() string {
@@ -44,7 +44,7 @@ type projectSCMRecord struct {
 	SCMID       string             `gorm:"column:scm_id;size:255;not null"`
 	SCMProvider string             `gorm:"column:scm_provider;size:64;not null"`
 	SCMToken    string             `gorm:"column:scm_token;size:512;not null"`
-	Project     projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID"`
+	Project     projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID;-:migration"`
 }
 
 func (projectSCMRecord) TableName() string {
@@ -57,7 +57,7 @@ type trackerProjectBoardRecord struct {
 	ProjectID string             `gorm:"column:project_id;size:255;not null;index"`
 	Name      string             `gorm:"column:name;not null"`
 	State     string             `gorm:"column:state;size:64;not null"`
-	Project   projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID"`
+	Project   projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID;-:migration"`
 	CreatedAt time.Time          `gorm:"column:created_at;not null"`
 	UpdatedAt time.Time          `gorm:"column:updated_at;not null"`
 }
@@ -78,8 +78,17 @@ func NewProjectSetupRepository(db *gorm.DB, scmTokenCrypto *SCMTokenCrypto) (*Pr
 	if scmTokenCrypto == nil {
 		return nil, fmt.Errorf("project setup repository scm token crypto is required")
 	}
-	if err := db.AutoMigrate(&projectSetupRecord{}, &projectSCMRecord{}, &projectRepositoryRecord{}, &trackerProjectBoardRecord{}); err != nil {
-		return nil, fmt.Errorf("project setup repository migrate: %w", err)
+	if err := db.AutoMigrate(&projectSetupRecord{}); err != nil {
+		return nil, fmt.Errorf("project setup repository migrate project_setups: %w", err)
+	}
+	if err := db.AutoMigrate(&projectSCMRecord{}); err != nil {
+		return nil, fmt.Errorf("project setup repository migrate project_scms: %w", err)
+	}
+	if err := db.AutoMigrate(&projectRepositoryRecord{}); err != nil {
+		return nil, fmt.Errorf("project setup repository migrate project_repositories: %w", err)
+	}
+	if err := db.AutoMigrate(&trackerProjectBoardRecord{}); err != nil {
+		return nil, fmt.Errorf("project setup repository migrate project_boards: %w", err)
 	}
 	return &ProjectSetupRepository{db: db, scmTokenCrypto: scmTokenCrypto}, nil
 }
