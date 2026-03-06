@@ -1885,6 +1885,23 @@ class _LiveActiveEntry {
   final DateTime lastSeenAt;
 }
 
+class _PipelineDrilldownNode {
+  _PipelineDrilldownNode({
+    required this.key,
+    required this.runID,
+    required this.taskID,
+    required this.jobID,
+  });
+
+  final String key;
+  final String runID;
+  final String taskID;
+  final String jobID;
+  final List<StreamEvent> events = <StreamEvent>[];
+  final Set<String> sessionIDs = <String>{};
+  DateTime latestAt = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+}
+
 class ProjectEventsMatrixPage extends StatefulWidget {
   const ProjectEventsMatrixPage({
     required this.api,
@@ -2931,55 +2948,305 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   }
 
   Widget _buildPipelinePanel() {
+    final nodes = _buildPipelineDrilldownNodes();
     return Column(
       children: <Widget>[
-        Row(
+        if (nodes.isEmpty)
+          const Text('No pipelines loaded yet.')
+        else
+          ...nodes.asMap().entries.map(
+            (entry) =>
+                _buildPipelineNodeCard(entry.value, order: entry.key + 1),
+          ),
+      ],
+    );
+  }
+
+  String _formatPipelineTimestamp(DateTime value) {
+    final local = value.toLocal();
+    final year = local.year.toString().padLeft(4, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    final second = local.second.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute:$second';
+  }
+
+  String _normalizedID(String? value) {
+    return value?.trim() ?? '';
+  }
+
+  bool _matchesPipelineFilters({
+    required String runID,
+    required String taskID,
+    required String jobID,
+  }) {
+    final runFilter = _normalizedID(_runIDController.text);
+    final taskFilter = _normalizedID(_taskIDController.text);
+    final jobFilter = _normalizedID(_jobIDController.text);
+    if (runFilter.isNotEmpty && runFilter != runID) {
+      return false;
+    }
+    if (taskFilter.isNotEmpty && taskFilter != taskID) {
+      return false;
+    }
+    if (jobFilter.isNotEmpty && jobFilter != jobID) {
+      return false;
+    }
+    return true;
+  }
+
+  String _pipelineKey({
+    required String runID,
+    required String taskID,
+    required String jobID,
+    required String fallback,
+  }) {
+    if (runID.isNotEmpty || taskID.isNotEmpty || jobID.isNotEmpty) {
+      return 'pipeline:$runID|$taskID|$jobID';
+    }
+    return 'pipeline:$fallback';
+  }
+
+  List<_PipelineDrilldownNode> _buildPipelineDrilldownNodes() {
+    final nodesByKey = <String, _PipelineDrilldownNode>{};
+
+    for (final snapshot in _snapshots) {
+      final runID = _normalizedID(snapshot.runID);
+      final taskID = _normalizedID(snapshot.taskID);
+      final jobID = _normalizedID(snapshot.jobID);
+      if (!_matchesPipelineFilters(
+        runID: runID,
+        taskID: taskID,
+        jobID: jobID,
+      )) {
+        continue;
+      }
+      final nodeKey = _pipelineKey(
+        runID: runID,
+        taskID: taskID,
+        jobID: jobID,
+        fallback: 'session:${snapshot.sessionID}',
+      );
+      final node = nodesByKey.putIfAbsent(
+        nodeKey,
+        () => _PipelineDrilldownNode(
+          key: nodeKey,
+          runID: runID,
+          taskID: taskID,
+          jobID: jobID,
+        ),
+      );
+      node.sessionIDs.add(snapshot.sessionID);
+      if (snapshot.updatedAt.isAfter(node.latestAt)) {
+        node.latestAt = snapshot.updatedAt;
+      }
+    }
+
+    for (final event in _pipelineEvents) {
+      final runID = _normalizedID(event.runID);
+      final taskID = _normalizedID(event.taskID);
+      final jobID = _normalizedID(event.jobID);
+      if (!_matchesPipelineFilters(
+        runID: runID,
+        taskID: taskID,
+        jobID: jobID,
+      )) {
+        continue;
+      }
+      final nodeKey = _pipelineKey(
+        runID: runID,
+        taskID: taskID,
+        jobID: jobID,
+        fallback: 'event:${event.eventID}',
+      );
+      final node = nodesByKey.putIfAbsent(
+        nodeKey,
+        () => _PipelineDrilldownNode(
+          key: nodeKey,
+          runID: runID,
+          taskID: taskID,
+          jobID: jobID,
+        ),
+      );
+      node.events.add(event);
+      final sessionID = _normalizedID(event.sessionID);
+      if (sessionID.isNotEmpty) {
+        node.sessionIDs.add(sessionID);
+      }
+      if (event.occurredAt.isAfter(node.latestAt)) {
+        node.latestAt = event.occurredAt;
+      }
+    }
+
+    final nodes = nodesByKey.values.toList(growable: false)
+      ..sort((a, b) => b.latestAt.compareTo(a.latestAt));
+    for (final node in nodes) {
+      node.events.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    }
+    return nodes;
+  }
+
+  String _pipelineIdentityLabel(_PipelineDrilldownNode node) {
+    final parts = <String>[];
+    if (node.runID.isNotEmpty) {
+      parts.add('run=${node.runID}');
+    }
+    if (node.taskID.isNotEmpty) {
+      parts.add('task=${node.taskID}');
+    }
+    if (node.jobID.isNotEmpty) {
+      parts.add('job=${node.jobID}');
+    }
+    if (parts.isEmpty) {
+      return 'Pipeline (unkeyed correlation)';
+    }
+    return parts.join(' • ');
+  }
+
+  Future<void> _openSessionInspectionFromPipeline(String sessionID) async {
+    _pipelineEventsSubscription?.cancel();
+    setState(() {
+      _mode = _EventsBoardMode.sessionInspection;
+      _selectedSessionID = sessionID;
+      _latestSessionLiveEvent = null;
+      _sessionHistory = const <StreamEvent>[];
+      _nextSessionActivityOffset = 0;
+    });
+    await _reloadSessionHistory();
+  }
+
+  Widget _buildPipelineNodeCard(
+    _PipelineDrilldownNode node, {
+    required int order,
+  }) {
+    final sortedSessionIDs = node.sessionIDs.toList(growable: false)..sort();
+    final latestEvent = node.events.isEmpty ? null : node.events.first;
+    final accent = latestEvent == null
+        ? Theme.of(context).colorScheme.primary
+        : _eventAccentColor(context, latestEvent);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Expanded(
-              child: TextField(
-                controller: _runIDController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Run ID',
-                  isDense: true,
+            Row(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '#$order',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _taskIDController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Task ID',
-                  isDense: true,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _pipelineIdentityLabel(node),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _jobIDController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Job ID',
-                  isDense: true,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    Text(
+                      _formatPipelineTimestamp(node.latestAt),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    Text(
+                      '${sortedSessionIDs.length} sessions • ${node.events.length} events',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
                 ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'run=${node.runID.isEmpty ? '-' : node.runID} task=${node.taskID.isEmpty ? '-' : node.taskID} job=${node.jobID.isEmpty ? '-' : node.jobID}',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            const SizedBox(height: 10),
+            if (sortedSessionIDs.isEmpty)
+              const Text('No correlated sessions found yet.')
+            else ...<Widget>[
+              Text('Sessions', style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 6),
+              ...sortedSessionIDs.map((sessionID) {
+                LifecycleSessionSnapshotModel? snapshot;
+                for (final item in _snapshots) {
+                  if (item.sessionID == sessionID) {
+                    snapshot = item;
+                    break;
+                  }
+                }
+                final stateLabel = snapshot == null
+                    ? 'unknown'
+                    : '${snapshot.currentState} (${snapshot.currentSeverity})';
+                return InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () => _openSessionInspectionFromPipeline(sessionID),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 2,
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.account_tree_outlined,
+                          size: 16,
+                          color: accent,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$sessionID • $stateLabel',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, size: 16),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+            if (node.events.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                'Pipeline Events',
+                style: Theme.of(context).textTheme.labelMedium,
               ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: _reloadPipelineEvents,
-              child: const Text('Load'),
-            ),
+              const SizedBox(height: 8),
+              ...node.events
+                  .take(30)
+                  .map((event) => _buildEventCard(event, showOffset: false)),
+            ],
           ],
         ),
-        const SizedBox(height: 10),
-        if (_pipelineEvents.isEmpty)
-          const Text('No pipeline events loaded yet.')
-        else
-          ..._pipelineEvents.take(150).map(_buildEventCard),
-      ],
+      ),
     );
   }
 

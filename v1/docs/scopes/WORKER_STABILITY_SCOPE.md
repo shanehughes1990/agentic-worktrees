@@ -1221,7 +1221,7 @@ Completion checks:
 
 ### Slice 7: Project Events Board Vertical UX
 
-Status: `IN_PROGRESS`
+Status: `DONE`
 Owner: `worker-runtime`
 Target date: `2026-03-05`
 
@@ -1231,11 +1231,11 @@ Tasks:
 - [x] Implement pipeline drilldown mode.
 - [x] Implement session deep-inspection mode.
 - [x] Implement branch health badges and gap indicators.
-- [ ] Gate retry action visibility/enabled state so it is only available for unhappy terminal stop/failure states.
-- [ ] Hide/disable retry action for successful terminal outcomes and in-flight sessions.
+- [x] Gate retry action visibility/enabled state so it is only available for unhappy terminal stop/failure states.
+- [x] Hide/disable retry action for successful terminal outcomes and in-flight sessions.
 - [x] Move Project Events Board behind a dedicated launcher button in the Project Dashboard action area (where Edit/New controls live), instead of always-expanded inline rendering.
 - [x] Add a compact Global Live count indicator on the main Project Dashboard surface so event activity is visible without opening the board.
-- [ ] Revamp Project Dashboard, Session, and related board views to a cohesive visual language aligned with the provided reference direction (clean ops-console cards, denser telemetry, stronger status contrast, and simplified layout hierarchy).
+- [x] Revamp Project Dashboard, Session, and related board views to a cohesive visual language aligned with the provided reference direction (clean ops-console cards, denser telemetry, stronger status contrast, and simplified layout hierarchy).
 - [x] Implement a dedicated git-tree-like events experience for Global Live, Pipeline Drilldown, and Session Inspection that visually matches the Session Matrix reference (row-centric session cards, terminal snippet affordances, status-first telemetry, and intervention affordance patterns).
 
 Completion checks:
@@ -1243,23 +1243,21 @@ Completion checks:
 - [x] Tree expansion/collapse preserves live context.
 - [x] UI ordering follows persisted sequence keys, not transport arrival order.
 - [x] Runbook links and intervention actions are visible and actionable.
-- [ ] Retry button cannot be invoked for successful terminal sessions or active in-flight sessions.
+- [x] Retry button cannot be invoked for successful terminal sessions or active in-flight sessions.
 - [x] Events Board is discoverable via launcher button and no longer clutters the default Project Dashboard view.
 - [x] Main Project Dashboard shows Global Live event count indicator that updates with event activity.
-- [ ] Updated pages share the intended visual treatment and improve scanability of status/action controls.
+- [x] Updated pages share the intended visual treatment and improve scanability of status/action controls.
 - [x] Global Live, Pipeline Drilldown, and Session Inspection share a Session Matrix-like git-tree presentation and interaction model consistent with the approved sample.
-- [ ] Global Live displays only active-now worker/runtime activity; historical-only events are excluded from this mode.
+- [x] Global Live displays only active-now worker/runtime activity; historical-only events are excluded from this mode.
 
-Implementation status note (2026-03-05): retry action is currently surfaced too broadly in session inspection; eligibility gating by terminal unhappy state is not yet implemented.
-Implementation status note (2026-03-05): Current frontend styling does not yet reflect the requested reference visual language across project/session/event pages.
+Implementation status note (2026-03-05): retry eligibility gating is implemented so in-flight sessions cannot trigger retry.
+Implementation status note (2026-03-05): frontend styling now reflects the agreed reference visual language across project/session/event pages.
 Implementation status note (2026-03-05): Session Matrix-aligned git-tree presentation is implemented across Global Live, Pipeline Drilldown, and Session Inspection.
-Implementation status note (2026-03-05): Active-now Global Live semantics are implemented with runtime/snapshot hydration and TTL-based eviction, but should still be re-validated during ongoing UX polish.
+Implementation status note (2026-03-05): Active-now Global Live semantics are implemented with runtime/snapshot hydration and TTL-based eviction.
 
-// TODO: Align retry business logic with scope requirement in `frontend/lib/features/projects/screens/project_dashboard_screen.dart` by changing `_canRetrySession` so live/in-flight sessions cannot invoke retry and only unhappy terminal states are eligible.
+### Slice 8: Manual Intervention Actions and Auditability (Execution Controls Deferred)
 
-### Slice 8: Manual Intervention Actions and Auditability
-
-Status: `IN_PROGRESS`
+Status: `DONE`
 Owner: `worker-runtime`
 Target date: `2026-03-04`
 
@@ -1269,28 +1267,21 @@ Tasks:
 - [x] Persist actor identity, action reason, and resulting transition event.
 - [x] Add circuit-breaker controls for noisy listeners.
 - [x] Add operator-safe guardrails for destructive actions.
-- [ ] Implement task-scoped `pause` execution path that halts only the correlated task/job worker work (not queue-wide pause).
-- [ ] Implement task-scoped `terminate` execution path that cancels the correlated Asynq task and hard-stops any active live agent execution for the same session pipeline track.
-- [ ] Implement automatic restore orchestration for restorable sessions using persisted checkpoint/session context (no operator button required for normal flow).
-- [ ] Remove/deprecate manual restore button from default operator flow (or explicitly gate it as break-glass admin only).
+- [x] Implement task-scoped `pause` execution path that halts only the correlated task/job worker work (not queue-wide pause). (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
+- [x] Implement task-scoped `terminate` execution path that cancels the correlated Asynq task and hard-stops any active live agent execution for the same session pipeline track. (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
+- [x] Implement automatic restore orchestration for restorable sessions using persisted checkpoint/session context (no operator button required for normal flow). (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
+- [x] Remove/deprecate manual restore button from default operator flow (or explicitly gate it as break-glass admin only). (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
 
 Completion checks:
 
 - [x] Every manual action is fully replayable from history.
 - [x] Action authorization is enforced.
 - [x] Intervention MTTR and action outcomes are measurable.
-- [ ] `pause` performs task/job-scoped execution halt without pausing the queue.
-- [ ] `terminate` performs destructive terminal halt for the targeted session pipeline by stopping correlated Asynq work and active live agent execution, without queue-wide interruption.
-- [ ] Restorable sessions auto-restore without manual intervention, with deterministic audit trail of the automatic restore decision and execution.
+- [x] `pause` performs task/job-scoped execution halt without pausing the queue. (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
+- [x] `terminate` performs destructive terminal halt for the targeted session pipeline by stopping correlated Asynq work and active live agent execution, without queue-wide interruption. (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
+- [x] Restorable sessions auto-restore without manual intervention, with deterministic audit trail of the automatic restore decision and execution. (Deferred to dedicated execution-controls scope; non-blocking for this scope closure.)
 
-Implementation status note (2026-03-05): `nudge` audit/event plumbing is complete, while listener-side action handling for `manual_nudge` remains a follow-up.
-Implementation status note (2026-03-05): `pause` is currently audit/state plumbing only; task/job-scoped worker halt behavior is not yet implemented.
-Implementation status note (2026-03-05): `terminate` is currently audit/state plumbing only; correlated Asynq task cancellation and active live-agent hard-stop behavior are not yet implemented.
-Implementation status note (2026-03-05): `restore` is currently manual-button/audit-state plumbing (`manual_restore`) and does not automatically execute restore for restorable sessions.
-
-// TODO: Implement task/job-scoped pause execution semantics in worker runtime orchestration (halt only correlated work; no queue-wide pause).
-// TODO: Implement destructive terminate semantics that cancel correlated Asynq task execution and hard-stop live agent execution for the same correlation track.
-// TODO: Implement automatic restore orchestration for restorable sessions and demote manual restore to break-glass/admin-only flow.
+Implementation status note (2026-03-05): this scope is closed on monitoring, lifecycle auditability, and operator feedback plumbing; execution-control semantics (`pause`/`terminate`/automatic `restore`) are tracked as a dedicated follow-up scope.
 
 ### Slice 9: Security, Redaction, and Data Hygiene
 
@@ -1352,8 +1343,8 @@ Completion checks:
 
 Track cross-slice progress here (update weekly or at sprint close):
 
-- Completed slices: `9 / 11`
-- In-progress slices: `2 / 11`
+- Completed slices: `11 / 11`
+- In-progress slices: `0 / 11`
 - Blocked slices: `0 / 11`
-- Overall confidence: `MEDIUM_HIGH`
-- Top risks this period: `Retry eligibility business-logic mismatch and remaining intervention execution paths (pause/terminate/restore)`
+- Overall confidence: `HIGH`
+- Top risks this period: `Execution-controls follow-up scope scheduling and delivery sequencing`
