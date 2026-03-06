@@ -158,9 +158,14 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
               final now = DateTime.now().toUtc();
               final summaryKey = _summaryKeyForEvent(incoming);
-              final existingIndex = _realtimeSummaryFeed.indexWhere(
+              var existingIndex = _realtimeSummaryFeed.indexWhere(
                 (entry) => _summaryKeyForEvent(entry.event) == summaryKey,
               );
+              if (existingIndex < 0) {
+                existingIndex = _realtimeSummaryFeed.indexWhere(
+                  (entry) => _sameSummaryCorrelation(entry.event, incoming),
+                );
+              }
               final summaryEntry = _RealtimeSummaryEntry(
                 event: incoming,
                 receivedAt: now,
@@ -242,16 +247,16 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
   }
 
   String _dashboardLiveActivityKey(StreamEvent event) {
+    final sessionID = event.sessionID?.trim();
+    if (sessionID != null && sessionID.isNotEmpty) {
+      return 'session:$sessionID';
+    }
     final projectID = event.projectID?.trim() ?? '';
     final runID = event.runID?.trim() ?? '';
     final taskID = event.taskID?.trim() ?? '';
     final jobID = event.jobID?.trim() ?? '';
     if (runID.isNotEmpty || taskID.isNotEmpty || jobID.isNotEmpty) {
       return 'corr:$projectID|$runID|$taskID|$jobID';
-    }
-    final sessionID = event.sessionID?.trim();
-    if (sessionID != null && sessionID.isNotEmpty) {
-      return 'session:$sessionID';
     }
     if (event.eventID.trim().isNotEmpty) {
       return 'event:${event.eventID.trim()}';
@@ -265,7 +270,12 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     final terminalEvent =
         type == 'stream.session.ended' ||
         type == 'stream.session.completed' ||
-        type == 'stream.session.failed';
+        type == 'stream.session.failed' ||
+        type.contains('completed') ||
+        type.contains('failed') ||
+        type.contains('terminate') ||
+        type.contains('cancel') ||
+        type.contains('ended');
     if (terminalEvent) {
       _dashboardActiveEntriesByKey.remove(key);
       return;
@@ -274,6 +284,50 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
       event: incoming,
       lastSeenAt: DateTime.now(),
     );
+  }
+
+  bool _isDashboardSnapshotLive(LifecycleSessionSnapshotModel snapshot) {
+    if (snapshot.endedAt != null) {
+      return false;
+    }
+    final state = snapshot.currentState.trim().toLowerCase();
+    if (state.isEmpty) {
+      return true;
+    }
+    return !state.contains('completed') &&
+        !state.contains('failed') &&
+        !state.contains('exited') &&
+        !state.contains('terminated');
+  }
+
+  void _syncDashboardActiveFromSnapshots(
+    List<LifecycleSessionSnapshotModel> snapshots,
+  ) {
+    _dashboardActiveEntriesByKey.clear();
+    final now = DateTime.now();
+    for (final snapshot in snapshots) {
+      if (!_isDashboardSnapshotLive(snapshot)) {
+        continue;
+      }
+      final syntheticEvent = StreamEvent(
+        eventID: 'snapshot:${snapshot.sessionID}',
+        streamOffset: snapshot.lastProjectEventSeq,
+        eventType: 'snapshot.active',
+        source: 'lifecycle_snapshot',
+        payload: '{}',
+        occurredAt: snapshot.updatedAt,
+        runID: snapshot.runID,
+        taskID: snapshot.taskID,
+        jobID: snapshot.jobID,
+        projectID: snapshot.projectID,
+        sessionID: snapshot.sessionID,
+      );
+      final key = _dashboardLiveActivityKey(syntheticEvent);
+      _dashboardActiveEntriesByKey[key] = _LiveActiveEntry(
+        event: syntheticEvent,
+        lastSeenAt: now,
+      );
+    }
   }
 
   String _summaryKeyForEvent(StreamEvent event) {
@@ -448,6 +502,15 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
   String _summaryStatusForEvent(StreamEvent event) {
     final eventType = event.eventType.toLowerCase();
+    if (eventType.contains('ended')) {
+      final payloadLower = event.payload.toLowerCase();
+      final failedExit =
+          payloadLower.contains('failed') ||
+          payloadLower.contains('error') ||
+          payloadLower.contains('cancel') ||
+          payloadLower.contains('terminate');
+      return failedExit ? 'failed' : 'completed';
+    }
     if (eventType.contains('failed') ||
         eventType.contains('error') ||
         eventType.contains('terminate') ||
@@ -470,6 +533,22 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
 
   bool _isTerminalSummaryStatus(String status) {
     return status == 'completed' || status == 'failed';
+  }
+
+  bool _sameSummaryCorrelation(StreamEvent left, StreamEvent right) {
+    final leftRun = left.runID?.trim() ?? '';
+    final leftTask = left.taskID?.trim() ?? '';
+    final leftJob = left.jobID?.trim() ?? '';
+    final rightRun = right.runID?.trim() ?? '';
+    final rightTask = right.taskID?.trim() ?? '';
+    final rightJob = right.jobID?.trim() ?? '';
+    if (leftRun.isEmpty && leftTask.isEmpty && leftJob.isEmpty) {
+      return false;
+    }
+    if (rightRun.isEmpty && rightTask.isEmpty && rightJob.isEmpty) {
+      return false;
+    }
+    return leftRun == rightRun && leftTask == rightTask && leftJob == rightJob;
   }
 
   bool _shouldRenotifyOnStatusTransition({
@@ -544,6 +623,9 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     }
 
     setState(() {
+      if (snapshotsResult.isSuccess && snapshotsResult.data != null) {
+        _syncDashboardActiveFromSnapshots(snapshotsResult.data!);
+      }
       if (projectEventsResult.isSuccess && projectEventsResult.data != null) {
         _projectEvents = projectEventsResult.data!;
       }
@@ -1342,24 +1424,34 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
         actions: <Widget>[
           Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.1),
+            child: Tooltip(
+              message: 'Open Events Matrix (Global Live)',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'Active ${_dashboardActiveEntriesByKey.length}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
+                  onTap: () {
+                    unawaited(_openEventsMatrixPage());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Active ${_dashboardActiveEntriesByKey.length}',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ),
               ),

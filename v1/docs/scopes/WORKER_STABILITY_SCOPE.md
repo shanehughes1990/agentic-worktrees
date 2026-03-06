@@ -241,6 +241,80 @@ Heartbeat ingestion requirement:
 - Each heartbeat layer is an ingestion point into session inspection, persisted into lifecycle history, then fanned out upstream through existing ordered event transport.
 - Heartbeat-derived transitions must be emitted only when materially changed (idempotent transition policy).
 
+### Immediate Gap Remediation (Asynq Exit Coverage)
+
+Observed gap to close immediately:
+
+- A retried Asynq session can show `started` plus heartbeat layers without an explicit persisted terminal transition for the same session attempt (`failed`/`terminated`).
+- This breaks strict lifecycle traceability for session inspection because operator-visible terminal intent is not guaranteed on every exit path.
+
+Actionable tasks (must all be completed):
+
+1. Worker action inventory and state matrix
+
+- Enumerate every current worker action/handler executed through Asynq and non-Asynq worker pipelines.
+- For each action, document current persisted lifecycle coverage by state:
+  - enqueued
+  - started
+  - heartbeat/runtime/process/activity layers
+  - completed
+  - failed
+  - terminated/quit
+  - retry scheduled
+  - dead-letter routed
+- Publish this as a checked-in coverage matrix in v1 docs and keep it updated with each new worker action.
+
+1. Mandatory terminal event on every exit path
+
+- Enforce append of explicit terminal lifecycle event for every exit path:
+  - happy path -> `completed`
+  - transient retryable failure -> `failed` with retry metadata
+  - non-retryable/terminal failure -> `failed` (terminal class)
+  - explicit cancellation/quit/termination -> `terminated` (or project-defined terminal type)
+- No worker action may return without persisting one terminal state per attempt path.
+
+1. Attempt-bound correlation and metadata completeness
+
+- Persist attempt-aware metadata on all terminal events:
+  - `queue_task_id`
+  - `retry_count`
+  - `max_retry`
+  - `run_id`, `task_id`, `job_id`, `project_id`, `session_id`
+  - typed failure class (`transient` or `terminal`)
+  - reason code/summary and error payload when applicable
+- Ensure terminal transitions can be attributed to the specific attempt where exit occurred.
+
+1. Persisted-first fan-out guarantee
+
+- For every worker lifecycle action and every synthetic lifecycle event, enforce contract:
+  - ingest
+  - persist to `project_session_history` / `project_sessions`
+  - emit upstream via ordered stream transport
+- Emission without persistence is non-compliant.
+
+1. Exit-path test suite (blocking)
+
+- Add blocking tests per worker action for all exit classes:
+  - success
+  - transient retry
+  - terminal failure
+  - cancel/quit/terminate
+- Tests must assert persisted lifecycle rows and upstream emit rows exist and are correlated.
+- Tests must fail if any exit path skips terminal lifecycle persistence.
+
+1. Runtime verification query pack
+
+- Add repeatable Postgres verification queries for CI/ops checks to confirm per session attempt:
+  - terminal event exists
+  - required metadata fields exist
+  - event ordering (`event_seq`) is monotonic
+  - emitted stream rows exist for persisted lifecycle transitions
+
+1. Enforcement gate
+
+- Add a merge gate requirement: any new worker action/handler must include updated coverage matrix + exit-path tests proving ingest -> persist -> emit for all paths.
+- Contributions that do not provide complete exit-path lifecycle persistence evidence are non-compliant.
+
 Mandatory persistence targets:
 
 - A generic session table (recommended name: `project_sessions`) must persist live stability evaluation outputs for each worker session lifecycle tick.
