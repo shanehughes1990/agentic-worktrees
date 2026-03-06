@@ -22,6 +22,10 @@ const (
 	EventHeartbeatQuorumRecovered EventType = "heartbeat_quorum_recovered"
 	EventCompleted                EventType = "completed"
 	EventFailed                   EventType = "failed"
+	EventTerminated               EventType = "terminated"
+	EventRetryScheduled           EventType = "retry_scheduled"
+	EventRetryStarted             EventType = "retry_started"
+	EventDeadLettered             EventType = "dead_lettered"
 	EventGapDetected              EventType = "gap_detected"
 	EventGapReconciled            EventType = "gap_reconciled"
 )

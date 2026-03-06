@@ -3,6 +3,7 @@ package worker
 import (
 	applicationlifecycle "agentic-orchestrator/internal/application/lifecycle"
 	"agentic-orchestrator/internal/application/taskengine"
+	"agentic-orchestrator/internal/domain/failures"
 	domainlifecycle "agentic-orchestrator/internal/domain/lifecycle"
 	domainrealtime "agentic-orchestrator/internal/domain/realtime"
 	"context"
@@ -115,8 +116,8 @@ func TestJobLifecycleMiddlewareEmitsStartedAndCompleted(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("handle job: %v", err)
 	}
-	if len(store.events) != 2 {
-		t.Fatalf("expected 2 lifecycle events, got %d", len(store.events))
+	if len(store.events) < 2 {
+		t.Fatalf("expected at least 2 lifecycle events, got %d", len(store.events))
 	}
 	if store.events[0].EventType != domainlifecycle.EventStarted {
 		t.Fatalf("expected first event type started, got %s", store.events[0].EventType)
@@ -143,11 +144,14 @@ func TestJobLifecycleMiddlewareEmitsFailedOnHandlerError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error from wrapped handler")
 	}
-	if len(store.events) != 2 {
-		t.Fatalf("expected 2 lifecycle events, got %d", len(store.events))
+	if len(store.events) < 3 {
+		t.Fatalf("expected at least 3 lifecycle events (started, failed, disposition), got %d", len(store.events))
 	}
 	if store.events[1].EventType != domainlifecycle.EventFailed {
 		t.Fatalf("expected failed event type, got %s", store.events[1].EventType)
+	}
+	if store.events[2].EventType != domainlifecycle.EventDeadLettered {
+		t.Fatalf("expected dead_lettered disposition event, got %s", store.events[2].EventType)
 	}
 }
 
@@ -185,17 +189,34 @@ func TestJobLifecycleMiddlewareUsesAttemptAwareEventIDs(t *testing.T) {
 		t.Fatalf("expected timeout error on attempt 1")
 	}
 
-	if len(store.events) != 4 {
-		t.Fatalf("expected 4 lifecycle events across two attempts, got %d", len(store.events))
+	if len(store.events) != 7 {
+		t.Fatalf("expected 7 lifecycle events across two attempts with retry markers, got %d", len(store.events))
 	}
-	if store.events[0].EventID == store.events[2].EventID {
+	if store.events[0].EventID == store.events[3].EventID {
 		t.Fatalf("expected started event IDs to differ across attempts, got %q", store.events[0].EventID)
 	}
-	if store.events[1].EventID == store.events[3].EventID {
+	if store.events[1].EventID == store.events[5].EventID {
 		t.Fatalf("expected failed event IDs to differ across attempts, got %q", store.events[1].EventID)
 	}
-	if !strings.Contains(store.events[0].EventID, "attempt-0") || !strings.Contains(store.events[2].EventID, "attempt-1") {
-		t.Fatalf("expected attempt suffixes in event IDs, got %q and %q", store.events[0].EventID, store.events[2].EventID)
+	if !strings.Contains(store.events[0].EventID, "attempt-0") || !strings.Contains(store.events[3].EventID, "attempt-1") {
+		t.Fatalf("expected attempt suffixes in event IDs, got %q and %q", store.events[0].EventID, store.events[3].EventID)
+	}
+
+	hasRetryScheduled := false
+	hasRetryStarted := false
+	for _, event := range store.events {
+		switch event.EventType {
+		case domainlifecycle.EventRetryScheduled:
+			hasRetryScheduled = true
+		case domainlifecycle.EventRetryStarted:
+			hasRetryStarted = true
+		}
+	}
+	if !hasRetryScheduled {
+		t.Fatalf("expected retry_scheduled event for retryable failure")
+	}
+	if !hasRetryStarted {
+		t.Fatalf("expected retry_started event on retried attempt")
 	}
 }
 
@@ -366,5 +387,107 @@ func TestJobLifecycleMiddlewareReturnsJoinedErrorWhenFailedPersistenceFails(t *t
 	}
 	if !strings.Contains(message, "append lifecycle failed event") {
 		t.Fatalf("expected failed append context in joined error, got %v", err)
+	}
+}
+
+func TestJobLifecycleMiddlewareEmitsTerminatedOnContextCancellation(t *testing.T) {
+	store := &fakeLifecycleStore{}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	transport := &fakeRuntimeTransport{}
+	handler := newJobLifecycleMiddleware("worker-1", service, transport, fakeJobHandler{err: context.Canceled})
+
+	err = handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-cancelled-1",
+		Payload:     []byte(`{"project_id":"project-1","run_id":"run-1","task_id":"task-1","job_id":"job-cancelled-1","session_id":"session-cancelled-1","idempotency_key":"idemp-cancelled-1"}`),
+	})
+	if err == nil {
+		t.Fatalf("expected wrapped cancellation error")
+	}
+	if failures.ClassOf(err) != failures.ClassTerminal {
+		t.Fatalf("expected terminal failure class for cancellation, got %q", failures.ClassOf(err))
+	}
+	if len(store.events) != 3 {
+		t.Fatalf("expected 3 lifecycle events (started, terminated, dead_lettered), got %d", len(store.events))
+	}
+	if store.events[1].EventType != domainlifecycle.EventTerminated {
+		t.Fatalf("expected terminated event type, got %s", store.events[1].EventType)
+	}
+	if store.events[2].EventType != domainlifecycle.EventDeadLettered {
+		t.Fatalf("expected dead_lettered disposition event after termination, got %s", store.events[2].EventType)
+	}
+	failureClass, _ := store.events[1].Payload["failure_class"].(string)
+	if failureClass != string(failures.ClassTerminal) {
+		t.Fatalf("expected terminal failure_class payload, got %q", failureClass)
+	}
+
+	hasTerminatedSignal := false
+	for _, signal := range transport.runtimeSignals {
+		if signal.EventType == "terminated" {
+			hasTerminatedSignal = true
+			break
+		}
+	}
+	if !hasTerminatedSignal {
+		t.Fatalf("expected terminated runtime signal")
+	}
+}
+
+func TestJobLifecycleMiddlewareEmitsRetryScheduledForRetryableFailure(t *testing.T) {
+	store := &fakeLifecycleStore{}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	handler := newJobLifecycleMiddleware("worker-1", service, nil, fakeJobHandler{err: failures.WrapTransient(errors.New("retryable"))})
+
+	err = handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-retry-scheduled",
+		RetryCount:  0,
+		MaxRetry:    2,
+		Payload:     []byte(`{"project_id":"project-1","run_id":"run-1","task_id":"task-1","job_id":"job-retry-scheduled","session_id":"session-retry-scheduled","idempotency_key":"idemp-retry-scheduled"}`),
+	})
+	if err == nil {
+		t.Fatalf("expected retryable handler error")
+	}
+
+	if len(store.events) < 3 {
+		t.Fatalf("expected started, failed, and retry_scheduled events, got %d", len(store.events))
+	}
+	last := store.events[len(store.events)-1]
+	if last.EventType != domainlifecycle.EventRetryScheduled {
+		t.Fatalf("expected final disposition event retry_scheduled, got %s", last.EventType)
+	}
+}
+
+func TestJobLifecycleMiddlewareEmitsDeadLetteredForTerminalAttempt(t *testing.T) {
+	store := &fakeLifecycleStore{}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	handler := newJobLifecycleMiddleware("worker-1", service, nil, fakeJobHandler{err: failures.WrapTransient(errors.New("exhausted"))})
+
+	err = handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-dead-lettered",
+		RetryCount:  2,
+		MaxRetry:    2,
+		Payload:     []byte(`{"project_id":"project-1","run_id":"run-1","task_id":"task-1","job_id":"job-dead-lettered","session_id":"session-dead-lettered","idempotency_key":"idemp-dead-lettered"}`),
+	})
+	if err == nil {
+		t.Fatalf("expected handler error")
+	}
+
+	if len(store.events) < 3 {
+		t.Fatalf("expected started, failed, and dead_lettered events, got %d", len(store.events))
+	}
+	last := store.events[len(store.events)-1]
+	if last.EventType != domainlifecycle.EventDeadLettered {
+		t.Fatalf("expected final disposition event dead_lettered, got %s", last.EventType)
 	}
 }

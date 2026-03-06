@@ -2,6 +2,7 @@ package asynq
 
 import (
 	"agentic-orchestrator/internal/application/taskengine"
+	"agentic-orchestrator/internal/domain/failures"
 	domainobservability "agentic-orchestrator/internal/domain/shared/observability"
 	"context"
 	"errors"
@@ -169,16 +170,27 @@ func (platform *WorkerPlatform) Register(kind taskengine.JobKind, handler tasken
 		queueTaskID, _ := asynq.GetTaskID(ctx)
 		retryCount, _ := asynq.GetRetryCount(ctx)
 		maxRetry, _ := asynq.GetMaxRetry(ctx)
-		return handler.Handle(ctx, taskengine.Job{
+		handleErr := handler.Handle(ctx, taskengine.Job{
 			Kind:        kind,
 			QueueTaskID: strings.TrimSpace(queueTaskID),
 			RetryCount:  retryCount,
 			MaxRetry:    maxRetry,
 			Payload:     task.Payload(),
 		})
+		return mapHandlerErrorToQueuePolicy(handleErr)
 	})
 
 	return nil
+}
+
+func mapHandlerErrorToQueuePolicy(handleErr error) error {
+	if handleErr == nil {
+		return nil
+	}
+	if failures.ClassOf(handleErr) == failures.ClassTerminal {
+		return errors.Join(handleErr, asynq.SkipRetry)
+	}
+	return handleErr
 }
 
 func (platform *WorkerPlatform) Start() error {

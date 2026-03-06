@@ -560,6 +560,9 @@ func upsertSessionSnapshot(tx *gorm.DB, history eventHistoryRecord, payload map[
 	if lastReasonCode == "" && history.EventType == string(domainlifecycle.EventFailed) {
 		lastReasonCode = "handler_error_" + strings.TrimSpace(readString(payload, "failure_class"))
 	}
+	if lastReasonCode == "" && history.EventType == string(domainlifecycle.EventTerminated) {
+		lastReasonCode = "terminated"
+	}
 	if lastReasonCode == "" {
 		lastReasonCode = reasonCode
 	}
@@ -801,7 +804,7 @@ func formatNullableTime(value *time.Time) string {
 
 func isTerminalEvent(eventType string) bool {
 	trimmed := strings.TrimSpace(eventType)
-	return trimmed == string(domainlifecycle.EventCompleted) || trimmed == string(domainlifecycle.EventFailed)
+	return trimmed == string(domainlifecycle.EventCompleted) || trimmed == string(domainlifecycle.EventFailed) || trimmed == string(domainlifecycle.EventTerminated) || trimmed == string(domainlifecycle.EventDeadLettered)
 }
 
 func isGapEventType(eventType string) bool {
@@ -932,6 +935,12 @@ func runtimeAliveForEvent(eventType string, payload map[string]any) bool {
 		}
 	}
 	if strings.TrimSpace(eventType) == string(domainlifecycle.EventFailed) {
+		return false
+	}
+	if strings.TrimSpace(eventType) == string(domainlifecycle.EventTerminated) {
+		return false
+	}
+	if strings.TrimSpace(eventType) == string(domainlifecycle.EventDeadLettered) {
 		return false
 	}
 	return true

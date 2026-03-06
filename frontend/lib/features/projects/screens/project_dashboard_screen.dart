@@ -15,6 +15,8 @@ import 'package:mime/mime.dart';
 
 enum _EventsBoardMode { globalLive, pipelineDrilldown, sessionInspection }
 
+enum _EventSeverity { info, warning, terminal, success }
+
 class _RealtimeSummaryEntry {
   const _RealtimeSummaryEntry({required this.event, required this.receivedAt});
 
@@ -429,6 +431,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                 final entry = _realtimeSummaryFeed[index];
                 final event = entry.event;
                 final status = _summaryStatusForEvent(event);
+                final statusLabel = _summaryStatusLabelForEvent(event, status);
                 final statusColor = _summaryStatusColor(status, context);
                 final activityLabel = _summaryActivityLabel(
                   entry: entry,
@@ -447,7 +450,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    'session=${event.sessionID ?? '-'} • $status',
+                    'session=${event.sessionID ?? '-'} • $statusLabel',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -469,7 +472,7 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
                           ),
                         ),
                         child: Text(
-                          status,
+                          statusLabel,
                           style: TextStyle(
                             color: statusColor,
                             fontSize: 11,
@@ -500,6 +503,92 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
     return normalizedType;
   }
 
+  Map<String, dynamic>? _summaryPayloadMap(StreamEvent event) {
+    final payloadText = event.payload.trim();
+    if (payloadText.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(payloadText);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  int? _summaryPayloadInt(Map<String, dynamic> payload, String key) {
+    final raw = payload[key];
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is double) {
+      return raw.toInt();
+    }
+    if (raw is String) {
+      return int.tryParse(raw.trim());
+    }
+    return null;
+  }
+
+  _EventSeverity _summaryEventSeverity(StreamEvent event) {
+    final normalizedType = event.eventType.trim().toLowerCase();
+    final payload = _summaryPayloadMap(event);
+    final failureClass =
+        (payload?['failure_class'] as String?)?.trim().toLowerCase() ?? '';
+    final runtimeEvent =
+        (payload?['runtime_event'] as String?)?.trim().toLowerCase() ?? '';
+    final retryCount = payload != null
+        ? _summaryPayloadInt(payload, 'retry_count')
+        : null;
+    final maxRetry = payload != null
+        ? _summaryPayloadInt(payload, 'max_retry')
+        : null;
+
+    final hasRetriesRemaining =
+        retryCount != null && maxRetry != null && retryCount < maxRetry;
+    final failedButRetryable =
+        normalizedType.contains('failed') &&
+        (failureClass == 'transient' || hasRetriesRemaining);
+
+    final warningSignal =
+        normalizedType.contains('retry_scheduled') ||
+        normalizedType.contains('retry_started') ||
+        normalizedType.contains('degraded') ||
+        normalizedType.contains('gap') ||
+        normalizedType.contains('stale') ||
+        normalizedType.contains('idle_suspected') ||
+        normalizedType.contains('waiting_input') ||
+        normalizedType.contains('pause') ||
+        normalizedType.contains('heartbeat_quorum_degraded') ||
+        failedButRetryable ||
+        failureClass == 'transient';
+    if (warningSignal) {
+      return _EventSeverity.warning;
+    }
+
+    final terminalSignal =
+        normalizedType.contains('dead_letter') ||
+        normalizedType.contains('terminated') ||
+        normalizedType.contains('failed') ||
+        normalizedType.contains('error') ||
+        runtimeEvent == 'failed' ||
+        runtimeEvent == 'terminated' ||
+        failureClass == 'terminal';
+    if (terminalSignal) {
+      return _EventSeverity.terminal;
+    }
+
+    if (normalizedType.contains('completed') ||
+        normalizedType.contains('healthy')) {
+      return _EventSeverity.success;
+    }
+
+    return _EventSeverity.info;
+  }
+
   String _summaryStatusForEvent(StreamEvent event) {
     final eventType = event.eventType.toLowerCase();
     if (eventType.contains('ended')) {
@@ -511,21 +600,59 @@ class _ProjectDashboardScreenState extends State<ProjectDashboardScreen> {
           payloadLower.contains('terminate');
       return failedExit ? 'failed' : 'completed';
     }
-    if (eventType.contains('failed') ||
-        eventType.contains('error') ||
-        eventType.contains('terminate') ||
-        eventType.contains('cancel')) {
-      return 'failed';
-    }
-    if (eventType.contains('completed')) {
-      return 'completed';
-    }
-    if (eventType.contains('degraded') ||
-        eventType.contains('gap') ||
-        eventType.contains('pause')) {
-      return 'degraded';
+    switch (_summaryEventSeverity(event)) {
+      case _EventSeverity.terminal:
+        return 'failed';
+      case _EventSeverity.warning:
+        return 'degraded';
+      case _EventSeverity.success:
+        return 'completed';
+      case _EventSeverity.info:
+        break;
     }
     if (eventType.contains('started') || eventType.contains('heartbeat')) {
+      return 'running';
+    }
+    return 'updated';
+  }
+
+  String _summaryStatusLabelForEvent(StreamEvent event, String status) {
+    final eventType = event.eventType.trim().toLowerCase();
+    if (status == 'degraded') {
+      if (eventType.contains('retry_scheduled') ||
+          eventType.contains('retry_started')) {
+        return 'retrying';
+      }
+      if (eventType.contains('heartbeat_quorum_degraded')) {
+        return 'heartbeat degraded';
+      }
+      if (eventType.contains('waiting_input')) {
+        return 'waiting input';
+      }
+      if (eventType.contains('idle_suspected')) {
+        return 'idle suspected';
+      }
+      if (eventType.contains('stale')) {
+        return 'stale';
+      }
+      if (eventType.contains('gap')) {
+        return 'stream gap';
+      }
+      return 'degraded';
+    }
+    if (status == 'failed') {
+      if (eventType.contains('dead_letter')) {
+        return 'dead-lettered';
+      }
+      if (eventType.contains('terminate') || eventType.contains('cancel')) {
+        return 'terminated';
+      }
+      return 'failed';
+    }
+    if (status == 'completed') {
+      return 'completed';
+    }
+    if (status == 'running') {
       return 'running';
     }
     return 'updated';
@@ -2441,59 +2568,103 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
     _startSessionActivitySubscription();
   }
 
-  bool _isErrorEvent(StreamEvent event) {
-    final normalizedType = event.eventType.toLowerCase();
-    if (normalizedType.contains('failed') || normalizedType.contains('error')) {
-      return true;
-    }
+  Map<String, dynamic>? _eventPayloadMap(StreamEvent event) {
     final payloadText = event.payload.trim();
     if (payloadText.isEmpty) {
-      return false;
+      return null;
     }
     try {
       final decoded = jsonDecode(payloadText);
-      if (decoded is! Map<String, dynamic>) {
-        return false;
-      }
-      final flagged = decoded['error_event'];
-      if (flagged is bool && flagged) {
-        return true;
-      }
-      for (final key in <String>['error', 'error_code', 'failure_class']) {
-        final value = (decoded[key] as String?)?.trim();
-        if (value != null && value.isNotEmpty) {
-          return true;
-        }
-      }
-      final runtimeEvent = (decoded['runtime_event'] as String?)
-          ?.trim()
-          .toLowerCase();
-      if (runtimeEvent == 'failed' || runtimeEvent == 'terminated') {
-        return true;
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
       }
     } catch (_) {
-      return false;
+      return null;
     }
-    return false;
+    return null;
+  }
+
+  int? _payloadInt(Map<String, dynamic> payload, String key) {
+    final raw = payload[key];
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is double) {
+      return raw.toInt();
+    }
+    if (raw is String) {
+      return int.tryParse(raw.trim());
+    }
+    return null;
+  }
+
+  _EventSeverity _eventSeverity(StreamEvent event) {
+    final normalizedType = event.eventType.trim().toLowerCase();
+    final payload = _eventPayloadMap(event);
+    final failureClass =
+        (payload?['failure_class'] as String?)?.trim().toLowerCase() ?? '';
+    final runtimeEvent =
+        (payload?['runtime_event'] as String?)?.trim().toLowerCase() ?? '';
+    final retryCount = payload != null
+        ? _payloadInt(payload, 'retry_count')
+        : null;
+    final maxRetry = payload != null ? _payloadInt(payload, 'max_retry') : null;
+
+    final hasRetriesRemaining =
+        retryCount != null && maxRetry != null && retryCount < maxRetry;
+    final failedButRetryable =
+        normalizedType.contains('failed') &&
+        (failureClass == 'transient' || hasRetriesRemaining);
+
+    final warningSignal =
+        normalizedType.contains('retry_scheduled') ||
+        normalizedType.contains('retry_started') ||
+        normalizedType.contains('degraded') ||
+        normalizedType.contains('gap') ||
+        normalizedType.contains('stale') ||
+        normalizedType.contains('idle_suspected') ||
+        normalizedType.contains('waiting_input') ||
+        normalizedType.contains('pause') ||
+        normalizedType.contains('heartbeat_quorum_degraded') ||
+        failedButRetryable ||
+        failureClass == 'transient';
+
+    if (warningSignal) {
+      return _EventSeverity.warning;
+    }
+
+    final terminalSignal =
+        normalizedType.contains('dead_letter') ||
+        normalizedType.contains('terminated') ||
+        normalizedType.contains('failed') ||
+        normalizedType.contains('error') ||
+        runtimeEvent == 'failed' ||
+        runtimeEvent == 'terminated' ||
+        failureClass == 'terminal';
+
+    if (terminalSignal) {
+      return _EventSeverity.terminal;
+    }
+
+    if (normalizedType.contains('completed') ||
+        normalizedType.contains('healthy')) {
+      return _EventSeverity.success;
+    }
+
+    return _EventSeverity.info;
   }
 
   Color _eventAccentColor(BuildContext context, StreamEvent event) {
-    if (_isErrorEvent(event)) {
-      return Theme.of(context).colorScheme.error;
+    switch (_eventSeverity(event)) {
+      case _EventSeverity.terminal:
+        return Theme.of(context).colorScheme.error;
+      case _EventSeverity.warning:
+        return Colors.amber.shade700;
+      case _EventSeverity.success:
+        return Colors.green.shade600;
+      case _EventSeverity.info:
+        return Theme.of(context).colorScheme.primary;
     }
-    final normalized = event.eventType.toLowerCase();
-    if (normalized.contains('failed') ||
-        normalized.contains('error') ||
-        normalized.contains('terminate')) {
-      return Theme.of(context).colorScheme.error;
-    }
-    if (normalized.contains('gap') || normalized.contains('pause')) {
-      return Colors.amber.shade700;
-    }
-    if (normalized.contains('completed') || normalized.contains('healthy')) {
-      return Colors.green.shade600;
-    }
-    return Theme.of(context).colorScheme.primary;
   }
 
   Future<void> _runManualIntervention(String action) async {
@@ -2614,6 +2785,9 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
     final accent = forceErrorAccent
         ? Theme.of(context).colorScheme.error
         : _eventAccentColor(context, event);
+    final reasonColor = forceErrorAccent
+        ? Theme.of(context).colorScheme.error
+        : accent;
     final reason = _eventFailureReason(event);
     final rawPayload = event.payload.trim();
     final prettyPayload = _prettyEventPayload(event.payload);
@@ -2691,7 +2865,7 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
               Text(
                 'Reason: $reason',
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
+                  color: reasonColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),

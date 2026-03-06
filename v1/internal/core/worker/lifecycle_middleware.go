@@ -63,30 +63,53 @@ func (middleware *jobLifecycleMiddleware) Handle(ctx context.Context, job tasken
 		return fmt.Errorf("append lifecycle started event: %w", err)
 	}
 	middleware.publishRuntimeSignal(ctx, meta, "started", startedPayload, startedID)
+	if meta.RetryCount > 0 {
+		retryStartedPayload := cloneMap(startedPayload)
+		retryStartedPayload["previous_attempt"] = meta.RetryCount - 1
+		retryStartedPayload["next_attempt"] = meta.RetryCount
+		retryStartedID := lifecycleEventID(job, meta.IdempotencyKey, meta.JobID, string(domainlifecycle.EventRetryStarted), meta.RetryCount)
+		if _, err := middleware.service.AppendEvent(ctx, domainlifecycle.Event{
+			EventID:       retryStartedID,
+			SchemaVersion: lifecycleSchemaVersion,
+			ProjectID:     meta.ProjectID,
+			RunID:         meta.RunID,
+			TaskID:        meta.TaskID,
+			JobID:         meta.JobID,
+			SessionID:     meta.SessionID,
+			WorkerID:      middleware.workerID,
+			SourceRuntime: "worker",
+			PipelineType:  string(job.Kind),
+			EventType:     domainlifecycle.EventRetryStarted,
+			OccurredAt:    time.Now().UTC(),
+			Payload:       retryStartedPayload,
+		}); err != nil {
+			return fmt.Errorf("append lifecycle retry started event: %w", err)
+		}
+		middleware.publishRuntimeSignal(ctx, meta, "retry_started", retryStartedPayload, retryStartedID)
+	}
 	heartbeatCtx, stopHeartbeats := context.WithCancel(ctx)
 	defer stopHeartbeats()
 	go middleware.runRuntimeHeartbeatSignals(heartbeatCtx, meta, job)
 
 	handlerErr := middleware.handler.Handle(ctx, job)
 	stopHeartbeats()
-	completedType := domainlifecycle.EventCompleted
-	if handlerErr != nil {
-		completedType = domainlifecycle.EventFailed
-	}
+	completedType := classifyTerminalLifecycleEventType(ctx, handlerErr)
 	payload := map[string]any{
 		"queue_task_id": strings.TrimSpace(job.QueueTaskID),
 		"job_kind":      string(job.Kind),
-		"runtime_alive": handlerErr == nil,
+		"runtime_alive": completedType == domainlifecycle.EventCompleted,
 		"retry_count":   meta.RetryCount,
 		"max_retry":     meta.MaxRetry,
 	}
 	if handlerErr != nil {
 		payload["error"] = strings.TrimSpace(handlerErr.Error())
-		payload["failure_class"] = string(failures.ClassOf(handlerErr))
+		payload["failure_class"] = string(classifyFailureClass(completedType, handlerErr))
 	}
 	runtimeTerminalEventType := "completed"
 	if completedType == domainlifecycle.EventFailed {
 		runtimeTerminalEventType = "failed"
+	} else if completedType == domainlifecycle.EventTerminated {
+		runtimeTerminalEventType = "terminated"
 	}
 	completedID := lifecycleEventID(job, meta.IdempotencyKey, meta.JobID, string(completedType), meta.RetryCount)
 	if _, err := middleware.service.AppendEvent(ctx, domainlifecycle.Event{
@@ -111,7 +134,93 @@ func (middleware *jobLifecycleMiddleware) Handle(ctx context.Context, job tasken
 		return wrapped
 	}
 	middleware.publishRuntimeSignal(ctx, meta, runtimeTerminalEventType, payload, completedID)
+	if dispositionErr := middleware.appendAttemptDispositionEvent(ctx, job, meta, completedType, handlerErr); dispositionErr != nil {
+		if handlerErr != nil {
+			return errors.Join(handlerErr, dispositionErr)
+		}
+		return dispositionErr
+	}
+	if completedType == domainlifecycle.EventTerminated {
+		return failures.WrapTerminal(handlerErr)
+	}
 	return handlerErr
+}
+
+func (middleware *jobLifecycleMiddleware) appendAttemptDispositionEvent(ctx context.Context, job taskengine.Job, meta lifecycleMetadata, terminalEventType domainlifecycle.EventType, handlerErr error) error {
+	if middleware == nil || middleware.service == nil {
+		return nil
+	}
+	if terminalEventType == domainlifecycle.EventCompleted {
+		return nil
+	}
+
+	failureClass := classifyFailureClass(terminalEventType, handlerErr)
+	dispositionType := domainlifecycle.EventDeadLettered
+	runtimeEventType := "dead_lettered"
+	if terminalEventType == domainlifecycle.EventFailed && failureClass != failures.ClassTerminal && meta.RetryCount < meta.MaxRetry {
+		dispositionType = domainlifecycle.EventRetryScheduled
+		runtimeEventType = "retry_scheduled"
+	}
+
+	payload := map[string]any{
+		"queue_task_id": strings.TrimSpace(job.QueueTaskID),
+		"job_kind":      string(job.Kind),
+		"retry_count":   meta.RetryCount,
+		"max_retry":     meta.MaxRetry,
+		"failure_class": string(failureClass),
+	}
+	if dispositionType == domainlifecycle.EventRetryScheduled {
+		payload["next_retry_count"] = meta.RetryCount + 1
+	}
+	if dispositionType == domainlifecycle.EventDeadLettered {
+		payload["terminal_attempt"] = true
+	}
+
+	dispositionID := lifecycleEventID(job, meta.IdempotencyKey, meta.JobID, string(dispositionType), meta.RetryCount)
+	if _, err := middleware.service.AppendEvent(ctx, domainlifecycle.Event{
+		EventID:       dispositionID,
+		SchemaVersion: lifecycleSchemaVersion,
+		ProjectID:     meta.ProjectID,
+		RunID:         meta.RunID,
+		TaskID:        meta.TaskID,
+		JobID:         meta.JobID,
+		SessionID:     meta.SessionID,
+		WorkerID:      middleware.workerID,
+		SourceRuntime: "worker",
+		PipelineType:  string(job.Kind),
+		EventType:     dispositionType,
+		OccurredAt:    time.Now().UTC(),
+		Payload:       payload,
+	}); err != nil {
+		return fmt.Errorf("append lifecycle %s event: %w", strings.TrimSpace(string(dispositionType)), err)
+	}
+	middleware.publishRuntimeSignal(ctx, meta, runtimeEventType, payload, dispositionID)
+	return nil
+}
+
+func classifyTerminalLifecycleEventType(ctx context.Context, handlerErr error) domainlifecycle.EventType {
+	if handlerErr == nil {
+		return domainlifecycle.EventCompleted
+	}
+	if errors.Is(handlerErr, context.Canceled) || errors.Is(handlerErr, context.DeadlineExceeded) {
+		return domainlifecycle.EventTerminated
+	}
+	if ctx != nil {
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return domainlifecycle.EventTerminated
+		}
+	}
+	return domainlifecycle.EventFailed
+}
+
+func classifyFailureClass(eventType domainlifecycle.EventType, err error) failures.Class {
+	if err == nil {
+		return failures.ClassUnknown
+	}
+	if eventType == domainlifecycle.EventTerminated {
+		return failures.ClassTerminal
+	}
+	return failures.ClassOf(err)
 }
 
 type lifecycleMetadata struct {

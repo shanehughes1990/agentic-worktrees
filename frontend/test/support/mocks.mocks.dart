@@ -4,6 +4,7 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i5;
+import 'dart:typed_data' as _i6;
 
 import 'package:agentic_repositories/shared/graph/typed/api.dart' as _i4;
 import 'package:agentic_repositories/shared/graph/typed/models.dart' as _i2;
@@ -243,6 +244,33 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
           as _i5.Future<_i2.ApiResult<List<_i2.ProjectSetupConfig>>>);
 
   @override
+  _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>> projectSetup({
+    required String? projectID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#projectSetup, [], {#projectID: projectID}),
+            returnValue:
+                _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>.value(
+                  _FakeApiResult_0<_i2.ProjectSetupConfig>(
+                    this,
+                    Invocation.method(#projectSetup, [], {
+                      #projectID: projectID,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>.value(
+                  _FakeApiResult_0<_i2.ProjectSetupConfig>(
+                    this,
+                    Invocation.method(#projectSetup, [], {
+                      #projectID: projectID,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>);
+
+  @override
   _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>> upsertProjectSetup({
     required String? projectID,
     required String? projectName,
@@ -288,13 +316,760 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
           as _i5.Future<_i2.ApiResult<_i2.ProjectSetupConfig>>);
 
   @override
+  _i5.Future<_i2.ApiResult<List<_i2.ProjectDocument>>> projectDocuments({
+    required String? projectID,
+    int? limit = 100,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#projectDocuments, [], {
+              #projectID: projectID,
+              #limit: limit,
+            }),
+            returnValue:
+                _i5.Future<_i2.ApiResult<List<_i2.ProjectDocument>>>.value(
+                  _FakeApiResult_0<List<_i2.ProjectDocument>>(
+                    this,
+                    Invocation.method(#projectDocuments, [], {
+                      #projectID: projectID,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<List<_i2.ProjectDocument>>>.value(
+                  _FakeApiResult_0<List<_i2.ProjectDocument>>(
+                    this,
+                    Invocation.method(#projectDocuments, [], {
+                      #projectID: projectID,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.ProjectDocument>>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.ProjectDocumentUploadTicket>>
+  requestProjectDocumentUpload({
+    required String? projectID,
+    required String? fileName,
+    required String? contentType,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#requestProjectDocumentUpload, [], {
+              #projectID: projectID,
+              #fileName: fileName,
+              #contentType: contentType,
+            }),
+            returnValue:
+                _i5.Future<
+                  _i2.ApiResult<_i2.ProjectDocumentUploadTicket>
+                >.value(
+                  _FakeApiResult_0<_i2.ProjectDocumentUploadTicket>(
+                    this,
+                    Invocation.method(#requestProjectDocumentUpload, [], {
+                      #projectID: projectID,
+                      #fileName: fileName,
+                      #contentType: contentType,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<
+                  _i2.ApiResult<_i2.ProjectDocumentUploadTicket>
+                >.value(
+                  _FakeApiResult_0<_i2.ProjectDocumentUploadTicket>(
+                    this,
+                    Invocation.method(#requestProjectDocumentUpload, [], {
+                      #projectID: projectID,
+                      #fileName: fileName,
+                      #contentType: contentType,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.ProjectDocumentUploadTicket>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<void>> uploadProjectDocumentBytes({
+    required String? uploadURL,
+    required _i6.Uint8List? bytes,
+    required String? contentType,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#uploadProjectDocumentBytes, [], {
+              #uploadURL: uploadURL,
+              #bytes: bytes,
+              #contentType: contentType,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<void>>.value(
+              _FakeApiResult_0<void>(
+                this,
+                Invocation.method(#uploadProjectDocumentBytes, [], {
+                  #uploadURL: uploadURL,
+                  #bytes: bytes,
+                  #contentType: contentType,
+                }),
+              ),
+            ),
+            returnValueForMissingStub: _i5.Future<_i2.ApiResult<void>>.value(
+              _FakeApiResult_0<void>(
+                this,
+                Invocation.method(#uploadProjectDocumentBytes, [], {
+                  #uploadURL: uploadURL,
+                  #bytes: bytes,
+                  #contentType: contentType,
+                }),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.ApiResult<void>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<void>> deleteProjectDocument({
+    required String? projectID,
+    required String? documentID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteProjectDocument, [], {
+              #projectID: projectID,
+              #documentID: documentID,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<void>>.value(
+              _FakeApiResult_0<void>(
+                this,
+                Invocation.method(#deleteProjectDocument, [], {
+                  #projectID: projectID,
+                  #documentID: documentID,
+                }),
+              ),
+            ),
+            returnValueForMissingStub: _i5.Future<_i2.ApiResult<void>>.value(
+              _FakeApiResult_0<void>(
+                this,
+                Invocation.method(#deleteProjectDocument, [], {
+                  #projectID: projectID,
+                  #documentID: documentID,
+                }),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.ApiResult<void>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.IngestionRunTicket>> runIngestionAgent({
+    required String? projectID,
+    required String? taskboardName,
+    List<String>? selectedDocumentIDs,
+    String? userPrompt,
+    Map<String, String>? repositorySourceBranches,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#runIngestionAgent, [], {
+              #projectID: projectID,
+              #taskboardName: taskboardName,
+              #selectedDocumentIDs: selectedDocumentIDs,
+              #userPrompt: userPrompt,
+              #repositorySourceBranches: repositorySourceBranches,
+            }),
+            returnValue:
+                _i5.Future<_i2.ApiResult<_i2.IngestionRunTicket>>.value(
+                  _FakeApiResult_0<_i2.IngestionRunTicket>(
+                    this,
+                    Invocation.method(#runIngestionAgent, [], {
+                      #projectID: projectID,
+                      #taskboardName: taskboardName,
+                      #selectedDocumentIDs: selectedDocumentIDs,
+                      #userPrompt: userPrompt,
+                      #repositorySourceBranches: repositorySourceBranches,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.IngestionRunTicket>>.value(
+                  _FakeApiResult_0<_i2.IngestionRunTicket>(
+                    this,
+                    Invocation.method(#runIngestionAgent, [], {
+                      #projectID: projectID,
+                      #taskboardName: taskboardName,
+                      #selectedDocumentIDs: selectedDocumentIDs,
+                      #userPrompt: userPrompt,
+                      #repositorySourceBranches: repositorySourceBranches,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.IngestionRunTicket>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<String>> refineIngestionPrompt({
+    required String? projectID,
+    required String? taskboardName,
+    String? userPrompt,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#refineIngestionPrompt, [], {
+              #projectID: projectID,
+              #taskboardName: taskboardName,
+              #userPrompt: userPrompt,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<String>>.value(
+              _FakeApiResult_0<String>(
+                this,
+                Invocation.method(#refineIngestionPrompt, [], {
+                  #projectID: projectID,
+                  #taskboardName: taskboardName,
+                  #userPrompt: userPrompt,
+                }),
+              ),
+            ),
+            returnValueForMissingStub: _i5.Future<_i2.ApiResult<String>>.value(
+              _FakeApiResult_0<String>(
+                this,
+                Invocation.method(#refineIngestionPrompt, [], {
+                  #projectID: projectID,
+                  #taskboardName: taskboardName,
+                  #userPrompt: userPrompt,
+                }),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.ApiResult<String>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.ProjectRepositoryBranchOption>>>
+  projectRepositoryBranches({required String? projectID}) =>
+      (super.noSuchMethod(
+            Invocation.method(#projectRepositoryBranches, [], {
+              #projectID: projectID,
+            }),
+            returnValue:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.ProjectRepositoryBranchOption>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.ProjectRepositoryBranchOption>>(
+                    this,
+                    Invocation.method(#projectRepositoryBranches, [], {
+                      #projectID: projectID,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.ProjectRepositoryBranchOption>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.ProjectRepositoryBranchOption>>(
+                    this,
+                    Invocation.method(#projectRepositoryBranches, [], {
+                      #projectID: projectID,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<
+            _i2.ApiResult<List<_i2.ProjectRepositoryBranchOption>>
+          >);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.TaskboardModel>>> taskboards({
+    required String? projectID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#taskboards, [], {#projectID: projectID}),
+            returnValue:
+                _i5.Future<_i2.ApiResult<List<_i2.TaskboardModel>>>.value(
+                  _FakeApiResult_0<List<_i2.TaskboardModel>>(
+                    this,
+                    Invocation.method(#taskboards, [], {#projectID: projectID}),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<List<_i2.TaskboardModel>>>.value(
+                  _FakeApiResult_0<List<_i2.TaskboardModel>>(
+                    this,
+                    Invocation.method(#taskboards, [], {#projectID: projectID}),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.TaskboardModel>>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> taskboard({
+    required String? projectID,
+    required String? boardID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#taskboard, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#taskboard, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#taskboard, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> createTaskboard({
+    required String? projectID,
+    required String? name,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#createTaskboard, [], {
+              #projectID: projectID,
+              #name: name,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#createTaskboard, [], {
+                  #projectID: projectID,
+                  #name: name,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#createTaskboard, [], {
+                      #projectID: projectID,
+                      #name: name,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> updateTaskboard({
+    required String? projectID,
+    required String? boardID,
+    required String? name,
+    required String? state,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateTaskboard, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #name: name,
+              #state: state,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#updateTaskboard, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #name: name,
+                  #state: state,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#updateTaskboard, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #name: name,
+                      #state: state,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<void>> deleteTaskboard({
+    required String? projectID,
+    required String? boardID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteTaskboard, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<void>>.value(
+              _FakeApiResult_0<void>(
+                this,
+                Invocation.method(#deleteTaskboard, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                }),
+              ),
+            ),
+            returnValueForMissingStub: _i5.Future<_i2.ApiResult<void>>.value(
+              _FakeApiResult_0<void>(
+                this,
+                Invocation.method(#deleteTaskboard, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                }),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.ApiResult<void>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> createTaskboardEpic({
+    required String? projectID,
+    required String? boardID,
+    required String? title,
+    String? objective,
+    List<String>? repositoryIDs = const [],
+    List<String>? deliverables = const [],
+    required String? state,
+    int? rank = 0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#createTaskboardEpic, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #title: title,
+              #objective: objective,
+              #repositoryIDs: repositoryIDs,
+              #deliverables: deliverables,
+              #state: state,
+              #rank: rank,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#createTaskboardEpic, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #title: title,
+                  #objective: objective,
+                  #repositoryIDs: repositoryIDs,
+                  #deliverables: deliverables,
+                  #state: state,
+                  #rank: rank,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#createTaskboardEpic, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #title: title,
+                      #objective: objective,
+                      #repositoryIDs: repositoryIDs,
+                      #deliverables: deliverables,
+                      #state: state,
+                      #rank: rank,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> updateTaskboardEpic({
+    required String? projectID,
+    required String? boardID,
+    required String? epicID,
+    required String? title,
+    String? objective,
+    List<String>? repositoryIDs = const [],
+    List<String>? deliverables = const [],
+    required String? state,
+    int? rank = 0,
+    List<String>? dependsOnEpicIDs = const [],
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateTaskboardEpic, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #epicID: epicID,
+              #title: title,
+              #objective: objective,
+              #repositoryIDs: repositoryIDs,
+              #deliverables: deliverables,
+              #state: state,
+              #rank: rank,
+              #dependsOnEpicIDs: dependsOnEpicIDs,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#updateTaskboardEpic, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #epicID: epicID,
+                  #title: title,
+                  #objective: objective,
+                  #repositoryIDs: repositoryIDs,
+                  #deliverables: deliverables,
+                  #state: state,
+                  #rank: rank,
+                  #dependsOnEpicIDs: dependsOnEpicIDs,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#updateTaskboardEpic, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #epicID: epicID,
+                      #title: title,
+                      #objective: objective,
+                      #repositoryIDs: repositoryIDs,
+                      #deliverables: deliverables,
+                      #state: state,
+                      #rank: rank,
+                      #dependsOnEpicIDs: dependsOnEpicIDs,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> deleteTaskboardEpic({
+    required String? projectID,
+    required String? boardID,
+    required String? epicID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteTaskboardEpic, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #epicID: epicID,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#deleteTaskboardEpic, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #epicID: epicID,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#deleteTaskboardEpic, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #epicID: epicID,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> createTaskboardTask({
+    required String? projectID,
+    required String? boardID,
+    required String? epicID,
+    required String? title,
+    String? description,
+    List<String>? repositoryIDs = const [],
+    List<String>? deliverables = const [],
+    required String? taskType,
+    required String? state,
+    int? rank = 0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#createTaskboardTask, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #epicID: epicID,
+              #title: title,
+              #description: description,
+              #repositoryIDs: repositoryIDs,
+              #deliverables: deliverables,
+              #taskType: taskType,
+              #state: state,
+              #rank: rank,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#createTaskboardTask, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #epicID: epicID,
+                  #title: title,
+                  #description: description,
+                  #repositoryIDs: repositoryIDs,
+                  #deliverables: deliverables,
+                  #taskType: taskType,
+                  #state: state,
+                  #rank: rank,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#createTaskboardTask, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #epicID: epicID,
+                      #title: title,
+                      #description: description,
+                      #repositoryIDs: repositoryIDs,
+                      #deliverables: deliverables,
+                      #taskType: taskType,
+                      #state: state,
+                      #rank: rank,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> updateTaskboardTask({
+    required String? projectID,
+    required String? boardID,
+    required String? epicID,
+    required String? taskID,
+    required String? title,
+    String? description,
+    List<String>? repositoryIDs = const [],
+    List<String>? deliverables = const [],
+    required String? taskType,
+    required String? state,
+    int? rank = 0,
+    List<String>? dependsOnTaskIDs = const [],
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#updateTaskboardTask, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #epicID: epicID,
+              #taskID: taskID,
+              #title: title,
+              #description: description,
+              #repositoryIDs: repositoryIDs,
+              #deliverables: deliverables,
+              #taskType: taskType,
+              #state: state,
+              #rank: rank,
+              #dependsOnTaskIDs: dependsOnTaskIDs,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#updateTaskboardTask, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #epicID: epicID,
+                  #taskID: taskID,
+                  #title: title,
+                  #description: description,
+                  #repositoryIDs: repositoryIDs,
+                  #deliverables: deliverables,
+                  #taskType: taskType,
+                  #state: state,
+                  #rank: rank,
+                  #dependsOnTaskIDs: dependsOnTaskIDs,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#updateTaskboardTask, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #epicID: epicID,
+                      #taskID: taskID,
+                      #title: title,
+                      #description: description,
+                      #repositoryIDs: repositoryIDs,
+                      #deliverables: deliverables,
+                      #taskType: taskType,
+                      #state: state,
+                      #rank: rank,
+                      #dependsOnTaskIDs: dependsOnTaskIDs,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.TaskboardModel>> deleteTaskboardTask({
+    required String? projectID,
+    required String? boardID,
+    required String? taskID,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteTaskboardTask, [], {
+              #projectID: projectID,
+              #boardID: boardID,
+              #taskID: taskID,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+              _FakeApiResult_0<_i2.TaskboardModel>(
+                this,
+                Invocation.method(#deleteTaskboardTask, [], {
+                  #projectID: projectID,
+                  #boardID: boardID,
+                  #taskID: taskID,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>.value(
+                  _FakeApiResult_0<_i2.TaskboardModel>(
+                    this,
+                    Invocation.method(#deleteTaskboardTask, [], {
+                      #projectID: projectID,
+                      #boardID: boardID,
+                      #taskID: taskID,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.TaskboardModel>>);
+
+  @override
   _i5.Stream<_i2.ApiResult<_i2.StreamEvent>> sessionActivityStream({
     required String? runID,
+    String? projectID,
+    String? taskID,
+    String? jobID,
     int? fromOffset = 0,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#sessionActivityStream, [], {
               #runID: runID,
+              #projectID: projectID,
+              #taskID: taskID,
+              #jobID: jobID,
               #fromOffset: fromOffset,
             }),
             returnValue: _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
@@ -302,6 +1077,368 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                 _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
           )
           as _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>);
+
+  @override
+  _i5.Stream<_i2.ApiResult<_i2.StreamEvent>> pipelineEventsStream({
+    required String? projectID,
+    String? runID,
+    String? taskID,
+    String? jobID,
+    int? fromOffset = 0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#pipelineEventsStream, [], {
+              #projectID: projectID,
+              #runID: runID,
+              #taskID: taskID,
+              #jobID: jobID,
+              #fromOffset: fromOffset,
+            }),
+            returnValue: _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+            returnValueForMissingStub:
+                _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+          )
+          as _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>);
+
+  @override
+  _i5.Stream<_i2.ApiResult<_i2.StreamEvent>> taskboardStream({
+    required String? projectID,
+    int? fromOffset = 0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#taskboardStream, [], {
+              #projectID: projectID,
+              #fromOffset: fromOffset,
+            }),
+            returnValue: _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+            returnValueForMissingStub:
+                _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+          )
+          as _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>> projectEvents({
+    required String? projectID,
+    int? fromOffset = 0,
+    int? limit = 200,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#projectEvents, [], {
+              #projectID: projectID,
+              #fromOffset: fromOffset,
+              #limit: limit,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>>.value(
+              _FakeApiResult_0<List<_i2.StreamEvent>>(
+                this,
+                Invocation.method(#projectEvents, [], {
+                  #projectID: projectID,
+                  #fromOffset: fromOffset,
+                  #limit: limit,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>>.value(
+                  _FakeApiResult_0<List<_i2.StreamEvent>>(
+                    this,
+                    Invocation.method(#projectEvents, [], {
+                      #projectID: projectID,
+                      #fromOffset: fromOffset,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>> pipelineEvents({
+    required String? projectID,
+    String? runID,
+    String? taskID,
+    String? jobID,
+    int? fromOffset = 0,
+    int? limit = 200,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#pipelineEvents, [], {
+              #projectID: projectID,
+              #runID: runID,
+              #taskID: taskID,
+              #jobID: jobID,
+              #fromOffset: fromOffset,
+              #limit: limit,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>>.value(
+              _FakeApiResult_0<List<_i2.StreamEvent>>(
+                this,
+                Invocation.method(#pipelineEvents, [], {
+                  #projectID: projectID,
+                  #runID: runID,
+                  #taskID: taskID,
+                  #jobID: jobID,
+                  #fromOffset: fromOffset,
+                  #limit: limit,
+                }),
+              ),
+            ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>>.value(
+                  _FakeApiResult_0<List<_i2.StreamEvent>>(
+                    this,
+                    Invocation.method(#pipelineEvents, [], {
+                      #projectID: projectID,
+                      #runID: runID,
+                      #taskID: taskID,
+                      #jobID: jobID,
+                      #fromOffset: fromOffset,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.StreamEvent>>>);
+
+  @override
+  _i5.Stream<_i2.ApiResult<_i2.StreamEvent>> projectEventsStream({
+    required String? projectID,
+    int? fromOffset = 0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#projectEventsStream, [], {
+              #projectID: projectID,
+              #fromOffset: fromOffset,
+            }),
+            returnValue: _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+            returnValueForMissingStub:
+                _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>.empty(),
+          )
+          as _i5.Stream<_i2.ApiResult<_i2.StreamEvent>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.LifecycleSessionSnapshotModel>>>
+  lifecycleSessionSnapshots({
+    required String? projectID,
+    String? pipelineType,
+    int? limit = 200,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#lifecycleSessionSnapshots, [], {
+              #projectID: projectID,
+              #pipelineType: pipelineType,
+              #limit: limit,
+            }),
+            returnValue:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.LifecycleSessionSnapshotModel>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.LifecycleSessionSnapshotModel>>(
+                    this,
+                    Invocation.method(#lifecycleSessionSnapshots, [], {
+                      #projectID: projectID,
+                      #pipelineType: pipelineType,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.LifecycleSessionSnapshotModel>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.LifecycleSessionSnapshotModel>>(
+                    this,
+                    Invocation.method(#lifecycleSessionSnapshots, [], {
+                      #projectID: projectID,
+                      #pipelineType: pipelineType,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<
+            _i2.ApiResult<List<_i2.LifecycleSessionSnapshotModel>>
+          >);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.LifecycleHistoryEventModel>>>
+  lifecycleSessionHistory({
+    required String? projectID,
+    required String? sessionID,
+    int? fromEventSeq = 0,
+    int? limit = 500,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#lifecycleSessionHistory, [], {
+              #projectID: projectID,
+              #sessionID: sessionID,
+              #fromEventSeq: fromEventSeq,
+              #limit: limit,
+            }),
+            returnValue:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.LifecycleHistoryEventModel>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.LifecycleHistoryEventModel>>(
+                    this,
+                    Invocation.method(#lifecycleSessionHistory, [], {
+                      #projectID: projectID,
+                      #sessionID: sessionID,
+                      #fromEventSeq: fromEventSeq,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.LifecycleHistoryEventModel>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.LifecycleHistoryEventModel>>(
+                    this,
+                    Invocation.method(#lifecycleSessionHistory, [], {
+                      #projectID: projectID,
+                      #sessionID: sessionID,
+                      #fromEventSeq: fromEventSeq,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.LifecycleHistoryEventModel>>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<List<_i2.LifecycleTreeNodeModel>>>
+  lifecycleTreeNodes({
+    required String? projectID,
+    String? pipelineType,
+    String? runID,
+    String? taskID,
+    String? jobID,
+    int? limit = 500,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#lifecycleTreeNodes, [], {
+              #projectID: projectID,
+              #pipelineType: pipelineType,
+              #runID: runID,
+              #taskID: taskID,
+              #jobID: jobID,
+              #limit: limit,
+            }),
+            returnValue:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.LifecycleTreeNodeModel>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.LifecycleTreeNodeModel>>(
+                    this,
+                    Invocation.method(#lifecycleTreeNodes, [], {
+                      #projectID: projectID,
+                      #pipelineType: pipelineType,
+                      #runID: runID,
+                      #taskID: taskID,
+                      #jobID: jobID,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<
+                  _i2.ApiResult<List<_i2.LifecycleTreeNodeModel>>
+                >.value(
+                  _FakeApiResult_0<List<_i2.LifecycleTreeNodeModel>>(
+                    this,
+                    Invocation.method(#lifecycleTreeNodes, [], {
+                      #projectID: projectID,
+                      #pipelineType: pipelineType,
+                      #runID: runID,
+                      #taskID: taskID,
+                      #jobID: jobID,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<List<_i2.LifecycleTreeNodeModel>>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<_i2.InterventionMetricsModel>> interventionMetrics({
+    required String? projectID,
+    int? limit = 200,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#interventionMetrics, [], {
+              #projectID: projectID,
+              #limit: limit,
+            }),
+            returnValue:
+                _i5.Future<_i2.ApiResult<_i2.InterventionMetricsModel>>.value(
+                  _FakeApiResult_0<_i2.InterventionMetricsModel>(
+                    this,
+                    Invocation.method(#interventionMetrics, [], {
+                      #projectID: projectID,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+            returnValueForMissingStub:
+                _i5.Future<_i2.ApiResult<_i2.InterventionMetricsModel>>.value(
+                  _FakeApiResult_0<_i2.InterventionMetricsModel>(
+                    this,
+                    Invocation.method(#interventionMetrics, [], {
+                      #projectID: projectID,
+                      #limit: limit,
+                    }),
+                  ),
+                ),
+          )
+          as _i5.Future<_i2.ApiResult<_i2.InterventionMetricsModel>>);
+
+  @override
+  _i5.Future<_i2.ApiResult<String>> applyManualIntervention({
+    required String? projectID,
+    required String? sessionID,
+    required String? action,
+    required String? reason,
+    required String? actorID,
+    bool? force = false,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#applyManualIntervention, [], {
+              #projectID: projectID,
+              #sessionID: sessionID,
+              #action: action,
+              #reason: reason,
+              #actorID: actorID,
+              #force: force,
+            }),
+            returnValue: _i5.Future<_i2.ApiResult<String>>.value(
+              _FakeApiResult_0<String>(
+                this,
+                Invocation.method(#applyManualIntervention, [], {
+                  #projectID: projectID,
+                  #sessionID: sessionID,
+                  #action: action,
+                  #reason: reason,
+                  #actorID: actorID,
+                  #force: force,
+                }),
+              ),
+            ),
+            returnValueForMissingStub: _i5.Future<_i2.ApiResult<String>>.value(
+              _FakeApiResult_0<String>(
+                this,
+                Invocation.method(#applyManualIntervention, [], {
+                  #projectID: projectID,
+                  #sessionID: sessionID,
+                  #action: action,
+                  #reason: reason,
+                  #actorID: actorID,
+                  #force: force,
+                }),
+              ),
+            ),
+          )
+          as _i5.Future<_i2.ApiResult<String>>);
 
   @override
   _i5.Future<_i2.ApiResult<List<_i2.WorkerSession>>> workerSessions({

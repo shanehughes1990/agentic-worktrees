@@ -100,6 +100,18 @@ func TestEventStoreAppendAssignsSessionAndProjectSequences(t *testing.T) {
 	}
 }
 
+func TestIsTerminalEventIncludesTerminated(t *testing.T) {
+	if !isTerminalEvent(string(domainlifecycle.EventTerminated)) {
+		t.Fatalf("expected terminated lifecycle event type to be treated as terminal")
+	}
+}
+
+func TestRuntimeAliveForEventTreatsTerminatedAsNotAlive(t *testing.T) {
+	if runtimeAliveForEvent(string(domainlifecycle.EventTerminated), nil) {
+		t.Fatalf("expected terminated lifecycle event type to set runtime_alive=false")
+	}
+}
+
 func TestEventStoreAppendIsIdempotentByEventID(t *testing.T) {
 	store, err := NewEventStore(newLifecycleTestDB(t))
 	if err != nil {
