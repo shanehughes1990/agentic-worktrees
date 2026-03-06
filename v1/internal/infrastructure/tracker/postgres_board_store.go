@@ -5,7 +5,6 @@ import (
 	"agentic-orchestrator/internal/domain/failures"
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -18,14 +17,12 @@ import (
 
 type projectBoardRecord struct {
 	gorm.Model
-	ID              string    `gorm:"column:id;size:255;primaryKey"`
-	ProjectID       string    `gorm:"column:project_id;size:255;not null;index:idx_project_boards_project_id"`
-	Name            string    `gorm:"column:name;not null"`
-	State           string    `gorm:"column:state;size:64;not null"`
-	IngestionDetails []byte   `gorm:"column:ingestion_details;type:jsonb"`
-	IngestionAudits []byte    `gorm:"column:ingestion_audits;type:jsonb"`
-	CreatedAt       time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt       time.Time `gorm:"column:updated_at;not null;index:idx_project_boards_updated_at"`
+	ID        string    `gorm:"column:id;size:255;primaryKey"`
+	ProjectID string    `gorm:"column:project_id;size:255;not null;index:idx_project_boards_project_id"`
+	Name      string    `gorm:"column:name;not null"`
+	State     string    `gorm:"column:state;size:64;not null"`
+	CreatedAt time.Time `gorm:"column:created_at;not null"`
+	UpdatedAt time.Time `gorm:"column:updated_at;not null;index:idx_project_boards_updated_at"`
 }
 
 func (projectBoardRecord) TableName() string { return "project_boards" }
@@ -47,6 +44,50 @@ type projectBoardEpicRecord struct {
 
 func (projectBoardEpicRecord) TableName() string { return "project_board_epics" }
 
+type projectBoardIngestionDetailsRecord struct {
+	gorm.Model
+	BoardID    string    `gorm:"column:board_id;size:255;primaryKey"`
+	UserPrompt string    `gorm:"column:user_prompt;type:text"`
+	CreatedAt  time.Time `gorm:"column:created_at;not null"`
+	UpdatedAt  time.Time `gorm:"column:updated_at;not null"`
+}
+
+func (projectBoardIngestionDetailsRecord) TableName() string { return "project_board_ingestion_details" }
+
+type projectBoardIngestionFileRecord struct {
+	gorm.Model
+	ID        uint64    `gorm:"column:id;primaryKey;autoIncrement"`
+	BoardID   string    `gorm:"column:board_id;size:255;not null;index:idx_project_board_ingestion_files_board_pos,priority:1"`
+	Position  int       `gorm:"column:position;not null;index:idx_project_board_ingestion_files_board_pos,priority:2"`
+	FilePath  string    `gorm:"column:file_path;type:text;not null"`
+	CreatedAt time.Time `gorm:"column:created_at;not null"`
+	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
+}
+
+func (projectBoardIngestionFileRecord) TableName() string { return "project_board_ingestion_files" }
+
+type projectBoardIngestionAuditRecord struct {
+	gorm.Model
+	ID                uint64     `gorm:"column:id;primaryKey;autoIncrement"`
+	BoardID           string     `gorm:"column:board_id;size:255;not null;index:idx_project_board_ingestion_audits_board_pos,priority:1"`
+	Position          int        `gorm:"column:position;not null;index:idx_project_board_ingestion_audits_board_pos,priority:2"`
+	ModelProvider     string     `gorm:"column:model_provider;not null"`
+	ModelName         string     `gorm:"column:model_name;not null"`
+	ModelVersion      string     `gorm:"column:model_version"`
+	ModelRunID        string     `gorm:"column:model_run_id;index:idx_project_board_ingestion_audits_model_run_id"`
+	AgentSessionID    string     `gorm:"column:agent_session_id"`
+	AgentStreamID     string     `gorm:"column:agent_stream_id"`
+	PromptFingerprint string     `gorm:"column:prompt_fingerprint"`
+	InputTokens       *int       `gorm:"column:input_tokens"`
+	OutputTokens      *int       `gorm:"column:output_tokens"`
+	StartedAt         *time.Time `gorm:"column:started_at"`
+	CompletedAt       *time.Time `gorm:"column:completed_at"`
+	CreatedAt         time.Time  `gorm:"column:created_at;not null"`
+	UpdatedAt         time.Time  `gorm:"column:updated_at;not null"`
+}
+
+func (projectBoardIngestionAuditRecord) TableName() string { return "project_board_ingestion_audits" }
+
 type projectBoardTaskRecord struct {
 	gorm.Model
 	ID               string         `gorm:"column:id;size:255;primaryKey"`
@@ -66,19 +107,7 @@ type projectBoardTaskRecord struct {
 	ClaimExpiresAt   *time.Time `gorm:"column:claim_expires_at;index:idx_project_board_tasks_claim_expiry"`
 	ClaimToken       string     `gorm:"column:claim_token;size:255"`
 	AttemptCount     int        `gorm:"column:attempt_count;not null;default:0"`
-	TaskAudits       []byte     `gorm:"column:task_audits;type:jsonb"`
-
-	ModelProvider     string     `gorm:"column:model_provider;not null"`
-	ModelName         string     `gorm:"column:model_name;not null"`
-	ModelVersion      string     `gorm:"column:model_version"`
-	ModelRunID        string     `gorm:"column:model_run_id;index:idx_project_board_tasks_model_run_id"`
-	AgentSessionID    string     `gorm:"column:agent_session_id"`
-	AgentStreamID     string     `gorm:"column:agent_stream_id"`
-	PromptFingerprint string     `gorm:"column:prompt_fingerprint"`
-	InputTokens       *int       `gorm:"column:input_tokens"`
-	OutputTokens      *int       `gorm:"column:output_tokens"`
-	StartedAt         *time.Time `gorm:"column:started_at"`
-	CompletedAt       *time.Time `gorm:"column:completed_at"`
+	CompletedAt      *time.Time `gorm:"column:completed_at"`
 
 	OutcomeStatus       string `gorm:"column:outcome_status;size:64;not null;index:idx_project_board_tasks_outcome_status"`
 	OutcomeSummary      string `gorm:"column:outcome_summary;not null"`
@@ -91,13 +120,36 @@ type projectBoardTaskRecord struct {
 
 func (projectBoardTaskRecord) TableName() string { return "project_board_tasks" }
 
+type projectBoardTaskAuditRecord struct {
+	gorm.Model
+	ID                uint64     `gorm:"column:id;primaryKey;autoIncrement"`
+	BoardID           string     `gorm:"column:board_id;size:255;not null;index:idx_project_board_task_audits_board_task_pos,priority:1"`
+	TaskID            string     `gorm:"column:task_id;size:255;not null;index:idx_project_board_task_audits_board_task_pos,priority:2"`
+	Position          int        `gorm:"column:position;not null;index:idx_project_board_task_audits_board_task_pos,priority:3"`
+	ModelProvider     string     `gorm:"column:model_provider;not null"`
+	ModelName         string     `gorm:"column:model_name;not null"`
+	ModelVersion      string     `gorm:"column:model_version"`
+	ModelRunID        string     `gorm:"column:model_run_id;index:idx_project_board_task_audits_model_run_id"`
+	AgentSessionID    string     `gorm:"column:agent_session_id"`
+	AgentStreamID     string     `gorm:"column:agent_stream_id"`
+	PromptFingerprint string     `gorm:"column:prompt_fingerprint"`
+	InputTokens       *int       `gorm:"column:input_tokens"`
+	OutputTokens      *int       `gorm:"column:output_tokens"`
+	StartedAt         *time.Time `gorm:"column:started_at"`
+	CompletedAt       *time.Time `gorm:"column:completed_at"`
+	CreatedAt         time.Time  `gorm:"column:created_at;not null"`
+	UpdatedAt         time.Time  `gorm:"column:updated_at;not null"`
+}
+
+func (projectBoardTaskAuditRecord) TableName() string { return "project_board_task_audits" }
+
 type PostgresBoardStore struct{ db *gorm.DB }
 
 func NewPostgresBoardStore(db *gorm.DB) (*PostgresBoardStore, error) {
 	if db == nil {
 		return nil, failures.WrapTerminal(errors.New("postgres board store db is required"))
 	}
-	if err := db.AutoMigrate(&projectBoardRecord{}, &projectBoardEpicRecord{}, &projectBoardTaskRecord{}); err != nil {
+	if err := db.AutoMigrate(&projectBoardRecord{}, &projectBoardEpicRecord{}, &projectBoardTaskRecord{}, &projectBoardIngestionDetailsRecord{}, &projectBoardIngestionFileRecord{}, &projectBoardIngestionAuditRecord{}, &projectBoardTaskAuditRecord{}); err != nil {
 		return nil, failures.WrapTerminal(fmt.Errorf("migrate project board tables: %w", err))
 	}
 	return &PostgresBoardStore{db: db}, nil
@@ -116,20 +168,24 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 		if projectID == "" {
 			projectID = strings.TrimSpace(board.RunID)
 		}
-		ingestionAudits, err := marshalTaskModelAudits(board.IngestionAudits)
-		if err != nil {
-			return failures.WrapTerminal(fmt.Errorf("marshal board ingestion audits: %w", err))
-		}
-		ingestionDetails, err := marshalBoardIngestionDetails(board.IngestionDetails)
-		if err != nil {
-			return failures.WrapTerminal(fmt.Errorf("marshal board ingestion details: %w", err))
-		}
-		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), IngestionDetails: ingestionDetails, IngestionAudits: ingestionAudits, CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
+		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
 		if boardRecord.Name == "" {
 			boardRecord.Name = boardRecord.ID
 		}
-		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.Assignments(map[string]any{"project_id": boardRecord.ProjectID, "name": boardRecord.Name, "state": boardRecord.State, "ingestion_details": boardRecord.IngestionDetails, "ingestion_audits": boardRecord.IngestionAudits, "updated_at": now})}).Create(&boardRecord).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.Assignments(map[string]any{"project_id": boardRecord.ProjectID, "name": boardRecord.Name, "state": boardRecord.State, "updated_at": now})}).Create(&boardRecord).Error; err != nil {
 			return failures.WrapTransient(fmt.Errorf("upsert project board: %w", err))
+		}
+		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardTaskAuditRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete existing board task audits: %w", err))
+		}
+		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardIngestionAuditRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete existing board ingestion audits: %w", err))
+		}
+		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardIngestionFileRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete existing board ingestion files: %w", err))
+		}
+		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardIngestionDetailsRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete existing board ingestion details: %w", err))
 		}
 		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardTaskRecord{}).Error; err != nil {
 			return failures.WrapTransient(fmt.Errorf("delete existing board tasks: %w", err))
@@ -139,17 +195,16 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 		}
 		epicRecords := make([]projectBoardEpicRecord, 0, len(board.Epics))
 		taskRecords := make([]projectBoardTaskRecord, 0)
+		taskAuditRecords := make([]projectBoardTaskAuditRecord, 0)
 		for _, epic := range board.Epics {
 			epicRecord := projectBoardEpicRecord{ID: strings.TrimSpace(string(epic.ID)), BoardID: boardRecord.ID, Title: strings.TrimSpace(epic.Title), Objective: strings.TrimSpace(epic.Objective), RepositoryIDs: pq.StringArray(normalizeStringSlice(epic.RepositoryIDs)), Deliverables: pq.StringArray(normalizeStringSlice(epic.Deliverables)), State: string(epic.State), Rank: epic.Rank, DependsOnEpicIDs: pq.StringArray(workItemIDsToStrings(epic.DependsOnEpicIDs)), CreatedAt: safeTime(epic.CreatedAt, now), UpdatedAt: now}
 			epicRecords = append(epicRecords, epicRecord)
 			for _, task := range epic.Tasks {
-				taskAudits, err := marshalTaskModelAudits(task.Audits)
-				if err != nil {
-					return failures.WrapTerminal(fmt.Errorf("marshal task audits for %s: %w", strings.TrimSpace(string(task.ID)), err))
-				}
-				legacyAudit := firstTaskAudit(task.Audits)
-				taskRecord := projectBoardTaskRecord{ID: strings.TrimSpace(string(task.ID)), BoardID: boardRecord.ID, EpicID: epicRecord.ID, Title: strings.TrimSpace(task.Title), Description: strings.TrimSpace(task.Description), RepositoryIDs: pq.StringArray(normalizeStringSlice(task.RepositoryIDs)), Deliverables: pq.StringArray(normalizeStringSlice(task.Deliverables)), TaskType: strings.TrimSpace(task.TaskType), State: string(task.State), Rank: task.Rank, DependsOnTaskIDs: pq.StringArray(workItemIDsToStrings(task.DependsOnTaskIDs)), ClaimedByAgentID: strings.TrimSpace(task.ClaimedByAgentID), ClaimedAt: task.ClaimedAt, ClaimExpiresAt: task.ClaimExpiresAt, ClaimToken: strings.TrimSpace(task.ClaimToken), AttemptCount: task.AttemptCount, TaskAudits: taskAudits, ModelProvider: strings.TrimSpace(legacyAudit.ModelProvider), ModelName: strings.TrimSpace(legacyAudit.ModelName), ModelVersion: strings.TrimSpace(legacyAudit.ModelVersion), ModelRunID: strings.TrimSpace(legacyAudit.ModelRunID), AgentSessionID: strings.TrimSpace(legacyAudit.AgentSessionID), AgentStreamID: strings.TrimSpace(legacyAudit.AgentStreamID), PromptFingerprint: strings.TrimSpace(legacyAudit.PromptFingerprint), InputTokens: legacyAudit.InputTokens, OutputTokens: legacyAudit.OutputTokens, StartedAt: legacyAudit.StartedAt, CompletedAt: legacyAudit.CompletedAt, OutcomeStatus: outcomeStatus(task), OutcomeSummary: outcomeSummary(task), OutcomeErrorCode: outcomeErrorCode(task), OutcomeErrorMessage: outcomeErrorMessage(task), CreatedAt: safeTime(task.CreatedAt, now), UpdatedAt: now}
+				taskRecord := projectBoardTaskRecord{ID: strings.TrimSpace(string(task.ID)), BoardID: boardRecord.ID, EpicID: epicRecord.ID, Title: strings.TrimSpace(task.Title), Description: strings.TrimSpace(task.Description), RepositoryIDs: pq.StringArray(normalizeStringSlice(task.RepositoryIDs)), Deliverables: pq.StringArray(normalizeStringSlice(task.Deliverables)), TaskType: strings.TrimSpace(task.TaskType), State: string(task.State), Rank: task.Rank, DependsOnTaskIDs: pq.StringArray(workItemIDsToStrings(task.DependsOnTaskIDs)), ClaimedByAgentID: strings.TrimSpace(task.ClaimedByAgentID), ClaimedAt: task.ClaimedAt, ClaimExpiresAt: task.ClaimExpiresAt, ClaimToken: strings.TrimSpace(task.ClaimToken), AttemptCount: task.AttemptCount, OutcomeStatus: outcomeStatus(task), OutcomeSummary: outcomeSummary(task), OutcomeErrorCode: outcomeErrorCode(task), OutcomeErrorMessage: outcomeErrorMessage(task), CreatedAt: safeTime(task.CreatedAt, now), UpdatedAt: now}
 				taskRecords = append(taskRecords, taskRecord)
+				for auditIndex, audit := range task.Audits {
+					taskAuditRecords = append(taskAuditRecords, taskModelAuditToTaskRecord(boardRecord.ID, taskRecord.ID, auditIndex, audit, now))
+				}
 			}
 		}
 		if len(epicRecords) > 0 {
@@ -160,6 +215,39 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 		if len(taskRecords) > 0 {
 			if err := tx.Create(&taskRecords).Error; err != nil {
 				return failures.WrapTransient(fmt.Errorf("insert board tasks: %w", err))
+			}
+		}
+		if len(taskAuditRecords) > 0 {
+			if err := tx.Create(&taskAuditRecords).Error; err != nil {
+				return failures.WrapTransient(fmt.Errorf("insert board task audits: %w", err))
+			}
+		}
+
+		if board.IngestionDetails != nil {
+			ingestionDetailsRecord := projectBoardIngestionDetailsRecord{BoardID: boardRecord.ID, UserPrompt: strings.TrimSpace(board.IngestionDetails.UserPrompt), CreatedAt: now, UpdatedAt: now}
+			if err := tx.Create(&ingestionDetailsRecord).Error; err != nil {
+				return failures.WrapTransient(fmt.Errorf("insert board ingestion details: %w", err))
+			}
+			if len(board.IngestionDetails.FilesAdded) > 0 {
+				fileRecords := make([]projectBoardIngestionFileRecord, 0, len(board.IngestionDetails.FilesAdded))
+				for fileIndex, file := range normalizeStringSlice(board.IngestionDetails.FilesAdded) {
+					fileRecords = append(fileRecords, projectBoardIngestionFileRecord{BoardID: boardRecord.ID, Position: fileIndex, FilePath: strings.TrimSpace(file), CreatedAt: now, UpdatedAt: now})
+				}
+				if len(fileRecords) > 0 {
+					if err := tx.Create(&fileRecords).Error; err != nil {
+						return failures.WrapTransient(fmt.Errorf("insert board ingestion files: %w", err))
+					}
+				}
+			}
+		}
+
+		if len(board.IngestionAudits) > 0 {
+			ingestionAuditRecords := make([]projectBoardIngestionAuditRecord, 0, len(board.IngestionAudits))
+			for auditIndex, audit := range board.IngestionAudits {
+				ingestionAuditRecords = append(ingestionAuditRecords, taskModelAuditToIngestionRecord(boardRecord.ID, auditIndex, audit, now))
+			}
+			if err := tx.Create(&ingestionAuditRecords).Error; err != nil {
+				return failures.WrapTransient(fmt.Errorf("insert board ingestion audits: %w", err))
 			}
 		}
 		return nil
@@ -199,6 +287,18 @@ func (store *PostgresBoardStore) DeleteBoard(ctx context.Context, projectID stri
 		return failures.WrapTerminal(errors.New("project_id and board_id are required"))
 	}
 	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardTaskAuditRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board task audits: %w", err))
+		}
+		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardIngestionAuditRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board ingestion audits: %w", err))
+		}
+		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardIngestionFileRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board ingestion files: %w", err))
+		}
+		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardIngestionDetailsRecord{}).Error; err != nil {
+			return failures.WrapTransient(fmt.Errorf("delete board ingestion details: %w", err))
+		}
 		if err := tx.Where("board_id = ?", cleanBoardID).Delete(&projectBoardTaskRecord{}).Error; err != nil {
 			return failures.WrapTransient(fmt.Errorf("delete board tasks: %w", err))
 		}
@@ -354,22 +454,46 @@ func (store *PostgresBoardStore) LoadBoard(ctx context.Context, projectID string
 	if err := store.db.WithContext(ctx).Where("board_id = ?", cleanBoardID).Order("epic_id asc, rank asc").Find(&taskRecords).Error; err != nil {
 		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("load tasks: %w", err))
 	}
+	var taskAuditRecords []projectBoardTaskAuditRecord
+	if err := store.db.WithContext(ctx).Where("board_id = ?", cleanBoardID).Order("task_id asc, position asc").Find(&taskAuditRecords).Error; err != nil {
+		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("load task audits: %w", err))
+	}
+	taskAuditsByTask := map[string][]domaintracker.TaskModelAudit{}
+	for _, rec := range taskAuditRecords {
+		taskAuditsByTask[rec.TaskID] = append(taskAuditsByTask[rec.TaskID], mapAuditRecord(rec))
+	}
 	tasksByEpic := map[string][]domaintracker.Task{}
 	for _, rec := range taskRecords {
-		task := mapTaskRecord(rec)
+		task := mapTaskRecord(rec, taskAuditsByTask[rec.ID])
 		tasksByEpic[rec.EpicID] = append(tasksByEpic[rec.EpicID], task)
 	}
 	epics := make([]domaintracker.Epic, 0, len(epicRecords))
 	for _, rec := range epicRecords {
 		epics = append(epics, domaintracker.Epic{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, Title: rec.Title, Objective: rec.Objective, RepositoryIDs: normalizeStringSlice([]string(rec.RepositoryIDs)), Deliverables: normalizeStringSlice([]string(rec.Deliverables)), State: domaintracker.EpicState(rec.State), Rank: rec.Rank, DependsOnEpicIDs: stringsToWorkItemIDs([]string(rec.DependsOnEpicIDs)), Tasks: tasksByEpic[rec.ID], CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt})
 	}
-	ingestionAudits, err := unmarshalTaskModelAudits(boardRecord.IngestionAudits)
-	if err != nil {
-		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("decode board ingestion audits: %w", err))
+	var ingestionDetailsRecord projectBoardIngestionDetailsRecord
+	ingestionDetails := (*domaintracker.BoardIngestionDetails)(nil)
+	if err := store.db.WithContext(ctx).Where("board_id = ?", cleanBoardID).Take(&ingestionDetailsRecord).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("load board ingestion details: %w", err))
+		}
+	} else {
+		ingestionDetails = &domaintracker.BoardIngestionDetails{UserPrompt: strings.TrimSpace(ingestionDetailsRecord.UserPrompt)}
+		var ingestionFiles []projectBoardIngestionFileRecord
+		if err := store.db.WithContext(ctx).Where("board_id = ?", cleanBoardID).Order("position asc").Find(&ingestionFiles).Error; err != nil {
+			return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("load board ingestion files: %w", err))
+		}
+		for _, file := range ingestionFiles {
+			ingestionDetails.FilesAdded = append(ingestionDetails.FilesAdded, strings.TrimSpace(file.FilePath))
+		}
 	}
-	ingestionDetails, err := unmarshalBoardIngestionDetails(boardRecord.IngestionDetails)
-	if err != nil {
-		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("decode board ingestion details: %w", err))
+	var ingestionAuditRecords []projectBoardIngestionAuditRecord
+	if err := store.db.WithContext(ctx).Where("board_id = ?", cleanBoardID).Order("position asc").Find(&ingestionAuditRecords).Error; err != nil {
+		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("load board ingestion audits: %w", err))
+	}
+	ingestionAudits := make([]domaintracker.TaskModelAudit, 0, len(ingestionAuditRecords))
+	for _, rec := range ingestionAuditRecords {
+		ingestionAudits = append(ingestionAudits, mapIngestionAuditRecord(rec))
 	}
 	board := domaintracker.Board{BoardID: boardRecord.ID, RunID: boardRecord.ProjectID, ProjectID: boardRecord.ProjectID, Name: boardRecord.Name, State: domaintracker.BoardState(boardRecord.State), Epics: epics, IngestionDetails: ingestionDetails, IngestionAudits: ingestionAudits, CreatedAt: boardRecord.CreatedAt, UpdatedAt: boardRecord.UpdatedAt}
 	if err := board.Validate(); err != nil {
@@ -378,55 +502,7 @@ func (store *PostgresBoardStore) LoadBoard(ctx context.Context, projectID string
 	return board, nil
 }
 
-func marshalBoardIngestionDetails(details *domaintracker.BoardIngestionDetails) ([]byte, error) {
-	if details == nil {
-		return []byte("null"), nil
-	}
-	encoded, err := json.Marshal(details)
-	if err != nil {
-		return nil, err
-	}
-	return encoded, nil
-}
-
-func unmarshalBoardIngestionDetails(raw []byte) (*domaintracker.BoardIngestionDetails, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil, nil
-	}
-	decoded := &domaintracker.BoardIngestionDetails{}
-	if err := json.Unmarshal(raw, decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
-}
-
-func marshalTaskModelAudits(audits []domaintracker.TaskModelAudit) ([]byte, error) {
-	if len(audits) == 0 {
-		return []byte("[]"), nil
-	}
-	encoded, err := json.Marshal(audits)
-	if err != nil {
-		return nil, err
-	}
-	return encoded, nil
-}
-
-func unmarshalTaskModelAudits(raw []byte) ([]domaintracker.TaskModelAudit, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	decoded := make([]domaintracker.TaskModelAudit, 0)
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
-}
-
-func mapTaskRecord(rec projectBoardTaskRecord) domaintracker.Task {
-	audits, err := unmarshalTaskModelAudits(rec.TaskAudits)
-	if err != nil || len(audits) == 0 {
-		audits = legacyTaskAudits(rec)
-	}
+func mapTaskRecord(rec projectBoardTaskRecord, audits []domaintracker.TaskModelAudit) domaintracker.Task {
 	task := domaintracker.Task{ID: domaintracker.WorkItemID(rec.ID), BoardID: rec.BoardID, EpicID: domaintracker.WorkItemID(rec.EpicID), Title: rec.Title, Description: rec.Description, RepositoryIDs: normalizeStringSlice([]string(rec.RepositoryIDs)), Deliverables: normalizeStringSlice([]string(rec.Deliverables)), TaskType: rec.TaskType, State: domaintracker.TaskState(rec.State), Rank: rec.Rank, DependsOnTaskIDs: stringsToWorkItemIDs([]string(rec.DependsOnTaskIDs)), Audits: audits, ClaimedByAgentID: rec.ClaimedByAgentID, ClaimedAt: rec.ClaimedAt, ClaimExpiresAt: rec.ClaimExpiresAt, ClaimToken: rec.ClaimToken, AttemptCount: rec.AttemptCount, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt}
 	if strings.TrimSpace(rec.OutcomeStatus) != "" {
 		task.Outcome = &domaintracker.TaskOutcome{Status: domaintracker.OutcomeStatus(rec.OutcomeStatus), Summary: rec.OutcomeSummary, ErrorCode: rec.OutcomeErrorCode, ErrorMessage: rec.OutcomeErrorMessage}
@@ -434,18 +510,20 @@ func mapTaskRecord(rec projectBoardTaskRecord) domaintracker.Task {
 	return task
 }
 
-func firstTaskAudit(audits []domaintracker.TaskModelAudit) domaintracker.TaskModelAudit {
-	if len(audits) == 0 {
-		return domaintracker.TaskModelAudit{}
-	}
-	return audits[0]
+func taskModelAuditToTaskRecord(boardID string, taskID string, position int, audit domaintracker.TaskModelAudit, now time.Time) projectBoardTaskAuditRecord {
+	return projectBoardTaskAuditRecord{BoardID: boardID, TaskID: taskID, Position: position, ModelProvider: strings.TrimSpace(audit.ModelProvider), ModelName: strings.TrimSpace(audit.ModelName), ModelVersion: strings.TrimSpace(audit.ModelVersion), ModelRunID: strings.TrimSpace(audit.ModelRunID), AgentSessionID: strings.TrimSpace(audit.AgentSessionID), AgentStreamID: strings.TrimSpace(audit.AgentStreamID), PromptFingerprint: strings.TrimSpace(audit.PromptFingerprint), InputTokens: audit.InputTokens, OutputTokens: audit.OutputTokens, StartedAt: audit.StartedAt, CompletedAt: audit.CompletedAt, CreatedAt: now, UpdatedAt: now}
 }
 
-func legacyTaskAudits(rec projectBoardTaskRecord) []domaintracker.TaskModelAudit {
-	if strings.TrimSpace(rec.ModelProvider) == "" && strings.TrimSpace(rec.ModelName) == "" && strings.TrimSpace(rec.ModelVersion) == "" && strings.TrimSpace(rec.ModelRunID) == "" && strings.TrimSpace(rec.AgentSessionID) == "" && strings.TrimSpace(rec.AgentStreamID) == "" && strings.TrimSpace(rec.PromptFingerprint) == "" && rec.InputTokens == nil && rec.OutputTokens == nil && rec.StartedAt == nil && rec.CompletedAt == nil {
-		return nil
-	}
-	return []domaintracker.TaskModelAudit{{ModelProvider: rec.ModelProvider, ModelName: rec.ModelName, ModelVersion: rec.ModelVersion, ModelRunID: rec.ModelRunID, AgentSessionID: rec.AgentSessionID, AgentStreamID: rec.AgentStreamID, PromptFingerprint: rec.PromptFingerprint, InputTokens: rec.InputTokens, OutputTokens: rec.OutputTokens, StartedAt: rec.StartedAt, CompletedAt: rec.CompletedAt}}
+func taskModelAuditToIngestionRecord(boardID string, position int, audit domaintracker.TaskModelAudit, now time.Time) projectBoardIngestionAuditRecord {
+	return projectBoardIngestionAuditRecord{BoardID: boardID, Position: position, ModelProvider: strings.TrimSpace(audit.ModelProvider), ModelName: strings.TrimSpace(audit.ModelName), ModelVersion: strings.TrimSpace(audit.ModelVersion), ModelRunID: strings.TrimSpace(audit.ModelRunID), AgentSessionID: strings.TrimSpace(audit.AgentSessionID), AgentStreamID: strings.TrimSpace(audit.AgentStreamID), PromptFingerprint: strings.TrimSpace(audit.PromptFingerprint), InputTokens: audit.InputTokens, OutputTokens: audit.OutputTokens, StartedAt: audit.StartedAt, CompletedAt: audit.CompletedAt, CreatedAt: now, UpdatedAt: now}
+}
+
+func mapAuditRecord(rec projectBoardTaskAuditRecord) domaintracker.TaskModelAudit {
+	return domaintracker.TaskModelAudit{ModelProvider: rec.ModelProvider, ModelName: rec.ModelName, ModelVersion: rec.ModelVersion, ModelRunID: rec.ModelRunID, AgentSessionID: rec.AgentSessionID, AgentStreamID: rec.AgentStreamID, PromptFingerprint: rec.PromptFingerprint, InputTokens: rec.InputTokens, OutputTokens: rec.OutputTokens, StartedAt: rec.StartedAt, CompletedAt: rec.CompletedAt}
+}
+
+func mapIngestionAuditRecord(rec projectBoardIngestionAuditRecord) domaintracker.TaskModelAudit {
+	return domaintracker.TaskModelAudit{ModelProvider: rec.ModelProvider, ModelName: rec.ModelName, ModelVersion: rec.ModelVersion, ModelRunID: rec.ModelRunID, AgentSessionID: rec.AgentSessionID, AgentStreamID: rec.AgentStreamID, PromptFingerprint: rec.PromptFingerprint, InputTokens: rec.InputTokens, OutputTokens: rec.OutputTokens, StartedAt: rec.StartedAt, CompletedAt: rec.CompletedAt}
 }
 
 func workItemIDsToStrings(ids []domaintracker.WorkItemID) []string {
