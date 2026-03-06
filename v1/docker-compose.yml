@@ -37,7 +37,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: deploy/docker/Dockerfile.api
     container_name: agentic-repositories-api
     depends_on:
       postgres:
@@ -74,7 +74,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: deploy/docker/Dockerfile.worker
       args:
         GH_CLI_APK_VERSION: ${GH_CLI_APK_VERSION:-}
         COPILOT_CLI_VERSION: ${COPILOT_CLI_VERSION:-0.0.421}
