@@ -113,6 +113,14 @@
 - Forward-facing errors must be typed and represented as explicit union outputs (or equivalent typed schema patterns) so clients can deterministically handle failures.
 - Payloads and error contracts must make required data and supplied data unambiguous.
 
+## END-TO-END TYPE SAFETY MANDATE
+
+- Build features with an unbroken type-safe path: **type-safe relational database schema/model -> type-safe API contract -> type-safe client framework models**.
+- Do NOT use untyped or weakly typed payload shortcuts when a concrete typed model should exist.
+- `[]byte` is allowed only when the storage/transport boundary is genuinely binary or serialized by requirement (for example: JSONB/raw payload persistence, cryptographic material, or external binary artifacts).
+- `[]byte` must NOT be used to avoid defining proper typed structs/contracts or to shorten implementation work.
+- When `[]byte` is required, pair it with explicit marshal/unmarshal validation and typed domain/application mappings.
+
 ## SUBSCRIPTION CONTRACT OWNERSHIP MANDATE
 
 - Subscription semantics are defined by server-side GraphQL contract logic; clients are listeners of that contract.
