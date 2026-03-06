@@ -460,7 +460,9 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
   _i5.Future<_i2.ApiResult<_i2.IngestionRunTicket>> runIngestionAgent({
     required String? projectID,
     required String? taskboardName,
+    String? boardID,
     List<String>? selectedDocumentIDs,
+    List<String>? selectedDocumentLocations,
     String? userPrompt,
     Map<String, String>? repositorySourceBranches,
   }) =>
@@ -468,7 +470,9 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
             Invocation.method(#runIngestionAgent, [], {
               #projectID: projectID,
               #taskboardName: taskboardName,
+              #boardID: boardID,
               #selectedDocumentIDs: selectedDocumentIDs,
+              #selectedDocumentLocations: selectedDocumentLocations,
               #userPrompt: userPrompt,
               #repositorySourceBranches: repositorySourceBranches,
             }),
@@ -479,7 +483,9 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                     Invocation.method(#runIngestionAgent, [], {
                       #projectID: projectID,
                       #taskboardName: taskboardName,
+                      #boardID: boardID,
                       #selectedDocumentIDs: selectedDocumentIDs,
+                      #selectedDocumentLocations: selectedDocumentLocations,
                       #userPrompt: userPrompt,
                       #repositorySourceBranches: repositorySourceBranches,
                     }),
@@ -492,7 +498,9 @@ class MockControlPlaneApi extends _i1.Mock implements _i4.ControlPlaneApi {
                     Invocation.method(#runIngestionAgent, [], {
                       #projectID: projectID,
                       #taskboardName: taskboardName,
+                      #boardID: boardID,
                       #selectedDocumentIDs: selectedDocumentIDs,
+                      #selectedDocumentLocations: selectedDocumentLocations,
                       #userPrompt: userPrompt,
                       #repositorySourceBranches: repositorySourceBranches,
                     }),
