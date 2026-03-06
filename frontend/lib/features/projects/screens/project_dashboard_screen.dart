@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:agentic_repositories/features/projects/screens/project_setup_edit_screen.dart';
@@ -1268,11 +1269,10 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
   final Map<String, _LiveActiveEntry> _activeLiveEntriesByKey =
       <String, _LiveActiveEntry>{};
   List<StreamEvent> _pipelineEvents = const <StreamEvent>[];
-  List<StreamEvent> _sessionLiveEvents = const <StreamEvent>[];
+  StreamEvent? _latestSessionLiveEvent;
   List<LifecycleSessionSnapshotModel> _snapshots =
       const <LifecycleSessionSnapshotModel>[];
-  List<LifecycleHistoryEventModel> _sessionHistory =
-      const <LifecycleHistoryEventModel>[];
+  List<StreamEvent> _sessionHistory = const <StreamEvent>[];
 
   @override
   void initState() {
@@ -1510,14 +1510,241 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
           if (!mounted || !eventResult.isSuccess || eventResult.data == null) {
             return;
           }
-          final incoming = eventResult.data!;
+          final incoming = _normalizeSessionStreamEventForHistory(
+            eventResult.data!,
+          );
           setState(() {
             if (incoming.streamOffset >= _nextSessionActivityOffset) {
               _nextSessionActivityOffset = incoming.streamOffset + 1;
             }
-            _sessionLiveEvents = _mergeEvents(_sessionLiveEvents, incoming);
+            _applySessionSnapshotFromEvent(incoming);
+            _latestSessionLiveEvent = incoming;
+            _sessionHistory = _mergeSessionHistory(_sessionHistory, incoming);
           });
         });
+  }
+
+  void _applySessionSnapshotFromEvent(StreamEvent incoming) {
+    final sessionID = incoming.sessionID?.trim();
+    if (sessionID == null || sessionID.isEmpty) {
+      return;
+    }
+    final index = _snapshots.indexWhere(
+      (snapshot) => snapshot.sessionID == sessionID,
+    );
+    if (index < 0) {
+      return;
+    }
+    final current = _snapshots[index];
+    var nextState = current.currentState;
+    var nextSeverity = current.currentSeverity;
+    var nextEndedAt = current.endedAt;
+    final normalizedType = incoming.eventType.trim().toLowerCase();
+
+    if (normalizedType == 'stream.session.started') {
+      nextState = 'running';
+      nextSeverity = 'info';
+      nextEndedAt = null;
+    } else if (normalizedType == 'stream.session.completed') {
+      nextState = 'completed';
+      nextSeverity = 'info';
+      nextEndedAt = incoming.occurredAt.toUtc();
+    } else if (normalizedType == 'stream.session.failed') {
+      nextState = 'failed';
+      nextSeverity = 'error';
+      nextEndedAt = incoming.occurredAt.toUtc();
+    } else if (normalizedType == 'stream.session.ended') {
+      final payloadLower = incoming.payload.toLowerCase();
+      if (payloadLower.contains('failed')) {
+        nextState = 'failed';
+        nextSeverity = 'error';
+      } else {
+        nextState = 'completed';
+        nextSeverity = 'info';
+      }
+      nextEndedAt = incoming.occurredAt.toUtc();
+    } else {
+      if (nextEndedAt == null) {
+        nextState = 'healthy_active';
+      }
+      if (nextSeverity.trim().isEmpty) {
+        nextSeverity = 'info';
+      }
+    }
+
+    final replacement = LifecycleSessionSnapshotModel(
+      projectID: current.projectID,
+      sessionID: current.sessionID,
+      pipelineType: current.pipelineType,
+      currentState: nextState,
+      currentSeverity: nextSeverity,
+      lastEventSeq: incoming.streamOffset > current.lastEventSeq
+          ? incoming.streamOffset
+          : current.lastEventSeq,
+      lastProjectEventSeq: current.lastProjectEventSeq,
+      startedAt: current.startedAt,
+      updatedAt: incoming.occurredAt.toUtc(),
+      runID: current.runID,
+      taskID: current.taskID,
+      jobID: current.jobID,
+      sourceRuntime: current.sourceRuntime,
+      lastReasonCode: current.lastReasonCode,
+      lastReasonSummary: current.lastReasonSummary,
+      lastLivenessAt: normalizedType == 'stream.session.health'
+          ? incoming.occurredAt.toUtc()
+          : current.lastLivenessAt,
+      lastActivityAt: incoming.occurredAt.toUtc(),
+      lastCheckpointAt: current.lastCheckpointAt,
+      endedAt: nextEndedAt,
+    );
+
+    final updated = List<LifecycleSessionSnapshotModel>.from(_snapshots);
+    updated[index] = replacement;
+    _snapshots = updated;
+  }
+
+  StreamEvent _normalizeSessionStreamEventForHistory(StreamEvent incoming) {
+    if (incoming.streamOffset > 0) {
+      return incoming;
+    }
+    final synthesizedOffset = _nextSessionActivityOffset > 0
+        ? _nextSessionActivityOffset
+        : 1;
+    return StreamEvent(
+      eventID: incoming.eventID,
+      streamOffset: synthesizedOffset,
+      occurredAt: incoming.occurredAt,
+      runID: incoming.runID,
+      taskID: incoming.taskID,
+      jobID: incoming.jobID,
+      projectID: incoming.projectID,
+      sessionID: incoming.sessionID,
+      source: incoming.source,
+      eventType: incoming.eventType,
+      payload: incoming.payload,
+      gapDetected: incoming.gapDetected,
+      gapReconciled: incoming.gapReconciled,
+      expectedEventSeq: incoming.expectedEventSeq,
+      observedEventSeq: incoming.observedEventSeq,
+    );
+  }
+
+  List<StreamEvent> _mergeSessionHistory(
+    List<StreamEvent> existing,
+    StreamEvent incoming,
+  ) {
+    final mergedByID = <String, StreamEvent>{};
+    for (final event in existing) {
+      mergedByID[event.eventID] = event;
+    }
+    mergedByID[incoming.eventID] = incoming;
+    final merged = mergedByID.values.toList(growable: false)
+      ..sort((a, b) {
+        final byOffset = b.streamOffset.compareTo(a.streamOffset);
+        if (byOffset != 0) {
+          return byOffset;
+        }
+        return b.occurredAt.compareTo(a.occurredAt);
+      });
+    return merged;
+  }
+
+  StreamEvent _streamEventFromLifecycleHistory(
+    LifecycleHistoryEventModel entry,
+  ) {
+    return StreamEvent(
+      eventID: entry.eventID,
+      streamOffset: entry.eventSeq,
+      occurredAt: entry.occurredAt,
+      eventType: entry.eventType,
+      payload: entry.payload,
+      projectID: entry.projectID,
+      sessionID: entry.sessionID,
+      runID: entry.runID,
+      taskID: entry.taskID,
+      jobID: entry.jobID,
+      source: entry.sourceRuntime,
+    );
+  }
+
+  bool _isSessionTerminalEventType(String eventType) {
+    final normalized = eventType.trim().toLowerCase();
+    return normalized == 'stream.session.ended' ||
+        normalized == 'stream.session.completed' ||
+        normalized == 'stream.session.failed';
+  }
+
+  bool _isSessionSnapshotLive(LifecycleSessionSnapshotModel? snapshot) {
+    if (snapshot == null) {
+      return false;
+    }
+    if (snapshot.endedAt != null) {
+      return false;
+    }
+    final state = snapshot.currentState.trim().toLowerCase();
+    if (state.contains('completed') ||
+        state.contains('failed') ||
+        state.contains('exited') ||
+        state.contains('terminated')) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _shouldShowSessionRealtimeBlock(
+    LifecycleSessionSnapshotModel? snapshot,
+  ) {
+    final latest = _latestSessionLiveEvent;
+    if (latest == null) {
+      return false;
+    }
+    if (_isSessionTerminalEventType(latest.eventType)) {
+      return false;
+    }
+    return _isSessionSnapshotLive(snapshot);
+  }
+
+  bool _canRetrySession(LifecycleSessionSnapshotModel? snapshot) {
+    if (snapshot == null) {
+      return false;
+    }
+    if (_isSessionSnapshotLive(snapshot)) {
+      return true;
+    }
+
+    final state = snapshot.currentState.trim().toLowerCase();
+    final severity = snapshot.currentSeverity.trim().toLowerCase();
+    final reason = [
+      snapshot.lastReasonCode,
+      snapshot.lastReasonSummary,
+    ].whereType<String>().join(' ').toLowerCase();
+
+    final isSuccessfulTerminal =
+        state.contains('completed') &&
+        !state.contains('failed') &&
+        !state.contains('error') &&
+        !severity.contains('error') &&
+        !severity.contains('fatal') &&
+        !reason.contains('error') &&
+        !reason.contains('failed') &&
+        !reason.contains('timeout') &&
+        !reason.contains('deadletter');
+    if (isSuccessfulTerminal) {
+      return false;
+    }
+
+    return state.contains('failed') ||
+        state.contains('error') ||
+        state.contains('exited') ||
+        state.contains('terminated') ||
+        state.contains('archived') ||
+        severity.contains('error') ||
+        severity.contains('fatal') ||
+        reason.contains('error') ||
+        reason.contains('failed') ||
+        reason.contains('timeout') ||
+        reason.contains('deadletter') ||
+        reason.contains('archive');
   }
 
   String _liveFeedStatusLabel() {
@@ -1626,32 +1853,98 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
     if (sessionID == null || sessionID.isEmpty) {
       return;
     }
-    final result = await widget.api.lifecycleSessionHistory(
-      projectID: widget.projectID,
-      sessionID: sessionID,
-      fromEventSeq: 0,
-      limit: 500,
-    );
+    const pageSize = 500;
+    var fromEventSeq = 0;
+    final allHistory = <LifecycleHistoryEventModel>[];
+    while (true) {
+      final result = await widget.api.lifecycleSessionHistory(
+        projectID: widget.projectID,
+        sessionID: sessionID,
+        fromEventSeq: fromEventSeq,
+        limit: pageSize,
+      );
+      if (!result.isSuccess || result.data == null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _statusMessage = result.errorMessage ?? 'Session history failed';
+        });
+        return;
+      }
+      final page = result.data!;
+      if (page.isEmpty) {
+        break;
+      }
+      allHistory.addAll(page);
+      final highestEventSeq = page.last.eventSeq;
+      fromEventSeq = highestEventSeq;
+      if (page.length < pageSize) {
+        break;
+      }
+    }
     if (!mounted) {
       return;
     }
     setState(() {
-      if (result.isSuccess && result.data != null) {
-        _sessionHistory = result.data!;
-        for (final event in _sessionHistory) {
-          if (event.eventSeq >= _nextSessionActivityOffset) {
-            _nextSessionActivityOffset = event.eventSeq + 1;
-          }
-        }
-      } else {
-        _statusMessage = result.errorMessage ?? 'Session history failed';
-      }
+      _sessionHistory =
+          allHistory
+              .map(_streamEventFromLifecycleHistory)
+              .toList(growable: false)
+            ..sort((a, b) {
+              final byOffset = b.streamOffset.compareTo(a.streamOffset);
+              if (byOffset != 0) {
+                return byOffset;
+              }
+              return b.occurredAt.compareTo(a.occurredAt);
+            });
+      // Session stream uses server bootstrap on initial connect, then realtime.
+      _nextSessionActivityOffset = 0;
     });
     _startSessionActivitySubscription();
   }
 
-  Color _eventAccentColor(BuildContext context, String eventType) {
-    final normalized = eventType.toLowerCase();
+  bool _isErrorEvent(StreamEvent event) {
+    final normalizedType = event.eventType.toLowerCase();
+    if (normalizedType.contains('failed') || normalizedType.contains('error')) {
+      return true;
+    }
+    final payloadText = event.payload.trim();
+    if (payloadText.isEmpty) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(payloadText);
+      if (decoded is! Map<String, dynamic>) {
+        return false;
+      }
+      final flagged = decoded['error_event'];
+      if (flagged is bool && flagged) {
+        return true;
+      }
+      for (final key in <String>['error', 'error_code', 'failure_class']) {
+        final value = (decoded[key] as String?)?.trim();
+        if (value != null && value.isNotEmpty) {
+          return true;
+        }
+      }
+      final runtimeEvent = (decoded['runtime_event'] as String?)
+          ?.trim()
+          .toLowerCase();
+      if (runtimeEvent == 'failed' || runtimeEvent == 'terminated') {
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
+  }
+
+  Color _eventAccentColor(BuildContext context, StreamEvent event) {
+    if (_isErrorEvent(event)) {
+      return Theme.of(context).colorScheme.error;
+    }
+    final normalized = event.eventType.toLowerCase();
     if (normalized.contains('failed') ||
         normalized.contains('error') ||
         normalized.contains('terminate')) {
@@ -1746,8 +2039,44 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
     await _refresh(silent: true);
   }
 
-  Widget _buildEventCard(StreamEvent event) {
-    final accent = _eventAccentColor(context, event.eventType);
+  String? _eventFailureReason(StreamEvent event) {
+    final payloadText = event.payload.trim();
+    if (payloadText.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(payloadText);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+      final error = (decoded['error'] as String?)?.trim();
+      if (error != null && error.isNotEmpty) {
+        return error;
+      }
+      final reason = (decoded['reason_summary'] as String?)?.trim();
+      if (reason != null && reason.isNotEmpty) {
+        return reason;
+      }
+      final failureClass = (decoded['failure_class'] as String?)?.trim();
+      if (failureClass != null && failureClass.isNotEmpty) {
+        return 'failure_class=$failureClass';
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Widget _buildEventCard(
+    StreamEvent event, {
+    bool showOffset = true,
+    bool showFullPayload = false,
+    bool forceErrorAccent = false,
+  }) {
+    final accent = forceErrorAccent
+        ? Theme.of(context).colorScheme.error
+        : _eventAccentColor(context, event);
+    final reason = _eventFailureReason(event);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -1762,11 +2091,16 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(
-                  '#${event.streamOffset}',
-                  style: TextStyle(color: accent, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(width: 8),
+                if (showOffset) ...<Widget>[
+                  Text(
+                    '#${event.streamOffset}',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: Text(
                     event.eventType,
@@ -1784,6 +2118,16 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
               'session=${event.sessionID ?? '-'} run=${event.runID ?? '-'} task=${event.taskID ?? '-'} job=${event.jobID ?? '-'}',
               style: Theme.of(context).textTheme.labelSmall,
             ),
+            if (reason != null) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                'Reason: $reason',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             if (event.payload.trim().isNotEmpty) ...<Widget>[
               const SizedBox(height: 8),
               Container(
@@ -1795,8 +2139,10 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
                 ),
                 child: Text(
                   event.payload,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: showFullPayload ? null : 2,
+                  overflow: showFullPayload
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFFE2E8F0),
                     fontFamily: 'JetBrainsMono',
@@ -1820,7 +2166,11 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[...activeEvents.take(120).map(_buildEventCard)],
+      children: <Widget>[
+        ...activeEvents
+            .take(120)
+            .map((event) => _buildEventCard(event, showOffset: false)),
+      ],
     );
   }
 
@@ -1885,6 +2235,8 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         break;
       }
     }
+    final sessionIsLive = _isSessionSnapshotLive(selected);
+    final retryEnabled = _canRetrySession(selected);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -1911,7 +2263,8 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
             }
             setState(() {
               _selectedSessionID = value;
-              _sessionLiveEvents = const <StreamEvent>[];
+              _latestSessionLiveEvent = null;
+              _sessionHistory = const <StreamEvent>[];
               _nextSessionActivityOffset = 0;
             });
             await _reloadSessionHistory();
@@ -1926,32 +2279,37 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
             runSpacing: 8,
             children: <Widget>[
               OutlinedButton(
-                onPressed: () => _runManualIntervention('nudge'),
+                onPressed: sessionIsLive
+                    ? () => _runManualIntervention('nudge')
+                    : null,
                 child: const Text('Nudge'),
               ),
               OutlinedButton(
-                onPressed: () => _runManualIntervention('retry'),
+                onPressed: retryEnabled
+                    ? () => _runManualIntervention('retry')
+                    : null,
                 child: const Text('Retry'),
               ),
               OutlinedButton(
-                onPressed: () => _runManualIntervention('pause'),
+                onPressed: sessionIsLive
+                    ? () => _runManualIntervention('pause')
+                    : null,
                 child: const Text('Pause'),
               ),
               OutlinedButton(
-                onPressed: () => _runManualIntervention('terminate'),
+                onPressed: sessionIsLive
+                    ? () => _runManualIntervention('terminate')
+                    : null,
                 child: const Text('Terminate'),
               ),
             ],
           ),
           const SizedBox(height: 8),
         ],
-        if (_sessionLiveEvents.isNotEmpty) ...<Widget>[
-          Text(
-            'Realtime activity',
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
+        if (_shouldShowSessionRealtimeBlock(selected)) ...<Widget>[
+          Text('Realtime', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
-          ..._sessionLiveEvents.take(100).map(_buildEventCard),
+          _buildEventCard(_latestSessionLiveEvent!, showFullPayload: true),
           const SizedBox(height: 12),
         ],
         if (_sessionHistory.isEmpty)
@@ -1959,23 +2317,9 @@ class _ProjectEventsMatrixPageState extends State<ProjectEventsMatrixPage> {
         else ...<Widget>[
           Text('History', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
-          ..._sessionHistory.take(200).map((entry) {
-            return _buildEventCard(
-              StreamEvent(
-                eventID: entry.eventID,
-                streamOffset: entry.eventSeq,
-                occurredAt: entry.occurredAt,
-                eventType: entry.eventType,
-                payload: entry.payload,
-                projectID: entry.projectID,
-                sessionID: entry.sessionID,
-                runID: entry.runID,
-                taskID: entry.taskID,
-                jobID: entry.jobID,
-                source: entry.sourceRuntime,
-              ),
-            );
-          }),
+          ..._sessionHistory.map(
+            (event) => _buildEventCard(event, showFullPayload: true),
+          ),
         ],
       ],
     );

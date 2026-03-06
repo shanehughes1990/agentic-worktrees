@@ -15,6 +15,7 @@ import (
 )
 
 type streamEventRecord struct {
+	gorm.Model
 	ID            uint64    `gorm:"primaryKey;autoIncrement"`
 	EventID       string    `gorm:"column:event_id;size:255;not null;uniqueIndex"`
 	RunID         string    `gorm:"column:run_id;size:255;index:idx_stream_corr,priority:1"`

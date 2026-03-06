@@ -10,6 +10,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -36,18 +37,14 @@ func (middleware *jobLifecycleMiddleware) Handle(ctx context.Context, job tasken
 		return fmt.Errorf("job lifecycle middleware is not initialized")
 	}
 	meta := extractLifecycleMetadata(job)
-	middleware.publishRuntimeSignal(ctx, meta, "started", map[string]any{
+	startedID := lifecycleEventID(job, meta.IdempotencyKey, meta.JobID, string(domainlifecycle.EventStarted), meta.RetryCount)
+	startedPayload := map[string]any{
 		"queue_task_id": strings.TrimSpace(job.QueueTaskID),
 		"job_kind":      string(job.Kind),
 		"retry_count":   meta.RetryCount,
 		"max_retry":     meta.MaxRetry,
-	})
-	heartbeatCtx, stopHeartbeats := context.WithCancel(ctx)
-	defer stopHeartbeats()
-	go middleware.runRuntimeHeartbeatSignals(heartbeatCtx, meta, job)
-
-	startedID := lifecycleEventID(job, meta.IdempotencyKey, meta.JobID, string(domainlifecycle.EventStarted), meta.RetryCount)
-	_, _ = middleware.service.AppendEvent(ctx, domainlifecycle.Event{
+	}
+	if _, err := middleware.service.AppendEvent(ctx, domainlifecycle.Event{
 		EventID:       startedID,
 		SchemaVersion: lifecycleSchemaVersion,
 		ProjectID:     meta.ProjectID,
@@ -60,13 +57,14 @@ func (middleware *jobLifecycleMiddleware) Handle(ctx context.Context, job tasken
 		PipelineType:  string(job.Kind),
 		EventType:     domainlifecycle.EventStarted,
 		OccurredAt:    time.Now().UTC(),
-		Payload: map[string]any{
-			"queue_task_id": strings.TrimSpace(job.QueueTaskID),
-			"job_kind":      string(job.Kind),
-			"retry_count":   meta.RetryCount,
-			"max_retry":     meta.MaxRetry,
-		},
-	})
+		Payload:       startedPayload,
+	}); err != nil {
+		return fmt.Errorf("append lifecycle started event: %w", err)
+	}
+	middleware.publishRuntimeSignal(ctx, meta, "started", startedPayload, startedID)
+	heartbeatCtx, stopHeartbeats := context.WithCancel(ctx)
+	defer stopHeartbeats()
+	go middleware.runRuntimeHeartbeatSignals(heartbeatCtx, meta, job)
 
 	handlerErr := middleware.handler.Handle(ctx, job)
 	stopHeartbeats()
@@ -89,9 +87,8 @@ func (middleware *jobLifecycleMiddleware) Handle(ctx context.Context, job tasken
 	if completedType == domainlifecycle.EventFailed {
 		runtimeTerminalEventType = "failed"
 	}
-	middleware.publishRuntimeSignal(ctx, meta, runtimeTerminalEventType, payload)
 	completedID := lifecycleEventID(job, meta.IdempotencyKey, meta.JobID, string(completedType), meta.RetryCount)
-	_, _ = middleware.service.AppendEvent(ctx, domainlifecycle.Event{
+	if _, err := middleware.service.AppendEvent(ctx, domainlifecycle.Event{
 		EventID:       completedID,
 		SchemaVersion: lifecycleSchemaVersion,
 		ProjectID:     meta.ProjectID,
@@ -105,7 +102,14 @@ func (middleware *jobLifecycleMiddleware) Handle(ctx context.Context, job tasken
 		EventType:     completedType,
 		OccurredAt:    time.Now().UTC(),
 		Payload:       payload,
-	})
+	}); err != nil {
+		wrapped := fmt.Errorf("append lifecycle %s event: %w", strings.TrimSpace(string(completedType)), err)
+		if handlerErr != nil {
+			return errors.Join(handlerErr, wrapped)
+		}
+		return wrapped
+	}
+	middleware.publishRuntimeSignal(ctx, meta, runtimeTerminalEventType, payload, completedID)
 	return handlerErr
 }
 
@@ -208,27 +212,55 @@ func (middleware *jobLifecycleMiddleware) runRuntimeHeartbeatSignals(ctx context
 				"job_kind":      string(job.Kind),
 				"retry_count":   meta.RetryCount,
 				"max_retry":     meta.MaxRetry,
-			})
+			}, "")
 		}
 	}
 }
 
-func (middleware *jobLifecycleMiddleware) publishRuntimeSignal(ctx context.Context, meta lifecycleMetadata, eventType string, payload map[string]any) {
-	if middleware == nil || middleware.transport == nil {
+func (middleware *jobLifecycleMiddleware) publishRuntimeSignal(ctx context.Context, meta lifecycleMetadata, eventType string, payload map[string]any, signalID string) {
+	if middleware == nil {
 		return
 	}
 	now := time.Now().UTC()
-	_ = middleware.transport.PublishRuntimeActivity(ctx, domainrealtime.RuntimeActivitySignal{
-		SignalID:     domainrealtime.RuntimeActivitySignalID(meta.PipelineType, meta.SessionID, eventType, now),
-		ProjectID:    strings.TrimSpace(meta.ProjectID),
-		RunID:        strings.TrimSpace(meta.RunID),
-		TaskID:       strings.TrimSpace(meta.TaskID),
-		JobID:        strings.TrimSpace(meta.JobID),
-		SessionID:    strings.TrimSpace(meta.SessionID),
-		PipelineType: strings.TrimSpace(meta.PipelineType),
-		WorkerID:     strings.TrimSpace(middleware.workerID),
-		EventType:    strings.TrimSpace(eventType),
-		OccurredAt:   now,
-		Payload:      payload,
-	})
+	resolvedSignalID := strings.TrimSpace(signalID)
+	if resolvedSignalID == "" {
+		resolvedSignalID = domainrealtime.RuntimeActivitySignalID(meta.PipelineType, meta.SessionID, eventType, now)
+	}
+
+	if middleware.transport != nil {
+		_ = middleware.transport.PublishRuntimeActivity(ctx, domainrealtime.RuntimeActivitySignal{
+			SignalID:     resolvedSignalID,
+			ProjectID:    strings.TrimSpace(meta.ProjectID),
+			RunID:        strings.TrimSpace(meta.RunID),
+			TaskID:       strings.TrimSpace(meta.TaskID),
+			JobID:        strings.TrimSpace(meta.JobID),
+			SessionID:    strings.TrimSpace(meta.SessionID),
+			PipelineType: strings.TrimSpace(meta.PipelineType),
+			WorkerID:     strings.TrimSpace(middleware.workerID),
+			EventType:    strings.TrimSpace(eventType),
+			OccurredAt:   now,
+			Payload:      payload,
+		})
+	}
+
+	if strings.TrimSpace(strings.ToLower(eventType)) != "heartbeat" || middleware.service == nil {
+		return
+	}
+	if _, err := middleware.service.AppendEvent(ctx, domainlifecycle.Event{
+		EventID:       resolvedSignalID,
+		SchemaVersion: lifecycleSchemaVersion,
+		ProjectID:     strings.TrimSpace(meta.ProjectID),
+		RunID:         strings.TrimSpace(meta.RunID),
+		TaskID:        strings.TrimSpace(meta.TaskID),
+		JobID:         strings.TrimSpace(meta.JobID),
+		SessionID:     strings.TrimSpace(meta.SessionID),
+		WorkerID:      strings.TrimSpace(middleware.workerID),
+		SourceRuntime: "worker",
+		PipelineType:  strings.TrimSpace(meta.PipelineType),
+		EventType:     domainlifecycle.EventType("heartbeat"),
+		OccurredAt:    now,
+		Payload:       payload,
+	}); err != nil {
+		return
+	}
 }

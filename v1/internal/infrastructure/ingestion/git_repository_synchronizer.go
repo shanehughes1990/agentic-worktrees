@@ -63,11 +63,14 @@ func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, project
 			continue
 		}
 		repositoryDirName := repositoryDirectoryName(repositoryID, repositoryURL)
+		targetDirectory := filepath.Join(repositoriesDir, repositoryDirName)
 		localRepositoryPath, resolveErr := synchronizer.resolveLocalRepositoryPath(cleanProjectID, repositoryDirName)
 		if resolveErr != nil {
-			return failures.WrapTransient(fmt.Errorf("local source repository cache not found for repository %q: %w", repositoryID, resolveErr))
+			if err := synchronizer.cloneFromOrigin(ctx, repositoriesDir, repositoryURL, repositoryBranch, targetDirectory); err != nil {
+				return failures.WrapTransient(fmt.Errorf("sync repository %q from origin fallback: %w", repositoryID, err))
+			}
+			continue
 		}
-		targetDirectory := filepath.Join(repositoriesDir, repositoryDirName)
 		if err := os.RemoveAll(targetDirectory); err != nil {
 			return failures.WrapTransient(fmt.Errorf("reset sandbox repository directory %s: %w", targetDirectory, err))
 		}
@@ -91,6 +94,19 @@ func (synchronizer *GitRepositorySynchronizer) Sync(ctx context.Context, project
 		}
 	}
 
+	return nil
+}
+
+func (synchronizer *GitRepositorySynchronizer) cloneFromOrigin(ctx context.Context, repositoriesDir string, repositoryURL string, repositoryBranch string, targetDirectory string) error {
+	if err := os.RemoveAll(targetDirectory); err != nil {
+		return fmt.Errorf("reset sandbox repository directory %s: %w", targetDirectory, err)
+	}
+	if err := synchronizer.runGit(ctx, repositoriesDir, "clone", "--branch", repositoryBranch, "--single-branch", repositoryURL, targetDirectory); err == nil {
+		return nil
+	}
+	if err := synchronizer.runGit(ctx, repositoriesDir, "clone", repositoryURL, targetDirectory); err != nil {
+		return fmt.Errorf("clone repository %q into %s: %w", repositoryURL, targetDirectory, err)
+	}
 	return nil
 }
 

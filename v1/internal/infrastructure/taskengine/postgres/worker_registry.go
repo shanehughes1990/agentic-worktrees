@@ -31,16 +31,14 @@ func (workerRegistryRecord) TableName() string {
 }
 
 type workerRegistrySettingsRecord struct {
-	ID                       uint  `gorm:"primaryKey"`
+	gorm.Model
 	HeartbeatIntervalSeconds int64 `gorm:"column:heartbeat_interval_seconds;not null"`
 	ResponseDeadlineSeconds  int64 `gorm:"column:response_deadline_seconds;not null"`
 	UpdatedAtUnix            int64 `gorm:"column:updated_at_unix;not null"`
-	UpdatedAt                time.Time
-	CreatedAt                time.Time
 }
 
 type workerRegistrationSubmissionRecord struct {
-	ID               uint   `gorm:"primaryKey"`
+	gorm.Model
 	SubmissionID     string `gorm:"column:submission_id;size:255;not null;uniqueIndex"`
 	WorkerID         string `gorm:"column:worker_id;size:255;not null;index"`
 	RequestedAtUnix  int64  `gorm:"column:requested_at_unix;not null;index"`
@@ -49,8 +47,6 @@ type workerRegistrationSubmissionRecord struct {
 	CapabilitiesJSON []byte `gorm:"column:capabilities_json;not null"`
 	ReasonsJSON      []byte `gorm:"column:reasons_json;not null"`
 	ResolvedAtUnix   int64  `gorm:"column:resolved_at_unix;not null;default:0"`
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
 }
 
 func (workerRegistrationSubmissionRecord) TableName() string {
@@ -251,7 +247,7 @@ func (registry *WorkerRegistry) UpsertSettings(ctx context.Context, settings dom
 	if err := settings.Validate(); err != nil {
 		return domainrealtime.Settings{}, err
 	}
-	record := workerRegistrySettingsRecord{ID: 1, HeartbeatIntervalSeconds: int64(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int64(settings.ResponseDeadline.Seconds()), UpdatedAtUnix: settings.UpdatedAt.UTC().Unix()}
+	record := workerRegistrySettingsRecord{Model: gorm.Model{ID: 1}, HeartbeatIntervalSeconds: int64(settings.HeartbeatInterval.Seconds()), ResponseDeadlineSeconds: int64(settings.ResponseDeadline.Seconds()), UpdatedAtUnix: settings.UpdatedAt.UTC().Unix()}
 	if err := registry.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns([]string{"heartbeat_interval_seconds", "response_deadline_seconds", "updated_at_unix", "updated_at"})}).Create(&record).Error; err != nil {
 		return domainrealtime.Settings{}, fmt.Errorf("upsert worker settings: %w", err)
 	}

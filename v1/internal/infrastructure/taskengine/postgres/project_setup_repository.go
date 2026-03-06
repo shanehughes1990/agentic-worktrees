@@ -47,6 +47,7 @@ func (projectSCMRecord) TableName() string {
 }
 
 type trackerProjectBoardRecord struct {
+	gorm.Model
 	ID        string    `gorm:"column:id;size:255;primaryKey"`
 	ProjectID string    `gorm:"column:project_id;size:255;not null;index"`
 	Name      string    `gorm:"column:name;not null"`
@@ -304,13 +305,6 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 	}
 	boardRecords := make([]trackerProjectBoardRecord, 0)
 	boardQuery := repository.db.WithContext(ctx).Model(&trackerProjectBoardRecord{}).Where("project_id = ?", projectRecord.ProjectID)
-	if repository.db.Migrator() != nil && repository.db.Migrator().HasTable("workflow_jobs") {
-		legacyRunIDs := repository.db.WithContext(ctx).
-			Model(&admissionLedgerRecord{}).
-			Distinct("run_id").
-			Where("project_id = ?", projectRecord.ProjectID)
-		boardQuery = boardQuery.Or("project_id IN (?)", legacyRunIDs)
-	}
 	if err := boardQuery.Order("created_at ASC").Find(&boardRecords).Error; err != nil {
 		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project boards: %w", err)
 	}

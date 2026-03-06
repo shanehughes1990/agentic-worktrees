@@ -20,6 +20,7 @@ import (
 const listenerCircuitOpenThreshold = 3
 
 type eventHistoryRecord struct {
+	gorm.Model
 	ID              uint64    `gorm:"primaryKey;autoIncrement"`
 	EventID         string    `gorm:"column:event_id;size:255;not null;uniqueIndex"`
 	SchemaVersion   int       `gorm:"column:schema_version;not null"`
@@ -45,6 +46,7 @@ func (eventHistoryRecord) TableName() string {
 }
 
 type projectSessionRecord struct {
+	gorm.Model
 	ID                  uint64     `gorm:"primaryKey;autoIncrement"`
 	ProjectID           string     `gorm:"column:project_id;size:255;not null;index:idx_project_sessions_project_updated,priority:1;index:idx_project_sessions_project_state,priority:1"`
 	RunID               string     `gorm:"column:run_id;size:255;index"`
@@ -74,6 +76,7 @@ func (projectSessionRecord) TableName() string {
 }
 
 type feedbackDeliveryRecord struct {
+	gorm.Model
 	ID             uint64     `gorm:"primaryKey;autoIncrement"`
 	EventID        string     `gorm:"column:event_id;size:255;not null;uniqueIndex:ux_feedback_delivery_event_listener,priority:1;index"`
 	ListenerID     string     `gorm:"column:listener_id;size:255;not null;uniqueIndex:ux_feedback_delivery_event_listener,priority:2;index:idx_feedback_delivery_listener_status_next,priority:1"`

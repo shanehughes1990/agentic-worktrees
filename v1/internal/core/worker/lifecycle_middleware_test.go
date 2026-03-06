@@ -23,6 +23,21 @@ func (store *fakeLifecycleStore) Append(_ context.Context, event domainlifecycle
 	return event, nil
 }
 
+type fakeLifecycleStoreWithFailure struct {
+	events      []domainlifecycle.Event
+	failOnEvent domainlifecycle.EventType
+}
+
+func (store *fakeLifecycleStoreWithFailure) Append(_ context.Context, event domainlifecycle.Event) (domainlifecycle.Event, error) {
+	if event.EventType == store.failOnEvent {
+		return domainlifecycle.Event{}, errors.New("persist failed")
+	}
+	event.EventSeq = int64(len(store.events) + 1)
+	event.ProjectEventSeq = int64(len(store.events) + 1)
+	store.events = append(store.events, event)
+	return event, nil
+}
+
 type fakeJobHandler struct {
 	err error
 }
@@ -249,5 +264,91 @@ func TestJobLifecycleMiddlewarePublishesRuntimeFailedSignalOnHandlerError(t *tes
 	}
 	if !hasFailed {
 		t.Fatalf("expected failed runtime signal")
+	}
+}
+
+func TestJobLifecycleMiddlewarePersistsHeartbeatRuntimeSignals(t *testing.T) {
+	store := &fakeLifecycleStore{}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	transport := &fakeRuntimeTransport{}
+	middleware := &jobLifecycleMiddleware{
+		workerID:  "worker-1",
+		service:   service,
+		transport: transport,
+	}
+
+	middleware.publishRuntimeSignal(
+		context.Background(),
+		lifecycleMetadata{
+			ProjectID:    "project-1",
+			RunID:        "run-1",
+			TaskID:       "task-1",
+			JobID:        "job-1",
+			SessionID:    "session-1",
+			PipelineType: string(taskengine.JobKindAgentWorkflow),
+		},
+		"heartbeat",
+		map[string]any{"runtime_alive": true},
+		"",
+	)
+
+	if len(transport.runtimeSignals) != 1 {
+		t.Fatalf("expected one heartbeat runtime signal, got %d", len(transport.runtimeSignals))
+	}
+	if len(store.events) != 1 {
+		t.Fatalf("expected one persisted heartbeat lifecycle event, got %d", len(store.events))
+	}
+	if store.events[0].EventType != domainlifecycle.EventType("heartbeat") {
+		t.Fatalf("expected persisted heartbeat event type, got %q", store.events[0].EventType)
+	}
+	if store.events[0].SessionID != "session-1" {
+		t.Fatalf("expected persisted session_id session-1, got %q", store.events[0].SessionID)
+	}
+}
+
+func TestJobLifecycleMiddlewareReturnsErrorWhenStartedPersistenceFails(t *testing.T) {
+	store := &fakeLifecycleStoreWithFailure{failOnEvent: domainlifecycle.EventStarted}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	handler := newJobLifecycleMiddleware("worker-1", service, nil, fakeJobHandler{})
+	err = handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-start-fail",
+		Payload:     []byte(`{"project_id":"project-1","session_id":"session-1"}`),
+	})
+	if err == nil {
+		t.Fatalf("expected started persistence error")
+	}
+	if !strings.Contains(err.Error(), "append lifecycle started event") {
+		t.Fatalf("expected started append context in error, got %v", err)
+	}
+}
+
+func TestJobLifecycleMiddlewareReturnsJoinedErrorWhenFailedPersistenceFails(t *testing.T) {
+	store := &fakeLifecycleStoreWithFailure{failOnEvent: domainlifecycle.EventFailed}
+	service, err := applicationlifecycle.NewService(store)
+	if err != nil {
+		t.Fatalf("new lifecycle service: %v", err)
+	}
+	handler := newJobLifecycleMiddleware("worker-1", service, nil, fakeJobHandler{err: errors.New("handler boom")})
+	err = handler.Handle(context.Background(), taskengine.Job{
+		Kind:        taskengine.JobKindAgentWorkflow,
+		QueueTaskID: "queue-task-failed-persist",
+		Payload:     []byte(`{"project_id":"project-1","session_id":"session-1"}`),
+	})
+	if err == nil {
+		t.Fatalf("expected joined handler/persistence error")
+	}
+	message := err.Error()
+	if !strings.Contains(message, "handler boom") {
+		t.Fatalf("expected handler error in joined error, got %v", err)
+	}
+	if !strings.Contains(message, "append lifecycle failed event") {
+		t.Fatalf("expected failed append context in joined error, got %v", err)
 	}
 }

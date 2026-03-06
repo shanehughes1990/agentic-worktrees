@@ -715,6 +715,137 @@ func TestControlPlaneProjectEventsSubscriptionSkipsBootstrapWhenOffsetProvided(t
 	}
 }
 
+func TestControlPlaneSessionActivitySubscriptionSeedsSnapshotImmediately(t *testing.T) {
+	resolver := newControlPlaneResolverFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	projectID := "project-1"
+	runID := "run-1"
+	taskID := "task-1"
+	jobID := "job-1"
+	stream, err := (&subscriptionResolver{resolver}).SessionActivityStream(
+		ctx,
+		models.CorrelationInput{ProjectID: &projectID, RunID: &runID, TaskID: &taskID, JobID: &jobID},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("SessionActivityStream() error = %v", err)
+	}
+
+	select {
+	case message, ok := <-stream:
+		if !ok {
+			t.Fatalf("expected open stream channel")
+		}
+		success, ok := message.(models.StreamEventSuccess)
+		if !ok {
+			t.Fatalf("expected StreamEventSuccess, got %T", message)
+		}
+		if success.Event == nil {
+			t.Fatalf("expected seeded event payload")
+		}
+		if success.Event.EventID != "lifecycle-event-2" {
+			t.Fatalf("expected seeded persisted lifecycle-event-2, got %q", success.Event.EventID)
+		}
+		if success.Event.StreamOffset != 3 {
+			t.Fatalf("expected seeded session offset 3, got %d", success.Event.StreamOffset)
+		}
+		if success.Event.EventType != string(domainstream.EventSessionEnded) {
+			t.Fatalf("expected seeded stream.session.ended event, got %q", success.Event.EventType)
+		}
+	case <-ctx.Done():
+		t.Fatalf("timeout waiting for seeded session activity event")
+	}
+}
+
+func TestControlPlaneSessionActivitySubscriptionSkipsBootstrapWhenOffsetProvided(t *testing.T) {
+	resolver := newControlPlaneResolverFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	projectID := "project-1"
+	runID := "run-1"
+	taskID := "task-1"
+	jobID := "job-1"
+	fromOffset := int32(1)
+	stream, err := (&subscriptionResolver{resolver}).SessionActivityStream(
+		ctx,
+		models.CorrelationInput{ProjectID: &projectID, RunID: &runID, TaskID: &taskID, JobID: &jobID},
+		&fromOffset,
+	)
+	if err != nil {
+		t.Fatalf("SessionActivityStream() error = %v", err)
+	}
+
+	select {
+	case message := <-stream:
+		t.Fatalf("expected no bootstrap messages for offset replay subscription, got %T", message)
+	case <-ctx.Done():
+		// Expected: no live traffic and no bootstrap when fromOffset > 0.
+	}
+}
+
+func TestControlPlaneSessionActivitySubscriptionUsesSessionSequenceOffset(t *testing.T) {
+	resolver := newControlPlaneResolverFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	projectID := "project-1"
+	runID := "run-1"
+	taskID := "task-1"
+	jobID := "job-1"
+	fromOffset := int32(1)
+	stream, err := (&subscriptionResolver{resolver}).SessionActivityStream(
+		ctx,
+		models.CorrelationInput{ProjectID: &projectID, RunID: &runID, TaskID: &taskID, JobID: &jobID},
+		&fromOffset,
+	)
+	if err != nil {
+		t.Fatalf("SessionActivityStream() error = %v", err)
+	}
+
+	resolver.StreamService.PublishLive(domainstream.Event{
+		EventID:      "session-heartbeat-live-1",
+		StreamOffset: 26,
+		OccurredAt:   time.Now().UTC(),
+		Source:       domainstream.SourceWorker,
+		EventType:    domainstream.EventSessionHealth,
+		CorrelationIDs: domainstream.CorrelationIDs{
+			ProjectID:     projectID,
+			RunID:         runID,
+			TaskID:        taskID,
+			JobID:         jobID,
+			SessionID:     "session-1",
+			CorrelationID: "session:session-1",
+		},
+		Payload: map[string]any{
+			"runtime_activity":  true,
+			"runtime_event":     "heartbeat",
+			"session_event_seq": 2,
+		},
+	})
+
+	select {
+	case message, ok := <-stream:
+		if !ok {
+			t.Fatalf("expected open stream channel")
+		}
+		success, ok := message.(models.StreamEventSuccess)
+		if !ok {
+			t.Fatalf("expected StreamEventSuccess, got %T", message)
+		}
+		if success.Event == nil {
+			t.Fatalf("expected session stream event payload")
+		}
+		if success.Event.StreamOffset != 2 {
+			t.Fatalf("expected display streamOffset from session_event_seq=2, got %d", success.Event.StreamOffset)
+		}
+	case <-ctx.Done():
+		t.Fatalf("timeout waiting for session activity event")
+	}
+}
+
 func TestControlPlaneProjectEventsQueryReturnsTypedUnionSuccess(t *testing.T) {
 	resolver := newControlPlaneResolverFixture(t)
 	projectID := "project-1"

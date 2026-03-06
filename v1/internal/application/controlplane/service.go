@@ -280,6 +280,10 @@ type ProjectCleanupManager interface {
 	CleanupProjectArtifacts(ctx context.Context, setup ProjectSetup) error
 }
 
+type ProjectRepositoryArtifactManager interface {
+	ReconcileProjectRepositories(ctx context.Context, previous *ProjectSetup, current ProjectSetup) error
+}
+
 type ApproveIssueIntakeRequest struct {
 	RunID          string
 	TaskID         string
@@ -326,6 +330,7 @@ type Service struct {
 	promptRefinementWait                            time.Duration
 	deadLetterManager                               taskengine.DeadLetterManager
 	cleanupManager                                  ProjectCleanupManager
+	repositoryArtifactManager                       ProjectRepositoryArtifactManager
 	lifecycleService                                LifecycleEventService
 }
 
@@ -353,6 +358,13 @@ func (service *Service) SetProjectCleanupManager(cleanupManager ProjectCleanupMa
 		return
 	}
 	service.cleanupManager = cleanupManager
+}
+
+func (service *Service) SetProjectRepositoryArtifactManager(repositoryArtifactManager ProjectRepositoryArtifactManager) {
+	if service == nil {
+		return
+	}
+	service.repositoryArtifactManager = repositoryArtifactManager
 }
 
 func (service *Service) SetProjectRepositoryBranchCatalog(catalog ProjectRepositoryBranchCatalog) {
@@ -563,13 +575,26 @@ func (service *Service) UpsertProjectSetup(ctx context.Context, request UpsertPr
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return service.projectRepository.UpsertProjectSetup(ctx, ProjectSetup{
+	previousSetup, err := service.projectRepository.GetProjectSetup(ctx, request.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("load existing project setup: %w", err)
+	}
+	updatedSetup, err := service.projectRepository.UpsertProjectSetup(ctx, ProjectSetup{
 		ProjectID:    request.ProjectID,
 		ProjectName:  request.ProjectName,
 		SCMs:         request.SCMs,
 		Repositories: request.Repositories,
 		Boards:       request.Boards,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if service.repositoryArtifactManager != nil {
+		if reconcileErr := service.repositoryArtifactManager.ReconcileProjectRepositories(ctx, previousSetup, *updatedSetup); reconcileErr != nil {
+			return nil, fmt.Errorf("reconcile project repositories: %w", reconcileErr)
+		}
+	}
+	return updatedSetup, nil
 }
 
 func (service *Service) DeleteProjectSetup(ctx context.Context, projectID string) error {
@@ -590,6 +615,12 @@ func (service *Service) DeleteProjectSetup(ctx context.Context, projectID string
 	if service.deadLetterManager != nil {
 		if err := service.deadLetterManager.DeleteProjectTasks(ctx, projectID); err != nil {
 			return fmt.Errorf("delete project tasks: %w", err)
+		}
+	}
+	if service.repositoryArtifactManager != nil && service.cleanupManager == nil {
+		emptySetup := ProjectSetup{ProjectID: projectID}
+		if err := service.repositoryArtifactManager.ReconcileProjectRepositories(ctx, projectSetup, emptySetup); err != nil {
+			return fmt.Errorf("reconcile removed project repositories: %w", err)
 		}
 	}
 	if service.cleanupManager != nil {

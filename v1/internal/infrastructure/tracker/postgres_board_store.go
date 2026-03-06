@@ -17,6 +17,7 @@ import (
 )
 
 type projectBoardRecord struct {
+	gorm.Model
 	ID              string    `gorm:"column:id;size:255;primaryKey"`
 	ProjectID       string    `gorm:"column:project_id;size:255;not null;index:idx_project_boards_project_id"`
 	Name            string    `gorm:"column:name;not null"`
@@ -29,6 +30,7 @@ type projectBoardRecord struct {
 func (projectBoardRecord) TableName() string { return "project_boards" }
 
 type projectBoardEpicRecord struct {
+	gorm.Model
 	ID               string         `gorm:"column:id;size:255;primaryKey"`
 	BoardID          string         `gorm:"column:board_id;size:255;not null;index:idx_project_board_epics_board_id"`
 	Title            string         `gorm:"column:title;not null"`
@@ -45,6 +47,7 @@ type projectBoardEpicRecord struct {
 func (projectBoardEpicRecord) TableName() string { return "project_board_epics" }
 
 type projectBoardTaskRecord struct {
+	gorm.Model
 	ID               string         `gorm:"column:id;size:255;primaryKey"`
 	BoardID          string         `gorm:"column:board_id;size:255;not null;index:idx_project_board_tasks_board_id"`
 	EpicID           string         `gorm:"column:epic_id;size:255;not null;index:idx_project_board_tasks_epic_id"`
@@ -93,50 +96,10 @@ func NewPostgresBoardStore(db *gorm.DB) (*PostgresBoardStore, error) {
 	if db == nil {
 		return nil, failures.WrapTerminal(errors.New("postgres board store db is required"))
 	}
-	if err := normalizeLegacyTrackerSchema(db); err != nil {
-		return nil, failures.WrapTerminal(fmt.Errorf("normalize legacy project board schema: %w", err))
-	}
 	if err := db.AutoMigrate(&projectBoardRecord{}, &projectBoardEpicRecord{}, &projectBoardTaskRecord{}); err != nil {
 		return nil, failures.WrapTerminal(fmt.Errorf("migrate project board tables: %w", err))
 	}
 	return &PostgresBoardStore{db: db}, nil
-}
-
-func normalizeLegacyTrackerSchema(db *gorm.DB) error {
-	if db == nil || db.Dialector == nil || db.Dialector.Name() != "postgres" {
-		return nil
-	}
-	migrator := db.Migrator()
-	if migrator != nil {
-		if migrator.HasTable("tracker_project_boards") && !migrator.HasTable("project_boards") {
-			if err := migrator.RenameTable("tracker_project_boards", "project_boards"); err != nil {
-				return err
-			}
-		}
-	}
-	type columnAlteration struct {
-		table  string
-		column string
-		sql    string
-	}
-	alterations := []columnAlteration{
-		{table: "project_boards", column: "id", sql: `ALTER TABLE project_boards ALTER COLUMN id TYPE text USING id::text`},
-		{table: "project_boards", column: "project_id", sql: `ALTER TABLE project_boards ALTER COLUMN project_id TYPE text USING project_id::text`},
-		{table: "project_board_epics", column: "id", sql: `ALTER TABLE project_board_epics ALTER COLUMN id TYPE text USING id::text`},
-		{table: "project_board_epics", column: "board_id", sql: `ALTER TABLE project_board_epics ALTER COLUMN board_id TYPE text USING board_id::text`},
-		{table: "project_board_tasks", column: "id", sql: `ALTER TABLE project_board_tasks ALTER COLUMN id TYPE text USING id::text`},
-		{table: "project_board_tasks", column: "board_id", sql: `ALTER TABLE project_board_tasks ALTER COLUMN board_id TYPE text USING board_id::text`},
-		{table: "project_board_tasks", column: "epic_id", sql: `ALTER TABLE project_board_tasks ALTER COLUMN epic_id TYPE text USING epic_id::text`},
-	}
-	for _, alteration := range alterations {
-		if !db.Migrator().HasTable(alteration.table) || !db.Migrator().HasColumn(alteration.table, alteration.column) {
-			continue
-		}
-		if err := db.Exec(alteration.sql).Error; err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintracker.Board) error {

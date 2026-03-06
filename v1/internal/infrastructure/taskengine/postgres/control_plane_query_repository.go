@@ -17,6 +17,7 @@ type ControlPlaneQueryRepository struct {
 }
 
 type lifecycleTreeSnapshotRow struct {
+	gorm.Model
 	ProjectID       string    `gorm:"column:project_id"`
 	RunID           string    `gorm:"column:run_id"`
 	TaskID          string    `gorm:"column:task_id"`
@@ -44,6 +45,7 @@ func (repository *ControlPlaneQueryRepository) ListSessions(ctx context.Context,
 		limit = 50
 	}
 	type row struct {
+		gorm.Model
 		RunID        string `gorm:"column:run_id"`
 		TaskCount    int    `gorm:"column:task_count"`
 		JobCount     int    `gorm:"column:job_count"`
@@ -80,6 +82,7 @@ func (repository *ControlPlaneQueryRepository) GetSession(ctx context.Context, r
 		return nil, fmt.Errorf("run_id is required")
 	}
 	type row struct {
+		gorm.Model
 		RunID        string `gorm:"column:run_id"`
 		TaskCount    int    `gorm:"column:task_count"`
 		JobCount     int    `gorm:"column:job_count"`
@@ -228,6 +231,7 @@ func (repository *ControlPlaneQueryRepository) ListLifecycleSessionSnapshots(ctx
 	}
 
 	type row struct {
+		gorm.Model
 		ProjectID           string     `gorm:"column:project_id"`
 		RunID               string     `gorm:"column:run_id"`
 		TaskID              string     `gorm:"column:task_id"`
@@ -308,6 +312,7 @@ func (repository *ControlPlaneQueryRepository) ListLifecycleSessionHistory(ctx c
 	}
 
 	type row struct {
+		gorm.Model
 		EventID         string    `gorm:"column:event_id"`
 		ProjectID       string    `gorm:"column:project_id"`
 		RunID           string    `gorm:"column:run_id"`

@@ -57,3 +57,79 @@ func TestLifecycleStreamEventFromTableChangeRejectsMissingPayload(t *testing.T) 
 		t.Fatalf("expected conversion to fail without payload")
 	}
 }
+
+func TestLifecycleStreamEventFromTableChangeMapsHeartbeatToSessionHealth(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	event, ok := lifecycleStreamEventFromTableChange(domainrealtime.TableChangeEvent{
+		ProjectID:       "project-1",
+		SessionID:       "session-1",
+		ProjectEventSeq: 9,
+		SessionEventSeq: 3,
+		OccurredAt:      now,
+		Payload: map[string]any{
+			"event_id":       "lifecycle-heartbeat-1",
+			"event_type":     "heartbeat",
+			"source_runtime": "worker",
+			"occurred_at":    now.Format(time.RFC3339Nano),
+			"payload":        map[string]any{"runtime_alive": true},
+		},
+	})
+	if !ok {
+		t.Fatalf("expected lifecycle heartbeat conversion to succeed")
+	}
+	if event.EventType != domainstream.EventSessionHealth {
+		t.Fatalf("expected stream.session.health, got %q", event.EventType)
+	}
+}
+
+func TestLifecycleStreamEventFromTableChangeFlagsFailedAsErrorEvent(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	event, ok := lifecycleStreamEventFromTableChange(domainrealtime.TableChangeEvent{
+		ProjectID:       "project-1",
+		SessionID:       "session-1",
+		ProjectEventSeq: 10,
+		SessionEventSeq: 4,
+		OccurredAt:      now,
+		Payload: map[string]any{
+			"event_id":       "lifecycle-failed-1",
+			"event_type":     "failed",
+			"source_runtime": "worker",
+			"occurred_at":    now.Format(time.RFC3339Nano),
+			"payload": map[string]any{
+				"error_code": "E_ASYNQ_TIMEOUT",
+			},
+		},
+	})
+	if !ok {
+		t.Fatalf("expected lifecycle failed conversion to succeed")
+	}
+	flagged, _ := event.Payload["error_event"].(bool)
+	if !flagged {
+		t.Fatalf("expected error_event=true for failed lifecycle event")
+	}
+}
+
+func TestStreamEventFromTableChangePayloadFlagsEndedWithErrorMarker(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	event, ok := streamEventFromTableChangePayload(domainrealtime.TableChangeEvent{
+		OccurredAt: now,
+		Payload: map[string]any{
+			"event_id":      "stream-ended-1",
+			"event_type":    string(domainstream.EventSessionEnded),
+			"source":        string(domainstream.SourceWorker),
+			"occurred_at":   now.Format(time.RFC3339Nano),
+			"stream_offset": 123,
+			"correlation_id": "session:session-1",
+			"payload": map[string]any{
+				"error": "asynq: retry exhausted",
+			},
+		},
+	})
+	if !ok {
+		t.Fatalf("expected stream table-change conversion to succeed")
+	}
+	flagged, _ := event.Payload["error_event"].(bool)
+	if !flagged {
+		t.Fatalf("expected error_event=true for stream.session.ended with error marker")
+	}
+}

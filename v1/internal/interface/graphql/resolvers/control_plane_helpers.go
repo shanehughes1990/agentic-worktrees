@@ -184,11 +184,15 @@ func mapStreamEvent(event domainstream.Event) *models.StreamEvent {
 	if err != nil {
 		payload = []byte("{}")
 	}
+	streamOffset := uint64ToInt32(event.StreamOffset)
+	if sessionEventSeq, hasSessionEventSeq := payloadInt32(event.Payload, "session_event_seq"); hasSessionEventSeq && sessionEventSeq > 0 {
+		streamOffset = sessionEventSeq
+	}
 	expectedEventSeq, hasExpectedEventSeq := payloadInt32(event.Payload, "expected_event_seq")
 	observedEventSeq, hasObservedEventSeq := payloadInt32(event.Payload, "observed_event_seq")
 	return &models.StreamEvent{
 		EventID:       event.EventID,
-		StreamOffset:  uint64ToInt32(event.StreamOffset),
+		StreamOffset:  streamOffset,
 		OccurredAt:    event.OccurredAt.UTC(),
 		RunID:         nilIfEmpty(event.CorrelationIDs.RunID),
 		TaskID:        nilIfEmpty(event.CorrelationIDs.TaskID),

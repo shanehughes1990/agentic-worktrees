@@ -12,6 +12,7 @@ import (
 	domaintracker "agentic-orchestrator/internal/domain/tracker"
 	"agentic-orchestrator/internal/interface/graphql/models"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -1040,7 +1041,7 @@ func (r *subscriptionResolver) WorkerSessionStream(ctx context.Context, correlat
 
 // SessionActivityStream is the resolver for the sessionActivityStream field.
 func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correlation models.CorrelationInput, fromOffset *int32) (<-chan models.StreamEventResult, error) {
-	return streamSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
+	stream, err := streamLiveSubscription(ctx, r.Resolver.StreamService, correlation, fromOffset, func(event domainstream.Event) bool {
 		switch event.EventType {
 		case domainstream.EventSessionStarted, domainstream.EventSessionUpdated, domainstream.EventSessionCheckpointed, domainstream.EventSessionEnded, domainstream.EventSessionRecovered, domainstream.EventSessionHealth, domainstream.EventSessionInjectedPrompt:
 			return true
@@ -1048,6 +1049,43 @@ func (r *subscriptionResolver) SessionActivityStream(ctx context.Context, correl
 			return false
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
+	if int32ToInt(fromOffset) > 0 {
+		return stream, nil
+	}
+	seeded := bootstrapSessionActivityEvents(ctx, r.Resolver.ControlPlaneService, correlation)
+	if len(seeded) == 0 {
+		return stream, nil
+	}
+	output := make(chan models.StreamEventResult, 64)
+	go func() {
+		defer close(output)
+		for _, seed := range seeded {
+			select {
+			case output <- seed:
+			case <-ctx.Done():
+				return
+			}
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, open := <-stream:
+				if !open {
+					return
+				}
+				select {
+				case output <- event:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return output, nil
 }
 
 // WorkflowExecutionStream is the resolver for the workflowExecutionStream field.
@@ -1175,6 +1213,113 @@ func bootstrapProjectActiveEvents(ctx context.Context, controlPlaneService *appl
 		results = append(results, models.StreamEventSuccess{Event: mapStreamEvent(streamEventFromLifecycleSnapshot(snapshot))})
 	}
 	return results
+}
+
+func bootstrapSessionActivityEvents(ctx context.Context, controlPlaneService *applicationcontrolplane.Service, correlation models.CorrelationInput) []models.StreamEventResult {
+	if controlPlaneService == nil {
+		return nil
+	}
+	projectID := strings.TrimSpace(derefString(correlation.ProjectID))
+	if projectID == "" {
+		return nil
+	}
+	snapshots, err := controlPlaneService.LifecycleSessionSnapshots(ctx, projectID, "", 300)
+	if err != nil {
+		return nil
+	}
+	results := make([]models.StreamEventResult, 0, 1)
+	for _, snapshot := range snapshots {
+		if !matchesLifecycleSnapshotCorrelation(snapshot, correlation) {
+			continue
+		}
+		seedEvent := streamEventFromLifecycleSnapshot(snapshot)
+		if strings.TrimSpace(snapshot.ProjectID) != "" && strings.TrimSpace(snapshot.SessionID) != "" {
+			history, err := controlPlaneService.LifecycleSessionHistory(ctx, snapshot.ProjectID, snapshot.SessionID, maxInt64(snapshot.LastEventSeq-1, 0), 1)
+			if err == nil && len(history) > 0 {
+				latest := history[0]
+				for _, candidate := range history {
+					if candidate.EventSeq > latest.EventSeq {
+						latest = candidate
+					}
+				}
+				seedEvent = streamEventFromLifecycleHistory(latest)
+			}
+		}
+		results = append(results, models.StreamEventSuccess{Event: mapStreamEvent(seedEvent)})
+		break
+	}
+	return results
+}
+
+func streamEventFromLifecycleHistory(record applicationcontrolplane.LifecycleHistoryEvent) domainstream.Event {
+	payload := map[string]any{}
+	if strings.TrimSpace(record.PayloadJSON) != "" {
+		_ = json.Unmarshal([]byte(record.PayloadJSON), &payload)
+	}
+	payload["lifecycle_event_type"] = strings.TrimSpace(record.EventType)
+	payload["session_event_seq"] = record.EventSeq
+	payload["project_event_seq"] = record.ProjectEventSeq
+
+	return domainstream.Event{
+		EventID:      strings.TrimSpace(record.EventID),
+		StreamOffset: uint64(record.ProjectEventSeq),
+		OccurredAt:   record.OccurredAt.UTC(),
+		Source:       streamSourceFromLifecycleRuntime(record.SourceRuntime),
+		EventType:    lifecycleHistoryEventTypeToStreamEventType(record.EventType),
+		CorrelationIDs: domainstream.CorrelationIDs{
+			RunID:         strings.TrimSpace(record.RunID),
+			TaskID:        strings.TrimSpace(record.TaskID),
+			JobID:         strings.TrimSpace(record.JobID),
+			ProjectID:     strings.TrimSpace(record.ProjectID),
+			SessionID:     strings.TrimSpace(record.SessionID),
+			CorrelationID: "session:" + strings.TrimSpace(record.SessionID),
+		},
+		Payload: payload,
+	}
+}
+
+func lifecycleHistoryEventTypeToStreamEventType(eventType string) domainstream.EventType {
+	normalized := strings.TrimSpace(strings.ToLower(eventType))
+	switch normalized {
+	case "started":
+		return domainstream.EventSessionStarted
+	case "completed", "failed":
+		return domainstream.EventSessionEnded
+	case "heartbeat", "gap_detected", "gap_reconciled":
+		return domainstream.EventSessionHealth
+	default:
+		return domainstream.EventSessionUpdated
+	}
+}
+
+func streamSourceFromLifecycleRuntime(runtime string) domainstream.Source {
+	if strings.Contains(strings.ToLower(strings.TrimSpace(runtime)), "worker") {
+		return domainstream.SourceWorker
+	}
+	return domainstream.SourceACP
+}
+
+func maxInt64(value int64, floor int64) int64 {
+	if value < floor {
+		return floor
+	}
+	return value
+}
+
+func matchesLifecycleSnapshotCorrelation(snapshot applicationcontrolplane.LifecycleSessionSnapshot, correlation models.CorrelationInput) bool {
+	if value := strings.TrimSpace(derefString(correlation.RunID)); value != "" && strings.TrimSpace(snapshot.RunID) != value {
+		return false
+	}
+	if value := strings.TrimSpace(derefString(correlation.TaskID)); value != "" && strings.TrimSpace(snapshot.TaskID) != value {
+		return false
+	}
+	if value := strings.TrimSpace(derefString(correlation.JobID)); value != "" && strings.TrimSpace(snapshot.JobID) != value {
+		return false
+	}
+	if value := strings.TrimSpace(derefString(correlation.ProjectID)); value != "" && strings.TrimSpace(snapshot.ProjectID) != value {
+		return false
+	}
+	return true
 }
 
 func isActiveLifecycleSnapshot(snapshot applicationcontrolplane.LifecycleSessionSnapshot) bool {

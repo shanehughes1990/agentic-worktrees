@@ -14,6 +14,7 @@ import (
 	domainscm "agentic-orchestrator/internal/domain/scm"
 	domainstream "agentic-orchestrator/internal/domain/stream"
 	infraagent "agentic-orchestrator/internal/infrastructure/agent"
+	infracontrolplane "agentic-orchestrator/internal/infrastructure/controlplane"
 	postgresdb "agentic-orchestrator/internal/infrastructure/database/postgres"
 	infralifecyclepostgres "agentic-orchestrator/internal/infrastructure/lifecycle/postgres"
 	asynqengine "agentic-orchestrator/internal/infrastructure/queue/asynq"
@@ -178,6 +179,16 @@ func New() (*APIApp, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init control-plane service: %w", err)
 	}
+	projectArtifactCleaner, err := infracontrolplane.NewProjectArtifactCleaner(infracontrolplane.ProjectArtifactCleanerConfig{ProjectsPath: apiProjectsPath()})
+	if err != nil {
+		return nil, fmt.Errorf("init project artifact cleaner: %w", err)
+	}
+	controlPlaneService.SetProjectCleanupManager(projectArtifactCleaner)
+	projectRepositoryArtifactManager, err := infracontrolplane.NewProjectRepositoryArtifactManager(infracontrolplane.ProjectRepositoryArtifactManagerConfig{ProjectsPath: apiProjectsPath()})
+	if err != nil {
+		return nil, fmt.Errorf("init project repository artifact manager: %w", err)
+	}
+	controlPlaneService.SetProjectRepositoryArtifactManager(projectRepositoryArtifactManager)
 	controlPlaneService.SetLifecycleService(lifecycleService)
 	controlPlaneService.SetProjectRepositoryBranchCatalog(&apiProjectRepositoryBranchCatalog{repositoryRootPath: filepath.Join(os.TempDir(), "agentic-orchestrator")})
 	controlPlaneService.SetProjectDocumentRepository(projectDocumentRepository)
@@ -256,6 +267,14 @@ func New() (*APIApp, error) {
 		tableChangeWatcher:    tableChangeWatcher,
 		pendingHeartbeats:     map[string]domainrealtime.HeartbeatRequest{},
 	}, nil
+}
+
+func apiProjectsPath() string {
+	artifactRoot := strings.TrimSpace(os.Getenv("WORKER_ARTIFACT_ROOT_DIRECTORY"))
+	if artifactRoot == "" {
+		artifactRoot = ".agentic-orchestrator"
+	}
+	return filepath.Join(filepath.Clean(artifactRoot), "projects")
 }
 
 func ownerRepositoryFromRepositoryURL(repositoryURL string) (string, string, error) {
@@ -669,6 +688,16 @@ func (app *APIApp) runRuntimeActivityStreamListener(ctx context.Context) {
 		case "heartbeat":
 			eventType = domainstream.EventSessionHealth
 		}
+		eventPayload := map[string]any{
+			"runtime_activity": true,
+			"runtime_event":    normalizedEventType,
+			"pipeline_type":    strings.TrimSpace(signal.PipelineType),
+			"worker_id":        strings.TrimSpace(signal.WorkerID),
+			"signal":           signal.Payload,
+		}
+		if normalizedEventType == "failed" || normalizedEventType == "terminated" || payloadHasErrorMarker(signal.Payload) {
+			eventPayload["error_event"] = true
+		}
 		event := domainstream.Event{
 			EventID:    strings.TrimSpace(signal.SignalID),
 			OccurredAt: signal.OccurredAt.UTC(),
@@ -682,13 +711,7 @@ func (app *APIApp) runRuntimeActivityStreamListener(ctx context.Context) {
 				SessionID:     strings.TrimSpace(signal.SessionID),
 				CorrelationID: "session:" + strings.TrimSpace(signal.SessionID),
 			},
-			Payload: map[string]any{
-				"runtime_activity": true,
-				"runtime_event":    normalizedEventType,
-				"pipeline_type":    strings.TrimSpace(signal.PipelineType),
-				"worker_id":        strings.TrimSpace(signal.WorkerID),
-				"signal":           signal.Payload,
-			},
+			Payload: eventPayload,
 		}
 		if err := event.Validate(); err != nil {
 			return nil
@@ -746,6 +769,12 @@ func streamEventFromTableChangePayload(change domainrealtime.TableChangeEvent) (
 	}
 	streamOffset := intMapValue(payload, "stream_offset")
 	rawEventPayload, _ := payload["payload"].(map[string]any)
+	if rawEventPayload == nil {
+		rawEventPayload = map[string]any{}
+	}
+	if strings.EqualFold(eventType, string(domainstream.EventSessionEnded)) && payloadHasErrorMarker(rawEventPayload) {
+		rawEventPayload["error_event"] = true
+	}
 	event := domainstream.Event{
 		EventID:      eventID,
 		StreamOffset: uint64(streamOffset),
@@ -851,6 +880,9 @@ func lifecycleStreamEventFromTableChange(change domainrealtime.TableChangeEvent)
 	eventPayload["project_event_seq"] = change.ProjectEventSeq
 	eventPayload["project_id"] = strings.TrimSpace(fallbackString(change.ProjectID, stringMapValue(payload, "project_id")))
 	eventPayload["session_id"] = strings.TrimSpace(fallbackString(change.SessionID, stringMapValue(payload, "session_id")))
+	if isLifecycleErrorEvent(rawLifecycleEventType, eventPayload) {
+		eventPayload["error_event"] = true
+	}
 
 	event := domainstream.Event{
 		EventID:      eventID,
@@ -882,6 +914,8 @@ func lifecycleEventTypeToStreamEventType(eventType string) string {
 	switch normalized {
 	case "started":
 		return string(domainstream.EventSessionStarted)
+	case "heartbeat":
+		return string(domainstream.EventSessionHealth)
 	case "completed", "failed":
 		return string(domainstream.EventSessionEnded)
 	case "gap_detected", "gap_reconciled":
@@ -903,6 +937,38 @@ func fallbackString(primary string, fallback string) string {
 		return primary
 	}
 	return fallback
+}
+
+func isLifecycleErrorEvent(lifecycleEventType string, payload map[string]any) bool {
+	normalized := strings.TrimSpace(strings.ToLower(lifecycleEventType))
+	if normalized == "failed" {
+		return true
+	}
+	return payloadHasErrorMarker(payload)
+}
+
+func payloadHasErrorMarker(payload map[string]any) bool {
+	if payload == nil {
+		return false
+	}
+	for _, key := range []string{"error", "error_code", "failure_class", "reason_code"} {
+		value := strings.TrimSpace(stringMapValue(payload, key))
+		if value != "" {
+			return true
+		}
+	}
+	if runtimeEvent := strings.TrimSpace(strings.ToLower(stringMapValue(payload, "runtime_event"))); runtimeEvent == "failed" || runtimeEvent == "terminated" {
+		return true
+	}
+	rawSignal, ok := payload["signal"]
+	if !ok || rawSignal == nil {
+		return false
+	}
+	signalMap, ok := rawSignal.(map[string]any)
+	if !ok {
+		return false
+	}
+	return payloadHasErrorMarker(signalMap)
 }
 
 func (app *APIApp) publishWorkerStreamEvent(ctx context.Context, eventType domainstream.EventType, correlationID string, payload map[string]any) error {
