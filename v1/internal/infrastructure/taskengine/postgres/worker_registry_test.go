@@ -197,3 +197,93 @@ func TestWorkerRegistryReturnsEpochMismatchOnStaleWrite(t *testing.T) {
 		t.Fatalf("expected epoch mismatch error, got %v", err)
 	}
 }
+
+func TestWorkerRegistryPersistsCapabilitiesRelationally(t *testing.T) {
+	db := newTestDB(t)
+	registry, err := NewWorkerRegistry(db)
+	if err != nil {
+		t.Fatalf("new worker registry: %v", err)
+	}
+
+	now := time.Now().UTC()
+	_, err = registry.Register(
+		context.Background(),
+		"worker-1",
+		[]taskengine.JobKind{taskengine.JobKindSCMWorkflow, taskengine.JobKindIngestionAgent},
+		now,
+		now.Add(30*time.Second),
+	)
+	if err != nil {
+		t.Fatalf("register worker: %v", err)
+	}
+
+	capabilityRows := make([]workerRegistryCapabilityRecord, 0)
+	if err := db.Where("worker_id = ?", "worker-1").Order("position asc").Find(&capabilityRows).Error; err != nil {
+		t.Fatalf("load worker capability rows: %v", err)
+	}
+	if len(capabilityRows) != 2 {
+		t.Fatalf("expected two capability rows, got %d", len(capabilityRows))
+	}
+	if capabilityRows[0].CapabilityKind != string(taskengine.JobKindSCMWorkflow) {
+		t.Fatalf("expected first capability %q, got %q", taskengine.JobKindSCMWorkflow, capabilityRows[0].CapabilityKind)
+	}
+	if capabilityRows[1].CapabilityKind != string(taskengine.JobKindIngestionAgent) {
+		t.Fatalf("expected second capability %q, got %q", taskengine.JobKindIngestionAgent, capabilityRows[1].CapabilityKind)
+	}
+}
+
+func TestWorkerRegistryPersistsSubmissionChildrenRelationally(t *testing.T) {
+	db := newTestDB(t)
+	registry, err := NewWorkerRegistry(db)
+	if err != nil {
+		t.Fatalf("new worker registry: %v", err)
+	}
+
+	requestedAt := time.Now().UTC()
+	submission := domainrealtime.RegistrationSubmission{
+		SubmissionID: "sub-rel-1",
+		WorkerID:     "worker-1",
+		RequestedAt:  requestedAt,
+		ExpiresAt:    requestedAt.Add(5 * time.Minute),
+		Status:       domainrealtime.RegistrationStatusPending,
+		Capabilities: []domainrealtime.Capability{{
+			Contract:     domainrealtime.ContractWorkerRegistry,
+			Version:      "1.0.0",
+			SubContracts: []domainrealtime.SubContract{domainrealtime.SubContractHeartbeatRequest},
+		}},
+	}
+
+	if _, err := registry.CreateRegistrationSubmission(context.Background(), submission); err != nil {
+		t.Fatalf("create submission: %v", err)
+	}
+
+	capabilityRows := make([]workerRegistrationSubmissionCapabilityRecord, 0)
+	if err := db.Where("submission_id = ?", submission.SubmissionID).Order("position asc").Find(&capabilityRows).Error; err != nil {
+		t.Fatalf("load submission capability rows: %v", err)
+	}
+	if len(capabilityRows) != 1 {
+		t.Fatalf("expected one submission capability row, got %d", len(capabilityRows))
+	}
+	if capabilityRows[0].Contract != string(domainrealtime.ContractWorkerRegistry) {
+		t.Fatalf("expected contract %q, got %q", domainrealtime.ContractWorkerRegistry, capabilityRows[0].Contract)
+	}
+
+	resolvedAt := requestedAt.Add(2 * time.Minute)
+	if _, err := registry.ResolveRegistrationSubmission(context.Background(), submission.SubmissionID, domainrealtime.RegistrationStatusRejected, []string{"policy_denied", "rate_limit"}, resolvedAt); err != nil {
+		t.Fatalf("resolve submission: %v", err)
+	}
+
+	reasonRows := make([]workerRegistrationSubmissionReasonRecord, 0)
+	if err := db.Where("submission_id = ?", submission.SubmissionID).Order("position asc").Find(&reasonRows).Error; err != nil {
+		t.Fatalf("load submission reason rows: %v", err)
+	}
+	if len(reasonRows) != 2 {
+		t.Fatalf("expected two submission reason rows, got %d", len(reasonRows))
+	}
+	if reasonRows[0].Reason != "policy_denied" {
+		t.Fatalf("expected first reason policy_denied, got %q", reasonRows[0].Reason)
+	}
+	if reasonRows[1].Reason != "rate_limit" {
+		t.Fatalf("expected second reason rate_limit, got %q", reasonRows[1].Reason)
+	}
+}
