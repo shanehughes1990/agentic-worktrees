@@ -257,3 +257,37 @@ func TestPostgresBoardStorePersistsBoardEpicTaskSetTogether(t *testing.T) {
 		t.Fatalf("expected %d persisted tasks, got %d", expectedTaskCount, taskCount)
 	}
 }
+
+func TestPostgresBoardStorePersistsIngestionDetails(t *testing.T) {
+	db := newTrackerDB(t)
+	store, err := NewPostgresBoardStore(db)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	board := sampleCanonicalBoard()
+	board.IngestionDetails = &domaintracker.BoardIngestionDetails{
+		FilesAdded: []string{"projects/project-1/documents/doc-1/spec.md", "projects/project-1/documents/doc-2/api.md"},
+		UserPrompt: "Plan migration work for v1 API.",
+	}
+	if err := store.UpsertBoard(context.Background(), board); err != nil {
+		t.Fatalf("upsert board: %v", err)
+	}
+
+	loaded, err := store.LoadBoard(context.Background(), board.RunID, board.BoardID)
+	if err != nil {
+		t.Fatalf("load board: %v", err)
+	}
+	if loaded.IngestionDetails == nil {
+		t.Fatalf("expected ingestion details to be loaded")
+	}
+	if loaded.IngestionDetails.UserPrompt != board.IngestionDetails.UserPrompt {
+		t.Fatalf("expected user prompt %q, got %q", board.IngestionDetails.UserPrompt, loaded.IngestionDetails.UserPrompt)
+	}
+	if len(loaded.IngestionDetails.FilesAdded) != 2 {
+		t.Fatalf("expected two files added, got %d", len(loaded.IngestionDetails.FilesAdded))
+	}
+	if loaded.IngestionDetails.FilesAdded[0] != board.IngestionDetails.FilesAdded[0] {
+		t.Fatalf("expected first file %q, got %q", board.IngestionDetails.FilesAdded[0], loaded.IngestionDetails.FilesAdded[0])
+	}
+}

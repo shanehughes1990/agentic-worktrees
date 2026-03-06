@@ -22,6 +22,7 @@ type projectBoardRecord struct {
 	ProjectID       string    `gorm:"column:project_id;size:255;not null;index:idx_project_boards_project_id"`
 	Name            string    `gorm:"column:name;not null"`
 	State           string    `gorm:"column:state;size:64;not null"`
+	IngestionDetails []byte   `gorm:"column:ingestion_details;type:jsonb"`
 	IngestionAudits []byte    `gorm:"column:ingestion_audits;type:jsonb"`
 	CreatedAt       time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt       time.Time `gorm:"column:updated_at;not null;index:idx_project_boards_updated_at"`
@@ -119,11 +120,15 @@ func (store *PostgresBoardStore) UpsertBoard(ctx context.Context, board domaintr
 		if err != nil {
 			return failures.WrapTerminal(fmt.Errorf("marshal board ingestion audits: %w", err))
 		}
-		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), IngestionAudits: ingestionAudits, CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
+		ingestionDetails, err := marshalBoardIngestionDetails(board.IngestionDetails)
+		if err != nil {
+			return failures.WrapTerminal(fmt.Errorf("marshal board ingestion details: %w", err))
+		}
+		boardRecord := projectBoardRecord{ID: strings.TrimSpace(board.BoardID), ProjectID: projectID, Name: strings.TrimSpace(board.Name), State: string(board.State), IngestionDetails: ingestionDetails, IngestionAudits: ingestionAudits, CreatedAt: safeTime(board.CreatedAt, now), UpdatedAt: now}
 		if boardRecord.Name == "" {
 			boardRecord.Name = boardRecord.ID
 		}
-		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.Assignments(map[string]any{"project_id": boardRecord.ProjectID, "name": boardRecord.Name, "state": boardRecord.State, "ingestion_audits": boardRecord.IngestionAudits, "updated_at": now})}).Create(&boardRecord).Error; err != nil {
+		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.Assignments(map[string]any{"project_id": boardRecord.ProjectID, "name": boardRecord.Name, "state": boardRecord.State, "ingestion_details": boardRecord.IngestionDetails, "ingestion_audits": boardRecord.IngestionAudits, "updated_at": now})}).Create(&boardRecord).Error; err != nil {
 			return failures.WrapTransient(fmt.Errorf("upsert project board: %w", err))
 		}
 		if err := tx.Where("board_id = ?", boardRecord.ID).Delete(&projectBoardTaskRecord{}).Error; err != nil {
@@ -362,11 +367,37 @@ func (store *PostgresBoardStore) LoadBoard(ctx context.Context, projectID string
 	if err != nil {
 		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("decode board ingestion audits: %w", err))
 	}
-	board := domaintracker.Board{BoardID: boardRecord.ID, RunID: boardRecord.ProjectID, ProjectID: boardRecord.ProjectID, Name: boardRecord.Name, State: domaintracker.BoardState(boardRecord.State), Epics: epics, IngestionAudits: ingestionAudits, CreatedAt: boardRecord.CreatedAt, UpdatedAt: boardRecord.UpdatedAt}
+	ingestionDetails, err := unmarshalBoardIngestionDetails(boardRecord.IngestionDetails)
+	if err != nil {
+		return domaintracker.Board{}, failures.WrapTransient(fmt.Errorf("decode board ingestion details: %w", err))
+	}
+	board := domaintracker.Board{BoardID: boardRecord.ID, RunID: boardRecord.ProjectID, ProjectID: boardRecord.ProjectID, Name: boardRecord.Name, State: domaintracker.BoardState(boardRecord.State), Epics: epics, IngestionDetails: ingestionDetails, IngestionAudits: ingestionAudits, CreatedAt: boardRecord.CreatedAt, UpdatedAt: boardRecord.UpdatedAt}
 	if err := board.Validate(); err != nil {
 		return domaintracker.Board{}, err
 	}
 	return board, nil
+}
+
+func marshalBoardIngestionDetails(details *domaintracker.BoardIngestionDetails) ([]byte, error) {
+	if details == nil {
+		return []byte("null"), nil
+	}
+	encoded, err := json.Marshal(details)
+	if err != nil {
+		return nil, err
+	}
+	return encoded, nil
+}
+
+func unmarshalBoardIngestionDetails(raw []byte) (*domaintracker.BoardIngestionDetails, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	decoded := &domaintracker.BoardIngestionDetails{}
+	if err := json.Unmarshal(raw, decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
 }
 
 func marshalTaskModelAudits(audits []domaintracker.TaskModelAudit) ([]byte, error) {

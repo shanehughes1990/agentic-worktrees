@@ -104,6 +104,11 @@ type TaskModelAudit struct {
 	CompletedAt       *time.Time `json:"completed_at,omitempty"`
 }
 
+type BoardIngestionDetails struct {
+	FilesAdded []string `json:"files_added,omitempty"`
+	UserPrompt string   `json:"user_prompt,omitempty"`
+}
+
 type TaskOutcome struct {
 	Status       OutcomeStatus `json:"status"`
 	Summary      string        `json:"summary"`
@@ -277,6 +282,7 @@ type Board struct {
 	Name            string           `json:"name,omitempty"`
 	State           BoardState       `json:"state"`
 	Epics           []Epic           `json:"epics"`
+	IngestionDetails *BoardIngestionDetails `json:"ingestion_details,omitempty"`
 	IngestionAudits []TaskModelAudit `json:"ingestion_audits,omitempty"`
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`

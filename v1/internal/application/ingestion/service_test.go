@@ -413,3 +413,37 @@ func TestServiceExecuteAllowsDocsOnlyWithoutUserPrompt(t *testing.T) {
 		t.Fatalf("expected selected-document preference guidance in prompt")
 	}
 }
+
+func TestServiceExecutePersistsIngestionDetails(t *testing.T) {
+	boardStore := &fakeBoardStore{}
+	artifactFetcher := &fakeArtifactFetcher{}
+	agentRunner := &fakeAgentRunner{}
+	service, err := NewService(boardStore, artifactFetcher, agentRunner, &fakeRepositorySynchronizer{})
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, executeErr := service.Execute(context.Background(), Request{
+		RunID:                     "run-1",
+		ProjectID:                 "project-1",
+		SelectedDocumentLocations: []string{"projects/project-1/documents/doc-1/spec.md", "  ", "projects/project-1/documents/doc-2/api.md"},
+		SourceRepositories:        []SourceRepository{{RepositoryID: "repo-1", RepositoryURL: "https://github.com/acme/source-repo.git"}},
+		SystemPrompt:              "You are an ingestion planner.",
+		UserPrompt:                "  Build a migration plan from these files.  ",
+	})
+	if executeErr != nil {
+		t.Fatalf("execute ingestion: %v", executeErr)
+	}
+	if boardStore.board.IngestionDetails == nil {
+		t.Fatalf("expected ingestion details to be persisted on board")
+	}
+	if boardStore.board.IngestionDetails.UserPrompt != "Build a migration plan from these files." {
+		t.Fatalf("unexpected user prompt %q", boardStore.board.IngestionDetails.UserPrompt)
+	}
+	if len(boardStore.board.IngestionDetails.FilesAdded) != 2 {
+		t.Fatalf("expected two files added, got %d", len(boardStore.board.IngestionDetails.FilesAdded))
+	}
+	if boardStore.board.IngestionDetails.FilesAdded[0] != "projects/project-1/documents/doc-1/spec.md" {
+		t.Fatalf("unexpected first file added %q", boardStore.board.IngestionDetails.FilesAdded[0])
+	}
+}

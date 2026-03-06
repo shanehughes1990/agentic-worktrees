@@ -260,6 +260,10 @@ func (service *Service) generateAndValidateBoard(
 		}
 
 		normalizeBoard(&board, request, boardID, now, runContext)
+		board.IngestionDetails = &domaintracker.BoardIngestionDetails{
+			FilesAdded: normalizeStringValues(request.SelectedDocumentLocations),
+			UserPrompt: strings.TrimSpace(request.UserPrompt),
+		}
 		board.IngestionAudits = ingestionAudits
 		if err := ensureRepositoryAssignments(board, normalizedSourceRepositories); err != nil {
 			lastValidationErr = err
