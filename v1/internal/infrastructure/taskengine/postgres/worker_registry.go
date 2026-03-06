@@ -17,11 +17,12 @@ import (
 
 type workerRegistryRecord struct {
 	gorm.Model
-	WorkerID          string `gorm:"column:worker_id;size:255;not null;uniqueIndex"`
-	Epoch             int64  `gorm:"column:epoch;not null"`
-	State             string `gorm:"column:state;size:64;not null;index"`
-	LastHeartbeatUnix int64  `gorm:"column:last_heartbeat_unix;not null;index"`
-	LeaseExpiresUnix  int64  `gorm:"column:lease_expires_unix;not null;index"`
+	WorkerID          string                           `gorm:"column:worker_id;size:255;not null;uniqueIndex"`
+	Epoch             int64                            `gorm:"column:epoch;not null"`
+	State             string                           `gorm:"column:state;size:64;not null;index"`
+	LastHeartbeatUnix int64                            `gorm:"column:last_heartbeat_unix;not null;index"`
+	LeaseExpiresUnix  int64                            `gorm:"column:lease_expires_unix;not null;index"`
+	Capabilities      []workerRegistryCapabilityRecord `gorm:"foreignKey:WorkerRegistryRecordID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 func (workerRegistryRecord) TableName() string {
@@ -30,12 +31,13 @@ func (workerRegistryRecord) TableName() string {
 
 type workerRegistryCapabilityRecord struct {
 	gorm.Model
-	ID             uint64    `gorm:"column:id;primaryKey;autoIncrement"`
-	WorkerID       string    `gorm:"column:worker_id;size:255;not null;index:idx_worker_registry_capabilities_worker_pos,priority:1"`
-	CapabilityKind string    `gorm:"column:capability_kind;size:128;not null"`
-	Position       int       `gorm:"column:position;not null;index:idx_worker_registry_capabilities_worker_pos,priority:2"`
-	CreatedAt      time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt      time.Time `gorm:"column:updated_at;not null"`
+	ID                     uint64               `gorm:"column:id;primaryKey;autoIncrement"`
+	WorkerRegistryRecordID uint                 `gorm:"column:worker_registry_record_id;not null;index:idx_worker_registry_capabilities_parent_pos,priority:1"`
+	CapabilityKind         string               `gorm:"column:capability_kind;size:128;not null"`
+	Position               int                  `gorm:"column:position;not null;index:idx_worker_registry_capabilities_parent_pos,priority:2"`
+	Worker                 workerRegistryRecord `gorm:"foreignKey:WorkerRegistryRecordID;references:ID"`
+	CreatedAt              time.Time            `gorm:"column:created_at;not null"`
+	UpdatedAt              time.Time            `gorm:"column:updated_at;not null"`
 }
 
 func (workerRegistryCapabilityRecord) TableName() string {
@@ -51,12 +53,14 @@ type workerRegistrySettingsRecord struct {
 
 type workerRegistrationSubmissionRecord struct {
 	gorm.Model
-	SubmissionID    string `gorm:"column:submission_id;size:255;not null;uniqueIndex"`
-	WorkerID        string `gorm:"column:worker_id;size:255;not null;index"`
-	RequestedAtUnix int64  `gorm:"column:requested_at_unix;not null;index"`
-	ExpiresAtUnix   int64  `gorm:"column:expires_at_unix;not null;index"`
-	Status          string `gorm:"column:status;size:64;not null;index"`
-	ResolvedAtUnix  int64  `gorm:"column:resolved_at_unix;not null;default:0"`
+	SubmissionID    string                                         `gorm:"column:submission_id;size:255;not null;uniqueIndex"`
+	WorkerID        string                                         `gorm:"column:worker_id;size:255;not null;index"`
+	RequestedAtUnix int64                                          `gorm:"column:requested_at_unix;not null;index"`
+	ExpiresAtUnix   int64                                          `gorm:"column:expires_at_unix;not null;index"`
+	Status          string                                         `gorm:"column:status;size:64;not null;index"`
+	ResolvedAtUnix  int64                                          `gorm:"column:resolved_at_unix;not null;default:0"`
+	Capabilities    []workerRegistrationSubmissionCapabilityRecord `gorm:"foreignKey:WorkerRegistrationSubmissionRecordID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Reasons         []workerRegistrationSubmissionReasonRecord     `gorm:"foreignKey:WorkerRegistrationSubmissionRecordID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 func (workerRegistrationSubmissionRecord) TableName() string {
@@ -65,14 +69,15 @@ func (workerRegistrationSubmissionRecord) TableName() string {
 
 type workerRegistrationSubmissionCapabilityRecord struct {
 	gorm.Model
-	ID              uint64    `gorm:"column:id;primaryKey;autoIncrement"`
-	SubmissionID    string    `gorm:"column:submission_id;size:255;not null;index:idx_worker_submission_capabilities_submission_pos,priority:1"`
-	Position        int       `gorm:"column:position;not null;index:idx_worker_submission_capabilities_submission_pos,priority:2"`
-	Contract        string    `gorm:"column:contract;size:255;not null"`
-	Version         string    `gorm:"column:version;size:64;not null"`
-	SubContractsCSV string    `gorm:"column:sub_contracts_csv;type:text"`
-	CreatedAt       time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt       time.Time `gorm:"column:updated_at;not null"`
+	ID                                   uint64                             `gorm:"column:id;primaryKey;autoIncrement"`
+	WorkerRegistrationSubmissionRecordID uint                               `gorm:"column:worker_registration_submission_record_id;not null;index:idx_worker_submission_capabilities_parent_pos,priority:1"`
+	Position                             int                                `gorm:"column:position;not null;index:idx_worker_submission_capabilities_parent_pos,priority:2"`
+	Contract                             string                             `gorm:"column:contract;size:255;not null"`
+	Version                              string                             `gorm:"column:version;size:64;not null"`
+	SubContractsCSV                      string                             `gorm:"column:sub_contracts_csv;type:text"`
+	Submission                           workerRegistrationSubmissionRecord `gorm:"foreignKey:WorkerRegistrationSubmissionRecordID;references:ID"`
+	CreatedAt                            time.Time                          `gorm:"column:created_at;not null"`
+	UpdatedAt                            time.Time                          `gorm:"column:updated_at;not null"`
 }
 
 func (workerRegistrationSubmissionCapabilityRecord) TableName() string {
@@ -81,12 +86,13 @@ func (workerRegistrationSubmissionCapabilityRecord) TableName() string {
 
 type workerRegistrationSubmissionReasonRecord struct {
 	gorm.Model
-	ID           uint64    `gorm:"column:id;primaryKey;autoIncrement"`
-	SubmissionID string    `gorm:"column:submission_id;size:255;not null;index:idx_worker_submission_reasons_submission_pos,priority:1"`
-	Position     int       `gorm:"column:position;not null;index:idx_worker_submission_reasons_submission_pos,priority:2"`
-	Reason       string    `gorm:"column:reason;type:text;not null"`
-	CreatedAt    time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;not null"`
+	ID                                   uint64                             `gorm:"column:id;primaryKey;autoIncrement"`
+	WorkerRegistrationSubmissionRecordID uint                               `gorm:"column:worker_registration_submission_record_id;not null;index:idx_worker_submission_reasons_parent_pos,priority:1"`
+	Position                             int                                `gorm:"column:position;not null;index:idx_worker_submission_reasons_parent_pos,priority:2"`
+	Reason                               string                             `gorm:"column:reason;type:text;not null"`
+	Submission                           workerRegistrationSubmissionRecord `gorm:"foreignKey:WorkerRegistrationSubmissionRecordID;references:ID"`
+	CreatedAt                            time.Time                          `gorm:"column:created_at;not null"`
+	UpdatedAt                            time.Time                          `gorm:"column:updated_at;not null"`
 }
 
 func (workerRegistrationSubmissionReasonRecord) TableName() string {
@@ -151,13 +157,16 @@ func (registry *WorkerRegistry) Register(ctx context.Context, workerID string, c
 		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "worker_id"}}, DoUpdates: clause.AssignmentColumns([]string{"epoch", "state", "last_heartbeat_unix", "lease_expires_unix", "updated_at"})}).Create(&record).Error; err != nil {
 			return fmt.Errorf("upsert worker registration: %w", err)
 		}
-		if err := tx.Where("worker_id = ?", workerID).Delete(&workerRegistryCapabilityRecord{}).Error; err != nil {
+		if err := tx.Where("worker_id = ?", workerID).Take(&record).Error; err != nil {
+			return fmt.Errorf("reload worker registration: %w", err)
+		}
+		if err := tx.Where("worker_registry_record_id = ?", record.Model.ID).Delete(&workerRegistryCapabilityRecord{}).Error; err != nil {
 			return fmt.Errorf("delete worker capabilities: %w", err)
 		}
 		capabilityRecords := make([]workerRegistryCapabilityRecord, 0, len(normalizedCapabilities))
 		now := time.Now().UTC()
 		for index, capability := range normalizedCapabilities {
-			capabilityRecords = append(capabilityRecords, workerRegistryCapabilityRecord{WorkerID: workerID, CapabilityKind: strings.TrimSpace(string(capability)), Position: index, CreatedAt: now, UpdatedAt: now})
+			capabilityRecords = append(capabilityRecords, workerRegistryCapabilityRecord{WorkerRegistryRecordID: record.Model.ID, CapabilityKind: strings.TrimSpace(string(capability)), Position: index, CreatedAt: now, UpdatedAt: now})
 		}
 		if err := tx.Create(&capabilityRecords).Error; err != nil {
 			return fmt.Errorf("insert worker capabilities: %w", err)
@@ -247,6 +256,9 @@ func (registry *WorkerRegistry) RemoveRegistration(ctx context.Context, workerID
 	if err := registry.db.WithContext(ctx).Unscoped().Where("worker_id = ?", trimmedWorkerID).Delete(&workerRegistryRecord{}).Error; err != nil {
 		return fmt.Errorf("delete worker registration: %w", err)
 	}
+	if err := registry.db.WithContext(ctx).Unscoped().Where("worker_registry_record_id = ?", record.Model.ID).Delete(&workerRegistryCapabilityRecord{}).Error; err != nil {
+		return fmt.Errorf("delete worker capabilities: %w", err)
+	}
 	return nil
 }
 
@@ -258,12 +270,16 @@ func (registry *WorkerRegistry) ListWorkers(ctx context.Context, limit int) ([]d
 		limit = 50
 	}
 	records := make([]workerRegistryRecord, 0)
-	if err := registry.db.WithContext(ctx).Order("updated_at DESC").Limit(limit).Find(&records).Error; err != nil {
+	if err := registry.db.WithContext(ctx).
+		Preload("Capabilities", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Order("updated_at DESC").
+		Limit(limit).
+		Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("list workers: %w", err)
 	}
 	workers := make([]domainrealtime.Worker, 0, len(records))
 	for _, record := range records {
-		worker, err := registry.toDomain(ctx, record)
+		worker, err := workerRecordToDomain(record)
 		if err != nil {
 			return nil, err
 		}
@@ -323,10 +339,19 @@ func (registry *WorkerRegistry) CreateRegistrationSubmission(ctx context.Context
 		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "submission_id"}}, DoNothing: true}).Create(&record).Error; err != nil {
 			return fmt.Errorf("create registration submission: %w", err)
 		}
+		if err := tx.Where("submission_id = ?", strings.TrimSpace(submission.SubmissionID)).Take(&record).Error; err != nil {
+			return fmt.Errorf("reload registration submission: %w", err)
+		}
+		if err := tx.Where("worker_registration_submission_record_id = ?", record.Model.ID).Delete(&workerRegistrationSubmissionCapabilityRecord{}).Error; err != nil {
+			return fmt.Errorf("delete submission capabilities: %w", err)
+		}
+		if err := tx.Where("worker_registration_submission_record_id = ?", record.Model.ID).Delete(&workerRegistrationSubmissionReasonRecord{}).Error; err != nil {
+			return fmt.Errorf("delete submission reasons: %w", err)
+		}
 		capabilityRecords := make([]workerRegistrationSubmissionCapabilityRecord, 0, len(submission.Capabilities))
 		now := time.Now().UTC()
 		for index, capability := range submission.Capabilities {
-			capabilityRecords = append(capabilityRecords, workerRegistrationSubmissionCapabilityRecord{SubmissionID: submission.SubmissionID, Position: index, Contract: strings.TrimSpace(string(capability.Contract)), Version: strings.TrimSpace(capability.Version), SubContractsCSV: subContractsToCSV(capability.SubContracts), CreatedAt: now, UpdatedAt: now})
+			capabilityRecords = append(capabilityRecords, workerRegistrationSubmissionCapabilityRecord{WorkerRegistrationSubmissionRecordID: record.Model.ID, Position: index, Contract: strings.TrimSpace(string(capability.Contract)), Version: strings.TrimSpace(capability.Version), SubContractsCSV: subContractsToCSV(capability.SubContracts), CreatedAt: now, UpdatedAt: now})
 		}
 		if len(capabilityRecords) > 0 {
 			if err := tx.Create(&capabilityRecords).Error; err != nil {
@@ -335,7 +360,7 @@ func (registry *WorkerRegistry) CreateRegistrationSubmission(ctx context.Context
 		}
 		reasonRecords := make([]workerRegistrationSubmissionReasonRecord, 0, len(submission.RejectReasons))
 		for index, reason := range submission.RejectReasons {
-			reasonRecords = append(reasonRecords, workerRegistrationSubmissionReasonRecord{SubmissionID: submission.SubmissionID, Position: index, Reason: strings.TrimSpace(reason), CreatedAt: now, UpdatedAt: now})
+			reasonRecords = append(reasonRecords, workerRegistrationSubmissionReasonRecord{WorkerRegistrationSubmissionRecordID: record.Model.ID, Position: index, Reason: strings.TrimSpace(reason), CreatedAt: now, UpdatedAt: now})
 		}
 		if len(reasonRecords) > 0 {
 			if err := tx.Create(&reasonRecords).Error; err != nil {
@@ -358,13 +383,17 @@ func (registry *WorkerRegistry) GetRegistrationSubmission(ctx context.Context, s
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("submission_id is required")
 	}
 	record := workerRegistrationSubmissionRecord{}
-	if err := registry.db.WithContext(ctx).Where("submission_id = ?", trimmedSubmissionID).Take(&record).Error; err != nil {
+	if err := registry.db.WithContext(ctx).
+		Preload("Capabilities", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Preload("Reasons", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Where("submission_id = ?", trimmedSubmissionID).
+		Take(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainrealtime.RegistrationSubmission{}, fmt.Errorf("%w: %q", applicationworker.ErrSubmissionNotFound, trimmedSubmissionID)
 		}
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load registration submission: %w", err)
 	}
-	return registry.submissionToDomain(ctx, record)
+	return submissionRecordToDomain(record)
 }
 
 func (registry *WorkerRegistry) ListPendingRegistrationSubmissions(ctx context.Context, limit int) ([]domainrealtime.RegistrationSubmission, error) {
@@ -375,12 +404,18 @@ func (registry *WorkerRegistry) ListPendingRegistrationSubmissions(ctx context.C
 		limit = 200
 	}
 	records := make([]workerRegistrationSubmissionRecord, 0)
-	if err := registry.db.WithContext(ctx).Where("status = ?", string(domainrealtime.RegistrationStatusPending)).Order("requested_at_unix ASC").Limit(limit).Find(&records).Error; err != nil {
+	if err := registry.db.WithContext(ctx).
+		Preload("Capabilities", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Preload("Reasons", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Where("status = ?", string(domainrealtime.RegistrationStatusPending)).
+		Order("requested_at_unix ASC").
+		Limit(limit).
+		Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("list pending registration submissions: %w", err)
 	}
 	result := make([]domainrealtime.RegistrationSubmission, 0, len(records))
 	for _, record := range records {
-		submission, err := registry.submissionToDomain(ctx, record)
+		submission, err := submissionRecordToDomain(record)
 		if err != nil {
 			return nil, err
 		}
@@ -401,6 +436,10 @@ func (registry *WorkerRegistry) ResolveRegistrationSubmission(ctx context.Contex
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("submission_id is required")
 	}
 	if err := registry.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		target := workerRegistrationSubmissionRecord{}
+		if err := tx.Where("submission_id = ?", trimmedSubmissionID).Take(&target).Error; err != nil {
+			return fmt.Errorf("load submission: %w", err)
+		}
 		if err := tx.Model(&workerRegistrationSubmissionRecord{}).Where("submission_id = ? AND status = ?", trimmedSubmissionID, string(domainrealtime.RegistrationStatusPending)).Updates(map[string]any{
 			"status":           string(status),
 			"resolved_at_unix": resolvedAt.UTC().Unix(),
@@ -408,13 +447,13 @@ func (registry *WorkerRegistry) ResolveRegistrationSubmission(ctx context.Contex
 		}).Error; err != nil {
 			return fmt.Errorf("resolve registration submission: %w", err)
 		}
-		if err := tx.Where("submission_id = ?", trimmedSubmissionID).Delete(&workerRegistrationSubmissionReasonRecord{}).Error; err != nil {
+		if err := tx.Where("worker_registration_submission_record_id = ?", target.Model.ID).Delete(&workerRegistrationSubmissionReasonRecord{}).Error; err != nil {
 			return fmt.Errorf("delete submission reasons: %w", err)
 		}
 		now := time.Now().UTC()
 		reasonRecords := make([]workerRegistrationSubmissionReasonRecord, 0, len(reasons))
 		for index, reason := range reasons {
-			reasonRecords = append(reasonRecords, workerRegistrationSubmissionReasonRecord{SubmissionID: trimmedSubmissionID, Position: index, Reason: strings.TrimSpace(reason), CreatedAt: now, UpdatedAt: now})
+			reasonRecords = append(reasonRecords, workerRegistrationSubmissionReasonRecord{WorkerRegistrationSubmissionRecordID: target.Model.ID, Position: index, Reason: strings.TrimSpace(reason), CreatedAt: now, UpdatedAt: now})
 		}
 		if len(reasonRecords) > 0 {
 			if err := tx.Create(&reasonRecords).Error; err != nil {
@@ -426,10 +465,14 @@ func (registry *WorkerRegistry) ResolveRegistrationSubmission(ctx context.Contex
 		return domainrealtime.RegistrationSubmission{}, err
 	}
 	record := workerRegistrationSubmissionRecord{}
-	if err := registry.db.WithContext(ctx).Where("submission_id = ?", trimmedSubmissionID).Take(&record).Error; err != nil {
+	if err := registry.db.WithContext(ctx).
+		Preload("Capabilities", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Preload("Reasons", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Where("submission_id = ?", trimmedSubmissionID).
+		Take(&record).Error; err != nil {
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load resolved registration submission: %w", err)
 	}
-	return registry.submissionToDomain(ctx, record)
+	return submissionRecordToDomain(record)
 }
 
 func (registry *WorkerRegistry) RevokeRegistrationSubmission(ctx context.Context, submissionID string, reason string, revokedAt time.Time) (domainrealtime.RegistrationSubmission, error) {
@@ -444,6 +487,10 @@ func (registry *WorkerRegistry) RevokeRegistrationSubmission(ctx context.Context
 		reason = "revoked"
 	}
 	if err := registry.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		target := workerRegistrationSubmissionRecord{}
+		if err := tx.Where("submission_id = ?", trimmedSubmissionID).Take(&target).Error; err != nil {
+			return fmt.Errorf("load submission: %w", err)
+		}
 		if err := tx.Model(&workerRegistrationSubmissionRecord{}).Where("submission_id = ? AND status = ?", trimmedSubmissionID, string(domainrealtime.RegistrationStatusPending)).Updates(map[string]any{
 			"status":           string(domainrealtime.RegistrationStatusRevoked),
 			"resolved_at_unix": revokedAt.UTC().Unix(),
@@ -451,11 +498,11 @@ func (registry *WorkerRegistry) RevokeRegistrationSubmission(ctx context.Context
 		}).Error; err != nil {
 			return fmt.Errorf("revoke registration submission: %w", err)
 		}
-		if err := tx.Where("submission_id = ?", trimmedSubmissionID).Delete(&workerRegistrationSubmissionReasonRecord{}).Error; err != nil {
+		if err := tx.Where("worker_registration_submission_record_id = ?", target.Model.ID).Delete(&workerRegistrationSubmissionReasonRecord{}).Error; err != nil {
 			return fmt.Errorf("delete submission reasons: %w", err)
 		}
 		now := time.Now().UTC()
-		reasonRecord := workerRegistrationSubmissionReasonRecord{SubmissionID: trimmedSubmissionID, Position: 0, Reason: strings.TrimSpace(reason), CreatedAt: now, UpdatedAt: now}
+		reasonRecord := workerRegistrationSubmissionReasonRecord{WorkerRegistrationSubmissionRecordID: target.Model.ID, Position: 0, Reason: strings.TrimSpace(reason), CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&reasonRecord).Error; err != nil {
 			return fmt.Errorf("insert revoked submission reason: %w", err)
 		}
@@ -464,10 +511,14 @@ func (registry *WorkerRegistry) RevokeRegistrationSubmission(ctx context.Context
 		return domainrealtime.RegistrationSubmission{}, err
 	}
 	record := workerRegistrationSubmissionRecord{}
-	if err := registry.db.WithContext(ctx).Where("submission_id = ?", trimmedSubmissionID).Take(&record).Error; err != nil {
+	if err := registry.db.WithContext(ctx).
+		Preload("Capabilities", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Preload("Reasons", func(db *gorm.DB) *gorm.DB { return db.Order("position asc") }).
+		Where("submission_id = ?", trimmedSubmissionID).
+		Take(&record).Error; err != nil {
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load revoked registration submission: %w", err)
 	}
-	return registry.submissionToDomain(ctx, record)
+	return submissionRecordToDomain(record)
 }
 
 func normalizeCapabilities(capabilities []taskengine.JobKind) ([]taskengine.JobKind, error) {
@@ -494,9 +545,9 @@ func normalizeCapabilities(capabilities []taskengine.JobKind) ([]taskengine.JobK
 	return result, nil
 }
 
-func (registry *WorkerRegistry) loadWorkerCapabilities(ctx context.Context, workerID string) ([]taskengine.JobKind, error) {
+func (registry *WorkerRegistry) loadWorkerCapabilities(ctx context.Context, workerRecordID uint) ([]taskengine.JobKind, error) {
 	capabilityRecords := make([]workerRegistryCapabilityRecord, 0)
-	if err := registry.db.WithContext(ctx).Where("worker_id = ?", workerID).Order("position asc").Find(&capabilityRecords).Error; err != nil {
+	if err := registry.db.WithContext(ctx).Where("worker_registry_record_id = ?", workerRecordID).Order("position asc").Find(&capabilityRecords).Error; err != nil {
 		return nil, fmt.Errorf("load worker capabilities: %w", err)
 	}
 	capabilities := make([]taskengine.JobKind, 0, len(capabilityRecords))
@@ -514,7 +565,10 @@ func (registry *WorkerRegistry) loadWorkerCapabilities(ctx context.Context, work
 }
 
 func (registry *WorkerRegistry) toDomain(ctx context.Context, record workerRegistryRecord) (*domainrealtime.Worker, error) {
-	capabilities, err := registry.loadWorkerCapabilities(ctx, strings.TrimSpace(record.WorkerID))
+	if len(record.Capabilities) > 0 {
+		return workerRecordToDomain(record)
+	}
+	capabilities, err := registry.loadWorkerCapabilities(ctx, record.Model.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -534,8 +588,11 @@ func (registry *WorkerRegistry) toDomain(ctx context.Context, record workerRegis
 }
 
 func (registry *WorkerRegistry) submissionToDomain(ctx context.Context, record workerRegistrationSubmissionRecord) (domainrealtime.RegistrationSubmission, error) {
+	if len(record.Capabilities) > 0 || len(record.Reasons) > 0 {
+		return submissionRecordToDomain(record)
+	}
 	capabilityRecords := make([]workerRegistrationSubmissionCapabilityRecord, 0)
-	if err := registry.db.WithContext(ctx).Where("submission_id = ?", strings.TrimSpace(record.SubmissionID)).Order("position asc").Find(&capabilityRecords).Error; err != nil {
+	if err := registry.db.WithContext(ctx).Where("worker_registration_submission_record_id = ?", record.Model.ID).Order("position asc").Find(&capabilityRecords).Error; err != nil {
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load submission capabilities: %w", err)
 	}
 	capabilities := make([]domainrealtime.Capability, 0, len(capabilityRecords))
@@ -543,11 +600,69 @@ func (registry *WorkerRegistry) submissionToDomain(ctx context.Context, record w
 		capabilities = append(capabilities, domainrealtime.Capability{Contract: domainrealtime.Contract(strings.TrimSpace(capabilityRecord.Contract)), Version: strings.TrimSpace(capabilityRecord.Version), SubContracts: csvToSubContracts(capabilityRecord.SubContractsCSV)})
 	}
 	reasonRecords := make([]workerRegistrationSubmissionReasonRecord, 0)
-	if err := registry.db.WithContext(ctx).Where("submission_id = ?", strings.TrimSpace(record.SubmissionID)).Order("position asc").Find(&reasonRecords).Error; err != nil {
+	if err := registry.db.WithContext(ctx).Where("worker_registration_submission_record_id = ?", record.Model.ID).Order("position asc").Find(&reasonRecords).Error; err != nil {
 		return domainrealtime.RegistrationSubmission{}, fmt.Errorf("load submission reasons: %w", err)
 	}
 	reasons := make([]string, 0)
 	for _, reasonRecord := range reasonRecords {
+		trimmed := strings.TrimSpace(reasonRecord.Reason)
+		if trimmed == "" {
+			continue
+		}
+		reasons = append(reasons, trimmed)
+	}
+	submission := domainrealtime.RegistrationSubmission{
+		SubmissionID:  strings.TrimSpace(record.SubmissionID),
+		WorkerID:      strings.TrimSpace(record.WorkerID),
+		RequestedAt:   time.Unix(record.RequestedAtUnix, 0).UTC(),
+		ExpiresAt:     time.Unix(record.ExpiresAtUnix, 0).UTC(),
+		Status:        domainrealtime.RegistrationStatus(strings.TrimSpace(record.Status)),
+		Capabilities:  capabilities,
+		RejectReasons: reasons,
+	}
+	if record.ResolvedAtUnix > 0 {
+		submission.ResolvedAt = time.Unix(record.ResolvedAtUnix, 0).UTC()
+	}
+	if err := submission.Validate(); err != nil {
+		return domainrealtime.RegistrationSubmission{}, err
+	}
+	return submission, nil
+}
+
+func workerRecordToDomain(record workerRegistryRecord) (*domainrealtime.Worker, error) {
+	capabilities := make([]taskengine.JobKind, 0, len(record.Capabilities))
+	for _, rec := range record.Capabilities {
+		trimmed := strings.TrimSpace(rec.CapabilityKind)
+		if trimmed == "" {
+			continue
+		}
+		capabilities = append(capabilities, taskengine.JobKind(trimmed))
+	}
+	if len(capabilities) == 0 {
+		return nil, fmt.Errorf("at least one capability is required")
+	}
+	worker := &domainrealtime.Worker{
+		WorkerID:       strings.TrimSpace(record.WorkerID),
+		Epoch:          record.Epoch,
+		State:          domainrealtime.State(strings.TrimSpace(record.State)),
+		Capabilities:   capabilities,
+		LastHeartbeat:  time.Unix(record.LastHeartbeatUnix, 0).UTC(),
+		LeaseExpiresAt: time.Unix(record.LeaseExpiresUnix, 0).UTC(),
+		UpdatedAt:      record.UpdatedAt.UTC(),
+	}
+	if err := worker.Validate(); err != nil {
+		return nil, err
+	}
+	return worker, nil
+}
+
+func submissionRecordToDomain(record workerRegistrationSubmissionRecord) (domainrealtime.RegistrationSubmission, error) {
+	capabilities := make([]domainrealtime.Capability, 0, len(record.Capabilities))
+	for _, capabilityRecord := range record.Capabilities {
+		capabilities = append(capabilities, domainrealtime.Capability{Contract: domainrealtime.Contract(strings.TrimSpace(capabilityRecord.Contract)), Version: strings.TrimSpace(capabilityRecord.Version), SubContracts: csvToSubContracts(capabilityRecord.SubContractsCSV)})
+	}
+	reasons := make([]string, 0, len(record.Reasons))
+	for _, reasonRecord := range record.Reasons {
 		trimmed := strings.TrimSpace(reasonRecord.Reason)
 		if trimmed == "" {
 			continue

@@ -218,7 +218,11 @@ func TestWorkerRegistryPersistsCapabilitiesRelationally(t *testing.T) {
 	}
 
 	capabilityRows := make([]workerRegistryCapabilityRecord, 0)
-	if err := db.Where("worker_id = ?", "worker-1").Order("position asc").Find(&capabilityRows).Error; err != nil {
+	workerRow := workerRegistryRecord{}
+	if err := db.Where("worker_id = ?", "worker-1").Take(&workerRow).Error; err != nil {
+		t.Fatalf("load worker row: %v", err)
+	}
+	if err := db.Where("worker_registry_record_id = ?", workerRow.Model.ID).Order("position asc").Find(&capabilityRows).Error; err != nil {
 		t.Fatalf("load worker capability rows: %v", err)
 	}
 	if len(capabilityRows) != 2 {
@@ -258,7 +262,11 @@ func TestWorkerRegistryPersistsSubmissionChildrenRelationally(t *testing.T) {
 	}
 
 	capabilityRows := make([]workerRegistrationSubmissionCapabilityRecord, 0)
-	if err := db.Where("submission_id = ?", submission.SubmissionID).Order("position asc").Find(&capabilityRows).Error; err != nil {
+	submissionRow := workerRegistrationSubmissionRecord{}
+	if err := db.Where("submission_id = ?", submission.SubmissionID).Take(&submissionRow).Error; err != nil {
+		t.Fatalf("load submission row: %v", err)
+	}
+	if err := db.Where("worker_registration_submission_record_id = ?", submissionRow.Model.ID).Order("position asc").Find(&capabilityRows).Error; err != nil {
 		t.Fatalf("load submission capability rows: %v", err)
 	}
 	if len(capabilityRows) != 1 {
@@ -274,7 +282,7 @@ func TestWorkerRegistryPersistsSubmissionChildrenRelationally(t *testing.T) {
 	}
 
 	reasonRows := make([]workerRegistrationSubmissionReasonRecord, 0)
-	if err := db.Where("submission_id = ?", submission.SubmissionID).Order("position asc").Find(&reasonRows).Error; err != nil {
+	if err := db.Where("worker_registration_submission_record_id = ?", submissionRow.Model.ID).Order("position asc").Find(&reasonRows).Error; err != nil {
 		t.Fatalf("load submission reason rows: %v", err)
 	}
 	if len(reasonRows) != 2 {

@@ -13,8 +13,11 @@ import (
 
 type projectSetupRecord struct {
 	gorm.Model
-	ProjectID   string `gorm:"column:project_id;size:255;not null;uniqueIndex"`
-	ProjectName string `gorm:"column:project_name;size:255;not null"`
+	ProjectID    string                      `gorm:"column:project_id;size:255;not null;uniqueIndex"`
+	ProjectName  string                      `gorm:"column:project_name;size:255;not null"`
+	SCMs         []projectSCMRecord          `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Repositories []projectRepositoryRecord   `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Boards       []trackerProjectBoardRecord `gorm:"foreignKey:ProjectID;references:ProjectID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 func (projectSetupRecord) TableName() string {
@@ -23,11 +26,12 @@ func (projectSetupRecord) TableName() string {
 
 type projectRepositoryRecord struct {
 	gorm.Model
-	ProjectID     string `gorm:"column:project_id;size:255;not null;index"`
-	RepositoryID  string `gorm:"column:repository_id;size:255;not null"`
-	SCMID         string `gorm:"column:scm_id;size:255;not null"`
-	RepositoryURL string `gorm:"column:repository_url;size:1024;not null"`
-	IsPrimary     bool   `gorm:"column:is_primary;not null;default:false"`
+	ProjectID     string             `gorm:"column:project_id;size:255;not null;index"`
+	RepositoryID  string             `gorm:"column:repository_id;size:255;not null"`
+	SCMID         string             `gorm:"column:scm_id;size:255;not null"`
+	RepositoryURL string             `gorm:"column:repository_url;size:1024;not null"`
+	IsPrimary     bool               `gorm:"column:is_primary;not null;default:false"`
+	Project       projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID"`
 }
 
 func (projectRepositoryRecord) TableName() string {
@@ -36,10 +40,11 @@ func (projectRepositoryRecord) TableName() string {
 
 type projectSCMRecord struct {
 	gorm.Model
-	ProjectID   string `gorm:"column:project_id;size:255;not null;index"`
-	SCMID       string `gorm:"column:scm_id;size:255;not null"`
-	SCMProvider string `gorm:"column:scm_provider;size:64;not null"`
-	SCMToken    string `gorm:"column:scm_token;size:512;not null"`
+	ProjectID   string             `gorm:"column:project_id;size:255;not null;index"`
+	SCMID       string             `gorm:"column:scm_id;size:255;not null"`
+	SCMProvider string             `gorm:"column:scm_provider;size:64;not null"`
+	SCMToken    string             `gorm:"column:scm_token;size:512;not null"`
+	Project     projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID"`
 }
 
 func (projectSCMRecord) TableName() string {
@@ -48,12 +53,13 @@ func (projectSCMRecord) TableName() string {
 
 type trackerProjectBoardRecord struct {
 	gorm.Model
-	ID        string    `gorm:"column:id;size:255;primaryKey"`
-	ProjectID string    `gorm:"column:project_id;size:255;not null;index"`
-	Name      string    `gorm:"column:name;not null"`
-	State     string    `gorm:"column:state;size:64;not null"`
-	CreatedAt time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
+	ID        string             `gorm:"column:id;size:255;primaryKey"`
+	ProjectID string             `gorm:"column:project_id;size:255;not null;index"`
+	Name      string             `gorm:"column:name;not null"`
+	State     string             `gorm:"column:state;size:64;not null"`
+	Project   projectSetupRecord `gorm:"foreignKey:ProjectID;references:ProjectID"`
+	CreatedAt time.Time          `gorm:"column:created_at;not null"`
+	UpdatedAt time.Time          `gorm:"column:updated_at;not null"`
 }
 
 func (trackerProjectBoardRecord) TableName() string {
@@ -295,21 +301,18 @@ func (repository *ProjectSetupRepository) DeleteProjectSetup(ctx context.Context
 }
 
 func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, projectRecord projectSetupRecord) (applicationcontrolplane.ProjectSetup, error) {
-	repositoryRecords := make([]projectRepositoryRecord, 0)
-	if err := repository.db.WithContext(ctx).Model(&projectRepositoryRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&repositoryRecords).Error; err != nil {
-		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project repositories: %w", err)
+	fullRecord := projectSetupRecord{}
+	if err := repository.db.WithContext(ctx).
+		Preload("SCMs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
+		Preload("Repositories", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
+		Preload("Boards", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
+		Where("project_id = ?", projectRecord.ProjectID).
+		Take(&fullRecord).Error; err != nil {
+		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project setup associations: %w", err)
 	}
-	scmRecords := make([]projectSCMRecord, 0)
-	if err := repository.db.WithContext(ctx).Model(&projectSCMRecord{}).Where("project_id = ?", projectRecord.ProjectID).Order("created_at ASC").Find(&scmRecords).Error; err != nil {
-		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project scms: %w", err)
-	}
-	boardRecords := make([]trackerProjectBoardRecord, 0)
-	boardQuery := repository.db.WithContext(ctx).Model(&trackerProjectBoardRecord{}).Where("project_id = ?", projectRecord.ProjectID)
-	if err := boardQuery.Order("created_at ASC").Find(&boardRecords).Error; err != nil {
-		return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("load project boards: %w", err)
-	}
-	scms := make([]applicationcontrolplane.ProjectSCM, 0, len(scmRecords))
-	for _, scmRecord := range scmRecords {
+
+	scms := make([]applicationcontrolplane.ProjectSCM, 0, len(fullRecord.SCMs))
+	for _, scmRecord := range fullRecord.SCMs {
 		decryptedToken, decryptErr := repository.scmTokenCrypto.Decrypt(ctx, strings.TrimSpace(scmRecord.SCMToken))
 		if decryptErr != nil {
 			return applicationcontrolplane.ProjectSetup{}, fmt.Errorf("decrypt scm token for scm_id %q: %w", strings.TrimSpace(scmRecord.SCMID), decryptErr)
@@ -320,8 +323,8 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 			SCMToken:    strings.TrimSpace(decryptedToken),
 		})
 	}
-	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(repositoryRecords))
-	for _, repositoryRecord := range repositoryRecords {
+	repositories := make([]applicationcontrolplane.ProjectRepository, 0, len(fullRecord.Repositories))
+	for _, repositoryRecord := range fullRecord.Repositories {
 		repositories = append(repositories, applicationcontrolplane.ProjectRepository{
 			RepositoryID:  strings.TrimSpace(repositoryRecord.RepositoryID),
 			SCMID:         strings.TrimSpace(repositoryRecord.SCMID),
@@ -329,8 +332,8 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 			IsPrimary:     repositoryRecord.IsPrimary,
 		})
 	}
-	boards := make([]applicationcontrolplane.ProjectBoard, 0, len(boardRecords))
-	for _, boardRecord := range boardRecords {
+	boards := make([]applicationcontrolplane.ProjectBoard, 0, len(fullRecord.Boards))
+	for _, boardRecord := range fullRecord.Boards {
 		boardID := strings.TrimSpace(boardRecord.ID)
 		if boardID == "" {
 			continue
@@ -348,13 +351,13 @@ func (repository *ProjectSetupRepository) loadProjectSetup(ctx context.Context, 
 		})
 	}
 	return applicationcontrolplane.ProjectSetup{
-		ProjectID:    projectRecord.ProjectID,
-		ProjectName:  projectRecord.ProjectName,
+		ProjectID:    fullRecord.ProjectID,
+		ProjectName:  fullRecord.ProjectName,
 		SCMs:         scms,
 		Repositories: repositories,
 		Boards:       boards,
-		CreatedAt:    projectRecord.CreatedAt.UTC(),
-		UpdatedAt:    projectRecord.UpdatedAt.UTC(),
+		CreatedAt:    fullRecord.CreatedAt.UTC(),
+		UpdatedAt:    fullRecord.UpdatedAt.UTC(),
 	}, nil
 }
 
